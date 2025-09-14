@@ -225,7 +225,7 @@ const Index = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div>
                 <div className="flex items-center space-x-2 mb-4">
-                  <Hammer className="h-6 w-6 text-primary" />
+                  <img src="/src/assets/tradestone-logo.png" alt="TradeStone Logo" className="h-8 w-auto" />
                   <span className="text-xl font-bold">TradeStone</span>
                 </div>
                 <p className="text-muted-foreground text-sm">
