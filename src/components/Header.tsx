@@ -1,20 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Search, Menu, User, Building2 } from "lucide-react";
 import { useState } from "react";
-
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+  return <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center">
-          <img 
-            src="/src/assets/tradestone-logo.png" 
-            alt="TradeStone Logo" 
-            className="h-10 w-auto"
-          />
+          <img src="/src/assets/tradestone-logo.png" alt="TradeStone Logo" className="h-10 w-auto" />
         </div>
 
         {/* Desktop Navigation */}
@@ -39,24 +32,18 @@ const Header = () => {
             <User className="h-4 w-4 mr-2" />
             Sign In
           </Button>
-          <Button size="sm" className="hero-gradient">
+          <Button size="sm" className="hero-gradient bg-orange-400 hover:bg-orange-300">
             Join as Pro
           </Button>
         </div>
 
         {/* Mobile Menu Button */}
-        <Button
-          variant="ghost" 
-          size="sm"
-          className="md:hidden"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-        >
+        <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
           <Menu className="h-5 w-5" />
         </Button>
 
         {/* Mobile Navigation */}
-        {isMenuOpen && (
-          <div className="absolute top-16 left-0 right-0 bg-background border-b md:hidden">
+        {isMenuOpen && <div className="absolute top-16 left-0 right-0 bg-background border-b md:hidden">
             <nav className="flex flex-col space-y-3 p-4">
               <a href="#directory" className="text-sm font-medium hover:text-primary transition-colors">
                 Find Contractors
@@ -80,11 +67,8 @@ const Header = () => {
                 </Button>
               </div>
             </nav>
-          </div>
-        )}
+          </div>}
       </div>
-    </header>
-  );
+    </header>;
 };
-
 export default Header;

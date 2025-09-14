@@ -54,7 +54,7 @@ const HeroSection = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input placeholder="Enter TS code (e.g. TS A7K9M2)" value={searchCode} onChange={e => setSearchCode(e.target.value)} className="pl-10 bg-white text-gray-900 border-0" />
                 </div>
-                <Button variant="secondary" size="lg">
+                <Button variant="secondary" size="lg" className="bg-orange-400 hover:bg-orange-300">
                   Search
                 </Button>
               </div>
@@ -62,10 +62,10 @@ const HeroSection = () => {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-              <Button size="lg" variant="secondary" className="shadow-hero">
+              <Button size="lg" variant="secondary" className="shadow-hero bg-orange-400 hover:bg-orange-300">
                 Join as Contractor
               </Button>
-              <Button size="lg" variant="outline" className="border-white text-inherit bg-inherit">
+              <Button size="lg" variant="outline" className="border-white text-inherit bg-orange-400 hover:bg-orange-300">
                 Find Contractors
               </Button>
             </div>
