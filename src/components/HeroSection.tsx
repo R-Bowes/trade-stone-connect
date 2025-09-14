@@ -25,7 +25,7 @@ const HeroSection = () => {
       backgroundImage: `url(${heroImage})`
     }} />
       
-      <div className="relative container mx-auto px-4 py-20 md:py-32">
+      <div className="relative container mx-auto px-4 py-20 md:py-32 bg-neutral-500">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Column - Content */}
           <div className="text-white">
@@ -76,7 +76,7 @@ const HeroSection = () => {
             {features.map((feature, index) => <div key={index} className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transition-bounce hover:bg-white/15">
                 <div className="flex items-start space-x-4">
                   <div className="bg-primary/20 rounded-lg p-3">
-                    <feature.icon className="h-6 w-6 text-white" />
+                    <feature.icon className="h-6 w-6 text-white bg-orange-300" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-2">
