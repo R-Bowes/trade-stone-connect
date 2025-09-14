@@ -76,7 +76,7 @@ const HeroSection = () => {
             {features.map((feature, index) => <div key={index} className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transition-bounce hover:bg-white/15">
                 <div className="flex items-start space-x-4">
                   <div className="bg-primary/20 rounded-lg p-3">
-                    <feature.icon className="h-6 w-6 text-white bg-orange-300" />
+                    <feature.icon className="h-6 w-6 text-white bg-transparent" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-2">
