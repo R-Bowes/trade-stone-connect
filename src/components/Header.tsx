@@ -9,11 +9,12 @@ const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <Building2 className="h-8 w-8 text-primary" />
-          <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            TradeStone
-          </span>
+        <div className="flex items-center">
+          <img 
+            src="/src/assets/tradestone-logo.png" 
+            alt="TradeStone Logo" 
+            className="h-10 w-auto"
+          />
         </div>
 
         {/* Desktop Navigation */}
