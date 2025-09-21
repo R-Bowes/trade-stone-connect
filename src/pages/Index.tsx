@@ -1,7 +1,7 @@
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import ContractorDirectory from "@/components/ContractorDirectory";
-import tradeStoneLogoCorrect from "@/assets/tradestone-logo-correct.png";
+import tradestoneLogo from "@/assets/tradestone-logo.png";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -226,8 +226,8 @@ const Index = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div>
                 <div className="flex items-center space-x-2 mb-4">
-                  <img 
-                    src={tradeStoneLogoCorrect} 
+                  <img
+                    src={tradestoneLogo}
                     alt="TradeStone logo" 
                     className="h-8 w-auto"
                   />
