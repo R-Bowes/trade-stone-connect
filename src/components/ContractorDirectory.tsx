@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Filter, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, SlidersHorizontal } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 
 const ContractorDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTrade, setSelectedTrade] = useState("");
+  const [selectedTrade, setSelectedTrade] = useState<string | undefined>(
+    undefined
+  );
   const [location, setLocation] = useState("");
 
   // Mock contractor data
@@ -55,8 +57,7 @@ const ContractorDirectory = () => {
   ];
 
   const trades = [
-    "All Trades",
-    "Plumbing", 
+    "Plumbing",
     "Electrical",
     "Roofing",
     "General Building",
@@ -66,6 +67,15 @@ const ContractorDirectory = () => {
     "Flooring",
     "Tiling"
   ];
+
+  const handleTradeChange = (value: string) => {
+    if (value === "all") {
+      setSelectedTrade(undefined);
+      return;
+    }
+
+    setSelectedTrade(value);
+  };
 
   return (
     <section id="directory" className="py-16 px-4">
@@ -95,11 +105,12 @@ const ContractorDirectory = () => {
             </div>
 
             {/* Trade Filter */}
-            <Select value={selectedTrade} onValueChange={setSelectedTrade}>
+            <Select value={selectedTrade} onValueChange={handleTradeChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select trade" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Trades</SelectItem>
                 {trades.map((trade) => (
                   <SelectItem key={trade} value={trade}>
                     {trade}
