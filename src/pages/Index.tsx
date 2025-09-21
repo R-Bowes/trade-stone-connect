@@ -87,14 +87,114 @@ const Index = () => {
     }
   ];
 
+  const contractHighlights = [
+    {
+      icon: FileText,
+      title: "AI-Assisted Contracts",
+      description: "Generate and review contracts with automated quality checks and suggested terms tailored to each project."
+    },
+    {
+      icon: MessageSquare,
+      title: "Collaborative Workflows",
+      description: "Track revisions, manage approvals, and keep every stakeholder aligned with clear communication threads."
+    },
+    {
+      icon: CheckCircle2,
+      title: "Compliance & Documentation",
+      description: "Store certificates, insurance, and regulatory documents with reminders so nothing slips through the cracks."
+    }
+  ];
+
+  const marketplaceHighlights = [
+    {
+      icon: ShoppingCart,
+      title: "Surplus Materials",
+      description: "Buy and sell excess stock with secure payments and transparent ratings for every transaction."
+    },
+    {
+      icon: MapPin,
+      title: "Local Discovery",
+      description: "Filter listings by location to source materials nearby and reduce delivery times and costs."
+    },
+    {
+      icon: TrendingUp,
+      title: "Pricing Insights",
+      description: "Track market trends and receive suggestions on optimal pricing based on demand in your area."
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main>
         <HeroSection />
-        
+
         <ContractorDirectory />
+
+        {/* Contracts Section */}
+        <section id="contracts" className="py-16 px-4 bg-card/30">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Manage <span className="text-primary">Contracts</span> with Confidence
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                From bid to signature, TradeStone keeps every agreement organised, transparent, and ready for action.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {contractHighlights.map((highlight, index) => (
+                <Card key={index} className="p-6 h-full flex flex-col">
+                  <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
+                    <highlight.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3">{highlight.title}</h3>
+                  <p className="text-muted-foreground flex-1">{highlight.description}</p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Marketplace Section */}
+        <section id="marketplace" className="py-16 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Explore the <span className="text-primary">Marketplace</span>
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                Discover materials, tools, and services posted by trusted professionals in the TradeStone community.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {marketplaceHighlights.map((highlight, index) => (
+                <Card key={index} className="p-6 h-full flex flex-col">
+                  <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
+                    <highlight.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3">{highlight.title}</h3>
+                  <p className="text-muted-foreground flex-1">{highlight.description}</p>
+                </Card>
+              ))}
+            </div>
+
+            <div className="mt-10 flex flex-col md:flex-row items-center justify-between gap-6 bg-muted/30 rounded-2xl p-8">
+              <div>
+                <h3 className="text-2xl font-semibold mb-3">Post Your Listing</h3>
+                <p className="text-muted-foreground">
+                  Showcase equipment, reclaimed materials, or specialised services. Listings are boosted to nearby buyers and contractors.
+                </p>
+              </div>
+              <Button size="lg" className="hero-gradient">
+                Open Marketplace
+              </Button>
+            </div>
+          </div>
+        </section>
 
         {/* Key Features Section */}
         <section className="py-16 px-4 bg-muted/30">
