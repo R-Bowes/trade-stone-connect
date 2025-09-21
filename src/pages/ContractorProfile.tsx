@@ -219,16 +219,12 @@ const ContractorProfile = () => {
                 {/* Contact Actions */}
                 <div className="flex flex-wrap gap-3">
                   <Button size="lg" className="hero-gradient">
-                    <Phone className="h-4 w-4 mr-2" />
-                    Call Now
-                  </Button>
-                  <Button size="lg" variant="outline">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Email Quote
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Send Message
                   </Button>
                   <Button size="lg" variant="outline">
                     <Calendar className="h-4 w-4 mr-2" />
-                    Book Consultation
+                    Request Quote
                   </Button>
                 </div>
               </div>
@@ -311,20 +307,20 @@ const ContractorProfile = () => {
               <TabsContent value="contact" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="p-6">
-                    <h3 className="text-xl font-semibold mb-4">Contact Information</h3>
+                    <h3 className="text-xl font-semibold mb-4">Get in Touch</h3>
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <Phone className="h-5 w-5 text-primary" />
+                        <MessageSquare className="h-5 w-5 text-primary" />
                         <div>
-                          <div className="font-medium">{contractor.phone}</div>
-                          <div className="text-sm text-muted-foreground">Primary phone</div>
+                          <div className="font-medium">Send Message</div>
+                          <div className="text-sm text-muted-foreground">Secure messaging via TradeStone</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Mail className="h-5 w-5 text-primary" />
+                        <Calendar className="h-5 w-5 text-primary" />
                         <div>
-                          <div className="font-medium">{contractor.email}</div>
-                          <div className="text-sm text-muted-foreground">Business email</div>
+                          <div className="font-medium">Request Quote</div>
+                          <div className="text-sm text-muted-foreground">Get detailed project estimates</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -334,6 +330,11 @@ const ContractorProfile = () => {
                           <div className="text-sm text-muted-foreground">Service area</div>
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        All communications are handled securely through TradeStone to protect both parties and maintain quality standards.
+                      </p>
                     </div>
                   </Card>
 
@@ -350,8 +351,8 @@ const ContractorProfile = () => {
                       </div>
                       <Separator />
                       <Button className="w-full hero-gradient">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Schedule Consultation
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Send Message
                       </Button>
                     </div>
                   </Card>
