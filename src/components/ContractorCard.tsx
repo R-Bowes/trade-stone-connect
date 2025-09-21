@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Star, MapPin, Phone, Wrench } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface ContractorCardProps {
   name: string;
@@ -26,6 +27,11 @@ const ContractorCard = ({
   image,
   distance
 }: ContractorCardProps) => {
+  const navigate = useNavigate();
+
+  const handleViewProfile = () => {
+    navigate(`/contractor/${code}`);
+  };
   return (
     <Card className="contractor-card">
       <div className="flex items-start space-x-4">
@@ -84,7 +90,7 @@ const ContractorCard = ({
 
           {/* Actions */}
           <div className="flex space-x-2">
-            <Button size="sm" className="flex-1">
+            <Button size="sm" className="flex-1" onClick={handleViewProfile}>
               View Profile
             </Button>
             <Button size="sm" variant="outline">
