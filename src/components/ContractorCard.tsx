@@ -1,8 +1,9 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, MapPin, Phone, Wrench } from "lucide-react";
+import { Star, MapPin, Heart, Wrench } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 interface ContractorCardProps {
   name: string;
@@ -28,6 +29,7 @@ const ContractorCard = ({
   distance
 }: ContractorCardProps) => {
   const navigate = useNavigate();
+  const [isLiked, setIsLiked] = useState(false);
 
   const handleViewProfile = () => {
     navigate(`/contractor/${code}`);
@@ -93,8 +95,12 @@ const ContractorCard = ({
             <Button size="sm" className="flex-1" onClick={handleViewProfile}>
               View Profile
             </Button>
-            <Button size="sm" variant="outline">
-              <Phone className="h-4 w-4" />
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setIsLiked(!isLiked)}
+            >
+              <Heart className={`h-4 w-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
             </Button>
           </div>
         </div>
