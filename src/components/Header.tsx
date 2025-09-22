@@ -27,6 +27,9 @@ const Header = () => {
           <a href="#marketplace" className="text-sm font-medium hover:text-primary transition-colors">
             Marketplace
           </a>
+          <a href="/business" className="text-sm font-medium hover:text-primary transition-colors">
+            Business
+          </a>
           <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
             How It Works
           </a>
@@ -59,6 +62,9 @@ const Header = () => {
               </a>
               <a href="#marketplace" className="text-sm font-medium hover:text-primary transition-colors">
                 Marketplace
+              </a>
+              <a href="/business" className="text-sm font-medium hover:text-primary transition-colors">
+                Business
               </a>
               <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
                 How It Works
