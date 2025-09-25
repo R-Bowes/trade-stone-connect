@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,12 +21,71 @@ import {
   Edit,
   Send,
   Archive,
-  Filter
+  Filter,
+  MessageCircle,
+  Star,
+  Mail
 } from "lucide-react";
 import Header from "@/components/Header";
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const { toast } = useToast();
+
+  // Load current user and quotes
+  useEffect(() => {
+    const loadUserAndQuotes = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      if (user) {
+        const { data: quotesData, error } = await supabase
+          .from('quotes')
+          .select('*')
+          .eq('contractor_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          console.error('Error loading quotes:', error);
+        } else {
+          setQuotes(quotesData || []);
+        }
+      }
+    };
+
+    loadUserAndQuotes();
+  }, []);
+
+  const updateQuoteStatus = async (quoteId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .update({ status: newStatus })
+        .eq('id', quoteId);
+
+      if (error) {
+        throw error;
+      }
+
+      setQuotes(prev => prev.map(quote => 
+        quote.id === quoteId ? { ...quote, status: newStatus } : quote
+      ));
+
+      toast({
+        title: "Quote Updated",
+        description: `Quote status updated to ${newStatus}`,
+      });
+    } catch (error) {
+      console.error('Error updating quote status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update quote status",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Mock data
   const dashboardStats = [
@@ -138,8 +199,9 @@ const BusinessManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="quotes">Quotes</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="clients">Clients</TabsTrigger>
@@ -236,6 +298,134 @@ const BusinessManagement = () => {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </TabsContent>
+
+          {/* Quotes Tab */}
+          <TabsContent value="quotes" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <div className="flex gap-2">
+                <Button variant="outline">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
+                      <p className="text-sm text-muted-foreground">Pending</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-yellow-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
+                      <p className="text-sm text-muted-foreground">Viewed</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Send className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
+                      <p className="text-sm text-muted-foreground">Responded</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.length}</p>
+                      <p className="text-sm text-muted-foreground">Total Quotes</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              {quotes.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Quote requests from potential customers will appear here.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Share your TradeStone profile link to start receiving quote requests!
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                quotes.map((quote) => (
+                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
+                            <Badge className={getStatusColor(quote.status)}>
+                              {quote.status}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span>From: {quote.customer_name}</span>
+                            <span>Email: {quote.customer_email}</span>
+                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
+                            {quote.project_location && <span>Location: {quote.project_location}</span>}
+                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
+                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Received: {new Date(quote.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 md:min-w-[140px]">
+                          {quote.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              onClick={() => updateQuoteStatus(quote.id, 'viewed')}
+                            >
+                              Mark as Viewed
+                            </Button>
+                          )}
+                          {quote.status === 'viewed' && (
+                            <Button 
+                              size="sm"
+                              onClick={() => updateQuoteStatus(quote.id, 'responded')}
+                            >
+                              Mark as Responded
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm">
+                            <Mail className="h-3 w-3 mr-1" />
+                            Contact
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 

@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
+import QuoteRequestDialog from "@/components/QuoteRequestDialog";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,12 +31,45 @@ const ContractorProfile = () => {
   const { code } = useParams();
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(false);
+  const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
+  const [contractorProfile, setContractorProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock contractor data - in real app would fetch by code
-  const contractor = {
-    name: "Mike Johnson",
-    company: "Johnson Plumbing Ltd",
-    code: "A7K9M2",
+  // Load contractor profile by TS code
+  useEffect(() => {
+    const loadContractorProfile = async () => {
+      if (!code) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('ts_profile_code', code)
+          .single();
+
+        if (error || !data) {
+          console.error('Contractor not found:', error);
+          setContractorProfile(null);
+        } else {
+          setContractorProfile(data);
+        }
+      } catch (error) {
+        console.error('Error loading contractor profile:', error);
+        setContractorProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadContractorProfile();
+  }, [code]);
+
+  // Mock contractor data - will be replaced by real data when profiles are populated
+  const contractor = contractorProfile || {
+    name: contractorProfile?.full_name || "Mike Johnson",
+    company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
+    code: code || "A7K9M2",
+    user_id: contractorProfile?.user_id || "mock-user-id",
     specialties: ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
@@ -222,7 +257,11 @@ const ContractorProfile = () => {
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Send Message
                   </Button>
-                  <Button size="lg" variant="outline">
+                  <Button 
+                    size="lg" 
+                    variant="outline"
+                    onClick={() => setIsQuoteDialogOpen(true)}
+                  >
                     <Calendar className="h-4 w-4 mr-2" />
                     Request Quote
                   </Button>
@@ -362,6 +401,14 @@ const ContractorProfile = () => {
           </div>
         </section>
       </main>
+
+      {/* Quote Request Dialog */}
+      <QuoteRequestDialog
+        isOpen={isQuoteDialogOpen}
+        onClose={() => setIsQuoteDialogOpen(false)}
+        contractorId={contractor.user_id}
+        contractorName={contractor.name}
+      />
     </div>
   );
 };
