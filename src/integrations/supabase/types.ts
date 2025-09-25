@@ -22,6 +22,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          ts_profile_code: string | null
           updated_at: string
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
@@ -33,6 +34,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          ts_profile_code?: string | null
           updated_at?: string
           user_id: string
           user_type?: Database["public"]["Enums"]["user_type"]
@@ -44,18 +46,119 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          ts_profile_code?: string | null
           updated_at?: string
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]
         }
         Relationships: []
       }
+      quote_form_templates: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          fields: Json
+          id: string
+          is_active: boolean
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          fields?: Json
+          id?: string
+          is_active?: boolean
+          template_name?: string
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          fields?: Json
+          id?: string
+          is_active?: boolean
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_form_templates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          additional_details: Json | null
+          budget_range: string | null
+          contractor_id: string
+          created_at: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string | null
+          id: string
+          project_description: string
+          project_location: string | null
+          project_title: string
+          status: string | null
+          timeline: string | null
+          updated_at: string
+        }
+        Insert: {
+          additional_details?: Json | null
+          budget_range?: string | null
+          contractor_id: string
+          created_at?: string
+          customer_email: string
+          customer_name: string
+          customer_phone?: string | null
+          id?: string
+          project_description: string
+          project_location?: string | null
+          project_title: string
+          status?: string | null
+          timeline?: string | null
+          updated_at?: string
+        }
+        Update: {
+          additional_details?: Json | null
+          budget_range?: string | null
+          contractor_id?: string
+          created_at?: string
+          customer_email?: string
+          customer_name?: string
+          customer_phone?: string | null
+          id?: string
+          project_description?: string
+          project_location?: string | null
+          project_title?: string
+          status?: string | null
+          timeline?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_ts_profile_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       user_type: "pro" | "standard"
