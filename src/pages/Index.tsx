@@ -354,7 +354,7 @@ const Index = () => {
                   <li><a href="#" className="hover:text-primary">Help Center</a></li>
                   <li><a href="#" className="hover:text-primary">Contact Us</a></li>
                   <li><a href="#" className="hover:text-primary">Safety</a></li>
-                  <li><a href="#" className="hover:text-primary">Terms</a></li>
+                  <li><a href="/terms" className="hover:text-primary">Terms</a></li>
                 </ul>
               </div>
 
@@ -364,7 +364,7 @@ const Index = () => {
                   <li><a href="#" className="hover:text-primary">About</a></li>
                   <li><a href="#" className="hover:text-primary">Careers</a></li>
                   <li><a href="#" className="hover:text-primary">Press</a></li>
-                  <li><a href="#" className="hover:text-primary">Privacy</a></li>
+                  <li><a href="/privacy" className="hover:text-primary">Privacy</a></li>
                 </ul>
               </div>
             </div>
