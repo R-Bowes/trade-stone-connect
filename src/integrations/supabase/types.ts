@@ -14,6 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      contractor_photos: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_featured: boolean
+          photo_url: string
+          project_name: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_featured?: boolean
+          photo_url: string
+          project_name?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_featured?: boolean
+          photo_url?: string
+          project_name?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_photos_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      contracts: {
+        Row: {
+          client_email: string
+          client_name: string
+          client_phone: string | null
+          contract_value: number
+          contractor_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          project_description: string
+          project_title: string
+          start_date: string
+          status: string
+          terms: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_email: string
+          client_name: string
+          client_phone?: string | null
+          contract_value: number
+          contractor_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          project_description: string
+          project_title: string
+          start_date: string
+          status?: string
+          terms?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_email?: string
+          client_name?: string
+          client_phone?: string | null
+          contract_value?: number
+          contractor_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          project_description?: string
+          project_title?: string
+          start_date?: string
+          status?: string
+          terms?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company_name: string | null
@@ -150,15 +256,113 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          email: string
+          full_name: string
+          hourly_rate: number | null
+          id: string
+          is_active: boolean
+          phone: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          email: string
+          full_name: string
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      timesheets: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          date: string
+          description: string | null
+          hours_worked: number
+          id: string
+          project_name: string
+          status: string
+          team_member_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          date: string
+          description?: string | null
+          hours_worked: number
+          id?: string
+          project_name: string
+          status?: string
+          team_member_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          hours_worked?: number
+          id?: string
+          project_name?: string
+          status?: string
+          team_member_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheets_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "timesheets_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      generate_ts_profile_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_ts_profile_code: { Args: never; Returns: string }
     }
     Enums: {
       user_type: "pro" | "standard"

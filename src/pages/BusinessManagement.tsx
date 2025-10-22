@@ -27,6 +27,11 @@ import {
   Mail
 } from "lucide-react";
 import Header from "@/components/Header";
+import { ProfileManagement } from "@/components/management/ProfileManagement";
+import { PhotoGallery } from "@/components/management/PhotoGallery";
+import { TeamManagement } from "@/components/management/TeamManagement";
+import { TimesheetManagement } from "@/components/management/TimesheetManagement";
+import { ContractManagement } from "@/components/management/ContractManagement";
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -199,7 +204,7 @@ const BusinessManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
@@ -207,6 +212,11 @@ const BusinessManagement = () => {
             <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="photos">Photos</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
+            <TabsTrigger value="contracts">Contracts</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -675,6 +685,31 @@ const BusinessManagement = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile">
+            <ProfileManagement />
+          </TabsContent>
+
+          {/* Photos Tab */}
+          <TabsContent value="photos">
+            <PhotoGallery />
+          </TabsContent>
+
+          {/* Team Tab */}
+          <TabsContent value="team">
+            <TeamManagement />
+          </TabsContent>
+
+          {/* Timesheets Tab */}
+          <TabsContent value="timesheets">
+            <TimesheetManagement />
+          </TabsContent>
+
+          {/* Contracts Tab */}
+          <TabsContent value="contracts">
+            <ContractManagement />
           </TabsContent>
         </Tabs>
       </main>
