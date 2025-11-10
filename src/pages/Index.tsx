@@ -170,7 +170,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
               {marketplaceHighlights.map((highlight, index) => (
                 <Card key={index} className="p-6 h-full flex flex-col">
                   <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
@@ -182,7 +182,89 @@ const Index = () => {
               ))}
             </div>
 
-            <div className="mt-10 flex flex-col md:flex-row items-center justify-between gap-6 bg-muted/30 rounded-2xl p-8">
+            {/* Marketplace Listings Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+              {[
+                {
+                  title: "Premium Oak Flooring",
+                  price: "£850",
+                  seller: "Johnson Building Supplies",
+                  location: "Central London",
+                  condition: "New",
+                  quantity: "45 sqm",
+                  image: "🪵"
+                },
+                {
+                  title: "Industrial Cement Mixer",
+                  price: "£450",
+                  seller: "Elite Equipment Rentals",
+                  location: "North London",
+                  condition: "Used - Excellent",
+                  quantity: "1 unit",
+                  image: "🏗️"
+                },
+                {
+                  title: "Reclaimed Victorian Bricks",
+                  price: "£320",
+                  seller: "Heritage Materials Ltd",
+                  location: "South London",
+                  condition: "Reclaimed",
+                  quantity: "500 bricks",
+                  image: "🧱"
+                },
+                {
+                  title: "Professional Tile Cutter",
+                  price: "£180",
+                  seller: "Wilson Tool Hire",
+                  location: "West London",
+                  condition: "Used - Good",
+                  quantity: "1 unit",
+                  image: "🔧"
+                },
+                {
+                  title: "Exterior White Paint",
+                  price: "£95",
+                  seller: "Paint & Decor Surplus",
+                  location: "East London",
+                  condition: "New",
+                  quantity: "25L",
+                  image: "🎨"
+                },
+                {
+                  title: "Steel I-Beams (6m)",
+                  price: "£1,200",
+                  seller: "Metro Steel & Iron",
+                  location: "Central London",
+                  condition: "New",
+                  quantity: "8 beams",
+                  image: "⚙️"
+                }
+              ].map((item, index) => (
+                <Card key={index} className="overflow-hidden hover:shadow-lg transition-tradestone">
+                  <div className="aspect-video bg-muted flex items-center justify-center text-6xl">
+                    {item.image}
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-lg">{item.title}</h3>
+                      <Badge variant="secondary">{item.condition}</Badge>
+                    </div>
+                    <p className="text-2xl font-bold text-primary mb-2">{item.price}</p>
+                    <p className="text-sm text-muted-foreground mb-1">{item.quantity}</p>
+                    <div className="flex items-center space-x-1 text-sm text-muted-foreground mb-3">
+                      <MapPin className="h-3 w-3" />
+                      <span>{item.location}</span>
+                    </div>
+                    <p className="text-sm font-medium mb-3">{item.seller}</p>
+                    <Button className="w-full" variant="outline" size="sm">
+                      View Details
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-muted/30 rounded-2xl p-8">
               <div>
                 <h3 className="text-2xl font-semibold mb-3">Post Your Listing</h3>
                 <p className="text-muted-foreground">
