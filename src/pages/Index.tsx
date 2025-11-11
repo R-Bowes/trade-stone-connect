@@ -266,13 +266,13 @@ const Index = () => {
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-muted/30 rounded-2xl p-8">
               <div>
-                <h3 className="text-2xl font-semibold mb-3">Post Your Listing</h3>
+                <h3 className="text-2xl font-semibold mb-3">Browse All Listings</h3>
                 <p className="text-muted-foreground">
-                  Showcase equipment, reclaimed materials, or specialised services. Listings are boosted to nearby buyers and contractors.
+                  Explore hundreds of materials, tools, and equipment available in your area
                 </p>
               </div>
-              <Button size="lg" className="hero-gradient">
-                Open Marketplace
+              <Button size="lg" className="hero-gradient" asChild>
+                <a href="/marketplace">View All Listings</a>
               </Button>
             </div>
           </div>
