@@ -105,23 +105,23 @@ const Header = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-6">
-          <a href="#directory" className="text-sm font-medium hover:text-primary transition-colors">
+          <Link to="/contractors" className="text-sm font-medium hover:text-primary transition-colors">
             Find Contractors
-          </a>
-          <a href="#contracts" className="text-sm font-medium hover:text-primary transition-colors">
+          </Link>
+          <Link to="/contracts" className="text-sm font-medium hover:text-primary transition-colors">
             Contracts
-          </a>
-          <a href="#marketplace" className="text-sm font-medium hover:text-primary transition-colors">
+          </Link>
+          <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors">
             Marketplace
-          </a>
+          </Link>
           {user && profile?.user_type === 'pro' && (
-            <a href="/business" className="text-sm font-medium hover:text-primary transition-colors">
+            <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors">
               Business
-            </a>
+            </Link>
           )}
-          <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
+          <Link to="/how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
             How It Works
-          </a>
+          </Link>
         </nav>
 
         {/* Desktop Actions */}
@@ -166,23 +166,23 @@ const Header = () => {
         {isMenuOpen && (
           <div className="absolute top-16 left-0 right-0 bg-background border-b md:hidden">
             <nav className="flex flex-col space-y-3 p-4">
-              <a href="#directory" className="text-sm font-medium hover:text-primary transition-colors">
+              <Link to="/contractors" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Find Contractors
-              </a>
-              <a href="#contracts" className="text-sm font-medium hover:text-primary transition-colors">
+              </Link>
+              <Link to="/contracts" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Contracts
-              </a>
-              <a href="#marketplace" className="text-sm font-medium hover:text-primary transition-colors">
+              </Link>
+              <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Marketplace
-              </a>
+              </Link>
               {user && profile?.user_type === 'pro' && (
-                <a href="/business" className="text-sm font-medium hover:text-primary transition-colors">
+                <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                   Business
-                </a>
+                </Link>
               )}
-              <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
+              <Link to="/how-it-works" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 How It Works
-              </a>
+              </Link>
               <div className="flex flex-col space-y-2 pt-3 border-t">
                 {user ? (
                   <>

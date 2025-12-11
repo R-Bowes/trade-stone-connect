@@ -1,125 +1,55 @@
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
-import ContractorDirectory from "@/components/ContractorDirectory";
 import tradestoneLogo from "@/assets/tradestone-logo.png";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   Hammer, 
   FileText, 
   CreditCard, 
   Users, 
-  Crown,
-  MessageSquare,
-  Bot,
-  MapPin,
   ShoppingCart,
-  TrendingUp,
-  Star,
-  CheckCircle2
+  Bot
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Index = () => {
-  const accountTypes = [
-    {
-      type: "Free Account",
-      subtitle: "Perfect for DIYers & Buyers",
-      price: "£0",
-      features: [
-        "Browse contractor directory",
-        "Buy and sell surplus materials",
-        "Basic AI construction advice",
-        "Access to community forums"
-      ],
-      icon: Users,
-      popular: false
-    },
-    {
-      type: "Pro Account",
-      subtitle: "For Professional Contractors",
-      price: "£29",
-      period: "/month",
-      features: [
-        "Everything in Free",
-        "Business management tools",
-        "Invoicing & payment system",
-        "Contract bidding access",
-        "Public company profile",
-        "AI business assistant",
-        "Priority customer support"
-      ],
-      icon: Crown,
-      popular: true
-    }
-  ];
-
   const keyFeatures = [
     {
       icon: Users,
       title: "Contractor Directory",
-      description: "Find verified tradespeople with ratings, portfolios, and unique TradeStone codes for easy discovery."
+      description: "Find verified tradespeople with ratings, portfolios, and unique TradeStone codes for easy discovery.",
+      link: "/contractors"
     },
     {
       icon: Hammer,
       title: "Business Management",
-      description: "Complete tools for invoicing, payment tracking, job management, and contract generation."
+      description: "Complete tools for invoicing, payment tracking, job management, and contract generation.",
+      link: "/business"
     },
     {
       icon: FileText,
       title: "Contract Opportunities",
-      description: "Access government and private sector contracts with AI-powered quality checking."
+      description: "Access government and private sector contracts with AI-powered quality checking.",
+      link: "/contracts"
     },
     {
       icon: CreditCard,
       title: "Secure Payments",
-      description: "Flexible escrow system with custom payment terms and automatic dispute resolution."
+      description: "Flexible escrow system with custom payment terms and automatic dispute resolution.",
+      link: "/how-it-works"
     },
     {
       icon: ShoppingCart,
       title: "Materials Marketplace",
-      description: "Buy and sell surplus trade materials with location-based filtering."
+      description: "Buy and sell surplus trade materials with location-based filtering.",
+      link: "/marketplace"
     },
     {
       icon: Bot,
       title: "AI Assistant",
-      description: "Get construction advice, contract reviews, and business optimization suggestions."
-    }
-  ];
-
-  const contractHighlights = [
-    {
-      icon: FileText,
-      title: "AI-Assisted Contracts",
-      description: "Generate and review contracts with automated quality checks and suggested terms tailored to each project."
-    },
-    {
-      icon: MessageSquare,
-      title: "Collaborative Workflows",
-      description: "Track revisions, manage approvals, and keep every stakeholder aligned with clear communication threads."
-    },
-    {
-      icon: CheckCircle2,
-      title: "Compliance & Documentation",
-      description: "Store certificates, insurance, and regulatory documents with reminders so nothing slips through the cracks."
-    }
-  ];
-
-  const marketplaceHighlights = [
-    {
-      icon: ShoppingCart,
-      title: "Surplus Materials",
-      description: "Buy and sell excess stock with secure payments and transparent ratings for every transaction."
-    },
-    {
-      icon: MapPin,
-      title: "Local Discovery",
-      description: "Filter listings by location to source materials nearby and reduce delivery times and costs."
-    },
-    {
-      icon: TrendingUp,
-      title: "Pricing Insights",
-      description: "Track market trends and receive suggestions on optimal pricing based on demand in your area."
+      description: "Get construction advice, contract reviews, and business optimization suggestions.",
+      link: "/how-it-works"
     }
   ];
 
@@ -129,154 +59,6 @@ const Index = () => {
 
       <main>
         <HeroSection />
-
-        <ContractorDirectory />
-
-        {/* Contracts Section */}
-        <section id="contracts" className="py-16 px-4 bg-card/30">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Manage <span className="text-primary">Contracts</span> with Confidence
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                From bid to signature, TradeStone keeps every agreement organised, transparent, and ready for action.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {contractHighlights.map((highlight, index) => (
-                <Card key={index} className="p-6 h-full flex flex-col">
-                  <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
-                    <highlight.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3">{highlight.title}</h3>
-                  <p className="text-muted-foreground flex-1">{highlight.description}</p>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Marketplace Section */}
-        <section id="marketplace" className="py-16 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Explore the <span className="text-primary">Marketplace</span>
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Discover materials, tools, and services posted by trusted professionals in the TradeStone community.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              {marketplaceHighlights.map((highlight, index) => (
-                <Card key={index} className="p-6 h-full flex flex-col">
-                  <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
-                    <highlight.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3">{highlight.title}</h3>
-                  <p className="text-muted-foreground flex-1">{highlight.description}</p>
-                </Card>
-              ))}
-            </div>
-
-            {/* Marketplace Listings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-              {[
-                {
-                  title: "Premium Oak Flooring",
-                  price: "£850",
-                  seller: "Johnson Building Supplies",
-                  location: "Central London",
-                  condition: "New",
-                  quantity: "45 sqm",
-                  image: "🪵"
-                },
-                {
-                  title: "Industrial Cement Mixer",
-                  price: "£450",
-                  seller: "Elite Equipment Rentals",
-                  location: "North London",
-                  condition: "Used - Excellent",
-                  quantity: "1 unit",
-                  image: "🏗️"
-                },
-                {
-                  title: "Reclaimed Victorian Bricks",
-                  price: "£320",
-                  seller: "Heritage Materials Ltd",
-                  location: "South London",
-                  condition: "Reclaimed",
-                  quantity: "500 bricks",
-                  image: "🧱"
-                },
-                {
-                  title: "Professional Tile Cutter",
-                  price: "£180",
-                  seller: "Wilson Tool Hire",
-                  location: "West London",
-                  condition: "Used - Good",
-                  quantity: "1 unit",
-                  image: "🔧"
-                },
-                {
-                  title: "Exterior White Paint",
-                  price: "£95",
-                  seller: "Paint & Decor Surplus",
-                  location: "East London",
-                  condition: "New",
-                  quantity: "25L",
-                  image: "🎨"
-                },
-                {
-                  title: "Steel I-Beams (6m)",
-                  price: "£1,200",
-                  seller: "Metro Steel & Iron",
-                  location: "Central London",
-                  condition: "New",
-                  quantity: "8 beams",
-                  image: "⚙️"
-                }
-              ].map((item, index) => (
-                <Card key={index} className="overflow-hidden hover:shadow-lg transition-tradestone">
-                  <div className="aspect-video bg-muted flex items-center justify-center text-6xl">
-                    {item.image}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-lg">{item.title}</h3>
-                      <Badge variant="secondary">{item.condition}</Badge>
-                    </div>
-                    <p className="text-2xl font-bold text-primary mb-2">{item.price}</p>
-                    <p className="text-sm text-muted-foreground mb-1">{item.quantity}</p>
-                    <div className="flex items-center space-x-1 text-sm text-muted-foreground mb-3">
-                      <MapPin className="h-3 w-3" />
-                      <span>{item.location}</span>
-                    </div>
-                    <p className="text-sm font-medium mb-3">{item.seller}</p>
-                    <Button className="w-full" variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-muted/30 rounded-2xl p-8">
-              <div>
-                <h3 className="text-2xl font-semibold mb-3">Browse All Listings</h3>
-                <p className="text-muted-foreground">
-                  Explore hundreds of materials, tools, and equipment available in your area
-                </p>
-              </div>
-              <Button size="lg" className="hero-gradient" asChild>
-                <a href="/marketplace">View All Listings</a>
-              </Button>
-            </div>
-          </div>
-        </section>
 
         {/* Key Features Section */}
         <section className="py-16 px-4 bg-muted/30">
@@ -292,112 +74,36 @@ const Index = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {keyFeatures.map((feature, index) => (
-                <Card key={index} className="p-6 hover:shadow-lg transition-tradestone">
-                  <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
-                    <feature.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                  <p className="text-muted-foreground">{feature.description}</p>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Account Types Section */}
-        <section id="pricing" className="py-16 px-4">
-          <div className="container mx-auto max-w-4xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Choose Your <span className="text-primary">Account Type</span>
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Whether you're a DIY enthusiast or professional contractor, we have the right plan for you.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {accountTypes.map((account, index) => (
-                <Card key={index} className={`p-8 relative ${account.popular ? 'border-primary shadow-lg' : ''}`}>
-                  {account.popular && (
-                    <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary">
-                      Most Popular
-                    </Badge>
-                  )}
-                  
-                  <div className="text-center mb-6">
-                    <account.icon className={`h-12 w-12 mx-auto mb-4 ${account.popular ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <h3 className="text-2xl font-bold mb-2">{account.type}</h3>
-                    <p className="text-muted-foreground mb-4">{account.subtitle}</p>
-                    <div className="flex items-baseline justify-center">
-                      <span className="text-4xl font-bold">{account.price}</span>
-                      {account.period && <span className="text-muted-foreground ml-1">{account.period}</span>}
+                <Link to={feature.link} key={index}>
+                  <Card className="p-6 hover:shadow-lg transition-tradestone h-full">
+                    <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
+                      <feature.icon className="h-6 w-6 text-primary" />
                     </div>
-                  </div>
-
-                  <ul className="space-y-3 mb-8">
-                    {account.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-start">
-                        <CheckCircle2 className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Button 
-                    className={`w-full ${account.popular ? 'hero-gradient' : ''}`}
-                    variant={account.popular ? 'default' : 'outline'}
-                  >
-                    {account.type === 'Free Account' ? 'Get Started Free' : 'Start Pro Trial'}
-                  </Button>
-                </Card>
+                    <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                    <p className="text-muted-foreground">{feature.description}</p>
+                  </Card>
+                </Link>
               ))}
             </div>
           </div>
         </section>
 
-        {/* How It Works Section */}
-        <section id="how-it-works" className="py-16 px-4 bg-muted/30">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                How <span className="text-primary">TradeStone</span> Works
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Getting started is simple. Whether you're looking for contractors or offering services, TradeStone streamlines the entire process.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="bg-primary/10 rounded-full p-6 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">1</span>
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Create Your Profile</h3>
-                <p className="text-muted-foreground">
-                  Sign up and create your contractor profile or customer account. Get your unique TradeStone code.
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="bg-primary/10 rounded-full p-6 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">2</span>
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Connect & Discover</h3>
-                <p className="text-muted-foreground">
-                  Find contractors by trade, location, or code. Browse contract opportunities and materials marketplace.
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="bg-primary/10 rounded-full p-6 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">3</span>
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Work & Get Paid</h3>
-                <p className="text-muted-foreground">
-                  Manage projects, communicate securely, and receive payments through our protected escrow system.
-                </p>
-              </div>
+        {/* CTA Section */}
+        <section className="py-16 px-4">
+          <div className="container mx-auto max-w-4xl text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Ready to Get Started?
+            </h2>
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Join thousands of contractors and customers who trust TradeStone for their construction needs.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" className="hero-gradient" asChild>
+                <Link to="/how-it-works">Learn How It Works</Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link to="/contractors">Find Contractors</Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -423,30 +129,28 @@ const Index = () => {
               <div>
                 <h4 className="font-semibold mb-4">Platform</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary">Find Contractors</a></li>
-                  <li><a href="#" className="hover:text-primary">Contracts</a></li>
-                  <li><a href="#" className="hover:text-primary">Marketplace</a></li>
-                  <li><a href="#" className="hover:text-primary">AI Assistant</a></li>
+                  <li><Link to="/contractors" className="hover:text-primary">Find Contractors</Link></li>
+                  <li><Link to="/contracts" className="hover:text-primary">Contracts</Link></li>
+                  <li><Link to="/marketplace" className="hover:text-primary">Marketplace</Link></li>
+                  <li><Link to="/how-it-works" className="hover:text-primary">How It Works</Link></li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold mb-4">Support</h4>
+                <h4 className="font-semibold mb-4">For Contractors</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary">Help Center</a></li>
-                  <li><a href="#" className="hover:text-primary">Contact Us</a></li>
-                  <li><a href="#" className="hover:text-primary">Safety</a></li>
-                  <li><a href="/terms" className="hover:text-primary">Terms</a></li>
+                  <li><Link to="/auth" className="hover:text-primary">Join as Pro</Link></li>
+                  <li><Link to="/business" className="hover:text-primary">Business Dashboard</Link></li>
+                  <li><Link to="/contracts" className="hover:text-primary">Contract Opportunities</Link></li>
+                  <li><Link to="/marketplace" className="hover:text-primary">List Materials</Link></li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold mb-4">Company</h4>
+                <h4 className="font-semibold mb-4">Legal</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary">About</a></li>
-                  <li><a href="#" className="hover:text-primary">Careers</a></li>
-                  <li><a href="#" className="hover:text-primary">Press</a></li>
-                  <li><a href="/privacy" className="hover:text-primary">Privacy</a></li>
+                  <li><Link to="/terms" className="hover:text-primary">Terms of Service</Link></li>
+                  <li><Link to="/privacy" className="hover:text-primary">Privacy Policy</Link></li>
                 </ul>
               </div>
             </div>
