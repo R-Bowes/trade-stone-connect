@@ -2,14 +2,14 @@ import MarketplaceLayout from "@/components/marketplace/MarketplaceLayout";
 import MarketplaceListings from "@/components/marketplace/MarketplaceListings";
 import { getItemsByCategory } from "@/data/marketplaceData";
 
-const Marketplace = () => {
-  const items = getItemsByCategory();
+const MarketplaceMaterials = () => {
+  const items = getItemsByCategory("materials");
 
   return (
     <MarketplaceLayout>
-      <MarketplaceListings items={items} categoryName="All Listings" />
+      <MarketplaceListings items={items} categoryName="Materials" />
     </MarketplaceLayout>
   );
 };
 
-export default Marketplace;
+export default MarketplaceMaterials;

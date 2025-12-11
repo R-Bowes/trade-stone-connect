@@ -7,6 +7,10 @@ import Index from "./pages/Index";
 import ContractorProfile from "./pages/ContractorProfile";
 import BusinessManagement from "./pages/BusinessManagement";
 import Marketplace from "./pages/Marketplace";
+import MarketplaceMaterials from "./pages/MarketplaceMaterials";
+import MarketplaceEquipment from "./pages/MarketplaceEquipment";
+import MarketplaceTools from "./pages/MarketplaceTools";
+import MarketplaceItem from "./pages/MarketplaceItem";
 import Auth from "./pages/Auth";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
@@ -25,6 +29,10 @@ const App = () => (
           <Route path="/contractor/:code" element={<ContractorProfile />} />
           <Route path="/business" element={<BusinessManagement />} />
           <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/marketplace/materials" element={<MarketplaceMaterials />} />
+          <Route path="/marketplace/equipment" element={<MarketplaceEquipment />} />
+          <Route path="/marketplace/tools" element={<MarketplaceTools />} />
+          <Route path="/marketplace/item/:id" element={<MarketplaceItem />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
