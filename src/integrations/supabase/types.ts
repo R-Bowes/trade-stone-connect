@@ -120,6 +120,54 @@ export type Database = {
           },
         ]
       }
+      marketplace_listings: {
+        Row: {
+          category: string
+          condition: string
+          created_at: string
+          description: string
+          id: string
+          images: string[] | null
+          is_active: boolean
+          location: string
+          price: number
+          quantity: string
+          seller_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          condition: string
+          created_at?: string
+          description: string
+          id?: string
+          images?: string[] | null
+          is_active?: boolean
+          location: string
+          price: number
+          quantity: string
+          seller_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          condition?: string
+          created_at?: string
+          description?: string
+          id?: string
+          images?: string[] | null
+          is_active?: boolean
+          location?: string
+          price?: number
+          quantity?: string
+          seller_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
