@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { 
-  ArrowLeft, 
+import {
+  ArrowLeft,
   Star, 
   MapPin, 
   Phone, 
@@ -26,13 +26,16 @@ import {
   Camera,
   ThumbsUp
 } from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
+
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 const ContractorProfile = () => {
   const { code } = useParams();
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(false);
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
-  const [contractorProfile, setContractorProfile] = useState<any>(null);
+  const [contractorProfile, setContractorProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Load contractor profile by TS code

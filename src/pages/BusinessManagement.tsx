@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { 
-  DollarSign, 
-  Users, 
+import {
+  DollarSign,
+  Users,
   FileText, 
   Calendar, 
   TrendingUp, 
@@ -26,30 +26,35 @@ import {
   Star,
   Mail
 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
+import type { Database } from "@/integrations/supabase/types";
+
+type Quote = Database["public"]["Tables"]["quotes"]["Row"];
+type QuoteStatus = NonNullable<Quote["status"]>;
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [user, setUser] = useState<any>(null);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   // Load current user and quotes
   useEffect(() => {
     const loadUserAndQuotes = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      
-      if (user) {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setUser(currentUser);
+
+      if (currentUser) {
         const { data: quotesData, error } = await supabase
           .from('quotes')
           .select('*')
-          .eq('contractor_id', user.id)
+          .eq('contractor_id', currentUser.id)
           .order('created_at', { ascending: false });
           
         if (error) {
@@ -63,7 +68,7 @@ const BusinessManagement = () => {
     loadUserAndQuotes();
   }, []);
 
-  const updateQuoteStatus = async (quoteId: string, newStatus: string) => {
+  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
     try {
       const { error } = await supabase
         .from('quotes')
@@ -181,7 +186,7 @@ const BusinessManagement = () => {
     }
   ];
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Quote["status"]) => {
     switch (status) {
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
