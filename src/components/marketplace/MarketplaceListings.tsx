@@ -2,20 +2,22 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import MarketplaceItemCard from "./MarketplaceItemCard";
-import { MarketplaceItem } from "@/data/marketplaceData";
+import { useMarketplaceListings, MarketplaceListing } from "@/hooks/useMarketplaceListings";
 
 interface MarketplaceListingsProps {
-  items: MarketplaceItem[];
+  category?: string;
   categoryName: string;
 }
 
-const MarketplaceListings = ({ items, categoryName }: MarketplaceListingsProps) => {
+const MarketplaceListings = ({ category, categoryName }: MarketplaceListingsProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCondition, setSelectedCondition] = useState("all");
 
-  const filteredItems = items.filter(item => {
+  const { data: listings, isLoading } = useMarketplaceListings(category);
+
+  const filteredItems = (listings || []).filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCondition = selectedCondition === "all" || item.condition === selectedCondition;
@@ -61,13 +63,19 @@ const MarketplaceListings = ({ items, categoryName }: MarketplaceListingsProps) 
       </div>
 
       {/* Listings Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map((item) => (
-          <MarketplaceItemCard key={item.id} item={item} />
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredItems.map((item) => (
+            <MarketplaceItemCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
 
-      {filteredItems.length === 0 && (
+      {!isLoading && filteredItems.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">No listings found matching your criteria</p>
         </div>
