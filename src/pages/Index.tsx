@@ -30,7 +30,7 @@ const Index = () => {
     {
       icon: FileText,
       title: "Contract Opportunities",
-      description: "Access government and private sector contracts with AI-powered quality checking.",
+      description: "Access government and private sector contracts with AI-powered (TBC) quality checking.",
       link: "/contracts"
     },
     {
@@ -47,8 +47,8 @@ const Index = () => {
     },
     {
       icon: Bot,
-      title: "AI Assistant",
-      description: "Get construction advice, contract reviews, and business optimization suggestions.",
+      title: "AI Assistant (TBC)",
+      description: "Get construction advice, contract reviews, and business optimization suggestions (TBC).",
       link: "/how-it-works"
     }
   ];

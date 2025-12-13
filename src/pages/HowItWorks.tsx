@@ -33,7 +33,7 @@ const HowItWorks = () => {
       number: "3",
       icon: Handshake,
       title: "Agree & Contract",
-      description: "Use our AI-assisted contracts to create clear agreements with milestone-based payments."
+      description: "Use our AI-assisted (TBC) contracts to create clear agreements with milestone-based payments."
     },
     {
       number: "4",
@@ -57,7 +57,7 @@ const HowItWorks = () => {
       features: [
         "Browse contractor directory",
         "Buy and sell surplus materials",
-        "Basic AI construction advice",
+        "Basic AI (TBC) construction advice",
         "Access to community forums"
       ],
       icon: Users,
@@ -74,7 +74,7 @@ const HowItWorks = () => {
         "Invoicing & payment system",
         "Contract bidding access",
         "Public company profile",
-        "AI business assistant",
+        "AI (TBC) business assistant",
         "Priority customer support"
       ],
       icon: Crown,
