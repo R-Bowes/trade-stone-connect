@@ -15,8 +15,8 @@ const HeroSection = () => {
     description: "Protected escrow system with flexible payment terms"
   }, {
     icon: Zap,
-    title: "AI-Powered",
-    description: "Smart matching and instant construction advice"
+    title: "AI-Powered (TBC)",
+    description: "Smart matching and instant construction advice (TBC)"
   }];
   return <section className="relative overflow-hidden">
       {/* Background */}

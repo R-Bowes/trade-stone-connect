@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -27,6 +28,29 @@ interface QuoteField {
   options?: string[];
 }
 
+type QuoteFormValues = Record<string, string> & {
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string;
+};
+
+type QuoteInsert = Database["public"]["Tables"]["quotes"]["Insert"];
+
+const isQuoteField = (field: unknown): field is QuoteField =>
+  typeof field === 'object' && field !== null &&
+  'name' in field && typeof (field as { name: unknown }).name === 'string' &&
+  'label' in field && typeof (field as { label: unknown }).label === 'string' &&
+  'type' in field && typeof (field as { type: unknown }).type === 'string' &&
+  'required' in field && typeof (field as { required: unknown }).required === 'boolean';
+
+const FALLBACK_FORM_FIELDS: QuoteField[] = [
+  { name: "project_title", label: "Project Title", type: "text", required: true },
+  { name: "project_description", label: "Project Description", type: "textarea", required: true },
+  { name: "project_location", label: "Project Location", type: "text", required: false },
+  { name: "budget_range", label: "Budget Range", type: "select", options: ["Under £1,000", "£1,000-£5,000", "£5,000-£10,000", "£10,000-£25,000", "£25,000+"], required: false },
+  { name: "timeline", label: "Preferred Timeline", type: "select", options: ["ASAP", "Within 1 month", "1-3 months", "3-6 months", "6+ months"], required: false }
+];
+
 interface QuoteRequestDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,7 +66,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
 
   // Create dynamic schema based on form fields
   const createSchema = (fields: QuoteField[]) => {
-    const schemaFields: Record<string, any> = {
+    const schemaFields: Record<string, z.ZodTypeAny> = {
       customer_name: z.string().min(2, "Name must be at least 2 characters"),
       customer_email: z.string().email("Please enter a valid email address"),
       customer_phone: z.string().optional(),
@@ -59,7 +83,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
     return z.object(schemaFields);
   };
 
-  const form = useForm({
+  const form = useForm<QuoteFormValues>({
     resolver: zodResolver(createSchema(formFields)),
     defaultValues: {
       customer_name: "",
@@ -84,27 +108,21 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
 
         if (error) {
           console.error('Error loading quote form template:', error);
-          // Use default fields if no template found
-          setFormFields([
-            { name: "project_title", label: "Project Title", type: "text", required: true },
-            { name: "project_description", label: "Project Description", type: "textarea", required: true },
-            { name: "project_location", label: "Project Location", type: "text", required: false },
-            { name: "budget_range", label: "Budget Range", type: "select", options: ["Under £1,000", "£1,000-£5,000", "£5,000-£10,000", "£10,000-£25,000", "£25,000+"], required: false },
-            { name: "timeline", label: "Preferred Timeline", type: "select", options: ["ASAP", "Within 1 month", "1-3 months", "3-6 months", "6+ months"], required: false }
-          ]);
+          setFormFields(FALLBACK_FORM_FIELDS);
+        } else if (Array.isArray(data?.fields)) {
+          const parsedFields = data.fields
+            .filter(isQuoteField)
+            .map((field) => ({
+              name: field.name,
+              label: field.label,
+              type: field.type,
+              required: field.required,
+              options: field.options,
+            }));
+
+          setFormFields(parsedFields.length ? parsedFields : FALLBACK_FORM_FIELDS);
         } else {
-          const fields = data.fields;
-          if (Array.isArray(fields)) {
-            setFormFields(fields.map(field => ({
-              name: (field as any).name || '',
-              label: (field as any).label || '',
-              type: (field as any).type || 'text',
-              required: (field as any).required || false,
-              options: (field as any).options
-            })));
-          } else {
-            setFormFields([]);
-          }
+          setFormFields(FALLBACK_FORM_FIELDS);
         }
       } catch (error) {
         console.error('Error loading quote form template:', error);
@@ -118,7 +136,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
 
   // Reset form when fields change
   useEffect(() => {
-    const defaultValues: Record<string, any> = {
+    const defaultValues: QuoteFormValues = {
       customer_name: "",
       customer_email: "",
       customer_phone: "",
@@ -131,37 +149,52 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
     form.reset(defaultValues);
   }, [formFields, form]);
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: QuoteFormValues) => {
     setIsSubmitting(true);
     try {
       // Prepare the quote data
-      const quoteData: any = {
+      const quoteData: QuoteInsert = {
         contractor_id: contractorId,
         customer_name: data.customer_name,
         customer_email: data.customer_email,
         customer_phone: data.customer_phone || null,
+        project_title: data.project_title ?? "",
+        project_description: data.project_description ?? "",
+        project_location: data.project_location || null,
+        budget_range: data.budget_range || null,
+        timeline: data.timeline || null,
+        status: 'pending',
+        additional_details: null,
       };
+
+      let additionalDetails: Record<string, string> | null = null;
 
       // Map form fields to quote data
       formFields.forEach(field => {
+        const fieldValue = data[field.name];
+
         if (field.name === 'project_title') {
-          quoteData.project_title = data[field.name];
+          quoteData.project_title = fieldValue;
         } else if (field.name === 'project_description') {
-          quoteData.project_description = data[field.name];
+          quoteData.project_description = fieldValue;
         } else if (field.name === 'project_location') {
-          quoteData.project_location = data[field.name];
+          quoteData.project_location = fieldValue;
         } else if (field.name === 'budget_range') {
-          quoteData.budget_range = data[field.name];
+          quoteData.budget_range = fieldValue;
         } else if (field.name === 'timeline') {
-          quoteData.timeline = data[field.name];
+          quoteData.timeline = fieldValue;
         } else {
           // Store additional fields in additional_details JSON
-          if (!quoteData.additional_details) {
-            quoteData.additional_details = {};
+          if (fieldValue) {
+            additionalDetails = {
+              ...(additionalDetails || {}),
+              [field.name]: fieldValue,
+            };
           }
-          quoteData.additional_details[field.name] = data[field.name];
         }
       });
+
+      quoteData.additional_details = additionalDetails;
 
       // Insert the quote
       const { error: insertError } = await supabase
