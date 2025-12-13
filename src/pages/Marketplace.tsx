@@ -1,13 +1,10 @@
 import MarketplaceLayout from "@/components/marketplace/MarketplaceLayout";
 import MarketplaceListings from "@/components/marketplace/MarketplaceListings";
-import { getItemsByCategory } from "@/data/marketplaceData";
 
 const Marketplace = () => {
-  const items = getItemsByCategory();
-
   return (
     <MarketplaceLayout>
-      <MarketplaceListings items={items} categoryName="All Listings" />
+      <MarketplaceListings categoryName="All Listings" />
     </MarketplaceLayout>
   );
 };

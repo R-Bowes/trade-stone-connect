@@ -14,10 +14,6 @@ export interface MarketplaceListing {
   images: string[];
   is_active: boolean;
   created_at: string;
-  seller?: {
-    full_name: string | null;
-    company_name: string | null;
-  };
 }
 
 export const useMarketplaceListings = (category?: string) => {
@@ -26,10 +22,7 @@ export const useMarketplaceListings = (category?: string) => {
     queryFn: async () => {
       let query = supabase
         .from("marketplace_listings")
-        .select(`
-          *,
-          seller:profiles!seller_id(full_name, company_name)
-        `)
+        .select("*")
         .eq("is_active", true)
         .order("created_at", { ascending: false });
 
@@ -51,15 +44,22 @@ export const useMarketplaceListing = (id: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketplace_listings")
-        .select(`
-          *,
-          seller:profiles!seller_id(full_name, company_name, email)
-        `)
+        .select("*")
         .eq("id", id)
         .maybeSingle();
 
       if (error) throw error;
-      return data as MarketplaceListing & { seller: { email: string | null } } | null;
+      
+      if (!data) return null;
+      
+      // Fetch seller info separately
+      const { data: seller } = await supabase
+        .from("profiles")
+        .select("full_name, company_name, email")
+        .eq("user_id", data.seller_id)
+        .maybeSingle();
+      
+      return { ...data, seller } as MarketplaceListing & { seller: { full_name: string | null; company_name: string | null; email: string | null } | null };
     },
     enabled: !!id,
   });

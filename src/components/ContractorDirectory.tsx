@@ -2,59 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, SlidersHorizontal, Loader2 } from "lucide-react";
 import ContractorCard from "./ContractorCard";
+import { useContractors } from "@/hooks/useContractors";
 
 const ContractorDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTrade, setSelectedTrade] = useState<string | undefined>(
-    undefined
-  );
+  const [selectedTrade, setSelectedTrade] = useState<string | undefined>(undefined);
   const [location, setLocation] = useState("");
 
-  // Mock contractor data
-  const contractors = [
-    {
-      name: "Mike Johnson",
-      company: "Johnson Plumbing Ltd",
-      code: "A7K9M2",
-      specialties: ["Plumbing", "Heating", "Boiler Repair"],
-      rating: 4.8,
-      reviewCount: 127,
-      location: "Central London",
-      distance: "2.3 miles"
-    },
-    {
-      name: "Sarah Chen",
-      company: "Elite Electrical Services",
-      code: "B8N4P6",
-      specialties: ["Electrical", "Smart Home", "Solar Panels"],
-      rating: 4.9,
-      reviewCount: 89,
-      location: "North London", 
-      distance: "4.1 miles"
-    },
-    {
-      name: "David Wilson",
-      company: "Wilson Roofing Co",
-      code: "C5R7T1",
-      specialties: ["Roofing", "Gutters", "Chimney Repair", "Tiles", "Slates"],
-      rating: 4.7,
-      reviewCount: 203,
-      location: "South London",
-      distance: "6.8 miles"
-    },
-    {
-      name: "Emma Rodriguez",
-      company: "Rodriguez General Works",
-      code: "D9F3H8",
-      specialties: ["General Building", "Extensions", "Renovations"],
-      rating: 4.6,
-      reviewCount: 156,
-      location: "West London",
-      distance: "8.2 miles"
-    }
-  ];
+  const { data: contractors, isLoading } = useContractors(searchTerm, selectedTrade, location);
 
   const trades = [
     "Agricultural Technician",
@@ -114,7 +71,6 @@ const ContractorDirectory = () => {
       setSelectedTrade(undefined);
       return;
     }
-
     setSelectedTrade(value);
   };
 
@@ -179,27 +135,45 @@ const ContractorDirectory = () => {
               Advanced Filters
             </Button>
             <div className="text-sm text-muted-foreground">
-              {contractors.length} contractors found
+              {contractors?.length || 0} contractors found
             </div>
           </div>
         </div>
 
         {/* Results Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {contractors.map((contractor, index) => (
-            <ContractorCard
-              key={index}
-              {...contractor}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : contractors && contractors.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {contractors.map((contractor) => (
+              <ContractorCard
+                key={contractor.id}
+                name={contractor.full_name || "Unknown"}
+                company={contractor.company_name || "Independent Contractor"}
+                code={contractor.ts_profile_code || ""}
+                specialties={[]}
+                rating={0}
+                reviewCount={0}
+                location=""
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No contractors found. Be the first to register as a Pro!</p>
+          </div>
+        )}
 
         {/* Load More */}
-        <div className="text-center mt-12">
-          <Button variant="outline" size="lg">
-            Load More Contractors
-          </Button>
-        </div>
+        {contractors && contractors.length > 0 && (
+          <div className="text-center mt-12">
+            <Button variant="outline" size="lg">
+              Load More Contractors
+            </Button>
+          </div>
+        )}
       </div>
     </section>
   );
