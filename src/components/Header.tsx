@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Search, Menu, User, Building2, LogOut } from "lucide-react";
+import { Menu, User as UserIcon, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import type { User } from "@supabase/supabase-js";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import tradestoneLogo from "@/assets/tradestone-logo.png";
@@ -15,7 +15,7 @@ interface UserProfile {
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -130,7 +130,7 @@ const Header = () => {
           {user ? (
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
+                <UserIcon className="h-4 w-4" />
                 <span className="text-sm">
                   {profile?.full_name || user.email}
                   {profile?.user_type === 'pro' && (
@@ -148,7 +148,7 @@ const Header = () => {
           ) : (
             <>
               <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-                <User className="h-4 w-4 mr-2" />
+                <UserIcon className="h-4 w-4 mr-2" />
                 Sign In
               </Button>
               <Button size="sm" className="hero-gradient bg-orange-400 hover:bg-orange-300" onClick={() => navigate("/auth")}>
@@ -203,7 +203,7 @@ const Header = () => {
                 ) : (
                   <>
                     <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-                      <User className="h-4 w-4 mr-2" />
+                      <UserIcon className="h-4 w-4 mr-2" />
                       Sign In
                     </Button>
                     <Button size="sm" className="hero-gradient" onClick={() => navigate("/auth")}>

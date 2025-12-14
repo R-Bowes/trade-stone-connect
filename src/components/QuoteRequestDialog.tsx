@@ -110,15 +110,18 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
           console.error('Error loading quote form template:', error);
           setFormFields(FALLBACK_FORM_FIELDS);
         } else if (Array.isArray(data?.fields)) {
-          const parsedFields = data.fields
-            .filter(isQuoteField)
-            .map((field) => ({
-              name: field.name,
-              label: field.label,
-              type: field.type,
-              required: field.required,
-              options: field.options,
-            }));
+          const parsedFields: QuoteField[] = [];
+          for (const field of data.fields) {
+            if (isQuoteField(field)) {
+              parsedFields.push({
+                name: field.name,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                options: field.options,
+              });
+            }
+          }
 
           setFormFields(parsedFields.length ? parsedFields : FALLBACK_FORM_FIELDS);
         } else {
