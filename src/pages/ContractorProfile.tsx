@@ -67,18 +67,18 @@ const ContractorProfile = () => {
     loadContractorProfile();
   }, [code]);
 
-  // Mock contractor data - will be replaced by real data when profiles are populated
-  const contractor = contractorProfile || {
+  // Contractor data - use real profile data with fallback for display fields
+  const contractor = {
     name: contractorProfile?.full_name || "Mike Johnson",
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
-    code: code || "A7K9M2",
+    code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.user_id || "mock-user-id",
     specialties: ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
     location: "Central London",
     phone: "+44 20 7123 4567",
-    email: "mike@johnsonplumbing.co.uk",
+    email: contractorProfile?.email || "mike@johnsonplumbing.co.uk",
     image: "",
     verified: true,
     yearsExperience: 12,
