@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const SUPABASE_URL = "https://tnvxfzmdjpsswjszwbvf.supabase.co";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +19,46 @@ interface QuoteNotificationRequest {
   projectDescription: string;
 }
 
+// Simple input validation
+const validateInput = (data: QuoteNotificationRequest): string | null => {
+  const { contractorName, customerName, customerEmail, projectTitle, projectDescription } = data;
+  
+  // Check required fields exist and are strings
+  if (!contractorName || typeof contractorName !== 'string' || contractorName.length > 200) {
+    return "Invalid contractor name";
+  }
+  if (!customerName || typeof customerName !== 'string' || customerName.length > 200) {
+    return "Invalid customer name";
+  }
+  if (!customerEmail || typeof customerEmail !== 'string' || customerEmail.length > 255) {
+    return "Invalid customer email";
+  }
+  if (!projectTitle || typeof projectTitle !== 'string' || projectTitle.length > 500) {
+    return "Invalid project title";
+  }
+  if (!projectDescription || typeof projectDescription !== 'string' || projectDescription.length > 5000) {
+    return "Invalid project description";
+  }
+  
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(customerEmail)) {
+    return "Invalid email format";
+  }
+  
+  return null;
+};
+
+// Sanitize text to prevent injection in emails
+const sanitizeText = (text: string): string => {
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .trim();
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("Quote notification function called");
   
@@ -25,7 +68,34 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { contractorName, customerName, customerEmail, projectTitle, projectDescription }: QuoteNotificationRequest = await req.json();
+    // Parse and validate request body
+    let requestData: QuoteNotificationRequest;
+    try {
+      requestData = await req.json();
+    } catch {
+      console.error("Failed to parse request body");
+      return new Response(
+        JSON.stringify({ error: "Invalid request body", success: false }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate input
+    const validationError = validateInput(requestData);
+    if (validationError) {
+      console.error("Validation error:", validationError);
+      return new Response(
+        JSON.stringify({ error: validationError, success: false }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Sanitize inputs for safe email rendering
+    const contractorName = sanitizeText(requestData.contractorName);
+    const customerName = sanitizeText(requestData.customerName);
+    const customerEmail = requestData.customerEmail.trim().toLowerCase();
+    const projectTitle = sanitizeText(requestData.projectTitle);
+    const projectDescription = sanitizeText(requestData.projectDescription);
 
     console.log("Sending quote notification emails for:", { contractorName, customerName, projectTitle });
 
