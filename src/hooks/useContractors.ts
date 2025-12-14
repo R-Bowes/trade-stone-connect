@@ -12,6 +12,11 @@ export interface Contractor {
   user_type: string;
 }
 
+// Escape SQL ILIKE special characters to prevent pattern injection
+const escapeILIKE = (str: string): string => {
+  return str.replace(/[%_\\]/g, '\\$&');
+};
+
 export const useContractors = (searchTerm?: string, trade?: string, location?: string) => {
   return useQuery({
     queryKey: ["contractors", searchTerm, trade, location],
@@ -22,7 +27,9 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
         .eq("user_type", "pro");
 
       if (searchTerm) {
-        query = query.or(`full_name.ilike.%${searchTerm}%,company_name.ilike.%${searchTerm}%,ts_profile_code.ilike.%${searchTerm}%`);
+        // Sanitize and limit search term length
+        const sanitizedTerm = escapeILIKE(searchTerm.slice(0, 100));
+        query = query.or(`full_name.ilike.%${sanitizedTerm}%,company_name.ilike.%${sanitizedTerm}%,ts_profile_code.ilike.%${sanitizedTerm}%`);
       }
 
       const { data, error } = await query;
