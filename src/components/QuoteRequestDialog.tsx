@@ -58,6 +58,42 @@ interface QuoteRequestDialogProps {
   contractorName: string;
 }
 
+// Rate limiting: max 3 submissions per 5 minutes
+const RATE_LIMIT_KEY = 'quote_submissions';
+const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5 minutes
+const MAX_SUBMISSIONS = 3;
+
+const checkRateLimit = (): boolean => {
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_KEY);
+    const now = Date.now();
+    
+    if (!stored) return true;
+    
+    const submissions: number[] = JSON.parse(stored);
+    const recentSubmissions = submissions.filter(time => now - time < RATE_LIMIT_WINDOW);
+    
+    return recentSubmissions.length < MAX_SUBMISSIONS;
+  } catch {
+    return true;
+  }
+};
+
+const recordSubmission = () => {
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_KEY);
+    const now = Date.now();
+    
+    let submissions: number[] = stored ? JSON.parse(stored) : [];
+    submissions = submissions.filter(time => now - time < RATE_LIMIT_WINDOW);
+    submissions.push(now);
+    
+    localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(submissions));
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: QuoteRequestDialogProps) => {
   const [formFields, setFormFields] = useState<QuoteField[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -153,6 +189,16 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
   }, [formFields, form]);
 
   const onSubmit = async (data: QuoteFormValues) => {
+    // Check rate limit before submission
+    if (!checkRateLimit()) {
+      toast({
+        title: "Too Many Requests",
+        description: "You've submitted too many quote requests. Please wait a few minutes and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Prepare the quote data
@@ -223,6 +269,9 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
         console.error('Error sending email notification:', emailError);
         // Don't fail the request if email fails
       }
+
+      // Record successful submission for rate limiting
+      recordSubmission();
 
       toast({
         title: "Quote Request Sent!",
