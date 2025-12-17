@@ -333,6 +333,56 @@ export type Database = {
         }
         Relationships: []
       }
+      subcontracts: {
+        Row: {
+          contract_id: string
+          contractor_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          scope_description: string
+          start_date: string
+          status: string
+          subcontract_value: number
+          subcontractor_id: string
+          updated_at: string
+        }
+        Insert: {
+          contract_id: string
+          contractor_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          scope_description: string
+          start_date: string
+          status?: string
+          subcontract_value: number
+          subcontractor_id: string
+          updated_at?: string
+        }
+        Update: {
+          contract_id?: string
+          contractor_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          scope_description?: string
+          start_date?: string
+          status?: string
+          subcontract_value?: number
+          subcontractor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontracts_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           contractor_id: string
