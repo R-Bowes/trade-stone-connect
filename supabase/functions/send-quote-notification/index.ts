@@ -3,7 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = "https://tnvxfzmdjpsswjszwbvf.supabase.co";
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+// Rate limit configuration
+const RATE_LIMIT_MAX_REQUESTS = 3;
+const RATE_LIMIT_WINDOW_MINUTES = 5;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +63,58 @@ const sanitizeText = (text: string): string => {
     .trim();
 };
 
+// Server-side rate limiting check
+const checkRateLimit = async (
+  supabase: ReturnType<typeof createClient>,
+  identifier: string,
+  actionType: string
+): Promise<{ allowed: boolean; remainingRequests: number; resetTime: Date }> => {
+  const windowStart = new Date();
+  windowStart.setMinutes(windowStart.getMinutes() - RATE_LIMIT_WINDOW_MINUTES);
+
+  console.log(`Checking rate limit for identifier: ${identifier}, action: ${actionType}`);
+
+  // Count recent requests
+  const { count, error } = await supabase
+    .from('rate_limits')
+    .select('*', { count: 'exact', head: true })
+    .eq('identifier', identifier)
+    .eq('action_type', actionType)
+    .gte('created_at', windowStart.toISOString());
+
+  if (error) {
+    console.error('Rate limit check error:', error);
+    // On error, allow the request but log it
+    return { allowed: true, remainingRequests: RATE_LIMIT_MAX_REQUESTS, resetTime: new Date() };
+  }
+
+  const currentCount = count || 0;
+  const allowed = currentCount < RATE_LIMIT_MAX_REQUESTS;
+  const remainingRequests = Math.max(0, RATE_LIMIT_MAX_REQUESTS - currentCount);
+  const resetTime = new Date(windowStart.getTime() + RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+
+  console.log(`Rate limit check: count=${currentCount}, allowed=${allowed}, remaining=${remainingRequests}`);
+
+  return { allowed, remainingRequests, resetTime };
+};
+
+// Record a rate limit entry
+const recordRateLimitEntry = async (
+  supabase: ReturnType<typeof createClient>,
+  identifier: string,
+  actionType: string
+): Promise<void> => {
+  const { error } = await supabase
+    .from('rate_limits')
+    .insert({ identifier, action_type: actionType });
+
+  if (error) {
+    console.error('Failed to record rate limit entry:', error);
+  } else {
+    console.log(`Rate limit entry recorded for: ${identifier}`);
+  }
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("Quote notification function called");
   
@@ -66,6 +122,9 @@ const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Initialize Supabase client with service role for rate limiting
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
     // Parse and validate request body
@@ -96,6 +155,38 @@ const handler = async (req: Request): Promise<Response> => {
     const customerEmail = requestData.customerEmail.trim().toLowerCase();
     const projectTitle = sanitizeText(requestData.projectTitle);
     const projectDescription = sanitizeText(requestData.projectDescription);
+
+    // Server-side rate limiting check using email as identifier
+    const rateLimitIdentifier = customerEmail;
+    const { allowed, remainingRequests, resetTime } = await checkRateLimit(
+      supabase,
+      rateLimitIdentifier,
+      'quote_request'
+    );
+
+    if (!allowed) {
+      console.log(`Rate limit exceeded for: ${rateLimitIdentifier}`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many quote requests. Please try again later.",
+          success: false,
+          retryAfter: resetTime.toISOString()
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            "Content-Type": "application/json",
+            "Retry-After": Math.ceil((resetTime.getTime() - Date.now()) / 1000).toString(),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": resetTime.toISOString(),
+            ...corsHeaders 
+          } 
+        }
+      );
+    }
+
+    // Record this request for rate limiting
+    await recordRateLimitEntry(supabase, rateLimitIdentifier, 'quote_request');
 
     console.log("Sending quote notification emails for:", { contractorName, customerName, projectTitle });
 
@@ -171,11 +262,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      emailId: emailResult.id 
+      emailId: emailResult.id,
+      rateLimitRemaining: remainingRequests - 1
     }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
+        "X-RateLimit-Remaining": (remainingRequests - 1).toString(),
         ...corsHeaders,
       },
     });
