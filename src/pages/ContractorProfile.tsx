@@ -26,16 +26,24 @@ import {
   Camera,
   ThumbsUp
 } from "lucide-react";
-import type { Database } from "@/integrations/supabase/types";
-
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+// Local type for contractor profile (only public fields we select)
+type ContractorProfileData = {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  company_name: string | null;
+  ts_profile_code: string | null;
+  user_type: "pro" | "standard";
+  created_at: string;
+  updated_at: string;
+};
 
 const ContractorProfile = () => {
   const { code } = useParams();
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(false);
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
-  const [contractorProfile, setContractorProfile] = useState<Profile | null>(null);
+  const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Load contractor profile by TS code
