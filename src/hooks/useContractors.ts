@@ -7,9 +7,9 @@ export interface Contractor {
   full_name: string | null;
   company_name: string | null;
   ts_profile_code: string | null;
-  email: string | null;
-  phone: string | null;
   user_type: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Escape SQL ILIKE special characters to prevent pattern injection
@@ -23,7 +23,7 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryFn: async () => {
       let query = supabase
         .from("profiles")
-        .select("*")
+        .select("id, user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
         .eq("user_type", "pro");
 
       if (searchTerm) {

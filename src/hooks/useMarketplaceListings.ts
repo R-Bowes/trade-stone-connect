@@ -52,14 +52,14 @@ export const useMarketplaceListing = (id: string) => {
       
       if (!data) return null;
       
-      // Fetch seller info separately
+      // Fetch seller info separately (only public fields)
       const { data: seller } = await supabase
         .from("profiles")
-        .select("full_name, company_name, email")
+        .select("full_name, company_name")
         .eq("user_id", data.seller_id)
         .maybeSingle();
       
-      return { ...data, seller } as MarketplaceListing & { seller: { full_name: string | null; company_name: string | null; email: string | null } | null };
+      return { ...data, seller } as MarketplaceListing & { seller: { full_name: string | null; company_name: string | null } | null };
     },
     enabled: !!id,
   });

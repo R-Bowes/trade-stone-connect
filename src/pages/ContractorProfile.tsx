@@ -46,9 +46,9 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at')
           .eq('ts_profile_code', code)
-          .single();
+          .maybeSingle();
 
         if (error || !data) {
           console.error('Contractor not found:', error);
@@ -78,7 +78,7 @@ const ContractorProfile = () => {
     reviewCount: 127,
     location: "Central London",
     phone: "+44 20 7123 4567",
-    email: contractorProfile?.email || "mike@johnsonplumbing.co.uk",
+    email: "contact@tradestone.com", // Contact through platform
     image: "",
     verified: true,
     yearsExperience: 12,
