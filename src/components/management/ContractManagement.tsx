@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Edit, Loader2, FileText } from "lucide-react";
+import { SubcontractManagement } from "./SubcontractManagement";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -392,6 +393,10 @@ export function ContractManagement() {
                   <p>{contract.client_email} {contract.client_phone && `• ${contract.client_phone}`}</p>
                 </div>
               </div>
+              <SubcontractManagement 
+                contractId={contract.id} 
+                contractTitle={contract.project_title} 
+              />
             </CardContent>
           </Card>
         ))}
