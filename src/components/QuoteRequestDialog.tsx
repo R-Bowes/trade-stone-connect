@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -34,8 +33,6 @@ type QuoteFormValues = Record<string, string> & {
   customer_phone?: string;
 };
 
-type QuoteInsert = Database["public"]["Tables"]["quotes"]["Insert"];
-
 const isQuoteField = (field: unknown): field is QuoteField =>
   typeof field === 'object' && field !== null &&
   'name' in field && typeof (field as { name: unknown }).name === 'string' &&
@@ -58,41 +55,7 @@ interface QuoteRequestDialogProps {
   contractorName: string;
 }
 
-// Rate limiting: max 3 submissions per 5 minutes
-const RATE_LIMIT_KEY = 'quote_submissions';
-const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5 minutes
-const MAX_SUBMISSIONS = 3;
-
-const checkRateLimit = (): boolean => {
-  try {
-    const stored = localStorage.getItem(RATE_LIMIT_KEY);
-    const now = Date.now();
-    
-    if (!stored) return true;
-    
-    const submissions: number[] = JSON.parse(stored);
-    const recentSubmissions = submissions.filter(time => now - time < RATE_LIMIT_WINDOW);
-    
-    return recentSubmissions.length < MAX_SUBMISSIONS;
-  } catch {
-    return true;
-  }
-};
-
-const recordSubmission = () => {
-  try {
-    const stored = localStorage.getItem(RATE_LIMIT_KEY);
-    const now = Date.now();
-    
-    let submissions: number[] = stored ? JSON.parse(stored) : [];
-    submissions = submissions.filter(time => now - time < RATE_LIMIT_WINDOW);
-    submissions.push(now);
-    
-    localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(submissions));
-  } catch {
-    // Ignore localStorage errors
-  }
-};
+// Note: Rate limiting is now handled server-side in the Edge Function
 
 const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: QuoteRequestDialogProps) => {
   const [formFields, setFormFields] = useState<QuoteField[]>([]);
@@ -189,49 +152,30 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
   }, [formFields, form]);
 
   const onSubmit = async (data: QuoteFormValues) => {
-    // Check rate limit before submission
-    if (!checkRateLimit()) {
-      toast({
-        title: "Too Many Requests",
-        description: "You've submitted too many quote requests. Please wait a few minutes and try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      // Prepare the quote data
-      const quoteData: QuoteInsert = {
-        contractor_id: contractorId,
-        customer_name: data.customer_name,
-        customer_email: data.customer_email,
-        customer_phone: data.customer_phone || null,
-        project_title: data.project_title ?? "",
-        project_description: data.project_description ?? "",
-        project_location: data.project_location || null,
-        budget_range: data.budget_range || null,
-        timeline: data.timeline || null,
-        status: 'pending',
-        additional_details: null,
-      };
-
+      // Prepare additional details from custom form fields
       let additionalDetails: Record<string, string> | null = null;
+      let projectTitle = data.project_title ?? "";
+      let projectDescription = data.project_description ?? "";
+      let projectLocation = data.project_location || null;
+      let budgetRange = data.budget_range || null;
+      let timeline = data.timeline || null;
 
       // Map form fields to quote data
       formFields.forEach(field => {
         const fieldValue = data[field.name];
 
         if (field.name === 'project_title') {
-          quoteData.project_title = fieldValue;
+          projectTitle = fieldValue;
         } else if (field.name === 'project_description') {
-          quoteData.project_description = fieldValue;
+          projectDescription = fieldValue;
         } else if (field.name === 'project_location') {
-          quoteData.project_location = fieldValue;
+          projectLocation = fieldValue || null;
         } else if (field.name === 'budget_range') {
-          quoteData.budget_range = fieldValue;
+          budgetRange = fieldValue || null;
         } else if (field.name === 'timeline') {
-          quoteData.timeline = fieldValue;
+          timeline = fieldValue || null;
         } else {
           // Store additional fields in additional_details JSON
           if (fieldValue) {
@@ -243,35 +187,39 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
         }
       });
 
-      quoteData.additional_details = additionalDetails;
-
-      // Insert the quote
-      const { error: insertError } = await supabase
-        .from('quotes')
-        .insert([quoteData]);
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      // Send email notification
-      const { error: emailError } = await supabase.functions.invoke('send-quote-notification', {
+      // Submit through Edge Function for server-side rate limiting and database insert
+      const { data: result, error } = await supabase.functions.invoke('send-quote-notification', {
         body: {
+          contractor_id: contractorId,
+          customer_name: data.customer_name,
+          customer_email: data.customer_email,
+          customer_phone: data.customer_phone || null,
+          project_title: projectTitle,
+          project_description: projectDescription,
+          project_location: projectLocation,
+          budget_range: budgetRange,
+          timeline: timeline,
+          additional_details: additionalDetails,
           contractorName,
-          customerName: data.customer_name,
-          customerEmail: data.customer_email,
-          projectTitle: quoteData.project_title,
-          projectDescription: quoteData.project_description,
         }
       });
 
-      if (emailError) {
-        console.error('Error sending email notification:', emailError);
-        // Don't fail the request if email fails
+      if (error) {
+        throw error;
       }
 
-      // Record successful submission for rate limiting
-      recordSubmission();
+      // Check for rate limit error from Edge Function
+      if (result && !result.success) {
+        if (result.error?.includes('Too many')) {
+          toast({
+            title: "Too Many Requests",
+            description: "You've submitted too many quote requests. Please wait a few minutes and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw new Error(result.error || 'Failed to submit quote');
+      }
 
       toast({
         title: "Quote Request Sent!",
