@@ -170,31 +170,33 @@ const Auth = () => {
             <p className="text-muted-foreground text-center">Sign in or create your account</p>
           </div>
 
-          {/* Quick Test Buttons */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Test Login</CardTitle>
-              <CardDescription>Use these buttons to quickly test different user types</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                onClick={() => handleQuickLogin("pro@test.com", "password123", "pro")}
-                disabled={loading}
-                variant="outline"
-                className="w-full"
-              >
-                Login as PRO User
-              </Button>
-              <Button
-                onClick={() => handleQuickLogin("standard@test.com", "password123", "standard")}
-                disabled={loading}
-                variant="outline"
-                className="w-full"
-              >
-                Login as Standard User
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Quick Test Buttons - Development Only */}
+          {import.meta.env.DEV && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Quick Test Login</CardTitle>
+                <CardDescription>Development only - not visible in production</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={() => handleQuickLogin("pro@test.com", "password123", "pro")}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Login as PRO User
+                </Button>
+                <Button
+                  onClick={() => handleQuickLogin("standard@test.com", "password123", "standard")}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Login as Standard User
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
