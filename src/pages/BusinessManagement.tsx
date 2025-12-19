@@ -209,20 +209,23 @@ const BusinessManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="quotes">Quotes</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="clients">Clients</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="photos">Photos</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
-            <TabsTrigger value="contracts">Contracts</TabsTrigger>
-          </TabsList>
+          {/* Mobile: Horizontal scrollable tabs */}
+          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 gap-1">
+              <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
+              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
+              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
+              <TabsTrigger value="projects" className="whitespace-nowrap">Projects</TabsTrigger>
+              <TabsTrigger value="clients" className="whitespace-nowrap">Clients</TabsTrigger>
+              <TabsTrigger value="payments" className="whitespace-nowrap">Payments</TabsTrigger>
+              <TabsTrigger value="reports" className="whitespace-nowrap">Reports</TabsTrigger>
+              <TabsTrigger value="profile" className="whitespace-nowrap">Profile</TabsTrigger>
+              <TabsTrigger value="photos" className="whitespace-nowrap">Photos</TabsTrigger>
+              <TabsTrigger value="team" className="whitespace-nowrap">Team</TabsTrigger>
+              <TabsTrigger value="timesheets" className="whitespace-nowrap">Timesheets</TabsTrigger>
+              <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
@@ -328,7 +331,7 @@ const BusinessManagement = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2">
