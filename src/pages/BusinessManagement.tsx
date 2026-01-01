@@ -209,9 +209,9 @@ const BusinessManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          {/* Mobile: Horizontal scrollable tabs */}
-          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 gap-1">
+          {/* Mobile/Tablet: Horizontal scrollable tabs, Desktop: Grid */}
+          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-visible">
+            <TabsList className="inline-flex w-max lg:grid lg:w-full lg:grid-cols-12 gap-1">
               <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
               <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
               <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
