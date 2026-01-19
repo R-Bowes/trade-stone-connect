@@ -105,7 +105,7 @@ const Header = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-6">
+        <nav className="hidden lg:flex items-center space-x-6">
           <Link to="/contractors" className="text-sm font-medium hover:text-primary transition-colors">
             Find Contractors
           </Link>
@@ -126,7 +126,7 @@ const Header = () => {
         </nav>
 
         {/* Desktop Actions */}
-        <div className="hidden md:flex items-center space-x-3">
+        <div className="hidden lg:flex items-center space-x-3">
           {user ? (
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
@@ -158,14 +158,14 @@ const Header = () => {
           )}
         </div>
 
-        {/* Mobile Menu Button */}
-        <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+        {/* Mobile/Tablet Menu Button */}
+        <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Mobile Navigation */}
+        {/* Mobile/Tablet Navigation */}
         {isMenuOpen && (
-          <div className="absolute top-16 left-0 right-0 bg-background border-b md:hidden">
+          <div className="absolute top-16 left-0 right-0 bg-background border-b lg:hidden">
             <nav className="flex flex-col space-y-3 p-4">
               <Link to="/contractors" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Find Contractors
