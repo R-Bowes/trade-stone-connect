@@ -7,8 +7,8 @@ const Contracts = () => {
   const contractHighlights = [
     {
       icon: FileText,
-      title: "AI-Assisted Contracts (TBC)",
-      description: "Generate and review contracts with automated quality checks and suggested terms tailored to each project (TBC)."
+      title: <>AI-Assisted Contracts <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+      description: <>Generate and review contracts with automated quality checks and suggested terms tailored to each project <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
     },
     {
       icon: MessageSquare,
@@ -67,7 +67,7 @@ const Contracts = () => {
             <div className="bg-muted/30 rounded-2xl p-8 text-center">
               <h2 className="text-2xl font-bold mb-4">Ready to streamline your contracts?</h2>
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                Join TradeStone Pro to access our full contract management suite, including AI-powered (TBC) reviews and secure payment processing.
+                Join TradeStone Pro to access our full contract management suite, including AI-powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span> reviews and secure payment processing.
               </p>
               <Button size="lg" className="hero-gradient">
                 Get Started with Pro
