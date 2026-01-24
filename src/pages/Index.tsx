@@ -30,7 +30,7 @@ const Index = () => {
     {
       icon: FileText,
       title: "Contract Opportunities",
-      description: "Access government and private sector contracts with AI-powered (TBC) quality checking.",
+      description: <>Access government and private sector contracts with AI-powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span> quality checking.</>,
       link: "/contracts"
     },
     {
@@ -47,8 +47,8 @@ const Index = () => {
     },
     {
       icon: Bot,
-      title: "AI Assistant (TBC)",
-      description: "Get construction advice, contract reviews, and business optimization suggestions (TBC).",
+      title: <>AI Assistant <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+      description: <>Get construction advice, contract reviews, and business optimization suggestions <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>,
       link: "/how-it-works"
     }
   ];
