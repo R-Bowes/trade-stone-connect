@@ -1,14 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import tradestoneLogo from "@/assets/tradestone-logo-correct.png";
 
-const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
-
+const ComingSoon = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <Link to="/" className="mb-8 transition-transform hover:scale-105">
@@ -28,4 +21,4 @@ const NotFound = () => {
   );
 };
 
-export default NotFound;
+export default ComingSoon;
