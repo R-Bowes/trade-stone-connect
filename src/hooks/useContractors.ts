@@ -21,8 +21,9 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryKey: ["contractors", searchTerm, trade, location],
     queryFn: async () => {
       let query = supabase
-        .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at");
+        .from("profiles")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
+        .eq("user_type", "pro");
 
       if (searchTerm) {
         // Sanitize and limit search term length
@@ -43,7 +44,7 @@ export const useContractorByCode = (code: string) => {
     queryKey: ["contractor", code],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("public_pro_profiles")
+        .from("profiles")
         .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
         .eq("ts_profile_code", code)
         .eq("user_type", "pro")

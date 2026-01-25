@@ -149,7 +149,7 @@ const ContractorDirectory = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {contractors.map((contractor) => (
               <ContractorCard
-                key={contractor.id}
+                key={contractor.user_id}
                 name={contractor.full_name || "Unknown"}
                 company={contractor.company_name || "Independent Contractor"}
                 code={contractor.ts_profile_code || ""}
