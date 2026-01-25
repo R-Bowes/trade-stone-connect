@@ -60,6 +60,14 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Supabase Auth password policy
+
+To help protect your users, Supabase Auth allows you fine-grained control over the strength of the passwords used on your project. You can configure these in your project's Auth settings:
+
+- Set a large minimum password length. Anything less than 8 characters is not recommended.
+- Set the required characters that must appear at least once in a user's password. Use the strongest option of requiring digits, lowercase and uppercase letters, and symbols. The allowed symbols are: `!@#$%^&*()_+-=[]{};'\:"|<>?,./\`~`
+- Prevent the use of leaked passwords. Supabase Auth uses the open-source HaveIBeenPwned.org Pwned Passwords API to reject passwords that have been leaked and are known by malicious actors.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/044cecf7-f854-4f7f-a7bd-b9c1af6bc7e3) and click on Share -> Publish.
