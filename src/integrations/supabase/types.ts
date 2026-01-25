@@ -186,6 +186,87 @@ export type Database = {
         }
         Relationships: []
       }
+      issued_quotes: {
+        Row: {
+          business_name: string | null
+          client_address: string | null
+          client_email: string
+          client_name: string
+          client_phone: string | null
+          client_type: string
+          contractor_id: string
+          created_at: string
+          description: string | null
+          id: string
+          items: Json
+          notes: string | null
+          quote_number: string | null
+          responded_at: string | null
+          sent_at: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          terms: string | null
+          title: string
+          total: number
+          updated_at: string
+          valid_until: string
+        }
+        Insert: {
+          business_name?: string | null
+          client_address?: string | null
+          client_email: string
+          client_name: string
+          client_phone?: string | null
+          client_type?: string
+          contractor_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          quote_number?: string | null
+          responded_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          terms?: string | null
+          title: string
+          total?: number
+          updated_at?: string
+          valid_until: string
+        }
+        Update: {
+          business_name?: string | null
+          client_address?: string | null
+          client_email?: string
+          client_name?: string
+          client_phone?: string | null
+          client_type?: string
+          contractor_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          quote_number?: string | null
+          responded_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          terms?: string | null
+          title?: string
+          total?: number
+          updated_at?: string
+          valid_until?: string
+        }
+        Relationships: []
+      }
       marketplace_listings: {
         Row: {
           category: string
