@@ -14,6 +14,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const quickTestPassword = "TradeStoneDev#9pV";
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -179,7 +180,7 @@ const Auth = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button
-                  onClick={() => handleQuickLogin("pro@test.com", "password123", "pro")}
+                  onClick={() => handleQuickLogin("pro@test.com", quickTestPassword, "pro")}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
@@ -187,7 +188,7 @@ const Auth = () => {
                   Login as PRO User
                 </Button>
                 <Button
-                  onClick={() => handleQuickLogin("standard@test.com", "password123", "standard")}
+                  onClick={() => handleQuickLogin("standard@test.com", quickTestPassword, "standard")}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
