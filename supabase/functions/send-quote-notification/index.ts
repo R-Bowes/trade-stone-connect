@@ -9,10 +9,41 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_WINDOW_MINUTES = 5;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://tradestone.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+
+const allowedOrigins = (() => {
+  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+  if (!envOrigins) {
+    return DEFAULT_ALLOWED_ORIGINS;
+  }
+  return envOrigins
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+})();
+
+const resolveCorsOrigin = (origin: string | null): string | null => {
+  if (!origin) {
+    return null;
+  }
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+  return null;
+};
+
+const buildCorsHeaders = (origin: string | null): HeadersInit => {
+  const allowedOrigin = resolveCorsOrigin(origin);
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin ?? "null",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
 };
 
 interface QuoteSubmissionRequest {
@@ -134,8 +165,18 @@ const handler = async (req: Request): Promise<Response> => {
   console.log("Quote submission function called");
   
   // Handle CORS preflight requests
+  const origin = req.headers.get("origin");
+  const corsHeaders = buildCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (!resolveCorsOrigin(origin)) {
+    return new Response(
+      JSON.stringify({ error: "Origin not allowed", success: false }),
+      { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
   }
 
   // Initialize Supabase client with service role for database operations
