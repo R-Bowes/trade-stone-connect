@@ -109,9 +109,12 @@ const sanitizeText = (text: string): string => {
     .trim();
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClientAny = ReturnType<typeof createClient<any>>;
+
 // Server-side rate limiting check
 const checkRateLimit = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientAny,
   identifier: string,
   actionType: string
 ): Promise<{ allowed: boolean; remainingRequests: number; resetTime: Date }> => {
@@ -146,7 +149,7 @@ const checkRateLimit = async (
 
 // Record a rate limit entry
 const recordRateLimitEntry = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientAny,
   identifier: string,
   actionType: string
 ): Promise<void> => {
