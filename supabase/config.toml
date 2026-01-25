@@ -1,4 +1,7 @@
 project_id = "tnvxfzmdjpsswjszwbvf"
 
+[auth]
+password_check_pwned = true
+
 [functions.send-quote-notification]
 verify_jwt = true
