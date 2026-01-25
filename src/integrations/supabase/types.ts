@@ -120,6 +120,72 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          client_address: string | null
+          client_email: string
+          client_name: string
+          client_phone: string | null
+          contractor_id: string
+          created_at: string
+          due_date: string
+          id: string
+          invoice_number: string | null
+          issued_date: string
+          items: Json
+          notes: string | null
+          paid_date: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          client_address?: string | null
+          client_email: string
+          client_name: string
+          client_phone?: string | null
+          contractor_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          invoice_number?: string | null
+          issued_date?: string
+          items?: Json
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          client_address?: string | null
+          client_email?: string
+          client_name?: string
+          client_phone?: string | null
+          contractor_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          invoice_number?: string | null
+          issued_date?: string
+          items?: Json
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketplace_listings: {
         Row: {
           category: string
