@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Contractor {
-  id: string;
   user_id: string;
   full_name: string | null;
   company_name: string | null;
@@ -22,9 +21,8 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryKey: ["contractors", searchTerm, trade, location],
     queryFn: async () => {
       let query = supabase
-        .from("profiles")
-        .select("id, user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
-        .eq("user_type", "pro");
+        .from("public_pro_profiles")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at");
 
       if (searchTerm) {
         // Sanitize and limit search term length
@@ -45,8 +43,8 @@ export const useContractorByCode = (code: string) => {
     queryKey: ["contractor", code],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
+        .from("public_pro_profiles")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
         .eq("ts_profile_code", code)
         .eq("user_type", "pro")
         .maybeSingle();
