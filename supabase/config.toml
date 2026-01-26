@@ -1,6 +1,7 @@
 project_id = "tnvxfzmdjpsswjszwbvf"
 
 [auth]
+# Reject passwords found in known data breaches.
 password_check_pwned = true
 
 [functions.send-quote-notification]
