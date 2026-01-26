@@ -110,7 +110,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, full_name, company_name, ts_profile_code")
-        .eq("user_type", "pro")
+        .eq("user_type", "contractor")
         .neq("user_id", user.id);
 
       if (error) throw error;

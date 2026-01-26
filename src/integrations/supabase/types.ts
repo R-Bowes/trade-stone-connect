@@ -744,7 +744,7 @@ export type Database = {
       generate_ts_profile_code: { Args: never; Returns: string }
     }
     Enums: {
-      user_type: "pro" | "standard"
+      user_type: "personal" | "business" | "contractor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -872,7 +872,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      user_type: ["pro", "standard"],
+      user_type: ["personal", "business", "contractor"],
     },
   },
 } as const

@@ -23,7 +23,7 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
       let query = supabase
         .from("profiles")
         .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
-        .eq("user_type", "pro");
+        .eq("user_type", "contractor");
 
       if (searchTerm) {
         // Sanitize and limit search term length
@@ -47,7 +47,7 @@ export const useContractorByCode = (code: string) => {
         .from("profiles")
         .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
         .eq("ts_profile_code", code)
-        .eq("user_type", "pro")
+        .eq("user_type", "contractor")
         .maybeSingle();
 
       if (error) throw error;

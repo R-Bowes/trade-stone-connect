@@ -33,7 +33,7 @@ type ContractorProfileData = {
   full_name: string | null;
   company_name: string | null;
   ts_profile_code: string | null;
-  user_type: "pro" | "standard";
+  user_type: "personal" | "business" | "contractor";
   created_at: string;
   updated_at: string;
 };
