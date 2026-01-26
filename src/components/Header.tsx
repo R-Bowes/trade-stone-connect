@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import tradestoneLogo from "@/assets/tradestone-logo.png";
 
 interface UserProfile {
-  user_type: 'pro' | 'standard';
+  user_type: 'personal' | 'business' | 'contractor';
   full_name: string;
   company_name?: string;
 }
@@ -115,7 +115,7 @@ const Header = () => {
           <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors">
             Marketplace
           </Link>
-          {user && profile?.user_type === 'pro' && (
+          {user && profile?.user_type === 'contractor' && (
             <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors">
               Business
             </Link>
@@ -133,7 +133,7 @@ const Header = () => {
                 <UserIcon className="h-4 w-4" />
                 <span className="text-sm">
                   {profile?.full_name || user.email}
-                  {profile?.user_type === 'pro' && (
+                  {profile?.user_type === 'contractor' && (
                     <span className="ml-1 text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
                       PRO
                     </span>
@@ -176,7 +176,7 @@ const Header = () => {
               <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Marketplace
               </Link>
-              {user && profile?.user_type === 'pro' && (
+              {user && profile?.user_type === 'contractor' && (
                 <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                   Business
                 </Link>
@@ -189,7 +189,7 @@ const Header = () => {
                   <>
                     <div className="text-sm text-gray-600 mb-2">
                       {profile?.full_name || user.email}
-                      {profile?.user_type === 'pro' && (
+                      {profile?.user_type === 'contractor' && (
                         <span className="ml-1 text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
                           PRO
                         </span>

@@ -24,7 +24,7 @@ const Auth = () => {
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [userType, setUserType] = useState<"standard" | "pro">("standard");
+  const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
 
   useEffect(() => {
@@ -114,8 +114,9 @@ const Auth = () => {
   };
 
   // Quick test login function
-  const handleQuickLogin = async (email: string, password: string, type: "pro" | "standard") => {
+  const handleQuickLogin = async (email: string, password: string, type: "personal" | "business" | "contractor") => {
     setLoading(true);
+    const nameMap = { personal: "Personal Test User", business: "Business Test User", contractor: "Contractor Test User" };
     try {
       // First try to sign up the test user
       await supabase.auth.signUp({
@@ -124,9 +125,9 @@ const Auth = () => {
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: type === "pro" ? "Pro Test User" : "Standard Test User",
+            full_name: nameMap[type],
             user_type: type,
-            company_name: type === "pro" ? "Test Pro Company" : "",
+            company_name: type !== "personal" ? "Test Company" : "",
           },
         },
       });
@@ -180,20 +181,28 @@ const Auth = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button
-                  onClick={() => handleQuickLogin("pro@test.com", quickTestPassword, "pro")}
+                  onClick={() => handleQuickLogin("contractor@test.com", quickTestPassword, "contractor")}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
                 >
-                  Login as PRO User
+                  Login as Contractor
                 </Button>
                 <Button
-                  onClick={() => handleQuickLogin("standard@test.com", quickTestPassword, "standard")}
+                  onClick={() => handleQuickLogin("business@test.com", quickTestPassword, "business")}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
                 >
-                  Login as Standard User
+                  Login as Business
+                </Button>
+                <Button
+                  onClick={() => handleQuickLogin("personal@test.com", quickTestPassword, "personal")}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Login as Personal
                 </Button>
               </CardContent>
             </Card>
@@ -281,17 +290,18 @@ const Auth = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="userType">Account Type</Label>
-                      <Select value={userType} onValueChange={(value: "standard" | "pro") => setUserType(value)}>
+                      <Select value={userType} onValueChange={(value: "personal" | "business" | "contractor") => setUserType(value)}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="standard">Standard User</SelectItem>
-                          <SelectItem value="pro">Pro Contractor</SelectItem>
+                          <SelectItem value="personal">Personal</SelectItem>
+                          <SelectItem value="business">Business</SelectItem>
+                          <SelectItem value="contractor">Contractor</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {userType === "pro" && (
+                    {(userType === "business" || userType === "contractor") && (
                       <div className="space-y-2">
                         <Label htmlFor="companyName">Company Name</Label>
                         <Input
