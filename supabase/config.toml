@@ -4,4 +4,6 @@ project_id = "tnvxfzmdjpsswjszwbvf"
 password_check_pwned = true
 
 [functions.send-quote-notification]
-verify_jwt = true
+# JWT verification disabled - this function accepts anonymous quote submissions
+# Security is enforced via: CORS origin validation, rate limiting, input validation
+verify_jwt = false

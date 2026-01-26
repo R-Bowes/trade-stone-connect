@@ -38,8 +38,11 @@ const resolveCorsOrigin = (origin: string | null): string | null => {
 
 const buildCorsHeaders = (origin: string | null): HeadersInit => {
   const allowedOrigin = resolveCorsOrigin(origin);
+  // Use the first allowed origin as default for unauthorized requests
+  // This prevents returning 'null' which could cause issues in older browsers
+  const safeOrigin = allowedOrigin ?? DEFAULT_ALLOWED_ORIGINS[0];
   return {
-    "Access-Control-Allow-Origin": allowedOrigin ?? "null",
+    "Access-Control-Allow-Origin": safeOrigin,
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Vary": "Origin",
