@@ -115,9 +115,10 @@ const Header = () => {
           <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors">
             Marketplace
           </Link>
-          {user && profile?.user_type === 'contractor' && (
-            <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors">
-              Business
+          {user && (
+            <Link to="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
+              {profile?.user_type === 'contractor' ? 'Business' : 
+               profile?.user_type === 'business' ? 'Dashboard' : 'My Account'}
             </Link>
           )}
           <Link to="/how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
@@ -129,7 +130,7 @@ const Header = () => {
         <div className="hidden lg:flex items-center space-x-3">
           {user ? (
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
+              <Link to="/dashboard" className="flex items-center space-x-2 hover:text-primary transition-colors">
                 <UserIcon className="h-4 w-4" />
                 <span className="text-sm">
                   {profile?.full_name || user.email}
@@ -138,8 +139,13 @@ const Header = () => {
                       PRO
                     </span>
                   )}
+                  {profile?.user_type === 'business' && (
+                    <span className="ml-1 text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                      BIZ
+                    </span>
+                  )}
                 </span>
-              </div>
+              </Link>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-1" />
                 Logout
@@ -176,9 +182,10 @@ const Header = () => {
               <Link to="/marketplace" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
                 Marketplace
               </Link>
-              {user && profile?.user_type === 'contractor' && (
-                <Link to="/business" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
-                  Business
+              {user && (
+                <Link to="/dashboard" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
+                  {profile?.user_type === 'contractor' ? 'Business' : 
+                   profile?.user_type === 'business' ? 'Dashboard' : 'My Account'}
                 </Link>
               )}
               <Link to="/how-it-works" className="text-sm font-medium hover:text-primary transition-colors" onClick={() => setIsMenuOpen(false)}>
@@ -187,14 +194,19 @@ const Header = () => {
               <div className="flex flex-col space-y-2 pt-3 border-t">
                 {user ? (
                   <>
-                    <div className="text-sm text-gray-600 mb-2">
+                    <Link to="/dashboard" className="text-sm text-muted-foreground mb-2 hover:text-primary">
                       {profile?.full_name || user.email}
                       {profile?.user_type === 'contractor' && (
                         <span className="ml-1 text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
                           PRO
                         </span>
                       )}
-                    </div>
+                      {profile?.user_type === 'business' && (
+                        <span className="ml-1 text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                          BIZ
+                        </span>
+                      )}
+                    </Link>
                     <Button variant="outline" size="sm" onClick={handleLogout}>
                       <LogOut className="h-4 w-4 mr-1" />
                       Logout

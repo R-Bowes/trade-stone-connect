@@ -18,6 +18,10 @@ import Auth from "./pages/Auth";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import Dashboard from "./pages/Dashboard";
+import PersonalDashboard from "./pages/PersonalDashboard";
+import BusinessDashboard from "./pages/BusinessDashboard";
+import ContractorDashboard from "./pages/ContractorDashboard";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +46,11 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
+          {/* Dashboard routes - auto-redirects based on user type */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/personal" element={<PersonalDashboard />} />
+          <Route path="/dashboard/business" element={<BusinessDashboard />} />
+          <Route path="/dashboard/contractor" element={<ContractorDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
