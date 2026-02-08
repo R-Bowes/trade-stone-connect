@@ -36,6 +36,7 @@ import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
+import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -465,44 +466,9 @@ const ContractorDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Schedule Tab (NEW) */}
-          <TabsContent value="schedule" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Schedule & Availability</h2>
-              <Button><Plus className="h-4 w-4 mr-2" />Add Appointment</Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarDays className="h-5 w-5" />
-                    Job Calendar
-                  </CardTitle>
-                  <CardDescription>View and manage your scheduled work</CardDescription>
-                </CardHeader>
-                <CardContent className="text-center py-8">
-                  <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Calendar Coming Soon</h3>
-                  <p className="text-muted-foreground">Schedule jobs, set availability, and manage appointments.</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Availability Management
-                  </CardTitle>
-                  <CardDescription>Set your working hours and availability</CardDescription>
-                </CardHeader>
-                <CardContent className="text-center py-8">
-                  <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Availability Settings Coming Soon</h3>
-                  <p className="text-muted-foreground">Define working hours and block out unavailable times.</p>
-                </CardContent>
-              </Card>
-            </div>
+          {/* Schedule Tab */}
+          <TabsContent value="schedule">
+            <ScheduleManagement />
           </TabsContent>
 
           {/* CRM Tab (NEW) */}
