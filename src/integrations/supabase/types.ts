@@ -223,6 +223,95 @@ export type Database = {
           },
         ]
       }
+      crm_activities: {
+        Row: {
+          activity_date: string
+          activity_type: string
+          client_id: string
+          contractor_id: string
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+        }
+        Insert: {
+          activity_date?: string
+          activity_type?: string
+          client_id: string
+          contractor_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+        }
+        Update: {
+          activity_date?: string
+          activity_type?: string
+          client_id?: string
+          contractor_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "crm_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_clients: {
+        Row: {
+          address: string | null
+          company_name: string | null
+          contractor_id: string
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string | null
+          source: string | null
+          status: string
+          total_revenue: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          company_name?: string | null
+          contractor_id: string
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          total_revenue?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          company_name?: string | null
+          contractor_id?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          total_revenue?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           client_address: string | null
