@@ -37,6 +37,7 @@ import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
+import { CRMManagement } from "@/components/management/CRMManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -471,58 +472,9 @@ const ContractorDashboard = () => {
             <ScheduleManagement />
           </TabsContent>
 
-          {/* CRM Tab (NEW) */}
-          <TabsContent value="clients" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Client Relationship Management</h2>
-              <Button><UserPlus className="h-4 w-4 mr-2" />Add Client</Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">23</div>
-                  <p className="text-xs text-muted-foreground">Active relationships</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Leads</CardTitle>
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">5</div>
-                  <p className="text-xs text-muted-foreground">Pending follow-up</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Repeat Clients</CardTitle>
-                  <Star className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">8</div>
-                  <p className="text-xs text-muted-foreground">35% of total</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Client Database</CardTitle>
-                <CardDescription>Manage contacts, track follow-ups, and nurture leads</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-8">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Full CRM Coming Soon</h3>
-                <p className="text-muted-foreground mb-4">Store client contacts, track communications, and manage leads.</p>
-                <Badge variant="outline">Early Access Available Soon</Badge>
-              </CardContent>
-            </Card>
+          {/* CRM Tab */}
+          <TabsContent value="clients">
+            <CRMManagement />
           </TabsContent>
 
           {/* Profile Tab */}
