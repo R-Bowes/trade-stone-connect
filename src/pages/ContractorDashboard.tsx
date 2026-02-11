@@ -38,6 +38,7 @@ import { TimesheetManagement } from "@/components/management/TimesheetManagement
 import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import { CRMManagement } from "@/components/management/CRMManagement";
+import { FinancialsManagement } from "@/components/management/FinancialsManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -414,57 +415,9 @@ const ContractorDashboard = () => {
           {/* Photos Tab */}
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
 
-          {/* Financials Tab (NEW) */}
-          <TabsContent value="financials" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Financial Management</h2>
-              <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export Report</Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Revenue (YTD)</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">£45,200</div>
-                  <p className="text-xs text-muted-foreground">+12% from last year</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Expenses (YTD)</CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">£18,400</div>
-                  <p className="text-xs text-muted-foreground">-5% from last year</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">£26,800</div>
-                  <p className="text-xs text-green-600">+18% margin</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Expense Tracking</CardTitle>
-                <CardDescription>Track and categorize your business expenses</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-8">
-                <Wallet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Expense Tracking Coming Soon</h3>
-                <p className="text-muted-foreground">Log expenses, categorize spending, and generate profit/loss reports.</p>
-              </CardContent>
-            </Card>
+          {/* Financials Tab */}
+          <TabsContent value="financials">
+            <FinancialsManagement />
           </TabsContent>
 
           {/* Schedule Tab */}
