@@ -39,6 +39,7 @@ import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import { CRMManagement } from "@/components/management/CRMManagement";
 import { FinancialsManagement } from "@/components/management/FinancialsManagement";
+import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -322,50 +323,8 @@ const ContractorDashboard = () => {
           </TabsContent>
 
           {/* Invoices Tab */}
-          <TabsContent value="invoices" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Invoice Management</h2>
-              <div className="flex gap-2">
-                <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
-                <Button><Plus className="h-4 w-4 mr-2" />Create Invoice</Button>
-              </div>
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="text-left p-4">Invoice ID</th>
-                        <th className="text-left p-4">Client</th>
-                        <th className="text-left p-4">Amount</th>
-                        <th className="text-left p-4">Status</th>
-                        <th className="text-left p-4">Due Date</th>
-                        <th className="text-left p-4">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentInvoices.map((invoice) => (
-                        <tr key={invoice.id} className="border-t">
-                          <td className="p-4 font-medium">{invoice.id}</td>
-                          <td className="p-4">{invoice.client}</td>
-                          <td className="p-4 font-medium">{invoice.amount}</td>
-                          <td className="p-4"><Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge></td>
-                          <td className="p-4">{invoice.dueDate}</td>
-                          <td className="p-4">
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm"><Eye className="h-4 w-4" /></Button>
-                              <Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button>
-                              <Button variant="outline" size="sm"><Send className="h-4 w-4" /></Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="invoices">
+            <InvoiceManagement />
           </TabsContent>
 
           {/* Projects Tab */}
