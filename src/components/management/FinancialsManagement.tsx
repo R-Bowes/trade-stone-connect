@@ -14,6 +14,17 @@ import { useExpenses, EXPENSE_CATEGORIES, type Expense } from "@/hooks/useExpens
 import { ExpenseFormDialog } from "@/components/management/financials/ExpenseFormDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
+} from "recharts";
+
+const CHART_COLORS = [
+  "hsl(221, 83%, 53%)", "hsl(262, 83%, 58%)", "hsl(24, 95%, 53%)",
+  "hsl(0, 72%, 51%)", "hsl(239, 84%, 67%)", "hsl(220, 9%, 46%)",
+  "hsl(330, 81%, 60%)", "hsl(187, 92%, 41%)", "hsl(48, 96%, 53%)",
+  "hsl(160, 84%, 39%)", "hsl(215, 16%, 47%)",
+];
 
 export function FinancialsManagement() {
   const {
@@ -283,38 +294,104 @@ export function FinancialsManagement() {
 
         {/* Category Breakdown */}
         <TabsContent value="breakdown" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Spending by Category</CardTitle>
-              <CardDescription>Breakdown of your expenses across categories</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {categoryBreakdown.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No expense data yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {categoryBreakdown.map(({ category, amount, percentage }) => (
-                    <div key={category} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{category}</span>
-                        <span>£{amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} ({percentage}%)</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Spending Distribution</CardTitle>
+                <CardDescription>Visual breakdown by category</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {categoryBreakdown.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">No expense data yet.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoryBreakdown.map((c, i) => ({ ...c, fill: CHART_COLORS[i % CHART_COLORS.length] }))}
+                        dataKey="amount"
+                        nameKey="category"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={110}
+                        innerRadius={60}
+                        paddingAngle={2}
+                        label={({ category, percentage }) => `${percentage}%`}
+                      >
+                        {categoryBreakdown.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => `£${value.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Spending by Category</CardTitle>
+                <CardDescription>Detailed breakdown</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {categoryBreakdown.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">No expense data yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {categoryBreakdown.map(({ category, amount, percentage }, i) => (
+                      <div key={category} className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                            <span className="font-medium">{category}</span>
+                          </div>
+                          <span>£{amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} ({percentage}%)</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${percentage}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* P&L Report */}
         <TabsContent value="pnl" className="space-y-4">
+          {/* Expense Trend Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Expense Trend</CardTitle>
+              <CardDescription>Monthly expenses over the last 6 months</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={monthlyData}>
+                  <defs>
+                    <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="label" className="text-xs" />
+                  <YAxis tickFormatter={(v) => `£${v}`} className="text-xs" />
+                  <Tooltip formatter={(value: number) => `£${value.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`} />
+                  <Area type="monotone" dataKey="expenses" stroke="hsl(0, 72%, 51%)" fill="url(#expenseGradient)" strokeWidth={2} name="Expenses" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* P&L Table */}
           <Card>
             <CardHeader>
               <CardTitle>Profit & Loss Summary</CardTitle>
