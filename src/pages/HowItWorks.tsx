@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { 
   Users, 
   Crown, 
@@ -9,7 +10,8 @@ import {
   Search,
   Handshake,
   CreditCard,
-  Star
+  Star,
+  Building2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -53,48 +55,68 @@ const HowItWorks = () => {
     {
       type: "Personal",
       subtitle: "For DIYers & Homeowners",
-      price: "Free",
-      features: [
-        "Browse contractor directory",
-        "Request quotes from contractors",
-        "Buy & sell surplus materials",
-        <>Basic AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> construction advice</>,
-        "Access community forums"
-      ],
       icon: Users,
-      popular: false
+      popular: false,
+      free: {
+        features: [
+          "Browse contractor directory",
+          "Request quotes from contractors",
+          "Buy & sell surplus materials",
+          "Access community forums"
+        ]
+      },
+      paid: null
     },
     {
       type: "Business",
       subtitle: "For Commercial Entities",
-      price: "Free",
-      features: [
-        "Everything in Personal",
-        "Post contract opportunities",
-        "Manage multiple projects",
-        "Team collaboration tools",
-        "Company profile & branding"
-      ],
-      icon: Users,
-      popular: false
+      icon: Building2,
+      popular: false,
+      free: {
+        features: [
+          "Browse contractor directory",
+          "Request quotes",
+          "Access community forums"
+        ]
+      },
+      paid: {
+        price: "£19",
+        period: "/month",
+        label: "Business Pro",
+        features: [
+          "Post contract opportunities",
+          "Manage multiple projects",
+          "Team collaboration tools",
+          "Company profile & branding",
+          <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> project assistant</>
+        ]
+      }
     },
     {
       type: "Contractor",
       subtitle: "For Professional Tradespeople",
-      price: "£29",
-      period: "/month",
-      features: [
-        "Everything in Business",
-        "Invoicing & payment system",
-        "Escrow-protected payments",
-        "Contract bidding access",
-        "Public contractor profile",
-        "Schedule & team management",
-        <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> business assistant</>,
-        "Loyalty rebate tiers"
-      ],
       icon: Crown,
-      popular: true
+      popular: true,
+      free: {
+        features: [
+          "Public contractor profile",
+          "Receive quote requests",
+          "Access community forums"
+        ]
+      },
+      paid: {
+        price: "£29",
+        period: "/month",
+        label: "Contractor Pro",
+        features: [
+          "Invoicing & payment system",
+          "Escrow-protected payments",
+          "Contract bidding access",
+          "Schedule & team management",
+          <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> business assistant</>,
+          "Loyalty rebate tiers"
+        ]
+      }
     }
   ];
 
@@ -133,51 +155,86 @@ const HowItWorks = () => {
 
         {/* Account Types Section */}
         <section className="py-16 px-4 bg-muted/30">
-          <div className="container mx-auto max-w-4xl">
+          <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
                 Choose Your <span className="text-primary">Account Type</span>
               </h2>
               <p className="text-lg text-muted-foreground">
-                Whether you're a DIY enthusiast or professional contractor, we have the right plan for you.
+                Every account starts free. Upgrade when you're ready for more.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {accountTypes.map((account, index) => (
-                <Card key={index} className={`p-8 relative ${account.popular ? 'border-primary shadow-lg' : ''}`}>
+                <Card key={index} className={`relative overflow-hidden ${account.popular ? 'border-primary shadow-lg' : ''}`}>
                   {account.popular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-b-lg text-sm font-medium z-10">
                       Most Popular
                     </div>
                   )}
-                  
-                  <div className="text-center mb-6">
-                    <account.icon className={`h-12 w-12 mx-auto mb-4 ${account.popular ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <h3 className="text-2xl font-bold mb-2">{account.type}</h3>
-                    <p className="text-muted-foreground mb-4">{account.subtitle}</p>
-                    <div className="flex items-baseline justify-center">
-                      <span className="text-4xl font-bold">{account.price}</span>
-                      {account.period && <span className="text-muted-foreground ml-1">{account.period}</span>}
-                    </div>
+
+                  {/* Header */}
+                  <div className={`text-center p-6 pb-4 ${account.popular ? 'pt-10' : ''}`}>
+                    <account.icon className={`h-10 w-10 mx-auto mb-3 ${account.popular ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <h3 className="text-xl font-bold">{account.type}</h3>
+                    <p className="text-sm text-muted-foreground">{account.subtitle}</p>
                   </div>
 
-                  <ul className="space-y-3 mb-8">
-                    {account.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-start">
-                        <CheckCircle2 className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* Free Tier */}
+                  <div className="px-6 pb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg font-bold">Free</span>
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Always</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {account.free.features.map((feature, i) => (
+                        <li key={i} className="flex items-start text-sm">
+                          <CheckCircle2 className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-                  <Button 
-                    className={`w-full ${account.popular ? 'hero-gradient' : ''}`}
-                    variant={account.popular ? 'default' : 'outline'}
-                    onClick={() => navigate('/auth')}
-                  >
-                    {account.type === 'Contractor' ? 'Start Pro Trial' : 'Get Started Free'}
-                  </Button>
+                  {/* Paid Tier */}
+                  {account.paid ? (
+                    <>
+                      <Separator className="mx-6 w-auto" />
+                      <div className="px-6 pt-4 pb-6">
+                        <div className="flex items-baseline gap-1 mb-1">
+                          <span className="text-2xl font-bold">{account.paid.price}</span>
+                          <span className="text-sm text-muted-foreground">{account.paid.period}</span>
+                        </div>
+                        <p className="text-xs font-medium text-primary mb-3">{account.paid.label}</p>
+                        <ul className="space-y-2 mb-5">
+                          {account.paid.features.map((feature, i) => (
+                            <li key={i} className="flex items-start text-sm">
+                              <CheckCircle2 className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <Button
+                          className={`w-full ${account.popular ? 'hero-gradient' : ''}`}
+                          variant={account.popular ? 'default' : 'outline'}
+                          onClick={() => navigate('/auth')}
+                        >
+                          Start Pro Trial
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px-6 pb-6 pt-2">
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => navigate('/auth')}
+                      >
+                        Get Started Free
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>
