@@ -51,31 +51,47 @@ const HowItWorks = () => {
 
   const accountTypes = [
     {
-      type: "Free Account",
-      subtitle: "Perfect for DIYers & Buyers",
-      price: "£0",
+      type: "Personal",
+      subtitle: "For DIYers & Homeowners",
+      price: "Free",
       features: [
         "Browse contractor directory",
-        "Buy and sell surplus materials",
+        "Request quotes from contractors",
+        "Buy & sell surplus materials",
         <>Basic AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> construction advice</>,
-        "Access to community forums"
+        "Access community forums"
       ],
       icon: Users,
       popular: false
     },
     {
-      type: "Pro Account",
-      subtitle: "For Professional Contractors",
+      type: "Business",
+      subtitle: "For Commercial Entities",
+      price: "Free",
+      features: [
+        "Everything in Personal",
+        "Post contract opportunities",
+        "Manage multiple projects",
+        "Team collaboration tools",
+        "Company profile & branding"
+      ],
+      icon: Users,
+      popular: false
+    },
+    {
+      type: "Contractor",
+      subtitle: "For Professional Tradespeople",
       price: "£29",
       period: "/month",
       features: [
-        "Everything in Free",
-        "Business management tools",
+        "Everything in Business",
         "Invoicing & payment system",
+        "Escrow-protected payments",
         "Contract bidding access",
-        "Public company profile",
+        "Public contractor profile",
+        "Schedule & team management",
         <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> business assistant</>,
-        "Priority customer support"
+        "Loyalty rebate tiers"
       ],
       icon: Crown,
       popular: true
@@ -127,7 +143,7 @@ const HowItWorks = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {accountTypes.map((account, index) => (
                 <Card key={index} className={`p-8 relative ${account.popular ? 'border-primary shadow-lg' : ''}`}>
                   {account.popular && (
@@ -160,7 +176,7 @@ const HowItWorks = () => {
                     variant={account.popular ? 'default' : 'outline'}
                     onClick={() => navigate('/auth')}
                   >
-                    {account.type === 'Free Account' ? 'Get Started Free' : 'Start Pro Trial'}
+                    {account.type === 'Contractor' ? 'Start Pro Trial' : 'Get Started Free'}
                   </Button>
                 </Card>
               ))}
