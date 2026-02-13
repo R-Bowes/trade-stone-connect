@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
-  Search, Send, CheckCircle, Loader2
+  Search, Send, CheckCircle, Loader2, Download
 } from "lucide-react";
+import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { format } from "date-fns";
@@ -199,6 +200,9 @@ export function InvoiceManagement() {
                         <Button variant="ghost" size="sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
                           <Eye className="h-4 w-4" />
                         </Button>
+                        <Button variant="ghost" size="sm" onClick={() => generateInvoicePdf(inv)} title="Download PDF">
+                          <Download className="h-4 w-4" />
+                        </Button>
                         {inv.status === "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
                             <Send className="h-4 w-4" />
@@ -309,6 +313,12 @@ export function InvoiceManagement() {
                   </p>
                 </div>
               )}
+
+              <div className="border-t pt-4">
+                <Button onClick={() => generateInvoicePdf(previewInvoice)} className="w-full">
+                  <Download className="h-4 w-4 mr-2" />Download PDF
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
