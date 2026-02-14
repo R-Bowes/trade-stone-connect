@@ -240,6 +240,76 @@ const HowItWorks = () => {
             </div>
           </div>
         </section>
+
+        {/* Feature Comparison Table */}
+        <section className="py-16 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Feature <span className="text-primary">Comparison</span>
+              </h2>
+              <p className="text-lg text-muted-foreground">
+                See exactly what's included in each plan at a glance.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-4 px-4 font-semibold text-foreground">Feature</th>
+                    <th className="text-center py-4 px-4 font-semibold text-foreground">Personal<br/><span className="text-xs font-normal text-muted-foreground">Free</span></th>
+                    <th className="text-center py-4 px-4 font-semibold text-foreground">Business<br/><span className="text-xs font-normal text-muted-foreground">Free / £19/mo</span></th>
+                    <th className="text-center py-4 px-4 font-semibold text-primary">Contractor<br/><span className="text-xs font-normal text-muted-foreground">Free / £29/mo</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { feature: "Browse contractor directory", personal: true, business: true, contractor: true },
+                    { feature: "Request quotes", personal: true, business: true, contractor: false },
+                    { feature: "Community forums", personal: true, business: true, contractor: true },
+                    { feature: "Buy & sell surplus materials", personal: true, business: false, contractor: false },
+                    { feature: "Public contractor profile", personal: false, business: false, contractor: true },
+                    { feature: "Receive quote requests", personal: false, business: false, contractor: true },
+                    { feature: "Post contract opportunities", personal: false, business: "pro", contractor: false },
+                    { feature: "Manage multiple projects", personal: false, business: "pro", contractor: false },
+                    { feature: "Team collaboration tools", personal: false, business: "pro", contractor: false },
+                    { feature: "Company profile & branding", personal: false, business: "pro", contractor: false },
+                    { feature: "Invoicing & payment system", personal: false, business: false, contractor: "pro" },
+                    { feature: "Escrow-protected payments", personal: false, business: false, contractor: "pro" },
+                    { feature: "Contract bidding access", personal: false, business: false, contractor: "pro" },
+                    { feature: "Schedule & team management", personal: false, business: false, contractor: "pro" },
+                    { feature: "Loyalty rebate tiers", personal: false, business: false, contractor: "pro" },
+                    { feature: "AI assistant (Coming Soon)", personal: false, business: "pro", contractor: "pro" },
+                  ].map((row, i) => (
+                    <tr key={i} className={`border-b border-border ${i % 2 === 0 ? 'bg-muted/20' : ''}`}>
+                      <td className="py-3 px-4 text-sm text-foreground">{row.feature}</td>
+                      {[row.personal, row.business, row.contractor].map((val, j) => (
+                        <td key={j} className="py-3 px-4 text-center">
+                          {val === true ? (
+                            <CheckCircle2 className="h-5 w-5 text-primary mx-auto" />
+                          ) : val === "pro" ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                              <Crown className="h-3 w-3" /> Pro
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="text-center mt-10">
+              <Button size="lg" className="hero-gradient" onClick={() => navigate('/auth')}>
+                Get Started Today
+              </Button>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
