@@ -20,6 +20,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
+import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
+import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 
 interface QuoteRequest {
   id: string;
@@ -108,8 +110,10 @@ const PersonalDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-4 max-w-lg">
+          <TabsList className="grid w-full grid-cols-6 max-w-2xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="quotes">Quotes</TabsTrigger>
             <TabsTrigger value="requests">My Requests</TabsTrigger>
             <TabsTrigger value="saved">Saved</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -221,6 +225,16 @@ const PersonalDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Invoices Tab */}
+          <TabsContent value="invoices" className="space-y-6">
+            <ReceivedInvoices />
+          </TabsContent>
+
+          {/* Quotes Tab */}
+          <TabsContent value="quotes" className="space-y-6">
+            <ReceivedQuotes />
           </TabsContent>
 
           {/* My Requests Tab */}

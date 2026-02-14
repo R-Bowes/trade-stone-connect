@@ -8,3 +8,9 @@ password_check_pwned = true
 # JWT verification disabled - this function accepts anonymous quote submissions
 # Security is enforced via: CORS origin validation, rate limiting, input validation
 verify_jwt = false
+
+[functions.notify-invoice-quote-action]
+verify_jwt = false
+
+[functions.create-invoice-payment]
+verify_jwt = false

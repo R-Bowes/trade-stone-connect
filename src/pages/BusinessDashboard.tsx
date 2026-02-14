@@ -22,6 +22,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
+import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
+import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 
 const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -101,8 +103,10 @@ const BusinessDashboard = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 gap-1">
+            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-8 gap-1">
               <TabsTrigger value="overview" className="whitespace-nowrap">Overview</TabsTrigger>
+              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
+              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
               <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
               <TabsTrigger value="bids" className="whitespace-nowrap">Bids</TabsTrigger>
               <TabsTrigger value="suppliers" className="whitespace-nowrap">Suppliers</TabsTrigger>
@@ -238,6 +242,16 @@ const BusinessDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Invoices Tab */}
+          <TabsContent value="invoices" className="space-y-6">
+            <ReceivedInvoices />
+          </TabsContent>
+
+          {/* Quotes Tab */}
+          <TabsContent value="quotes" className="space-y-6">
+            <ReceivedQuotes />
           </TabsContent>
 
           {/* Contracts Tab */}
