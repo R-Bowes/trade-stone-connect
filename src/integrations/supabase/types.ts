@@ -372,6 +372,9 @@ export type Database = {
           items: Json
           notes: string | null
           paid_date: string | null
+          recipient_id: string | null
+          recipient_response: string | null
+          responded_at: string | null
           status: string
           subtotal: number
           tax_amount: number
@@ -393,6 +396,9 @@ export type Database = {
           items?: Json
           notes?: string | null
           paid_date?: string | null
+          recipient_id?: string | null
+          recipient_response?: string | null
+          responded_at?: string | null
           status?: string
           subtotal?: number
           tax_amount?: number
@@ -414,6 +420,9 @@ export type Database = {
           items?: Json
           notes?: string | null
           paid_date?: string | null
+          recipient_id?: string | null
+          recipient_response?: string | null
+          responded_at?: string | null
           status?: string
           subtotal?: number
           tax_amount?: number
@@ -421,7 +430,15 @@ export type Database = {
           total?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       issued_quotes: {
         Row: {
@@ -438,6 +455,8 @@ export type Database = {
           items: Json
           notes: string | null
           quote_number: string | null
+          recipient_id: string | null
+          recipient_response: string | null
           responded_at: string | null
           sent_at: string | null
           status: string
@@ -464,6 +483,8 @@ export type Database = {
           items?: Json
           notes?: string | null
           quote_number?: string | null
+          recipient_id?: string | null
+          recipient_response?: string | null
           responded_at?: string | null
           sent_at?: string | null
           status?: string
@@ -490,6 +511,8 @@ export type Database = {
           items?: Json
           notes?: string | null
           quote_number?: string | null
+          recipient_id?: string | null
+          recipient_response?: string | null
           responded_at?: string | null
           sent_at?: string | null
           status?: string
@@ -502,7 +525,15 @@ export type Database = {
           updated_at?: string
           valid_until?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "issued_quotes_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       marketplace_listings: {
         Row: {
@@ -764,7 +795,10 @@ export type Database = {
           end_time: string
           event_type: string
           id: string
+          is_confirmed: boolean | null
           location: string | null
+          proposed_by: string | null
+          quote_id: string | null
           start_time: string
           status: string
           title: string
@@ -781,7 +815,10 @@ export type Database = {
           end_time: string
           event_type?: string
           id?: string
+          is_confirmed?: boolean | null
           location?: string | null
+          proposed_by?: string | null
+          quote_id?: string | null
           start_time: string
           status?: string
           title: string
@@ -798,13 +835,24 @@ export type Database = {
           end_time?: string
           event_type?: string
           id?: string
+          is_confirmed?: boolean | null
           location?: string | null
+          proposed_by?: string | null
+          quote_id?: string | null
           start_time?: string
           status?: string
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "schedule_events_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subcontracts: {
         Row: {
