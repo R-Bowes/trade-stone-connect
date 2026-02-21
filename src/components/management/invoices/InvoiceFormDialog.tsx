@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -41,6 +41,13 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
     { description: "", quantity: 1, unit_price: 0, total: 0 },
   ]);
   const [saving, setSaving] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+
+  const commonItemTemplates: Array<Pick<InvoiceItem, "description" | "quantity" | "unit_price">> = [
+    { description: "Labour (day rate)", quantity: 1, unit_price: 250 },
+    { description: "Materials", quantity: 1, unit_price: 0 },
+    { description: "Milestone payment", quantity: 1, unit_price: 0 },
+  ];
 
   useEffect(() => {
     if (invoice) {
@@ -70,7 +77,10 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     setItems(prev => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      const nextValue = typeof value === "number" ? (Number.isFinite(value) ? value : 0) : value;
+      updated[index] = { ...updated[index], [field]: nextValue };
+      updated[index].quantity = Math.max(0, Number(updated[index].quantity) || 0);
+      updated[index].unit_price = Math.max(0, Number(updated[index].unit_price) || 0);
       updated[index].total = updated[index].quantity * updated[index].unit_price;
       return updated;
     });
@@ -85,13 +95,46 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
     setItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount;
+  const addTemplateItem = (template: Pick<InvoiceItem, "description" | "quantity" | "unit_price">) => {
+    setItems(prev => [...prev, { ...template, total: template.quantity * template.unit_price }]);
+  };
+
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0), [items]);
+  const taxAmount = useMemo(() => subtotal * (taxRate / 100), [subtotal, taxRate]);
+  const total = useMemo(() => subtotal + taxAmount, [subtotal, taxAmount]);
+
+  const invoiceSummary = useMemo(() => {
+    const itemCount = items.filter(i => i.description.trim()).length;
+    return `Client will pay £${total.toFixed(2)} for ${itemCount} line item${itemCount === 1 ? "" : "s"} by ${dueDate || "the due date"}.`;
+  }, [items, total, dueDate]);
+
+  const canSubmit = useMemo(() => {
+    if (!clientName.trim() || !clientEmail.trim() || !dueDate) {
+      return { valid: false, message: "Add client name, client email, and due date." };
+    }
+
+    if (!clientEmail.includes("@")) {
+      return { valid: false, message: "Client email must be valid." };
+    }
+
+    if (items.some(i => !i.description.trim())) {
+      return { valid: false, message: "Each line item needs a description so payment is clear." };
+    }
+
+    if (items.some(i => i.quantity <= 0 || i.unit_price < 0)) {
+      return { valid: false, message: "Line item quantities must be above 0 and prices cannot be negative." };
+    }
+
+    return { valid: true, message: null };
+  }, [clientName, clientEmail, dueDate, items]);
 
   const handleSubmit = async (asDraft: boolean) => {
-    if (!clientName || !clientEmail || !dueDate) return;
-    if (items.every(i => !i.description)) return;
+    if (!canSubmit.valid) {
+      setValidationMessage(canSubmit.message);
+      return;
+    }
+
+    setValidationMessage(null);
 
     setSaving(true);
     try {
@@ -164,9 +207,25 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <Label className="text-base font-semibold">Line Items</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="h-4 w-4 mr-1" />Add Item
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                  <Plus className="h-4 w-4 mr-1" />Add Item
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {commonItemTemplates.map(template => (
+                <Button
+                  key={template.description}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => addTemplateItem(template)}
+                >
+                  + {template.description}
+                </Button>
+              ))}
             </div>
 
             <div className="space-y-3">
@@ -237,6 +296,11 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
                 <span>£{total.toFixed(2)}</span>
               </div>
             </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium mb-1">What the client will understand</p>
+              <p className="text-muted-foreground">{invoiceSummary}</p>
+            </div>
           </div>
 
           {/* Notes */}
@@ -246,12 +310,16 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
           </div>
         </div>
 
+        {validationMessage && (
+          <p className="text-sm text-destructive">{validationMessage}</p>
+        )}
+
         <DialogFooter className="flex gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button variant="secondary" onClick={() => handleSubmit(true)} disabled={saving}>
+          <Button variant="secondary" onClick={() => handleSubmit(true)} disabled={saving || !canSubmit.valid}>
             Save as Draft
           </Button>
-          <Button onClick={() => handleSubmit(false)} disabled={saving}>
+          <Button onClick={() => handleSubmit(false)} disabled={saving || !canSubmit.valid}>
             {invoice ? "Update & Send" : "Create & Send"}
           </Button>
         </DialogFooter>
