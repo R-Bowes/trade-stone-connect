@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Search, MapPin, SlidersHorizontal, Loader2 } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
@@ -10,6 +11,7 @@ const ContractorDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTrade, setSelectedTrade] = useState<string | undefined>(undefined);
   const [location, setLocation] = useState("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const { data: contractors, isLoading } = useContractors(searchTerm, selectedTrade, location);
 
@@ -89,9 +91,9 @@ const ContractorDirectory = () => {
 
         {/* Search and Filters */}
         <div className="bg-card rounded-lg border p-6 shadow-tradestone mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             {/* Search Input */}
-            <div className="md:col-span-2 relative">
+            <div className="relative lg:flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, company, or TS code..."
@@ -101,30 +103,78 @@ const ContractorDirectory = () => {
               />
             </div>
 
-            {/* Trade Filter */}
-            <Select value={selectedTrade} onValueChange={handleTradeChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select trade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Trades</SelectItem>
-                {trades.map((trade) => (
-                  <SelectItem key={trade} value={trade}>
-                    {trade}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="hidden lg:flex lg:items-center lg:justify-end lg:gap-4 lg:min-w-[460px]">
+              {/* Trade Filter */}
+              <Select value={selectedTrade} onValueChange={handleTradeChange}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select trade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Trades</SelectItem>
+                  {trades.map((trade) => (
+                    <SelectItem key={trade} value={trade}>
+                      {trade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Location */}
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Location or postcode"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="pl-10"
-              />
+              {/* Location */}
+              <div className="relative w-[220px]">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Location or postcode"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="lg:hidden">
+              <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-full sm:max-w-md">
+                  <SheetHeader>
+                    <SheetTitle>Filters</SheetTitle>
+                  </SheetHeader>
+
+                  <div className="space-y-4 mt-6">
+                    <Select value={selectedTrade} onValueChange={handleTradeChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select trade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Trades</SelectItem>
+                        {trades.map((trade) => (
+                          <SelectItem key={trade} value={trade}>
+                            {trade}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Location or postcode"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    <Button className="w-full" onClick={() => setIsFiltersOpen(false)}>
+                      Apply Filters
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
 
