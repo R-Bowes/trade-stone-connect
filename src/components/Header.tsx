@@ -158,7 +158,7 @@ const Header = () => {
                 Sign In
               </Button>
               <Button size="sm" className="hero-gradient bg-orange-400 hover:bg-orange-300" onClick={() => navigate("/auth")}>
-                Join as Pro
+                Sign-up
               </Button>
             </>
           )}
@@ -219,7 +219,7 @@ const Header = () => {
                       Sign In
                     </Button>
                     <Button size="sm" className="hero-gradient" onClick={() => navigate("/auth")}>
-                      Join as Pro
+                      Sign-up
                     </Button>
                   </>
                 )}
