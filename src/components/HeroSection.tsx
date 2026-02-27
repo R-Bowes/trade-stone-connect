@@ -1,96 +1,62 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search, CheckCircle, Users, Shield, Zap } from "lucide-react";
-import { useState } from "react";
-import heroImage from "@/assets/hero-construction.jpg";
+import { Card } from "@/components/ui/card";
+import { ShoppingCart, UserRound, FileText } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const quickActions = [
+  {
+    icon: ShoppingCart,
+    title: "Buy Materials",
+    description: "Find surplus tools & materials near you.",
+    link: "/marketplace",
+  },
+  {
+    icon: UserRound,
+    title: "Hire Contractors",
+    description: "Browse verified professionals.",
+    link: "/contractors",
+  },
+  {
+    icon: FileText,
+    title: "Apply for Contracts",
+    description: "Bid on government and private jobs.",
+    link: "/contracts",
+  },
+];
+
 const HeroSection = () => {
-  const [searchCode, setSearchCode] = useState("");
-  const features = [{
-    icon: Users,
-    title: "Verified Contractors",
-    description: "All professionals vetted and rated by real customers"
-  }, {
-    icon: Shield,
-    title: "Secure Payments",
-    description: "Protected escrow system with flexible payment terms"
-  }, {
-    icon: Zap,
-    title: <>AI-Powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-    description: <>Smart matching and instant construction advice <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>
-  }];
-  return <section className="relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 hero-gradient opacity-95" />
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20" style={{
-      backgroundImage: `url(${heroImage})`
-    }} />
-      
-      <div className="relative container mx-auto px-4 py-20 md:py-32 bg-neutral-500">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left Column - Content */}
-          <div className="text-white">
-            <div className="mb-6">
-              <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                <span className="text-sm font-medium">Trusted by 10,000+ contractors</span>
-              </div>
-              
-              <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
-                Connect. Build.{" "}
-                <span className="text-primary-glow">Grow.</span>
-              </h1>
-              
-              <p className="text-xl text-white/90 mb-8 leading-relaxed">
-                The complete platform connecting contractors with customers. 
-                Manage your business, find new opportunities, and get paid securely.
-              </p>
-            </div>
-
-            {/* Quick Search */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
-              <h3 className="text-lg font-semibold mb-4">Find a contractor by code</h3>
-              <div className="flex space-x-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input placeholder="Enter TS code (e.g. TS A7K9M2)" value={searchCode} onChange={e => setSearchCode(e.target.value)} className="pl-10 bg-white text-gray-900 border-0" />
-                </div>
-                <Button variant="secondary" size="lg" className="bg-orange-400 hover:bg-orange-300">
-                  Search
-                </Button>
-              </div>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-              <Button size="lg" variant="secondary" className="shadow-hero bg-orange-400 hover:bg-orange-300">
-                Join as Contractor
-              </Button>
-              <Button size="lg" variant="outline" className="border-white text-inherit bg-orange-400 hover:bg-orange-300">
-                Find Contractors
-              </Button>
-            </div>
-          </div>
-
-          {/* Right Column - Features */}
-          <div className="space-y-6">
-            {features.map((feature, index) => <div key={index} className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transition-bounce hover:bg-white/15">
-                <div className="flex items-start space-x-4">
-                  <div className="bg-primary/20 rounded-lg p-3">
-                    <feature.icon className="h-6 w-6 text-white bg-transparent" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      {feature.title}
-                    </h3>
-                    <p className="text-white/80">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
-              </div>)}
-          </div>
+  return (
+    <section className="bg-[#efefef]">
+      <div className="bg-[#2f4358] px-4 py-28 md:py-40">
+        <div className="mx-auto flex max-w-4xl flex-col items-center text-center text-white">
+          <h1 className="mb-5 text-5xl font-bold tracking-tight md:text-6xl">
+            Build &amp; Grow with TradeStone
+          </h1>
+          <p className="max-w-2xl font-serif text-xl text-slate-100">
+            Connect with professionals, buy surplus materials, and win contracts with ease.
+          </p>
+          <Button
+            asChild
+            className="mt-8 rounded-xl bg-orange-500 px-8 py-6 text-lg font-semibold text-white hover:bg-orange-400"
+          >
+            <Link to="/auth">Sign up free</Link>
+          </Button>
         </div>
       </div>
-    </section>;
+
+      <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-4 px-4 py-5 md:grid-cols-3">
+        {quickActions.map((action) => (
+          <Link key={action.title} to={action.link}>
+            <Card className="flex h-full min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border-zinc-200 bg-[#f8f8f8] p-6 text-center shadow-sm">
+              <action.icon className="h-9 w-9 text-orange-500" strokeWidth={1.8} />
+              <h3 className="text-2xl font-semibold text-slate-900">{action.title}</h3>
+              <p className="text-base text-slate-600">{action.description}</p>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 };
+
 export default HeroSection;
