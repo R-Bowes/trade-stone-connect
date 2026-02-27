@@ -28,6 +28,21 @@ const Auth = () => {
   const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
 
+  const accountTypeDetails: Record<"personal" | "business" | "contractor", { title: string; description: string }> = {
+    personal: {
+      title: "Personal",
+      description: "For homeowners and individuals requesting quotes, booking services, and managing project communication.",
+    },
+    business: {
+      title: "Business",
+      description: "For companies and property managers coordinating jobs across multiple locations or teams.",
+    },
+    contractor: {
+      title: "Contractor",
+      description: "For trade professionals and service providers showcasing services, sending quotes, and managing client work.",
+    },
+  };
+
   useEffect(() => {
     // Check if user is already logged in
     const checkUser = async () => {
@@ -292,6 +307,13 @@ const Auth = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="userType">Account Type</Label>
+                      <div className="space-y-2 rounded-md border p-3 text-sm">
+                        {Object.entries(accountTypeDetails).map(([key, details]) => (
+                          <p key={key} className={userType === key ? "font-medium text-foreground" : "text-muted-foreground"}>
+                            <span className="font-semibold">{details.title}:</span> {details.description}
+                          </p>
+                        ))}
+                      </div>
                       <Select value={userType} onValueChange={(value: "personal" | "business" | "contractor") => setUserType(value)}>
                         <SelectTrigger>
                           <SelectValue />
