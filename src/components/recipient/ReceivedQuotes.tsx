@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FileText, CheckCircle, XCircle, Pause, Loader2 } from "lucide-react";
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
+import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -16,6 +17,7 @@ export function ReceivedQuotes() {
     open: false, quote: null, action: "",
   });
   const { toast } = useToast();
+  const [openNegotiationFor, setOpenNegotiationFor] = useState<string | null>(null);
 
   const handleAccept = async (quote: ReceivedQuote) => {
     await respondToQuote(quote.id, "accepted");
@@ -103,6 +105,15 @@ export function ReceivedQuotes() {
                         </Button>
                       </div>
                     )}
+                    {q.recipient_response === "accepted" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setOpenNegotiationFor(openNegotiationFor === q.id ? null : q.id)}
+                      >
+                        {openNegotiationFor === q.id ? "Hide Schedule" : "Negotiate Schedule"}
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -110,6 +121,12 @@ export function ReceivedQuotes() {
           </Table>
         </CardContent>
       </Card>
+
+      {quotes
+        .filter((quote) => quote.recipient_response === "accepted" && openNegotiationFor === quote.id)
+        .map((quote) => (
+          <QuoteScheduleNegotiation key={quote.id} quoteId={quote.id} contractorId={quote.contractor_id} mode="recipient" />
+        ))}
 
       {messageDialog.quote && (
         <MessageDialog
