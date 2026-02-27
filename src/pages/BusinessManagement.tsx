@@ -33,6 +33,7 @@ import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -463,6 +464,8 @@ const BusinessManagement = () => {
               </div>
             </div>
 
+            <TransactionFeeNotice />
+
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -606,6 +609,8 @@ const BusinessManagement = () => {
                 Export
               </Button>
             </div>
+
+            <TransactionFeeNotice />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
