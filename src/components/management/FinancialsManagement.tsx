@@ -18,6 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
 } from "recharts";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 
 const CHART_COLORS = [
   "hsl(221, 83%, 53%)", "hsl(262, 83%, 58%)", "hsl(24, 95%, 53%)",
@@ -151,6 +152,8 @@ export function FinancialsManagement() {
           </Button>
         </div>
       </div>
+
+      <TransactionFeeNotice />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

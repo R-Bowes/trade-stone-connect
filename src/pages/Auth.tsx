@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -257,6 +258,7 @@ const Auth = () => {
                   <CardDescription>Join TradeStone today</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  <TransactionFeeNotice className="mb-4" />
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Full Name</Label>

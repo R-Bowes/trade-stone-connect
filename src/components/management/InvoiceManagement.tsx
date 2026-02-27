@@ -15,6 +15,7 @@ import {
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
 
 export function InvoiceManagement() {
@@ -87,6 +88,8 @@ export function InvoiceManagement() {
           <Plus className="h-4 w-4 mr-2" />Create Invoice
         </Button>
       </div>
+
+      <TransactionFeeNotice />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

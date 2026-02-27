@@ -9,6 +9,7 @@ import { MessageDialog } from "./MessageDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 
 export function ReceivedInvoices() {
   const { invoices, loading, respondToInvoice } = useReceivedInvoices();
@@ -85,6 +86,7 @@ export function ReceivedInvoices() {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Received Invoices</h2>
+      <TransactionFeeNotice />
       <Card>
         <CardContent className="p-0">
           <Table>
