@@ -94,8 +94,8 @@ const Header = () => {
               <Button variant="ghost" size="sm" onClick={() => navigate("/auth")} className="text-sm text-slate-700 hover:text-slate-900">
                 Log in
               </Button>
-              <Button size="sm" onClick={() => navigate("/marketplace")} className="rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white hover:bg-orange-400">
-                Post a listing
+              <Button size="sm" onClick={() => navigate("/auth")} className="rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white hover:bg-orange-400">
+                Sign-Up
               </Button>
             </>
           )}
@@ -124,8 +124,8 @@ const Header = () => {
                   <UserIcon className="h-4 w-4 mr-2" />
                   Log in
                 </Button>
-                <Button size="sm" className="bg-orange-500 hover:bg-orange-400" onClick={() => navigate("/marketplace")}>
-                  Post a listing
+                <Button size="sm" className="bg-orange-500 hover:bg-orange-400" onClick={() => navigate("/auth")}>
+                  Sign-Up
                 </Button>
               </>
             )}

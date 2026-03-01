@@ -175,7 +175,7 @@ const Contracts = () => {
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
                 Join TradeStone Pro to access our full contract management suite, including AI-powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span> reviews and secure payment processing.
               </p>
-              <Button size="lg" className="hero-gradient">
+              <Button size="lg" className="bg-orange-500 text-white hover:bg-orange-400">
                 Get Started with Pro
               </Button>
             </div>
