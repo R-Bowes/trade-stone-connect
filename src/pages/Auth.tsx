@@ -86,8 +86,13 @@ const Auth = () => {
   useEffect(() => {
     if (!captchaSiteKey || !captchaContainerRef.current) return;
 
+    let retryTimer: ReturnType<typeof setInterval> | null = null;
+
     const renderWidget = () => {
       if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
+
+      const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
+      if (!api) return false;
 
       const baseOptions: any = {
         sitekey: captchaSiteKey,
@@ -96,41 +101,34 @@ const Auth = () => {
         "error-callback": () => setCaptchaToken(""),
       };
 
-      if (captchaProvider === "hcaptcha") {
-        if (!window.hcaptcha) return;
-        captchaWidgetIdRef.current = window.hcaptcha.render(captchaContainerRef.current, baseOptions);
-        return;
-      }
-
-      if (!window.turnstile) return;
-      captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, baseOptions);
+      captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
+      return true;
     };
 
-    // If already available, render immediately
-    if (
-      (captchaProvider === "hcaptcha" && (window as any).hcaptcha) ||
-      (captchaProvider !== "hcaptcha" && (window as any).turnstile)
-    ) {
-      renderWidget();
-      return;
+    // Try immediately, then poll until the API object is available
+    if (!renderWidget()) {
+      // Load script if not already present
+      const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
+      if (!existingScript) {
+        const script = document.createElement("script");
+        script.src = captchaScriptSrc;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+
+      // Poll for the API to become available (script load event is unreliable for hCaptcha)
+      retryTimer = setInterval(() => {
+        if (renderWidget() && retryTimer) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }, 200);
     }
 
-    // Otherwise load script once, then render
-    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
-
-    if (existingScript) {
-      existingScript.addEventListener("load", renderWidget);
-      return () => existingScript.removeEventListener("load", renderWidget);
-    }
-
-    const script = document.createElement("script");
-    script.src = captchaScriptSrc;
-    script.async = true;
-    script.defer = true;
-    script.addEventListener("load", renderWidget);
-    document.head.appendChild(script);
-
-    return () => script.removeEventListener("load", renderWidget);
+    return () => {
+      if (retryTimer) clearInterval(retryTimer);
+    };
   }, [captchaProvider, captchaScriptSrc, captchaSiteKey]);
 
   const resetCaptcha = () => {
