@@ -30,10 +30,13 @@ const Auth = () => {
 
   // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
+  const [isCaptchaReady, setIsCaptchaReady] = useState(false);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
 
-  const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const configuredCaptchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const captchaSiteKey = configuredCaptchaSiteKey?.trim();
+  const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
   // Provider selection:
   // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
@@ -84,7 +87,9 @@ const Auth = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (!captchaSiteKey || !captchaContainerRef.current) return;
+    if (!captchaEnabled || !captchaContainerRef.current) return;
+
+    setIsCaptchaReady(false);
 
     const renderWidget = () => {
       if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
@@ -99,14 +104,16 @@ const Auth = () => {
       if (captchaProvider === "hcaptcha") {
         if (!window.hcaptcha) return;
         captchaWidgetIdRef.current = window.hcaptcha.render(captchaContainerRef.current, baseOptions);
+        setIsCaptchaReady(true);
         return;
       }
 
       if (!window.turnstile) return;
       captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, baseOptions);
+      setIsCaptchaReady(true);
     };
 
-    // If already available, render immediately
+    // If already available, render immediately.
     if (
       (captchaProvider === "hcaptcha" && (window as any).hcaptcha) ||
       (captchaProvider !== "hcaptcha" && (window as any).turnstile)
@@ -115,12 +122,28 @@ const Auth = () => {
       return;
     }
 
-    // Otherwise load script once, then render
+    // If script already exists, it might have loaded before this effect attached listeners.
+    // Try rendering immediately and keep a short retry loop until provider globals are ready.
     const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
 
     if (existingScript) {
+      renderWidget();
       existingScript.addEventListener("load", renderWidget);
-      return () => existingScript.removeEventListener("load", renderWidget);
+      const pollId = window.setInterval(() => {
+        if (captchaWidgetIdRef.current !== null) {
+          window.clearInterval(pollId);
+          return;
+        }
+        renderWidget();
+      }, 250);
+
+      const stopPolling = window.setTimeout(() => window.clearInterval(pollId), 5000);
+
+      return () => {
+        existingScript.removeEventListener("load", renderWidget);
+        window.clearInterval(pollId);
+        window.clearTimeout(stopPolling);
+      };
     }
 
     const script = document.createElement("script");
@@ -131,7 +154,7 @@ const Auth = () => {
     document.head.appendChild(script);
 
     return () => script.removeEventListener("load", renderWidget);
-  }, [captchaProvider, captchaScriptSrc, captchaSiteKey]);
+  }, [captchaEnabled, captchaProvider, captchaScriptSrc, captchaSiteKey]);
 
   const resetCaptcha = () => {
     setCaptchaToken("");
@@ -148,10 +171,12 @@ const Auth = () => {
     }
   };
 
+  const shouldValidateCaptcha = captchaEnabled && isCaptchaReady;
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (captchaSiteKey && !captchaToken) {
+    if (shouldValidateCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -191,7 +216,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (captchaSiteKey) resetCaptcha();
+      if (shouldValidateCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -199,7 +224,7 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (captchaSiteKey && !captchaToken) {
+    if (shouldValidateCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -244,7 +269,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (captchaSiteKey) resetCaptcha();
+      if (shouldValidateCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -351,7 +376,7 @@ const Auth = () => {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {captchaSiteKey && (
+            {captchaEnabled && (
               <div className="py-4">
                 <div ref={captchaContainerRef} />
               </div>
