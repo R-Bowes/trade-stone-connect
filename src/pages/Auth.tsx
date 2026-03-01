@@ -34,7 +34,9 @@ const Auth = () => {
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
 
-  const configuredCaptchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const configuredCaptchaSiteKey =
+    (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
+    (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined);
   const captchaSiteKey = configuredCaptchaSiteKey?.trim();
   const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
@@ -42,7 +44,9 @@ const Auth = () => {
   // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
   // - Otherwise, auto-detect hCaptcha when the key looks like a UUID.
   // - Fallback to turnstile.
-  const configuredCaptchaProvider = import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined;
+  const configuredCaptchaProvider =
+    (import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined) ||
+    (import.meta.env.VITE_CAPTCHA_PROVIDER as string | undefined);
 
   const isLikelyHCaptchaSiteKey = Boolean(
     captchaSiteKey &&
@@ -122,7 +126,9 @@ const Auth = () => {
     };
 
     const ensureScript = () => {
-      const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
+      const scriptBaseSrc = captchaScriptSrc.split("?")[0];
+      const existingScript = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]"))
+        .find((script) => script.src.startsWith(scriptBaseSrc));
       if (existingScript) return;
 
       const script = document.createElement("script");
