@@ -31,6 +31,13 @@ const Auth = () => {
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const configuredCaptchaProvider = import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER;
+  const isLikelyHCaptchaSiteKey = Boolean(captchaSiteKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(captchaSiteKey));
+  const captchaProvider = configuredCaptchaProvider ?? (isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile");
+  const captchaScriptSrc =
+    captchaProvider === "hcaptcha"
+      ? "https://js.hcaptcha.com/1/api.js?render=explicit"
+      : "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
   const accountTypeDetails: Record<"personal" | "business" | "contractor", { title: string; description: string }> = {
     personal: {
@@ -62,22 +69,31 @@ const Auth = () => {
     if (!captchaSiteKey || !captchaContainerRef.current) return;
 
     const renderWidget = () => {
-      if (!window.turnstile || !captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
+      if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
 
-      captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, {
+      const baseOptions = {
         sitekey: captchaSiteKey,
         callback: (token: string) => setCaptchaToken(token),
         "expired-callback": () => setCaptchaToken(""),
         "error-callback": () => setCaptchaToken(""),
-      });
+      };
+
+      if (captchaProvider === "hcaptcha") {
+        if (!window.hcaptcha) return;
+        captchaWidgetIdRef.current = window.hcaptcha.render(captchaContainerRef.current, baseOptions);
+        return;
+      }
+
+      if (!window.turnstile) return;
+      captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, baseOptions);
     };
 
-    if (window.turnstile) {
+    if ((captchaProvider === "hcaptcha" && window.hcaptcha) || (captchaProvider !== "hcaptcha" && window.turnstile)) {
       renderWidget();
       return;
     }
 
-    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js"]');
+    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
 
     if (existingScript) {
       existingScript.addEventListener("load", renderWidget);
@@ -85,19 +101,26 @@ const Auth = () => {
     }
 
     const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.src = captchaScriptSrc;
     script.async = true;
     script.defer = true;
     script.addEventListener("load", renderWidget);
     document.head.appendChild(script);
 
     return () => script.removeEventListener("load", renderWidget);
-  }, [captchaSiteKey]);
+  }, [captchaProvider, captchaScriptSrc, captchaSiteKey]);
 
   const resetCaptcha = () => {
     setCaptchaToken("");
 
-    if (window.turnstile && captchaWidgetIdRef.current !== null) {
+    if (captchaWidgetIdRef.current === null) return;
+
+    if (captchaProvider === "hcaptcha" && window.hcaptcha) {
+      window.hcaptcha.reset(captchaWidgetIdRef.current);
+      return;
+    }
+
+    if (window.turnstile) {
       window.turnstile.reset(captchaWidgetIdRef.current);
     }
   };
