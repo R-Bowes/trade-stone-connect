@@ -54,7 +54,7 @@ export const useMarketplaceListing = (id: string) => {
       
       // Fetch seller info separately (only public fields)
       const { data: seller } = await supabase
-        .from("profiles")
+        .from("public_pro_profiles")
         .select("full_name, company_name")
         .eq("user_id", data.seller_id)
         .maybeSingle();
