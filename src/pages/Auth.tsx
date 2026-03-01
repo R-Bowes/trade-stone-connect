@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,10 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const captchaWidgetIdRef = useRef<string | number | null>(null);
+  const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
 
   const accountTypeDetails: Record<"personal" | "business" | "contractor", { title: string; description: string }> = {
     personal: {
@@ -54,14 +58,71 @@ const Auth = () => {
     checkUser();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!captchaSiteKey || !captchaContainerRef.current) return;
+
+    const renderWidget = () => {
+      if (!window.turnstile || !captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
+
+      captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, {
+        sitekey: captchaSiteKey,
+        callback: (token: string) => setCaptchaToken(token),
+        "expired-callback": () => setCaptchaToken(""),
+        "error-callback": () => setCaptchaToken(""),
+      });
+    };
+
+    if (window.turnstile) {
+      renderWidget();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js"]');
+
+    if (existingScript) {
+      existingScript.addEventListener("load", renderWidget);
+      return () => existingScript.removeEventListener("load", renderWidget);
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.async = true;
+    script.defer = true;
+    script.addEventListener("load", renderWidget);
+    document.head.appendChild(script);
+
+    return () => script.removeEventListener("load", renderWidget);
+  }, [captchaSiteKey]);
+
+  const resetCaptcha = () => {
+    setCaptchaToken("");
+
+    if (window.turnstile && captchaWidgetIdRef.current !== null) {
+      window.turnstile.reset(captchaWidgetIdRef.current);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (captchaSiteKey && !captchaToken) {
+      toast({
+        variant: "destructive",
+        title: "Captcha required",
+        description: "Please complete the captcha verification before logging in.",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
+        options: {
+          captchaToken: captchaToken || undefined,
+        },
       });
 
       if (error) {
@@ -84,12 +145,23 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
+      if (captchaSiteKey) resetCaptcha();
       setLoading(false);
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (captchaSiteKey && !captchaToken) {
+      toast({
+        variant: "destructive",
+        title: "Captcha required",
+        description: "Please complete the captcha verification before creating an account.",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -98,6 +170,7 @@ const Auth = () => {
         password: signupPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
+          captchaToken: captchaToken || undefined,
           data: {
             full_name: fullName,
             user_type: userType,
@@ -125,6 +198,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
+      if (captchaSiteKey) resetCaptcha();
       setLoading(false);
     }
   };
@@ -229,6 +303,12 @@ const Auth = () => {
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
+
+            {captchaSiteKey && (
+              <div className="py-4">
+                <div ref={captchaContainerRef} />
+              </div>
+            )}
 
             <TabsContent value="login">
               <Card>
