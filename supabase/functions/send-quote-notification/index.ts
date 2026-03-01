@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const SUPABASE_URL = "https://tnvxfzmdjpsswjszwbvf.supabase.co";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Rate limit configuration
@@ -368,10 +368,9 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error) {
     console.error("Error in quote submission function:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({
-        error: message,
+        error: "An error occurred processing your quote request",
         success: false
       }),
       {

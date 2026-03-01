@@ -1,14 +1,43 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://tradestone.lovable.app",
+  "https://id-preview--044cecf7-f854-4f7f-a7bd-b9c1af6bc7e3.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+
+const ALLOWED_ORIGINS = (() => {
+  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+  if (!envOrigins) return DEFAULT_ALLOWED_ORIGINS;
+  return envOrigins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
+})();
+
+const getCorsHeaders = (origin: string | null): HeadersInit => {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
 };
 
 serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+      status: 403,
+      headers: corsHeaders,
+    });
   }
 
   try {
@@ -145,8 +174,7 @@ serve(async (req) => {
     });
   } catch (error: unknown) {
     console.error("Error in notify-invoice-quote-action:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: "An error occurred processing your request" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
