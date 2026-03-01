@@ -27,13 +27,29 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
+
+  // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
+
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
-  const configuredCaptchaProvider = import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER;
-  const isLikelyHCaptchaSiteKey = Boolean(captchaSiteKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(captchaSiteKey));
-  const captchaProvider = configuredCaptchaProvider ?? (isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile");
+
+  // Provider selection:
+  // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
+  // - Otherwise, auto-detect hCaptcha when the key looks like a UUID.
+  // - Fallback to turnstile.
+  const configuredCaptchaProvider = import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined;
+
+  const isLikelyHCaptchaSiteKey = Boolean(
+    captchaSiteKey &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(captchaSiteKey)
+  );
+
+  const captchaProvider = (configuredCaptchaProvider ?? (isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile")) as
+    | "hcaptcha"
+    | "turnstile";
+
   const captchaScriptSrc =
     captchaProvider === "hcaptcha"
       ? "https://js.hcaptcha.com/1/api.js?render=explicit"
@@ -57,7 +73,9 @@ const Auth = () => {
   useEffect(() => {
     // Check if user is already logged in
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.user) {
         navigate("/");
       }
@@ -71,7 +89,7 @@ const Auth = () => {
     const renderWidget = () => {
       if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
 
-      const baseOptions = {
+      const baseOptions: any = {
         sitekey: captchaSiteKey,
         callback: (token: string) => setCaptchaToken(token),
         "expired-callback": () => setCaptchaToken(""),
@@ -88,11 +106,16 @@ const Auth = () => {
       captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, baseOptions);
     };
 
-    if ((captchaProvider === "hcaptcha" && window.hcaptcha) || (captchaProvider !== "hcaptcha" && window.turnstile)) {
+    // If already available, render immediately
+    if (
+      (captchaProvider === "hcaptcha" && (window as any).hcaptcha) ||
+      (captchaProvider !== "hcaptcha" && (window as any).turnstile)
+    ) {
       renderWidget();
       return;
     }
 
+    // Otherwise load script once, then render
     const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
 
     if (existingScript) {
@@ -115,13 +138,13 @@ const Auth = () => {
 
     if (captchaWidgetIdRef.current === null) return;
 
-    if (captchaProvider === "hcaptcha" && window.hcaptcha) {
-      window.hcaptcha.reset(captchaWidgetIdRef.current);
+    if (captchaProvider === "hcaptcha" && (window as any).hcaptcha) {
+      (window as any).hcaptcha.reset(captchaWidgetIdRef.current);
       return;
     }
 
-    if (window.turnstile) {
-      window.turnstile.reset(captchaWidgetIdRef.current);
+    if ((window as any).turnstile) {
+      (window as any).turnstile.reset(captchaWidgetIdRef.current);
     }
   };
 
@@ -161,7 +184,7 @@ const Auth = () => {
         });
         navigate("/");
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Error",
@@ -214,7 +237,7 @@ const Auth = () => {
           description: "Please check your email to verify your account.",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Error",
@@ -230,6 +253,7 @@ const Auth = () => {
   const handleQuickLogin = async (email: string, password: string, type: "personal" | "business" | "contractor") => {
     setLoading(true);
     const nameMap = { personal: "Personal Test User", business: "Business Test User", contractor: "Contractor Test User" };
+
     try {
       // First try to sign up the test user
       await supabase.auth.signUp({
@@ -264,7 +288,7 @@ const Auth = () => {
         });
         navigate("/");
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Error",
@@ -408,16 +432,25 @@ const Auth = () => {
                         required
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="userType">Account Type</Label>
+
                       <div className="space-y-2 rounded-md border p-3 text-sm">
                         {Object.entries(accountTypeDetails).map(([key, details]) => (
-                          <p key={key} className={userType === key ? "font-medium text-foreground" : "text-muted-foreground"}>
+                          <p
+                            key={key}
+                            className={userType === key ? "font-medium text-foreground" : "text-muted-foreground"}
+                          >
                             <span className="font-semibold">{details.title}:</span> {details.description}
                           </p>
                         ))}
                       </div>
-                      <Select value={userType} onValueChange={(value: "personal" | "business" | "contractor") => setUserType(value)}>
+
+                      <Select
+                        value={userType}
+                        onValueChange={(value: "personal" | "business" | "contractor") => setUserType(value)}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -428,6 +461,7 @@ const Auth = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
                     {(userType === "business" || userType === "contractor") && (
                       <div className="space-y-2">
                         <Label htmlFor="companyName">Company Name</Label>
@@ -439,6 +473,7 @@ const Auth = () => {
                         />
                       </div>
                     )}
+
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
