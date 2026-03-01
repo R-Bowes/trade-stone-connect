@@ -30,10 +30,13 @@ const Auth = () => {
 
   // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
+  const [isCaptchaReady, setIsCaptchaReady] = useState(false);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
 
-  const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const configuredCaptchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined;
+  const captchaSiteKey = configuredCaptchaSiteKey?.trim();
+  const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
   // Provider selection:
   // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
@@ -84,15 +87,23 @@ const Auth = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (!captchaSiteKey || !captchaContainerRef.current) return;
+    if (!captchaEnabled || !captchaContainerRef.current) return;
+
+    // reset readiness/token for this mount cycle
+    setIsCaptchaReady(false);
+    setCaptchaToken("");
+
+    // if a widget existed from a previous render, clear the ref so we can re-render cleanly
+    captchaWidgetIdRef.current = null;
 
     let retryTimer: ReturnType<typeof setInterval> | null = null;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
 
     const renderWidget = () => {
-      if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return;
+      if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return true;
 
       const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
-      if (!api) return false;
+      if (!api?.render) return false;
 
       const baseOptions: any = {
         sitekey: captchaSiteKey,
@@ -101,55 +112,74 @@ const Auth = () => {
         "error-callback": () => setCaptchaToken(""),
       };
 
-      captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
-      return true;
+      try {
+        captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
+        setIsCaptchaReady(true);
+        return true;
+      } catch {
+        return false;
+      }
     };
 
-    // Try immediately, then poll until the API object is available
-    if (!renderWidget()) {
-      // Load script if not already present
+    const ensureScript = () => {
       const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${captchaScriptSrc}"]`);
-      if (!existingScript) {
-        const script = document.createElement("script");
-        script.src = captchaScriptSrc;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-      }
+      if (existingScript) return;
 
-      // Poll for the API to become available (script load event is unreliable for hCaptcha)
+      const script = document.createElement("script");
+      script.src = captchaScriptSrc;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    };
+
+    // First attempt immediately
+    if (!renderWidget()) {
+      // Ensure script is present, then poll until provider globals appear
+      ensureScript();
+
       retryTimer = setInterval(() => {
         if (renderWidget() && retryTimer) {
           clearInterval(retryTimer);
           retryTimer = null;
         }
       }, 200);
+
+      // Safety stop (avoid infinite polling)
+      stopTimer = setTimeout(() => {
+        if (retryTimer) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }, 7000);
     }
 
     return () => {
       if (retryTimer) clearInterval(retryTimer);
+      if (stopTimer) clearTimeout(stopTimer);
     };
-  }, [captchaProvider, captchaScriptSrc, captchaSiteKey]);
+  }, [captchaEnabled, captchaProvider, captchaScriptSrc, captchaSiteKey]);
 
   const resetCaptcha = () => {
     setCaptchaToken("");
 
     if (captchaWidgetIdRef.current === null) return;
 
-    if (captchaProvider === "hcaptcha" && (window as any).hcaptcha) {
+    if (captchaProvider === "hcaptcha" && (window as any).hcaptcha?.reset) {
       (window as any).hcaptcha.reset(captchaWidgetIdRef.current);
       return;
     }
 
-    if ((window as any).turnstile) {
+    if ((window as any).turnstile?.reset) {
       (window as any).turnstile.reset(captchaWidgetIdRef.current);
     }
   };
 
+  const shouldValidateCaptcha = captchaEnabled && isCaptchaReady;
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (captchaSiteKey && !captchaToken) {
+    if (shouldValidateCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -189,7 +219,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (captchaSiteKey) resetCaptcha();
+      if (shouldValidateCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -197,7 +227,7 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (captchaSiteKey && !captchaToken) {
+    if (shouldValidateCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -242,7 +272,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (captchaSiteKey) resetCaptcha();
+      if (shouldValidateCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -349,7 +379,7 @@ const Auth = () => {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {captchaSiteKey && (
+            {captchaEnabled && (
               <div className="py-4">
                 <div ref={captchaContainerRef} />
               </div>
