@@ -76,7 +76,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
       const subcontractorIds = data?.map(s => s.subcontractor_id) || [];
       if (subcontractorIds.length > 0) {
         const { data: profiles } = await supabase
-          .from("profiles")
+          .from("public_pro_profiles")
           .select("user_id, full_name, company_name, ts_profile_code")
           .in("user_id", subcontractorIds);
 
@@ -108,7 +108,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
 
       // Load all Pro accounts except current user
       const { data, error } = await supabase
-        .from("profiles")
+        .from("public_pro_profiles")
         .select("user_id, full_name, company_name, ts_profile_code")
         .eq("user_type", "contractor")
         .neq("user_id", user.id);
