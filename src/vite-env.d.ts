@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY: string;
   readonly VITE_SUPABASE_CAPTCHA_SITE_KEY?: string;
   readonly VITE_SUPABASE_CAPTCHA_PROVIDER?: "turnstile" | "hcaptcha";
+  readonly VITE_HCAPTCHA_SITE_KEY?: string;
+  readonly VITE_CAPTCHA_PROVIDER?: "turnstile" | "hcaptcha";
 }
 
 interface ImportMeta {
