@@ -180,7 +180,7 @@ const Auth = () => {
     }
   };
 
-  const shouldValidateCaptcha = captchaEnabled && isCaptchaReady;
+  const shouldValidateCaptcha = captchaEnabled;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,12 +289,23 @@ const Auth = () => {
     const nameMap = { personal: "Personal Test User", business: "Business Test User", contractor: "Contractor Test User" };
 
     try {
+      if (shouldValidateCaptcha && !captchaToken) {
+        toast({
+          variant: "destructive",
+          title: "Captcha required",
+          description: "Please complete the captcha verification first.",
+        });
+        setLoading(false);
+        return;
+      }
+
       // First try to sign up the test user
       await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
+          captchaToken: captchaToken || undefined,
           data: {
             full_name: nameMap[type],
             user_type: type,
@@ -307,6 +318,9 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          captchaToken: captchaToken || undefined,
+        },
       });
 
       if (error && !error.message.includes("Invalid login credentials")) {
@@ -329,6 +343,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
+      if (shouldValidateCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
