@@ -103,10 +103,14 @@ const Auth = () => {
     let retryTimer: ReturnType<typeof setInterval> | null = null;
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
 
+    console.log("[Captcha] Init — provider:", captchaProvider, "siteKey:", captchaSiteKey, "enabled:", captchaEnabled);
+    console.log("[Captcha] Container ref:", captchaContainerRef.current);
+
     const renderWidget = () => {
       if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return true;
 
       const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
+      console.log("[Captcha] Checking API availability:", captchaProvider, "api:", !!api, "api.render:", !!api?.render);
       if (!api?.render) return false;
 
       const baseOptions: any = {
@@ -118,9 +122,11 @@ const Auth = () => {
 
       try {
         captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
+        console.log("[Captcha] Widget rendered successfully, widgetId:", captchaWidgetIdRef.current);
         setIsCaptchaReady(true);
         return true;
-      } catch {
+      } catch (err) {
+        console.error("[Captcha] Render failed:", err);
         return false;
       }
     };
