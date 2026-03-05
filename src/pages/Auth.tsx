@@ -32,6 +32,7 @@ const Auth = () => {
   const [captchaToken, setCaptchaToken] = useState("");
   const [isCaptchaReady, setIsCaptchaReady] = useState(false);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const [captchaContainerMounted, setCaptchaContainerMounted] = useState(false);
   const captchaWidgetIdRef = useRef<string | number | null>(null);
 
   const configuredCaptchaSiteKey =
@@ -91,7 +92,7 @@ const Auth = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (!captchaEnabled || !captchaContainerRef.current) return;
+    if (!captchaEnabled || !captchaContainerMounted || !captchaContainerRef.current) return;
 
     // reset readiness/token for this mount cycle
     setIsCaptchaReady(false);
@@ -169,7 +170,7 @@ const Auth = () => {
       if (retryTimer) clearInterval(retryTimer);
       if (stopTimer) clearTimeout(stopTimer);
     };
-  }, [captchaEnabled, captchaProvider, captchaScriptSrc, captchaSiteKey]);
+  }, [captchaEnabled, captchaContainerMounted, captchaProvider, captchaScriptSrc, captchaSiteKey]);
 
   const resetCaptcha = () => {
     setCaptchaToken("");
@@ -402,7 +403,10 @@ const Auth = () => {
 
           {captchaEnabled && (
             <div className="py-4">
-              <div ref={captchaContainerRef} />
+              <div ref={(el) => {
+                captchaContainerRef.current = el;
+                if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
+              }} />
             </div>
           )}
 
