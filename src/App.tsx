@@ -22,6 +22,7 @@ import Dashboard from "./pages/Dashboard";
 import PersonalDashboard from "./pages/PersonalDashboard";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import ContractorDashboard from "./pages/ContractorDashboard";
+import About from "./pages/About";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/about" element={<About />} />
           {/* Dashboard routes - auto-redirects based on user type */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/personal" element={<PersonalDashboard />} />
