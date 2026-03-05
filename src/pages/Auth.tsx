@@ -400,17 +400,17 @@ const Auth = () => {
             </Card>
           )}
 
+          {captchaEnabled && (
+            <div className="py-4">
+              <div ref={captchaContainerRef} />
+            </div>
+          )}
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
-
-            {captchaEnabled && (
-              <div className="py-4">
-                <div ref={captchaContainerRef} />
-              </div>
-            )}
 
             <TabsContent value="login">
               <Card>
