@@ -37,7 +37,8 @@ const Auth = () => {
 
   const configuredCaptchaSiteKey =
     (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
-    (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined);
+    (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) ||
+    "655c03cc-6ee2-461e-bdde-a5de327c18a4";
   const captchaSiteKey = configuredCaptchaSiteKey?.trim();
   const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
@@ -198,12 +199,13 @@ const Auth = () => {
     }
   };
 
-  const shouldValidateCaptcha = captchaEnabled;
+  const shouldValidateLoginCaptcha = false;
+  const shouldValidateSignupCaptcha = captchaEnabled;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (shouldValidateCaptcha && !captchaToken) {
+    if (shouldValidateLoginCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -243,7 +245,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (shouldValidateCaptcha) resetCaptcha();
+      if (shouldValidateLoginCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -251,7 +253,7 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (shouldValidateCaptcha && !captchaToken) {
+    if (shouldValidateSignupCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
         title: "Captcha required",
@@ -296,7 +298,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (shouldValidateCaptcha) resetCaptcha();
+      if (shouldValidateSignupCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -307,7 +309,7 @@ const Auth = () => {
     const nameMap = { personal: "Personal Test User", business: "Business Test User", contractor: "Contractor Test User" };
 
     try {
-      if (shouldValidateCaptcha && !captchaToken) {
+      if (shouldValidateSignupCaptcha && !captchaToken) {
         toast({
           variant: "destructive",
           title: "Captcha required",
@@ -361,7 +363,7 @@ const Auth = () => {
         description: "An unexpected error occurred.",
       });
     } finally {
-      if (shouldValidateCaptcha) resetCaptcha();
+      if (shouldValidateSignupCaptcha) resetCaptcha();
       setLoading(false);
     }
   };
@@ -410,15 +412,6 @@ const Auth = () => {
                 </Button>
               </CardContent>
             </Card>
-          )}
-
-          {captchaEnabled && (
-            <div className="py-4">
-              <div ref={(el) => {
-                captchaContainerRef.current = el;
-                if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
-              }} />
-            </div>
           )}
 
           <Tabs defaultValue="login" className="w-full">
@@ -540,6 +533,18 @@ const Auth = () => {
                           type="text"
                           value={companyName}
                           onChange={(e) => setCompanyName(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {captchaEnabled && (
+                      <div className="space-y-2">
+                        <Label>Captcha Verification</Label>
+                        <div
+                          ref={(el) => {
+                            captchaContainerRef.current = el;
+                            if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
+                          }}
                         />
                       </div>
                     )}
