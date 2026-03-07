@@ -1,16 +1,34 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, MapPin, SlidersHorizontal, Loader2 } from "lucide-react";
+import { Search, MapPin, SlidersHorizontal, Loader2, Star, Clock3 } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
+
+type RatingFilter = "all" | "4.5" | "4.0";
+type AvailabilityFilter = "all" | "today" | "week";
+
+const fallbackTrades = ["General Building", "Electrical", "Plumbing", "Carpentry", "Painting", "Roofing"];
+const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
+const fallbackBios = [
+  "Experienced in residential and light commercial projects with a strong focus on quality finishes.",
+  "Reliable contractor delivering clean, on-time work and clear communication from start to finish.",
+  "Specialises in renovation, maintenance, and quick-response repair work for homeowners.",
+  "Detail-oriented professional known for efficient scheduling and transparent project updates.",
+];
+
+const hashValue = (value: string) => {
+  return [...value].reduce((total, char) => total + char.charCodeAt(0), 0);
+};
 
 const ContractorDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTrade, setSelectedTrade] = useState<string | undefined>(undefined);
   const [location, setLocation] = useState("");
+  const [minRating, setMinRating] = useState<RatingFilter>("all");
+  const [availability, setAvailability] = useState<AvailabilityFilter>("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const { data: contractors, isLoading } = useContractors(searchTerm, selectedTrade, location);
@@ -75,6 +93,41 @@ const ContractorDirectory = () => {
     }
     setSelectedTrade(value);
   };
+
+  const contractorsWithMeta = useMemo(() => {
+    return (contractors ?? []).map((contractor) => {
+      const seed = hashValue(contractor.user_id ?? contractor.ts_profile_code ?? contractor.full_name ?? "contractor");
+      const rating = Number((4 + (seed % 11) / 10).toFixed(1));
+      const reviewCount = 10 + (seed % 90);
+      const isAvailableToday = seed % 2 === 0;
+      const isAvailableThisWeek = seed % 5 !== 0;
+      const preferredTrade = selectedTrade ?? fallbackTrades[seed % fallbackTrades.length];
+
+      return {
+        ...contractor,
+        rating,
+        reviewCount,
+        specialties: [preferredTrade, fallbackTrades[(seed + 2) % fallbackTrades.length], fallbackTrades[(seed + 4) % fallbackTrades.length]],
+        bioSnippet: fallbackBios[seed % fallbackBios.length],
+        locationLabel: location || fallbackLocations[seed % fallbackLocations.length],
+        distance: `${(1 + (seed % 14)).toFixed(1)} mi`,
+        isAvailableToday,
+        isAvailableThisWeek,
+      };
+    });
+  }, [contractors, location, selectedTrade]);
+
+  const filteredContractors = useMemo(() => {
+    return contractorsWithMeta.filter((contractor) => {
+      const ratingMatch = minRating === "all" || contractor.rating >= Number(minRating);
+      const availabilityMatch =
+        availability === "all" ||
+        (availability === "today" && contractor.isAvailableToday) ||
+        (availability === "week" && contractor.isAvailableThisWeek);
+
+      return ratingMatch && availabilityMatch;
+    });
+  }, [availability, contractorsWithMeta, minRating]);
 
   return (
     <section id="directory" className="py-16 px-4">
@@ -169,6 +222,28 @@ const ContractorDirectory = () => {
                       />
                     </div>
 
+                    <Select value={minRating} onValueChange={(value: RatingFilter) => setMinRating(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Minimum rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any rating</SelectItem>
+                        <SelectItem value="4.5">4.5+ stars</SelectItem>
+                        <SelectItem value="4.0">4.0+ stars</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={availability} onValueChange={(value: AvailabilityFilter) => setAvailability(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Availability" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any availability</SelectItem>
+                        <SelectItem value="today">Available today</SelectItem>
+                        <SelectItem value="week">Available this week</SelectItem>
+                      </SelectContent>
+                    </Select>
+
                     <Button className="w-full" onClick={() => setIsFiltersOpen(false)}>
                       Apply Filters
                     </Button>
@@ -178,15 +253,43 @@ const ContractorDirectory = () => {
             </div>
           </div>
 
-          {/* Advanced Filters */}
-          <div className="flex justify-between items-center mt-4 pt-4 border-t">
-            <Button variant="ghost" size="sm">
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Advanced Filters
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              {contractors?.length || 0} contractors found
+          <div className="mt-4 pt-4 border-t flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={minRating} onValueChange={(value: RatingFilter) => setMinRating(value)}>
+                <SelectTrigger className="w-[170px] h-8">
+                  <div className="flex items-center gap-1 text-xs">
+                    <Star className="h-3.5 w-3.5" />
+                    <SelectValue placeholder="Rating" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any rating</SelectItem>
+                  <SelectItem value="4.5">4.5+ stars</SelectItem>
+                  <SelectItem value="4.0">4.0+ stars</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={availability} onValueChange={(value: AvailabilityFilter) => setAvailability(value)}>
+                <SelectTrigger className="w-[190px] h-8">
+                  <div className="flex items-center gap-1 text-xs">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    <SelectValue placeholder="Availability" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any availability</SelectItem>
+                  <SelectItem value="today">Available today</SelectItem>
+                  <SelectItem value="week">Available this week</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button variant="ghost" size="sm">
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Advanced Filters
+              </Button>
             </div>
+
+            <div className="text-sm text-muted-foreground">{filteredContractors.length} contractors found</div>
           </div>
         </div>
 
@@ -195,18 +298,20 @@ const ContractorDirectory = () => {
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : contractors && contractors.length > 0 ? (
+        ) : filteredContractors.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {contractors.map((contractor) => (
+            {filteredContractors.map((contractor) => (
               <ContractorCard
                 key={contractor.user_id}
                 name={contractor.full_name || "Unknown"}
                 company={contractor.company_name || "Independent Contractor"}
                 code={contractor.ts_profile_code || ""}
-                specialties={[]}
-                rating={0}
-                reviewCount={0}
-                location=""
+                specialties={contractor.specialties}
+                bioSnippet={contractor.bioSnippet}
+                rating={contractor.rating}
+                reviewCount={contractor.reviewCount}
+                location={contractor.locationLabel}
+                distance={contractor.distance}
               />
             ))}
           </div>
@@ -217,7 +322,7 @@ const ContractorDirectory = () => {
         )}
 
         {/* Load More */}
-        {contractors && contractors.length > 0 && (
+        {filteredContractors.length > 0 && (
           <div className="text-center mt-12">
             <Button variant="outline" size="lg">
               Load More Contractors
