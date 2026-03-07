@@ -49,14 +49,25 @@ const Auth = () => {
     (import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined) ||
     (import.meta.env.VITE_CAPTCHA_PROVIDER as string | undefined);
 
+  const normalizedConfiguredProvider = configuredCaptchaProvider?.trim().toLowerCase();
+
+  // hCaptcha site keys are UUID-like, including the all-zero test key.
+  // Keep this intentionally permissive to avoid misclassifying hCaptcha as Turnstile.
   const isLikelyHCaptchaSiteKey = Boolean(
-    captchaSiteKey &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(captchaSiteKey)
+    captchaSiteKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(captchaSiteKey)
   );
 
-  const captchaProvider = (configuredCaptchaProvider ?? (isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile")) as
-    | "hcaptcha"
-    | "turnstile";
+  const captchaProvider = ((): "hcaptcha" | "turnstile" => {
+    if (normalizedConfiguredProvider === "hcaptcha" || normalizedConfiguredProvider === "h-captcha") {
+      return "hcaptcha";
+    }
+
+    if (normalizedConfiguredProvider === "turnstile") {
+      return "turnstile";
+    }
+
+    return isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile";
+  })();
 
   const captchaScriptSrc =
     captchaProvider === "hcaptcha"
