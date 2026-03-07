@@ -127,7 +127,14 @@ export default {
   				'Liberation Mono',
   				'Courier New',
   				'monospace'
-  			]
+  			],
+			heading: [
+				'Space Grotesk',
+				'Roboto',
+				'ui-sans-serif',
+				'system-ui',
+				'sans-serif'
+			]
   		}
   	}
   },
