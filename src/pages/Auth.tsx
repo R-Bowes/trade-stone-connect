@@ -39,6 +39,7 @@ const Auth = () => {
     (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
     (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) ||
     "d08cb50e-41d0-464a-9a6c-8bd012486352";
+
   const captchaSiteKey = configuredCaptchaSiteKey?.trim();
   const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
@@ -75,55 +76,56 @@ const Auth = () => {
       ? "https://js.hcaptcha.com/1/api.js?render=explicit"
       : "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
-  const accountTypeDetails: Record<"personal" | "business" | "contractor", { title: string; description: string }> = {
+  const accountTypeDetails: Record<
+    "personal" | "business" | "contractor",
+    { title: string; description: string }
+  > = {
     personal: {
       title: "Personal",
-      description: "For homeowners and individuals requesting quotes, booking services, and managing project communication.",
+      description:
+        "For homeowners and individuals requesting quotes, booking services, and managing project communication.",
     },
     business: {
       title: "Business",
-      description: "For companies and property managers coordinating jobs across multiple locations or teams.",
+      description:
+        "For companies and property managers coordinating jobs across multiple locations or teams.",
     },
     contractor: {
       title: "Contractor",
-      description: "For trade professionals and service providers showcasing services, sending quotes, and managing client work.",
+      description:
+        "For trade professionals and service providers showcasing services, sending quotes, and managing client work.",
     },
   };
 
   useEffect(() => {
-    // Check if user is already logged in
     const checkUser = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (session?.user) {
         navigate("/");
       }
     };
+
     checkUser();
   }, [navigate]);
 
   useEffect(() => {
     if (!captchaEnabled || !captchaContainerMounted || !captchaContainerRef.current) return;
 
-    // reset readiness/token for this mount cycle
     setIsCaptchaReady(false);
     setCaptchaToken("");
-
-    // if a widget existed from a previous render, clear the ref so we can re-render cleanly
     captchaWidgetIdRef.current = null;
 
     let retryTimer: ReturnType<typeof setInterval> | null = null;
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
 
-    console.log("[Captcha] Init — provider:", captchaProvider, "siteKey:", captchaSiteKey, "enabled:", captchaEnabled);
-    console.log("[Captcha] Container ref:", captchaContainerRef.current);
-
     const renderWidget = () => {
       if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return true;
 
       const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
-      console.log("[Captcha] Checking API availability:", captchaProvider, "api:", !!api, "api.render:", !!api?.render);
+
       if (!api?.render) return false;
 
       const baseOptions: any = {
@@ -135,7 +137,6 @@ const Auth = () => {
 
       try {
         captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
-        console.log("[Captcha] Widget rendered successfully, widgetId:", captchaWidgetIdRef.current);
         setIsCaptchaReady(true);
         return true;
       } catch (err) {
@@ -146,8 +147,10 @@ const Auth = () => {
 
     const ensureScript = () => {
       const scriptBaseSrc = captchaScriptSrc.split("?")[0];
-      const existingScript = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]"))
-        .find((script) => script.src.startsWith(scriptBaseSrc));
+      const existingScript = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]")).find((script) =>
+        script.src.startsWith(scriptBaseSrc)
+      );
+
       if (existingScript) return;
 
       const script = document.createElement("script");
@@ -157,9 +160,7 @@ const Auth = () => {
       document.head.appendChild(script);
     };
 
-    // First attempt immediately
     if (!renderWidget()) {
-      // Ensure script is present, then poll until provider globals appear
       ensureScript();
 
       retryTimer = setInterval(() => {
@@ -169,7 +170,6 @@ const Auth = () => {
         }
       }, 200);
 
-      // Safety stop (avoid infinite polling)
       stopTimer = setTimeout(() => {
         if (retryTimer) {
           clearInterval(retryTimer);
@@ -303,10 +303,18 @@ const Auth = () => {
     }
   };
 
-  // Quick test login function
-  const handleQuickLogin = async (email: string, password: string, type: "personal" | "business" | "contractor") => {
+  const handleQuickLogin = async (
+    email: string,
+    password: string,
+    type: "personal" | "business" | "contractor"
+  ) => {
     setLoading(true);
-    const nameMap = { personal: "Personal Test User", business: "Business Test User", contractor: "Contractor Test User" };
+
+    const nameMap = {
+      personal: "Personal Test User",
+      business: "Business Test User",
+      contractor: "Contractor Test User",
+    };
 
     try {
       if (shouldValidateSignupCaptcha && !captchaToken) {
@@ -319,7 +327,6 @@ const Auth = () => {
         return;
       }
 
-      // First try to sign up the test user
       await supabase.auth.signUp({
         email,
         password,
@@ -334,7 +341,6 @@ const Auth = () => {
         },
       });
 
-      // Then sign in
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -371,6 +377,7 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">
           <div className="mb-6">
@@ -378,7 +385,6 @@ const Auth = () => {
             <p className="text-muted-foreground text-center">Sign in or create your account</p>
           </div>
 
-          {/* Quick Test Buttons - Development Only */}
           {import.meta.env.DEV && (
             <Card className="mb-6">
               <CardHeader>
@@ -394,6 +400,7 @@ const Auth = () => {
                 >
                   Login as Contractor
                 </Button>
+
                 <Button
                   onClick={() => handleQuickLogin("business@test.com", quickTestPassword, "business")}
                   disabled={loading}
@@ -402,6 +409,7 @@ const Auth = () => {
                 >
                   Login as Business
                 </Button>
+
                 <Button
                   onClick={() => handleQuickLogin("personal@test.com", quickTestPassword, "personal")}
                   disabled={loading}
@@ -426,6 +434,7 @@ const Auth = () => {
                   <CardTitle>Login</CardTitle>
                   <CardDescription>Enter your credentials to access your account</CardDescription>
                 </CardHeader>
+
                 <CardContent>
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
@@ -438,6 +447,7 @@ const Auth = () => {
                         required
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="loginPassword">Password</Label>
                       <Input
@@ -448,6 +458,7 @@ const Auth = () => {
                         required
                       />
                     </div>
+
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? "Signing in..." : "Sign In"}
                     </Button>
@@ -462,8 +473,10 @@ const Auth = () => {
                   <CardTitle>Create Account</CardTitle>
                   <CardDescription>Join TradeStone today</CardDescription>
                 </CardHeader>
+
                 <CardContent>
                   <TransactionFeeNotice className="mb-4" />
+
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Full Name</Label>
@@ -475,6 +488,7 @@ const Auth = () => {
                         required
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="signupEmail">Email</Label>
                       <Input
@@ -485,6 +499,7 @@ const Auth = () => {
                         required
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="signupPassword">Password</Label>
                       <Input
@@ -546,10 +561,13 @@ const Auth = () => {
                             if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
                           }}
                         />
+                        {!isCaptchaReady && (
+                          <p className="text-sm text-muted-foreground">Loading captcha...</p>
+                        )}
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={loading}>
+                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !isCaptchaReady)}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
