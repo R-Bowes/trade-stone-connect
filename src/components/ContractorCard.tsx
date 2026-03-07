@@ -10,6 +10,7 @@ interface ContractorCardProps {
   company: string;
   code: string;
   specialties: string[];
+  bioSnippet?: string;
   rating: number;
   reviewCount: number;
   location: string;
@@ -22,6 +23,7 @@ const ContractorCard = ({
   company,
   code,
   specialties,
+  bioSnippet,
   rating,
   reviewCount,
   location,
@@ -89,6 +91,10 @@ const ContractorCard = ({
               </Badge>
             )}
           </div>
+
+          {bioSnippet && (
+            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{bioSnippet}</p>
+          )}
 
           {/* Actions */}
           <div className="flex space-x-2">
