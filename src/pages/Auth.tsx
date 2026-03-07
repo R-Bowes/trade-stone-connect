@@ -38,7 +38,7 @@ const Auth = () => {
   const configuredCaptchaSiteKey =
     (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
     (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) ||
-    "655c03cc-6ee2-461e-bdde-a5de327c18a4";
+    "dd8cb50e-41d0-464a-9a6c-8bd012486352";
   const captchaSiteKey = configuredCaptchaSiteKey?.trim();
   const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
 
