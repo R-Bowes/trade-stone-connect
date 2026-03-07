@@ -60,6 +60,15 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+
+## hCaptcha configuration
+
+This app is configured for hCaptcha by default. Use the following values from your hCaptcha dashboard and Supabase Auth settings:
+
+- Frontend site key (`VITE_SUPABASE_CAPTCHA_SITE_KEY` / `VITE_HCAPTCHA_SITE_KEY`): `dd8cb50e-41d0-464a-9a6c-8bd012486352`
+- Provider (`VITE_SUPABASE_CAPTCHA_PROVIDER` / `VITE_CAPTCHA_PROVIDER`): `hcaptcha`
+- Secret key: set this in **Supabase Dashboard → Authentication → Bot & Abuse Protection**, not in frontend env files.
+
 ## Supabase Auth password policy
 
 To help protect your users, Supabase Auth allows you fine-grained control over the strength of the passwords used on your project. You can configure these in your project's Auth settings:
