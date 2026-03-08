@@ -43,6 +43,7 @@ import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import { CRMManagement } from "@/components/management/CRMManagement";
 import { FinancialsManagement } from "@/components/management/FinancialsManagement";
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
+import { DocumentManagement } from "@/components/management/DocumentManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -280,6 +281,7 @@ const ContractorDashboard = () => {
               <TabsTrigger value="team" className="whitespace-nowrap" data-tour="tab-team">Team</TabsTrigger>
               <TabsTrigger value="timesheets" className="whitespace-nowrap" data-tour="tab-timesheets">Timesheets</TabsTrigger>
               <TabsTrigger value="photos" className="whitespace-nowrap" data-tour="tab-photos">Photos</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap" data-tour="tab-documents">Documents</TabsTrigger>
               <TabsTrigger value="financials" className="whitespace-nowrap" data-tour="tab-financials">Financials</TabsTrigger>
               <TabsTrigger value="schedule" className="whitespace-nowrap" data-tour="tab-schedule">Schedule</TabsTrigger>
               <TabsTrigger value="clients" className="whitespace-nowrap" data-tour="tab-clients">CRM</TabsTrigger>
@@ -475,6 +477,11 @@ const ContractorDashboard = () => {
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
 
           {/* Financials Tab */}
+          {/* Documents Tab */}
+          <TabsContent value="documents">
+            <DocumentManagement />
+          </TabsContent>
+
           <TabsContent value="financials">
             <FinancialsManagement />
           </TabsContent>

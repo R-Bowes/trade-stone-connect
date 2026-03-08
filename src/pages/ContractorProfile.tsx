@@ -24,7 +24,10 @@ import {
   Share2,
   Heart,
   Camera,
-  ThumbsUp
+  ThumbsUp,
+  FileText,
+  ExternalLink,
+  Download
 } from "lucide-react";
 // Local type for contractor profile (only public fields we select)
 type ContractorProfileData = {
@@ -50,6 +53,7 @@ const ContractorProfile = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
+  const [contractorDocuments, setContractorDocuments] = useState<Array<{ id: string; title: string; description: string | null; document_url: string; file_name: string; file_size: number | null }>>([]);
   const [loading, setLoading] = useState(true);
 
   // Load contractor profile by TS code
@@ -69,6 +73,13 @@ const ContractorProfile = () => {
           setContractorProfile(null);
         } else {
           setContractorProfile(data);
+          // Load documents for this contractor
+          const { data: docs } = await supabase
+            .from('contractor_documents')
+            .select('id, title, description, document_url, file_name, file_size')
+            .eq('contractor_id', data.user_id)
+            .order('display_order', { ascending: true });
+          setContractorDocuments(docs || []);
         }
       } catch (error) {
         console.error('Error loading contractor profile:', error);
@@ -297,9 +308,10 @@ const ContractorProfile = () => {
         <section className="py-8 px-4">
           <div className="container mx-auto max-w-6xl">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="reviews">Reviews</TabsTrigger>
                 <TabsTrigger value="contact">Contact</TabsTrigger>
               </TabsList>
@@ -337,6 +349,39 @@ const ContractorProfile = () => {
                     </Card>
                   ))}
                 </div>
+              </TabsContent>
+
+              <TabsContent value="documents" className="space-y-6">
+                {contractorDocuments.length === 0 ? (
+                  <Card className="p-6 text-center text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No documents have been uploaded yet.</p>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {contractorDocuments.map((doc) => (
+                      <Card key={doc.id} className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="h-8 w-8 text-primary flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{doc.title}</p>
+                              {doc.description && (
+                                <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View
+                            </a>
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="reviews" className="space-y-6">
