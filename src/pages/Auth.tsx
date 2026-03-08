@@ -71,92 +71,9 @@ const Auth = () => {
     checkUser();
   }, [navigate]);
 
-  useEffect(() => {
-    if (!captchaEnabled || !captchaContainerMounted || !captchaContainerRef.current) return;
-
-    setIsCaptchaReady(false);
-    setCaptchaToken("");
-    captchaWidgetIdRef.current = null;
-
-    let retryTimer: ReturnType<typeof setInterval> | null = null;
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const renderWidget = () => {
-      if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return true;
-
-      const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
-
-      if (!api?.render) return false;
-
-      const baseOptions: any = {
-        sitekey: captchaSiteKey,
-        callback: (token: string) => setCaptchaToken(token),
-        "expired-callback": () => setCaptchaToken(""),
-        "error-callback": () => setCaptchaToken(""),
-      };
-
-      try {
-        captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
-        setIsCaptchaReady(true);
-        return true;
-      } catch (err) {
-        console.error("[Captcha] Render failed:", err);
-        return false;
-      }
-    };
-
-    const ensureScript = () => {
-      const scriptBaseSrc = captchaScriptSrc.split("?")[0];
-      const existingScript = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]")).find((script) =>
-        script.src.startsWith(scriptBaseSrc)
-      );
-
-      if (existingScript) return;
-
-      const script = document.createElement("script");
-      script.src = captchaScriptSrc;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    };
-
-    if (!renderWidget()) {
-      ensureScript();
-
-      retryTimer = setInterval(() => {
-        if (renderWidget() && retryTimer) {
-          clearInterval(retryTimer);
-          retryTimer = null;
-        }
-      }, 200);
-
-      stopTimer = setTimeout(() => {
-        if (retryTimer) {
-          clearInterval(retryTimer);
-          retryTimer = null;
-        }
-      }, 7000);
-    }
-
-    return () => {
-      if (retryTimer) clearInterval(retryTimer);
-      if (stopTimer) clearTimeout(stopTimer);
-    };
-  }, [captchaEnabled, captchaContainerMounted, captchaProvider, captchaScriptSrc, captchaSiteKey]);
-
   const resetCaptcha = () => {
     setCaptchaToken("");
-
-    if (captchaWidgetIdRef.current === null) return;
-
-    if (captchaProvider === "hcaptcha" && (window as any).hcaptcha?.reset) {
-      (window as any).hcaptcha.reset(captchaWidgetIdRef.current);
-      return;
-    }
-
-    if ((window as any).turnstile?.reset) {
-      (window as any).turnstile.reset(captchaWidgetIdRef.current);
-    }
+    captchaRef.current?.resetCaptcha();
   };
 
   const shouldValidateLoginCaptcha = false;
