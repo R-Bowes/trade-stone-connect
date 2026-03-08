@@ -477,6 +477,17 @@ const ContractorDashboard = () => {
           {/* Profile Tab */}
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
         </Tabs>
+
+        {/* Onboarding Tour */}
+        <OnboardingTour
+          isActive={isTourActive}
+          step={currentTourStep}
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          onNext={nextStep}
+          onPrev={prevStep}
+          onSkip={() => endTour(true)}
+        />
       </main>
     </div>
   );
