@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
@@ -28,6 +29,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
 
   // Captcha state
@@ -130,6 +132,15 @@ const Auth = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!termsAccepted) {
+      toast({
+        variant: "destructive",
+        title: "Terms required",
+        description: "You must accept the Terms of Use to create an account.",
+      });
+      return;
+    }
 
     if (shouldValidateSignupCaptcha && !captchaToken) {
       toast({
@@ -430,6 +441,26 @@ const Auth = () => {
                       </div>
                     )}
 
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="termsAccepted"
+                          checked={termsAccepted}
+                          onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                        />
+                        <Label htmlFor="termsAccepted" className="text-sm font-normal leading-relaxed cursor-pointer">
+                          I agree to the{" "}
+                          <Link to="/terms" target="_blank" className="text-primary hover:underline">
+                            Terms of Use
+                          </Link>{" "}
+                          and{" "}
+                          <Link to="/privacy" target="_blank" className="text-primary hover:underline">
+                            Privacy Policy
+                          </Link>
+                        </Label>
+                      </div>
+                    </div>
+
                     {captchaEnabled && (
                       <div className="space-y-2">
                         <Label>Captcha Verification</Label>
@@ -443,7 +474,7 @@ const Auth = () => {
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
+                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken) || !termsAccepted}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
