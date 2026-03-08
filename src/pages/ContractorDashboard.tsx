@@ -53,6 +53,7 @@ const ContractorDashboard = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
