@@ -477,6 +477,11 @@ const ContractorDashboard = () => {
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
 
           {/* Financials Tab */}
+          {/* Documents Tab */}
+          <TabsContent value="documents">
+            <DocumentManagement />
+          </TabsContent>
+
           <TabsContent value="financials">
             <FinancialsManagement />
           </TabsContent>
