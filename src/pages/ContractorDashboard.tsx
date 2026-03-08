@@ -257,18 +257,18 @@ const ContractorDashboard = () => {
           {/* Mobile: Horizontal scroll, Tablet: 6-col grid, Desktop: full grid */}
           <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
             <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 xl:grid-cols-15 gap-1">
-              <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
-              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
-              <TabsTrigger value="projects" className="whitespace-nowrap">Projects</TabsTrigger>
-              <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
-              <TabsTrigger value="team" className="whitespace-nowrap">Team</TabsTrigger>
-              <TabsTrigger value="timesheets" className="whitespace-nowrap">Timesheets</TabsTrigger>
-              <TabsTrigger value="photos" className="whitespace-nowrap">Photos</TabsTrigger>
-              <TabsTrigger value="financials" className="whitespace-nowrap">Financials</TabsTrigger>
-              <TabsTrigger value="schedule" className="whitespace-nowrap">Schedule</TabsTrigger>
-              <TabsTrigger value="clients" className="whitespace-nowrap">CRM</TabsTrigger>
-              <TabsTrigger value="profile" className="whitespace-nowrap">Profile</TabsTrigger>
+              <TabsTrigger value="dashboard" className="whitespace-nowrap" data-tour="tab-dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="quotes" className="whitespace-nowrap" data-tour="tab-quotes">Quotes</TabsTrigger>
+              <TabsTrigger value="invoices" className="whitespace-nowrap" data-tour="tab-invoices">Invoices</TabsTrigger>
+              <TabsTrigger value="projects" className="whitespace-nowrap" data-tour="tab-projects">Projects</TabsTrigger>
+              <TabsTrigger value="contracts" className="whitespace-nowrap" data-tour="tab-contracts">Contracts</TabsTrigger>
+              <TabsTrigger value="team" className="whitespace-nowrap" data-tour="tab-team">Team</TabsTrigger>
+              <TabsTrigger value="timesheets" className="whitespace-nowrap" data-tour="tab-timesheets">Timesheets</TabsTrigger>
+              <TabsTrigger value="photos" className="whitespace-nowrap" data-tour="tab-photos">Photos</TabsTrigger>
+              <TabsTrigger value="financials" className="whitespace-nowrap" data-tour="tab-financials">Financials</TabsTrigger>
+              <TabsTrigger value="schedule" className="whitespace-nowrap" data-tour="tab-schedule">Schedule</TabsTrigger>
+              <TabsTrigger value="clients" className="whitespace-nowrap" data-tour="tab-clients">CRM</TabsTrigger>
+              <TabsTrigger value="profile" className="whitespace-nowrap" data-tour="tab-profile">Profile</TabsTrigger>
             </TabsList>
           </div>
 
