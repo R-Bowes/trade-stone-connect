@@ -56,7 +56,7 @@ export function ProfileManagement() {
   const [tradeSearch, setTradeSearch] = useState("");
   const { toast } = useToast();
 
-  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location);
+  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location || !profile.working_radius);
 
   useEffect(() => {
     loadProfile();
@@ -193,7 +193,7 @@ export function ProfileManagement() {
             <div>
               <p className="font-semibold text-sm">Complete Your Profile</p>
               <p className="text-sm text-muted-foreground">
-                Select at least one trade and set your location below so customers can find you in the contractor directory.
+                Select at least one trade, set your location, and choose a working radius so customers can find you in the contractor directory.
               </p>
             </div>
           </CardContent>
@@ -262,9 +262,9 @@ export function ProfileManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="working_radius">Working Radius</Label>
+              <Label htmlFor="working_radius">Working Radius *</Label>
               <Select value={profile.working_radius} onValueChange={(val) => setProfile({ ...profile, working_radius: val })}>
-                <SelectTrigger id="working_radius">
+                <SelectTrigger id="working_radius" className={!profile.working_radius ? "border-primary/50" : ""}>
                   <SelectValue placeholder="Select working radius" />
                 </SelectTrigger>
                 <SelectContent>
