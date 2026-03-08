@@ -432,19 +432,17 @@ const Auth = () => {
                     {captchaEnabled && (
                       <div className="space-y-2">
                         <Label>Captcha Verification</Label>
-                        <div
-                          ref={(el) => {
-                            captchaContainerRef.current = el;
-                            if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
-                          }}
+                        <HCaptcha
+                          ref={captchaRef}
+                          sitekey={captchaSiteKey}
+                          onVerify={(token) => setCaptchaToken(token)}
+                          onExpire={() => setCaptchaToken("")}
+                          onError={() => setCaptchaToken("")}
                         />
-                        {!isCaptchaReady && (
-                          <p className="text-sm text-muted-foreground">Loading captcha...</p>
-                        )}
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !isCaptchaReady)}>
+                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
