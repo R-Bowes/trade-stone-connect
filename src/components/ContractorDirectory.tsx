@@ -101,15 +101,16 @@ const ContractorDirectory = () => {
       const reviewCount = 10 + (seed % 90);
       const isAvailableToday = seed % 2 === 0;
       const isAvailableThisWeek = seed % 5 !== 0;
-      const preferredTrade = selectedTrade ?? fallbackTrades[seed % fallbackTrades.length];
+      const realTrade = contractor.trade;
+      const preferredTrade = realTrade ?? selectedTrade ?? fallbackTrades[seed % fallbackTrades.length];
 
       return {
         ...contractor,
         rating,
         reviewCount,
         specialties: [preferredTrade, fallbackTrades[(seed + 2) % fallbackTrades.length], fallbackTrades[(seed + 4) % fallbackTrades.length]],
-        bioSnippet: fallbackBios[seed % fallbackBios.length],
-        locationLabel: location || fallbackLocations[seed % fallbackLocations.length],
+        bioSnippet: contractor.bio || fallbackBios[seed % fallbackBios.length],
+        locationLabel: contractor.location || location || fallbackLocations[seed % fallbackLocations.length],
         distance: `${(1 + (seed % 14)).toFixed(1)} mi`,
         isAvailableToday,
         isAvailableThisWeek,
