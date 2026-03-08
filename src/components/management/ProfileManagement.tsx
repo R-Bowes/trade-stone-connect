@@ -5,22 +5,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, X } from "lucide-react";
 
 interface Profile {
   full_name: string;
   email: string;
   phone: string;
   company_name: string;
-  trade: string;
+  trades: string[];
   location: string;
   working_radius: string;
   bio: string;
 }
 
-const trades = [
+const allTrades = [
   "Agricultural Technician", "Air-craft Engineer", "Automation Technician", "Auto Mechanic",
   "Boilermaker", "Bricklayer / Mason", "Carpentry", "Carpenter", "Carpet Installer",
   "Concrete Finisher", "Construction Inspector", "Construction Manager", "Consultant",
@@ -43,7 +45,7 @@ export function ProfileManagement() {
     email: "",
     phone: "",
     company_name: "",
-    trade: "",
+    trades: [],
     location: "",
     working_radius: "",
     bio: "",
@@ -51,9 +53,10 @@ export function ProfileManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isContractor, setIsContractor] = useState(false);
+  const [tradeSearch, setTradeSearch] = useState("");
   const { toast } = useToast();
 
-  const isProfileIncomplete = isContractor && (!profile.trade || !profile.location);
+  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location);
 
   useEffect(() => {
     loadProfile();
@@ -73,13 +76,22 @@ export function ProfileManagement() {
       if (error) throw error;
 
       if (data) {
+        const rawTrades = (data as any).trades;
+        const rawTrade = (data as any).trade;
+        let trades: string[] = [];
+        if (Array.isArray(rawTrades) && rawTrades.length > 0) {
+          trades = rawTrades;
+        } else if (rawTrade) {
+          trades = [rawTrade];
+        }
+
         setIsContractor(data.user_type === "contractor");
         setProfile({
           full_name: data.full_name || "",
           email: data.email || "",
           phone: data.phone || "",
           company_name: data.company_name || "",
-          trade: (data as any).trade || "",
+          trades,
           location: (data as any).location || "",
           working_radius: (data as any).working_radius || "",
           bio: (data as any).bio || "",
@@ -111,7 +123,8 @@ export function ProfileManagement() {
       };
 
       if (isContractor) {
-        updateData.trade = profile.trade;
+        updateData.trades = profile.trades;
+        updateData.trade = profile.trades[0] || null; // keep primary trade in sync
         updateData.location = profile.location;
         updateData.working_radius = profile.working_radius;
         updateData.bio = profile.bio;
@@ -140,6 +153,29 @@ export function ProfileManagement() {
     }
   };
 
+  const toggleTrade = (trade: string) => {
+    setProfile((prev) => {
+      const exists = prev.trades.includes(trade);
+      return {
+        ...prev,
+        trades: exists
+          ? prev.trades.filter((t) => t !== trade)
+          : [...prev.trades, trade],
+      };
+    });
+  };
+
+  const removeTrade = (trade: string) => {
+    setProfile((prev) => ({
+      ...prev,
+      trades: prev.trades.filter((t) => t !== trade),
+    }));
+  };
+
+  const filteredTrades = tradeSearch
+    ? allTrades.filter((t) => t.toLowerCase().includes(tradeSearch.toLowerCase()))
+    : allTrades;
+
   if (loading) {
     return (
       <div className="flex justify-center p-8">
@@ -157,7 +193,7 @@ export function ProfileManagement() {
             <div>
               <p className="font-semibold text-sm">Complete Your Profile</p>
               <p className="text-sm text-muted-foreground">
-                Set your trade and location below so customers can find you in the contractor directory.
+                Select at least one trade and set your location below so customers can find you in the contractor directory.
               </p>
             </div>
           </CardContent>
@@ -167,22 +203,51 @@ export function ProfileManagement() {
       {isContractor && (
         <Card>
           <CardHeader>
-            <CardTitle>Trade & Service Area</CardTitle>
-            <CardDescription>These details help customers find you in the directory</CardDescription>
+            <CardTitle>Trades & Service Area</CardTitle>
+            <CardDescription>Select all trades you offer — these help customers find you in the directory</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="trade">Primary Trade *</Label>
-              <Select value={profile.trade} onValueChange={(val) => setProfile({ ...profile, trade: val })}>
-                <SelectTrigger id="trade" className={!profile.trade ? "border-primary/50" : ""}>
-                  <SelectValue placeholder="Select your trade" />
-                </SelectTrigger>
-                <SelectContent>
-                  {trades.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+              <Label>Your Trades *</Label>
+              {profile.trades.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {profile.trades.map((trade) => (
+                    <Badge key={trade} variant="default" className="gap-1 pr-1">
+                      {trade}
+                      <button
+                        type="button"
+                        onClick={() => removeTrade(trade)}
+                        className="ml-1 rounded-full p-0.5 hover:bg-primary-foreground/20"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
+              <Input
+                placeholder="Search trades..."
+                value={tradeSearch}
+                onChange={(e) => setTradeSearch(e.target.value)}
+                className={profile.trades.length === 0 ? "border-primary/50" : ""}
+              />
+              <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
+                {filteredTrades.map((trade) => (
+                  <label
+                    key={trade}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm"
+                  >
+                    <Checkbox
+                      checked={profile.trades.includes(trade)}
+                      onCheckedChange={() => toggleTrade(trade)}
+                    />
+                    {trade}
+                  </label>
+                ))}
+                {filteredTrades.length === 0 && (
+                  <p className="text-sm text-muted-foreground px-2 py-1">No trades match your search</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
