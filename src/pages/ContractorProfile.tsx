@@ -24,7 +24,10 @@ import {
   Share2,
   Heart,
   Camera,
-  ThumbsUp
+  ThumbsUp,
+  FileText,
+  ExternalLink,
+  Download
 } from "lucide-react";
 // Local type for contractor profile (only public fields we select)
 type ContractorProfileData = {
