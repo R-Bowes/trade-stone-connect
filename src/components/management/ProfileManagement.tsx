@@ -60,6 +60,8 @@ export function ProfileManagement() {
   const [isContractor, setIsContractor] = useState(false);
   const [tradeSearch, setTradeSearch] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
