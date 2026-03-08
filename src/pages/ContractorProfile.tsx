@@ -35,6 +35,7 @@ type ContractorProfileData = {
   ts_profile_code: string | null;
   user_type: "personal" | "business" | "contractor";
   trade: string | null;
+  trades: string[] | null;
   location: string | null;
   working_radius: string | null;
   bio: string | null;
