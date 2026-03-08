@@ -344,7 +344,7 @@ const Auth = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="signup" forceMount className="data-[state=inactive]:hidden">
+            <TabsContent value="signup" forceMount className="data-[state=inactive]:invisible data-[state=inactive]:h-0 data-[state=inactive]:overflow-hidden data-[state=inactive]:p-0 data-[state=inactive]:m-0">
               <Card>
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
