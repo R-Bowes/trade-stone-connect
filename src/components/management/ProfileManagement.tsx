@@ -284,8 +284,8 @@ export function ProfileManagement() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                  onChange={handleLogoUpload}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileSelect}
                   className="hidden"
                 />
                 <Button
@@ -294,18 +294,21 @@ export function ProfileManagement() {
                   disabled={uploading}
                   className={!profile.logo_url ? "border-primary/50" : ""}
                 >
-                  {uploading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="mr-2 h-4 w-4" />
-                  )}
+                  <Upload className="mr-2 h-4 w-4" />
                   {profile.logo_url ? "Change Logo" : "Upload Logo"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  JPG, PNG, WebP or SVG. Max 2MB.
+                  JPG, PNG or WebP. Max 5MB. You'll crop before uploading.
                 </p>
               </div>
             </div>
+            <LogoCropDialog
+              open={cropOpen}
+              onOpenChange={setCropOpen}
+              imageSrc={cropSrc || ""}
+              onCropComplete={handleCroppedUpload}
+              uploading={uploading}
+            />
           </CardContent>
         </Card>
       )}
