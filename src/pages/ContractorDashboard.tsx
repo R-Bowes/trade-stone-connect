@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +26,11 @@ import {
   CalendarDays,
   UserPlus,
   Loader2,
-  Hammer
+  Hammer,
+  HelpCircle
 } from "lucide-react";
+import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
