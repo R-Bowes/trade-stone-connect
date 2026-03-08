@@ -344,7 +344,7 @@ const Auth = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="signup">
+            <TabsContent value="signup" forceMount className="data-[state=inactive]:hidden">
               <Card>
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
