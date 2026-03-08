@@ -53,6 +53,7 @@ const ContractorDashboard = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -132,7 +133,7 @@ const ContractorDashboard = () => {
     prevStep,
   } = useOnboardingTour(tourSteps);
 
-  // Load current user and quotes
+  // Load current user and quotes, check profile completeness
   useEffect(() => {
     const loadUserAndQuotes = async () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -143,6 +144,18 @@ const ContractorDashboard = () => {
       }
       
       setUser(currentUser);
+
+      // Check if profile has trade & location set
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('trade, location')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (profileData && (!(profileData as any).trade || !(profileData as any).location)) {
+        setProfileIncomplete(true);
+        setActiveTab("profile");
+      }
 
       const { data: quotesData, error } = await supabase
         .from('quotes')

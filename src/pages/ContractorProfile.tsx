@@ -34,6 +34,10 @@ type ContractorProfileData = {
   company_name: string | null;
   ts_profile_code: string | null;
   user_type: "personal" | "business" | "contractor";
+  trade: string | null;
+  location: string | null;
+  working_radius: string | null;
+  bio: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,7 +58,7 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from('public_pro_profiles')
-          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at')
+          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trade, location, working_radius, bio, created_at, updated_at')
           .eq('ts_profile_code', code)
           .maybeSingle();
 
@@ -81,19 +85,22 @@ const ContractorProfile = () => {
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.user_id || "mock-user-id",
-    specialties: ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
+    specialties: contractorProfile?.trade 
+      ? [contractorProfile.trade, "General Building", "Maintenance"]
+      : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
-    location: "Central London",
+    location: contractorProfile?.location || "Central London",
+    workingRadius: contractorProfile?.working_radius || "25 miles",
     phone: "+44 20 7123 4567",
-    email: "contact@tradestone.com", // Contact through platform
+    email: "contact@tradestone.com",
     image: "",
     verified: true,
     yearsExperience: 12,
     projectsCompleted: 340,
     responseTime: "Within 2 hours",
     availability: "Available this week",
-    bio: "Professional plumber with over 12 years of experience serving London. Specializing in residential and commercial plumbing, heating systems, and emergency repairs. Licensed, insured, and committed to quality workmanship.",
+    bio: contractorProfile?.bio || "Professional contractor with years of experience. Contact through TradeStone for more details.",
     certifications: [
       "Gas Safe Registered",
       "City & Guilds Plumbing",

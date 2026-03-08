@@ -663,40 +663,52 @@ export type Database = {
       }
       profiles: {
         Row: {
+          bio: string | null
           company_name: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          location: string | null
           phone: string | null
+          trade: string | null
           ts_profile_code: string | null
           updated_at: string
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
+          working_radius: string | null
         }
         Insert: {
+          bio?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          location?: string | null
           phone?: string | null
+          trade?: string | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          working_radius?: string | null
         }
         Update: {
+          bio?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          location?: string | null
           phone?: string | null
+          trade?: string | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          working_radius?: string | null
         }
         Relationships: []
       }
@@ -1072,34 +1084,46 @@ export type Database = {
     Views: {
       public_pro_profiles: {
         Row: {
+          bio: string | null
           company_name: string | null
           created_at: string | null
           full_name: string | null
           id: string | null
+          location: string | null
+          trade: string | null
           ts_profile_code: string | null
           updated_at: string | null
           user_id: string | null
           user_type: Database["public"]["Enums"]["user_type"] | null
+          working_radius: string | null
         }
         Insert: {
+          bio?: string | null
           company_name?: string | null
           created_at?: string | null
           full_name?: string | null
           id?: string | null
+          location?: string | null
+          trade?: string | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
+          working_radius?: string | null
         }
         Update: {
+          bio?: string | null
           company_name?: string | null
           created_at?: string | null
           full_name?: string | null
           id?: string | null
+          location?: string | null
+          trade?: string | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
+          working_radius?: string | null
         }
         Relationships: []
       }

@@ -7,6 +7,10 @@ export interface Contractor {
   company_name: string | null;
   ts_profile_code: string | null;
   user_type: string;
+  trade: string | null;
+  location: string | null;
+  working_radius: string | null;
+  bio: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,7 +26,7 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryFn: async () => {
       let query = supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, location, working_radius, bio, created_at, updated_at")
         .eq("user_type", "contractor");
 
       if (searchTerm) {
@@ -45,7 +49,7 @@ export const useContractorByCode = (code: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, location, working_radius, bio, created_at, updated_at")
         .eq("ts_profile_code", code)
         .eq("user_type", "contractor")
         .maybeSingle();
