@@ -145,16 +145,16 @@ const ContractorDashboard = () => {
       
       setUser(currentUser);
 
-      // Check if profile has trades, location & working radius set
+      // Check if profile has trades, location, working radius & logo set
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('trades, location, working_radius')
+        .select('trades, location, working_radius, logo_url')
         .eq('user_id', currentUser.id)
         .single();
 
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
-      if (profileData && (hasNoTrades || !(profileData as any).location || !(profileData as any).working_radius)) {
+      if (profileData && (hasNoTrades || !(profileData as any).location || !(profileData as any).working_radius || !(profileData as any).logo_url)) {
         setProfileIncomplete(true);
         setActiveTab("profile");
       }
