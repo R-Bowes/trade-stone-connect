@@ -85,19 +85,22 @@ const ContractorProfile = () => {
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.user_id || "mock-user-id",
-    specialties: ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
+    specialties: contractorProfile?.trade 
+      ? [contractorProfile.trade, "General Building", "Maintenance"]
+      : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
-    location: "Central London",
+    location: contractorProfile?.location || "Central London",
+    workingRadius: contractorProfile?.working_radius || "25 miles",
     phone: "+44 20 7123 4567",
-    email: "contact@tradestone.com", // Contact through platform
+    email: "contact@tradestone.com",
     image: "",
     verified: true,
     yearsExperience: 12,
     projectsCompleted: 340,
     responseTime: "Within 2 hours",
     availability: "Available this week",
-    bio: "Professional plumber with over 12 years of experience serving London. Specializing in residential and commercial plumbing, heating systems, and emergency repairs. Licensed, insured, and committed to quality workmanship.",
+    bio: contractorProfile?.bio || "Professional contractor with years of experience. Contact through TradeStone for more details.",
     certifications: [
       "Gas Safe Registered",
       "City & Guilds Plumbing",
