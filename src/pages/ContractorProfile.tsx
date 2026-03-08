@@ -58,7 +58,7 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from('public_pro_profiles')
-          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, created_at, updated_at')
+          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trade, location, working_radius, bio, created_at, updated_at')
           .eq('ts_profile_code', code)
           .maybeSingle();
 
