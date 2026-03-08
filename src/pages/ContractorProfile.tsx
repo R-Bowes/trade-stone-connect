@@ -351,7 +351,39 @@ const ContractorProfile = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="reviews" className="space-y-6">
+              <TabsContent value="documents" className="space-y-6">
+                {contractorDocuments.length === 0 ? (
+                  <Card className="p-6 text-center text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No documents have been uploaded yet.</p>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {contractorDocuments.map((doc) => (
+                      <Card key={doc.id} className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="h-8 w-8 text-primary flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{doc.title}</p>
+                              {doc.description && (
+                                <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View
+                            </a>
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
                 <div className="space-y-4">
                   {contractor.reviews.map((review) => (
                     <Card key={review.id} className="p-6">
