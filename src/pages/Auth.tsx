@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -30,51 +31,10 @@ const Auth = () => {
 
   // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
-  const [isCaptchaReady, setIsCaptchaReady] = useState(false);
-  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
-  const [captchaContainerMounted, setCaptchaContainerMounted] = useState(false);
-  const captchaWidgetIdRef = useRef<string | number | null>(null);
+  const captchaRef = useRef<HCaptcha | null>(null);
 
-  const configuredCaptchaSiteKey =
-    (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
-    (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) ||
-    "d08cb50e-41d0-464a-9a6c-8bd012486352";
-
-  const captchaSiteKey = configuredCaptchaSiteKey?.trim();
-  const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
-
-  // Provider selection:
-  // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
-  // - Otherwise, auto-detect hCaptcha when the key looks like a UUID.
-  // - Fallback to turnstile.
-  const configuredCaptchaProvider =
-    (import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined) ||
-    (import.meta.env.VITE_CAPTCHA_PROVIDER as string | undefined);
-
-  const normalizedConfiguredProvider = configuredCaptchaProvider?.trim().toLowerCase();
-
-  // hCaptcha site keys are UUID-like, including the all-zero test key.
-  // Keep this intentionally permissive to avoid misclassifying hCaptcha as Turnstile.
-  const isLikelyHCaptchaSiteKey = Boolean(
-    captchaSiteKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(captchaSiteKey)
-  );
-
-  const captchaProvider = ((): "hcaptcha" | "turnstile" => {
-    if (normalizedConfiguredProvider === "hcaptcha" || normalizedConfiguredProvider === "h-captcha") {
-      return "hcaptcha";
-    }
-
-    if (normalizedConfiguredProvider === "turnstile") {
-      return "turnstile";
-    }
-
-    return isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile";
-  })();
-
-  const captchaScriptSrc =
-    captchaProvider === "hcaptcha"
-      ? "https://js.hcaptcha.com/1/api.js?render=explicit"
-      : "https://challenges.cloudflare.com/turnstile/v0/api.js";
+  const captchaSiteKey = "655c03cc-6ee2-461e-bdde-a5de327c18a4";
+  const captchaEnabled = true;
 
   const accountTypeDetails: Record<
     "personal" | "business" | "contractor",
@@ -111,92 +71,9 @@ const Auth = () => {
     checkUser();
   }, [navigate]);
 
-  useEffect(() => {
-    if (!captchaEnabled || !captchaContainerMounted || !captchaContainerRef.current) return;
-
-    setIsCaptchaReady(false);
-    setCaptchaToken("");
-    captchaWidgetIdRef.current = null;
-
-    let retryTimer: ReturnType<typeof setInterval> | null = null;
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const renderWidget = () => {
-      if (!captchaContainerRef.current || captchaWidgetIdRef.current !== null) return true;
-
-      const api = captchaProvider === "hcaptcha" ? (window as any).hcaptcha : (window as any).turnstile;
-
-      if (!api?.render) return false;
-
-      const baseOptions: any = {
-        sitekey: captchaSiteKey,
-        callback: (token: string) => setCaptchaToken(token),
-        "expired-callback": () => setCaptchaToken(""),
-        "error-callback": () => setCaptchaToken(""),
-      };
-
-      try {
-        captchaWidgetIdRef.current = api.render(captchaContainerRef.current, baseOptions);
-        setIsCaptchaReady(true);
-        return true;
-      } catch (err) {
-        console.error("[Captcha] Render failed:", err);
-        return false;
-      }
-    };
-
-    const ensureScript = () => {
-      const scriptBaseSrc = captchaScriptSrc.split("?")[0];
-      const existingScript = Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]")).find((script) =>
-        script.src.startsWith(scriptBaseSrc)
-      );
-
-      if (existingScript) return;
-
-      const script = document.createElement("script");
-      script.src = captchaScriptSrc;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    };
-
-    if (!renderWidget()) {
-      ensureScript();
-
-      retryTimer = setInterval(() => {
-        if (renderWidget() && retryTimer) {
-          clearInterval(retryTimer);
-          retryTimer = null;
-        }
-      }, 200);
-
-      stopTimer = setTimeout(() => {
-        if (retryTimer) {
-          clearInterval(retryTimer);
-          retryTimer = null;
-        }
-      }, 7000);
-    }
-
-    return () => {
-      if (retryTimer) clearInterval(retryTimer);
-      if (stopTimer) clearTimeout(stopTimer);
-    };
-  }, [captchaEnabled, captchaContainerMounted, captchaProvider, captchaScriptSrc, captchaSiteKey]);
-
   const resetCaptcha = () => {
     setCaptchaToken("");
-
-    if (captchaWidgetIdRef.current === null) return;
-
-    if (captchaProvider === "hcaptcha" && (window as any).hcaptcha?.reset) {
-      (window as any).hcaptcha.reset(captchaWidgetIdRef.current);
-      return;
-    }
-
-    if ((window as any).turnstile?.reset) {
-      (window as any).turnstile.reset(captchaWidgetIdRef.current);
-    }
+    captchaRef.current?.resetCaptcha();
   };
 
   const shouldValidateLoginCaptcha = false;
@@ -555,19 +432,17 @@ const Auth = () => {
                     {captchaEnabled && (
                       <div className="space-y-2">
                         <Label>Captcha Verification</Label>
-                        <div
-                          ref={(el) => {
-                            captchaContainerRef.current = el;
-                            if (el && !captchaContainerMounted) setCaptchaContainerMounted(true);
-                          }}
+                        <HCaptcha
+                          ref={captchaRef}
+                          sitekey={captchaSiteKey}
+                          onVerify={(token) => setCaptchaToken(token)}
+                          onExpire={() => setCaptchaToken("")}
+                          onError={() => setCaptchaToken("")}
                         />
-                        {!isCaptchaReady && (
-                          <p className="text-sm text-muted-foreground">Loading captcha...</p>
-                        )}
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !isCaptchaReady)}>
+                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
