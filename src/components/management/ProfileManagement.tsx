@@ -56,7 +56,7 @@ export function ProfileManagement() {
   const [tradeSearch, setTradeSearch] = useState("");
   const { toast } = useToast();
 
-  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location);
+  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location || !profile.working_radius);
 
   useEffect(() => {
     loadProfile();
