@@ -133,6 +133,15 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!termsAccepted) {
+      toast({
+        variant: "destructive",
+        title: "Terms required",
+        description: "You must accept the Terms of Use to create an account.",
+      });
+      return;
+    }
+
     if (shouldValidateSignupCaptcha && !captchaToken) {
       toast({
         variant: "destructive",
