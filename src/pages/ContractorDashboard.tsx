@@ -281,6 +281,7 @@ const ContractorDashboard = () => {
               <TabsTrigger value="team" className="whitespace-nowrap" data-tour="tab-team">Team</TabsTrigger>
               <TabsTrigger value="timesheets" className="whitespace-nowrap" data-tour="tab-timesheets">Timesheets</TabsTrigger>
               <TabsTrigger value="photos" className="whitespace-nowrap" data-tour="tab-photos">Photos</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap" data-tour="tab-documents">Documents</TabsTrigger>
               <TabsTrigger value="financials" className="whitespace-nowrap" data-tour="tab-financials">Financials</TabsTrigger>
               <TabsTrigger value="schedule" className="whitespace-nowrap" data-tour="tab-schedule">Schedule</TabsTrigger>
               <TabsTrigger value="clients" className="whitespace-nowrap" data-tour="tab-clients">CRM</TabsTrigger>
