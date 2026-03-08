@@ -8,6 +8,7 @@ export interface Contractor {
   ts_profile_code: string | null;
   user_type: string;
   trade: string | null;
+  trades: string[] | null;
   location: string | null;
   working_radius: string | null;
   bio: string | null;
