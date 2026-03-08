@@ -44,6 +44,7 @@ import { CRMManagement } from "@/components/management/CRMManagement";
 import { FinancialsManagement } from "@/components/management/FinancialsManagement";
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
+import { JobManagement } from "@/components/management/JobManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
