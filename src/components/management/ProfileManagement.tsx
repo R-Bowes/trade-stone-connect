@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { LogoCropDialog } from "./LogoCropDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +60,8 @@ export function ProfileManagement() {
   const [isContractor, setIsContractor] = useState(false);
   const [tradeSearch, setTradeSearch] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -119,74 +122,56 @@ export function ProfileManagement() {
     }
   };
 
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !userId) return;
 
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a JPG, PNG, WebP, or SVG image.",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid file type", description: "Please upload a JPG, PNG, or WebP image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Image must be under 5MB.", variant: "destructive" });
       return;
     }
 
-    // Validate file size (2MB max)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Logo must be under 2MB.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(reader.result as string);
+      setCropOpen(true);
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
+  const handleCroppedUpload = async (blob: Blob) => {
+    if (!userId) return;
     setUploading(true);
     try {
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${userId}/logo.${fileExt}`;
-
+      const filePath = `${userId}/logo.png`;
       const { error: uploadError } = await supabase.storage
         .from("logos")
-        .upload(filePath, file, { upsert: true });
-
+        .upload(filePath, blob, { upsert: true, contentType: "image/png" });
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("logos")
-        .getPublicUrl(filePath);
-
-      // Add cache-busting parameter
+      const { data: { publicUrl } } = supabase.storage.from("logos").getPublicUrl(filePath);
       const logoUrl = `${publicUrl}?t=${Date.now()}`;
 
-      // Save to profile
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ logo_url: logoUrl })
         .eq("user_id", userId);
-
       if (updateError) throw updateError;
 
       setProfile((prev) => ({ ...prev, logo_url: logoUrl }));
-
-      toast({
-        title: "Logo uploaded",
-        description: "Your company logo has been updated.",
-      });
+      setCropOpen(false);
+      toast({ title: "Logo uploaded", description: "Your company logo has been updated." });
     } catch (error) {
       console.error("Error uploading logo:", error);
-      toast({
-        title: "Upload failed",
-        description: "Failed to upload logo. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Upload failed", description: "Failed to upload logo. Please try again.", variant: "destructive" });
     } finally {
       setUploading(false);
-      // Reset file input
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -299,8 +284,8 @@ export function ProfileManagement() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                  onChange={handleLogoUpload}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileSelect}
                   className="hidden"
                 />
                 <Button
@@ -309,18 +294,21 @@ export function ProfileManagement() {
                   disabled={uploading}
                   className={!profile.logo_url ? "border-primary/50" : ""}
                 >
-                  {uploading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="mr-2 h-4 w-4" />
-                  )}
+                  <Upload className="mr-2 h-4 w-4" />
                   {profile.logo_url ? "Change Logo" : "Upload Logo"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  JPG, PNG, WebP or SVG. Max 2MB.
+                  JPG, PNG or WebP. Max 5MB. You'll crop before uploading.
                 </p>
               </div>
             </div>
+            <LogoCropDialog
+              open={cropOpen}
+              onOpenChange={setCropOpen}
+              imageSrc={cropSrc || ""}
+              onCropComplete={handleCroppedUpload}
+              uploading={uploading}
+            />
           </CardContent>
         </Card>
       )}
