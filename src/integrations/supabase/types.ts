@@ -47,6 +47,60 @@ export type Database = {
         }
         Relationships: []
       }
+      contractor_documents: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          description: string | null
+          display_order: number
+          document_url: string
+          file_name: string
+          file_size: number | null
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          document_url: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          document_url?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_documents_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contractor_documents_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       contractor_photos: {
         Row: {
           contractor_id: string
