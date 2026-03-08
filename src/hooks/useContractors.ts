@@ -27,7 +27,7 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryFn: async () => {
       let query = supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, location, working_radius, bio, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, created_at, updated_at")
         .eq("user_type", "contractor");
 
       if (searchTerm) {
