@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, AlertCircle, X } from "lucide-react";
+import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
 
 interface Profile {
   full_name: string;
@@ -20,6 +21,7 @@ interface Profile {
   location: string;
   working_radius: string;
   bio: string;
+  logo_url: string;
 }
 
 const allTrades = [
@@ -49,14 +51,20 @@ export function ProfileManagement() {
     location: "",
     working_radius: "",
     bio: "",
+    logo_url: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [isContractor, setIsContractor] = useState(false);
   const [tradeSearch, setTradeSearch] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const isProfileIncomplete = isContractor && (profile.trades.length === 0 || !profile.location || !profile.working_radius);
+  const isProfileIncomplete = isContractor && (
+    profile.trades.length === 0 || !profile.location || !profile.working_radius || !profile.logo_url
+  );
 
   useEffect(() => {
     loadProfile();
@@ -66,6 +74,7 @@ export function ProfileManagement() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -95,6 +104,7 @@ export function ProfileManagement() {
           location: (data as any).location || "",
           working_radius: (data as any).working_radius || "",
           bio: (data as any).bio || "",
+          logo_url: (data as any).logo_url || "",
         });
       }
     } catch (error) {
@@ -106,6 +116,77 @@ export function ProfileManagement() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !userId) return;
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a JPG, PNG, WebP, or SVG image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Logo must be under 2MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${userId}/logo.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("logos")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("logos")
+        .getPublicUrl(filePath);
+
+      // Add cache-busting parameter
+      const logoUrl = `${publicUrl}?t=${Date.now()}`;
+
+      // Save to profile
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ logo_url: logoUrl })
+        .eq("user_id", userId);
+
+      if (updateError) throw updateError;
+
+      setProfile((prev) => ({ ...prev, logo_url: logoUrl }));
+
+      toast({
+        title: "Logo uploaded",
+        description: "Your company logo has been updated.",
+      });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -124,7 +205,7 @@ export function ProfileManagement() {
 
       if (isContractor) {
         updateData.trades = profile.trades;
-        updateData.trade = profile.trades[0] || null; // keep primary trade in sync
+        updateData.trade = profile.trades[0] || null;
         updateData.location = profile.location;
         updateData.working_radius = profile.working_radius;
         updateData.bio = profile.bio;
@@ -193,8 +274,52 @@ export function ProfileManagement() {
             <div>
               <p className="font-semibold text-sm">Complete Your Profile</p>
               <p className="text-sm text-muted-foreground">
-                Select at least one trade, set your location, and choose a working radius so customers can find you in the contractor directory.
+                Upload your logo, select at least one trade, set your location, and choose a working radius so customers can find you in the contractor directory.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isContractor && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Logo</CardTitle>
+            <CardDescription>Upload your company logo — this appears on your public profile and directory listing *</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <Avatar className="h-24 w-24 border-2 border-dashed border-muted-foreground/30">
+                <AvatarImage src={profile.logo_url} alt="Company logo" />
+                <AvatarFallback className="bg-muted">
+                  <Wrench className="h-10 w-10 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className={!profile.logo_url ? "border-primary/50" : ""}
+                >
+                  {uploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  {profile.logo_url ? "Change Logo" : "Upload Logo"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, WebP or SVG. Max 2MB.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
