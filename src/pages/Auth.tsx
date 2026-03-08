@@ -31,51 +31,10 @@ const Auth = () => {
 
   // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
-  const [isCaptchaReady, setIsCaptchaReady] = useState(false);
-  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
-  const [captchaContainerMounted, setCaptchaContainerMounted] = useState(false);
-  const captchaWidgetIdRef = useRef<string | number | null>(null);
+  const captchaRef = useRef<HCaptcha | null>(null);
 
-  const configuredCaptchaSiteKey =
-    (import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY as string | undefined) ||
-    (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) ||
-    "d08cb50e-41d0-464a-9a6c-8bd012486352";
-
-  const captchaSiteKey = configuredCaptchaSiteKey?.trim();
-  const captchaEnabled = Boolean(captchaSiteKey && captchaSiteKey !== "your-captcha-site-key");
-
-  // Provider selection:
-  // - If VITE_SUPABASE_CAPTCHA_PROVIDER is set, use it.
-  // - Otherwise, auto-detect hCaptcha when the key looks like a UUID.
-  // - Fallback to turnstile.
-  const configuredCaptchaProvider =
-    (import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER as string | undefined) ||
-    (import.meta.env.VITE_CAPTCHA_PROVIDER as string | undefined);
-
-  const normalizedConfiguredProvider = configuredCaptchaProvider?.trim().toLowerCase();
-
-  // hCaptcha site keys are UUID-like, including the all-zero test key.
-  // Keep this intentionally permissive to avoid misclassifying hCaptcha as Turnstile.
-  const isLikelyHCaptchaSiteKey = Boolean(
-    captchaSiteKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(captchaSiteKey)
-  );
-
-  const captchaProvider = ((): "hcaptcha" | "turnstile" => {
-    if (normalizedConfiguredProvider === "hcaptcha" || normalizedConfiguredProvider === "h-captcha") {
-      return "hcaptcha";
-    }
-
-    if (normalizedConfiguredProvider === "turnstile") {
-      return "turnstile";
-    }
-
-    return isLikelyHCaptchaSiteKey ? "hcaptcha" : "turnstile";
-  })();
-
-  const captchaScriptSrc =
-    captchaProvider === "hcaptcha"
-      ? "https://js.hcaptcha.com/1/api.js?render=explicit"
-      : "https://challenges.cloudflare.com/turnstile/v0/api.js";
+  const captchaSiteKey = "655c03cc-6ee2-461e-bdde-a5de327c18a4";
+  const captchaEnabled = true;
 
   const accountTypeDetails: Record<
     "personal" | "business" | "contractor",
