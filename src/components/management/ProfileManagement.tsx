@@ -193,7 +193,7 @@ export function ProfileManagement() {
             <div>
               <p className="font-semibold text-sm">Complete Your Profile</p>
               <p className="text-sm text-muted-foreground">
-                Select at least one trade and set your location below so customers can find you in the contractor directory.
+                Select at least one trade, set your location, and choose a working radius so customers can find you in the contractor directory.
               </p>
             </div>
           </CardContent>
