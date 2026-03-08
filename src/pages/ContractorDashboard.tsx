@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +26,11 @@ import {
   CalendarDays,
   UserPlus,
   Loader2,
-  Hammer
+  Hammer,
+  HelpCircle
 } from "lucide-react";
+import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -52,6 +55,82 @@ const ContractorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const tourSteps: TourStep[] = useMemo(() => [
+    {
+      target: '[data-tour="dashboard-header"]',
+      title: "Welcome to Your Dashboard!",
+      description: "This is your command centre. Get an overview of your revenue, projects, invoices, and clients all in one place.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="tab-quotes"]',
+      title: "Quote Requests",
+      description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
+      placement: "bottom",
+      action: () => setActiveTab("quotes"),
+    },
+    {
+      target: '[data-tour="tab-invoices"]',
+      title: "Invoice Management",
+      description: "Create professional invoices, track payments, and manage your cash flow. Send invoices directly to clients.",
+      placement: "bottom",
+      action: () => setActiveTab("invoices"),
+    },
+    {
+      target: '[data-tour="tab-contracts"]',
+      title: "Contracts",
+      description: "Manage your active contracts, track milestones, and keep all your agreements organised in one place.",
+      placement: "bottom",
+      action: () => setActiveTab("contracts"),
+    },
+    {
+      target: '[data-tour="tab-team"]',
+      title: "Team Management",
+      description: "Add team members, manage roles, and set hourly rates. Keep your crew organised and track their assignments.",
+      placement: "bottom",
+      action: () => setActiveTab("team"),
+    },
+    {
+      target: '[data-tour="tab-schedule"]',
+      title: "Schedule & Calendar",
+      description: "Plan your jobs, set availability, and manage appointments. Never double-book again with the built-in calendar.",
+      placement: "bottom",
+      action: () => setActiveTab("schedule"),
+    },
+    {
+      target: '[data-tour="tab-clients"]',
+      title: "Client CRM",
+      description: "Build your client database, track interactions, and nurture relationships. Your clients are your business — keep them close.",
+      placement: "bottom",
+      action: () => setActiveTab("clients"),
+    },
+    {
+      target: '[data-tour="tab-financials"]',
+      title: "Financial Tracking",
+      description: "Track income and expenses, categorise spending, and get a clear picture of your business finances.",
+      placement: "bottom",
+      action: () => setActiveTab("financials"),
+    },
+    {
+      target: '[data-tour="tab-profile"]',
+      title: "Your Profile",
+      description: "Complete your profile to appear in the contractor directory. Add your skills, portfolio, and contact details to attract clients.",
+      placement: "bottom",
+      action: () => setActiveTab("profile"),
+    },
+  ], []);
+
+  const {
+    isActive: isTourActive,
+    currentStep,
+    totalSteps,
+    step: currentTourStep,
+    startTour,
+    endTour,
+    nextStep,
+    prevStep,
+  } = useOnboardingTour(tourSteps);
 
   // Load current user and quotes
   useEffect(() => {
@@ -159,9 +238,15 @@ const ContractorDashboard = () => {
       
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <Hammer className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Hammer className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { setActiveTab("dashboard"); startTour(); }}>
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Take Tour
+            </Button>
           </div>
           <p className="text-muted-foreground">
             Manage your contracting business with powerful tools designed for professionals.
@@ -172,18 +257,18 @@ const ContractorDashboard = () => {
           {/* Mobile: Horizontal scroll, Tablet: 6-col grid, Desktop: full grid */}
           <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
             <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 xl:grid-cols-15 gap-1">
-              <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
-              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
-              <TabsTrigger value="projects" className="whitespace-nowrap">Projects</TabsTrigger>
-              <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
-              <TabsTrigger value="team" className="whitespace-nowrap">Team</TabsTrigger>
-              <TabsTrigger value="timesheets" className="whitespace-nowrap">Timesheets</TabsTrigger>
-              <TabsTrigger value="photos" className="whitespace-nowrap">Photos</TabsTrigger>
-              <TabsTrigger value="financials" className="whitespace-nowrap">Financials</TabsTrigger>
-              <TabsTrigger value="schedule" className="whitespace-nowrap">Schedule</TabsTrigger>
-              <TabsTrigger value="clients" className="whitespace-nowrap">CRM</TabsTrigger>
-              <TabsTrigger value="profile" className="whitespace-nowrap">Profile</TabsTrigger>
+              <TabsTrigger value="dashboard" className="whitespace-nowrap" data-tour="tab-dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="quotes" className="whitespace-nowrap" data-tour="tab-quotes">Quotes</TabsTrigger>
+              <TabsTrigger value="invoices" className="whitespace-nowrap" data-tour="tab-invoices">Invoices</TabsTrigger>
+              <TabsTrigger value="projects" className="whitespace-nowrap" data-tour="tab-projects">Projects</TabsTrigger>
+              <TabsTrigger value="contracts" className="whitespace-nowrap" data-tour="tab-contracts">Contracts</TabsTrigger>
+              <TabsTrigger value="team" className="whitespace-nowrap" data-tour="tab-team">Team</TabsTrigger>
+              <TabsTrigger value="timesheets" className="whitespace-nowrap" data-tour="tab-timesheets">Timesheets</TabsTrigger>
+              <TabsTrigger value="photos" className="whitespace-nowrap" data-tour="tab-photos">Photos</TabsTrigger>
+              <TabsTrigger value="financials" className="whitespace-nowrap" data-tour="tab-financials">Financials</TabsTrigger>
+              <TabsTrigger value="schedule" className="whitespace-nowrap" data-tour="tab-schedule">Schedule</TabsTrigger>
+              <TabsTrigger value="clients" className="whitespace-nowrap" data-tour="tab-clients">CRM</TabsTrigger>
+              <TabsTrigger value="profile" className="whitespace-nowrap" data-tour="tab-profile">Profile</TabsTrigger>
             </TabsList>
           </div>
 
@@ -392,6 +477,17 @@ const ContractorDashboard = () => {
           {/* Profile Tab */}
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
         </Tabs>
+
+        {/* Onboarding Tour */}
+        <OnboardingTour
+          isActive={isTourActive}
+          step={currentTourStep}
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          onNext={nextStep}
+          onPrev={prevStep}
+          onSkip={() => endTour(true)}
+        />
       </main>
     </div>
   );
