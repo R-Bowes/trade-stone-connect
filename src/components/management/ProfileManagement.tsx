@@ -262,9 +262,9 @@ export function ProfileManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="working_radius">Working Radius</Label>
+              <Label htmlFor="working_radius">Working Radius *</Label>
               <Select value={profile.working_radius} onValueChange={(val) => setProfile({ ...profile, working_radius: val })}>
-                <SelectTrigger id="working_radius">
+                <SelectTrigger id="working_radius" className={!profile.working_radius ? "border-primary/50" : ""}>
                   <SelectValue placeholder="Select working radius" />
                 </SelectTrigger>
                 <SelectContent>
