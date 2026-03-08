@@ -325,6 +325,7 @@ const ContractorDirectory = () => {
                 rating={contractor.rating}
                 reviewCount={contractor.reviewCount}
                 location={contractor.locationLabel}
+                image={contractor.logo_url || undefined}
                 distance={contractor.distance}
               />
             ))}
