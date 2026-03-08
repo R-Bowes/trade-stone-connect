@@ -9,6 +9,8 @@ const SiteFooter = () => {
         <Link to="/contractors" className="hover:text-slate-900">Hire</Link>
         <Link to="/contracts" className="hover:text-slate-900">Contracts</Link>
         <Link to="/about" className="hover:text-slate-900">How it works</Link>
+        <Link to="/terms" className="hover:text-slate-900">Terms</Link>
+        <Link to="/privacy" className="hover:text-slate-900">Privacy</Link>
         <Link to="/auth" className="hover:text-slate-900">Log in</Link>
         <Link
           to="/marketplace"
