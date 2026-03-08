@@ -276,6 +276,7 @@ const ContractorDashboard = () => {
             <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 xl:grid-cols-15 gap-1">
               <TabsTrigger value="dashboard" className="whitespace-nowrap" data-tour="tab-dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="quotes" className="whitespace-nowrap" data-tour="tab-quotes">Quotes</TabsTrigger>
+              <TabsTrigger value="jobs" className="whitespace-nowrap" data-tour="tab-jobs">Jobs</TabsTrigger>
               <TabsTrigger value="invoices" className="whitespace-nowrap" data-tour="tab-invoices">Invoices</TabsTrigger>
               <TabsTrigger value="projects" className="whitespace-nowrap" data-tour="tab-projects">Projects</TabsTrigger>
               <TabsTrigger value="contracts" className="whitespace-nowrap" data-tour="tab-contracts">Contracts</TabsTrigger>
