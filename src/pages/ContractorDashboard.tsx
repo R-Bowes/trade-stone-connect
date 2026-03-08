@@ -466,6 +466,9 @@ const ContractorDashboard = () => {
             </div>
           </TabsContent>
 
+          {/* Jobs Tab */}
+          <TabsContent value="jobs"><JobManagement /></TabsContent>
+
           {/* Contracts Tab */}
           <TabsContent value="contracts"><ContractManagement /></TabsContent>
 
