@@ -28,6 +28,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
   const [companyName, setCompanyName] = useState("");
+  const [activeTab, setActiveTab] = useState("login");
 
   // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
