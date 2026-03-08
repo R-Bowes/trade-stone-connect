@@ -34,7 +34,7 @@ const Auth = () => {
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
 
-  const captchaSiteKey = "655c03cc-6ee2-461e-bdde-a5de327c18a4";
+  const captchaSiteKey = "d08cb50e-41d0-464a-9a6c-8bd012486352";
   const captchaEnabled = true;
 
   const accountTypeDetails: Record<
