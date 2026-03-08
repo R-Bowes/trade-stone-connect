@@ -98,7 +98,7 @@ const ContractorProfile = () => {
     workingRadius: contractorProfile?.working_radius || "25 miles",
     phone: null,
     email: null,
-    image: "",
+    image: contractorProfile?.logo_url || "",
     verified: true,
     yearsExperience: 12,
     projectsCompleted: 340,
