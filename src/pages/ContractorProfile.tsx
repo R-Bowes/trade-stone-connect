@@ -34,6 +34,10 @@ type ContractorProfileData = {
   company_name: string | null;
   ts_profile_code: string | null;
   user_type: "personal" | "business" | "contractor";
+  trade: string | null;
+  location: string | null;
+  working_radius: string | null;
+  bio: string | null;
   created_at: string;
   updated_at: string;
 };
