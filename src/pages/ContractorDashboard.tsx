@@ -238,9 +238,15 @@ const ContractorDashboard = () => {
       
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <Hammer className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Hammer className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { setActiveTab("dashboard"); startTour(); }}>
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Take Tour
+            </Button>
           </div>
           <p className="text-muted-foreground">
             Manage your contracting business with powerful tools designed for professionals.
