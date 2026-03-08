@@ -86,9 +86,11 @@ const ContractorProfile = () => {
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.user_id || "mock-user-id",
-    specialties: contractorProfile?.trade 
-      ? [contractorProfile.trade, "General Building", "Maintenance"]
-      : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
+    specialties: contractorProfile?.trades && contractorProfile.trades.length > 0
+      ? contractorProfile.trades
+      : contractorProfile?.trade
+        ? [contractorProfile.trade]
+        : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
     location: contractorProfile?.location || "Central London",

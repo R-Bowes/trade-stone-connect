@@ -101,14 +101,27 @@ const ContractorDirectory = () => {
       const reviewCount = 10 + (seed % 90);
       const isAvailableToday = seed % 2 === 0;
       const isAvailableThisWeek = seed % 5 !== 0;
-      const realTrade = contractor.trade;
-      const preferredTrade = realTrade ?? selectedTrade ?? fallbackTrades[seed % fallbackTrades.length];
+
+      // Use real trades array, fall back to single trade, then fallbacks
+      const realTrades = contractor.trades && contractor.trades.length > 0
+        ? contractor.trades
+        : contractor.trade
+          ? [contractor.trade]
+          : null;
+      
+      const specialties = realTrades
+        ? realTrades
+        : [
+            selectedTrade ?? fallbackTrades[seed % fallbackTrades.length],
+            fallbackTrades[(seed + 2) % fallbackTrades.length],
+            fallbackTrades[(seed + 4) % fallbackTrades.length],
+          ];
 
       return {
         ...contractor,
         rating,
         reviewCount,
-        specialties: [preferredTrade, fallbackTrades[(seed + 2) % fallbackTrades.length], fallbackTrades[(seed + 4) % fallbackTrades.length]],
+        specialties,
         bioSnippet: contractor.bio || fallbackBios[seed % fallbackBios.length],
         locationLabel: contractor.location || location || fallbackLocations[seed % fallbackLocations.length],
         distance: `${(1 + (seed % 14)).toFixed(1)} mi`,
