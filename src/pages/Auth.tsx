@@ -364,8 +364,6 @@ const Auth = () => {
                 </CardHeader>
 
                 <CardContent>
-                  <TransactionFeeNotice className="mb-4" />
-
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Full Name</Label>
