@@ -39,6 +39,7 @@ type ContractorProfileData = {
   location: string | null;
   working_radius: string | null;
   bio: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
 };
