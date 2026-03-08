@@ -53,6 +53,7 @@ const ContractorProfile = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
+  const [contractorDocuments, setContractorDocuments] = useState<Array<{ id: string; title: string; description: string | null; document_url: string; file_name: string; file_size: number | null }>>([]);
   const [loading, setLoading] = useState(true);
 
   // Load contractor profile by TS code
