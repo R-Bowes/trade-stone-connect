@@ -111,8 +111,9 @@ const PersonalDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-6 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-3xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="jobs">My Jobs</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="quotes">Quotes</TabsTrigger>
             <TabsTrigger value="requests">My Requests</TabsTrigger>
