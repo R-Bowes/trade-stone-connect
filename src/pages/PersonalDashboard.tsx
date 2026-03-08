@@ -229,6 +229,11 @@ const PersonalDashboard = () => {
             </Card>
           </TabsContent>
 
+          {/* My Jobs Tab */}
+          <TabsContent value="jobs" className="space-y-6">
+            <ClientJobsView />
+          </TabsContent>
+
           {/* Invoices Tab */}
           <TabsContent value="invoices" className="space-y-6">
             <ReceivedInvoices />
