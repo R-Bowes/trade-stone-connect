@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
-import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 
 const Auth = () => {
@@ -364,8 +363,6 @@ const Auth = () => {
                 </CardHeader>
 
                 <CardContent>
-                  <TransactionFeeNotice className="mb-4" />
-
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Full Name</Label>
