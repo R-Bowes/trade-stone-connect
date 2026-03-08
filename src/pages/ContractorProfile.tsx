@@ -384,6 +384,7 @@ const ContractorProfile = () => {
                 )}
               </TabsContent>
 
+              <TabsContent value="reviews" className="space-y-6">
                 <div className="space-y-4">
                   {contractor.reviews.map((review) => (
                     <Card key={review.id} className="p-6">
