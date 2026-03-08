@@ -441,6 +441,26 @@ const Auth = () => {
                       </div>
                     )}
 
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="termsAccepted"
+                          checked={termsAccepted}
+                          onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                        />
+                        <Label htmlFor="termsAccepted" className="text-sm font-normal leading-relaxed cursor-pointer">
+                          I agree to the{" "}
+                          <Link to="/terms" target="_blank" className="text-primary hover:underline">
+                            Terms of Use
+                          </Link>{" "}
+                          and{" "}
+                          <Link to="/privacy" target="_blank" className="text-primary hover:underline">
+                            Privacy Policy
+                          </Link>
+                        </Label>
+                      </div>
+                    </div>
+
                     {captchaEnabled && (
                       <div className="space-y-2">
                         <Label>Captcha Verification</Label>
@@ -454,7 +474,7 @@ const Auth = () => {
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
+                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken) || !termsAccepted}>
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
