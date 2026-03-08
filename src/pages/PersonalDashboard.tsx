@@ -22,6 +22,7 @@ import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
+import { ClientJobsView } from "@/components/management/ClientJobsView";
 
 interface QuoteRequest {
   id: string;
