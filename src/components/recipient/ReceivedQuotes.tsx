@@ -24,6 +24,23 @@ export function ReceivedQuotes() {
     await supabase.functions.invoke("notify-invoice-quote-action", {
       body: { action_type: "accept", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
+
+    // Auto-create a job from the accepted quote
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("jobs").insert({
+        contractor_id: quote.contractor_id,
+        client_id: user.id,
+        issued_quote_id: quote.id,
+        title: quote.title,
+        description: quote.description || null,
+        contract_value: quote.total || 0,
+        status: "not_started",
+      }).then(({ error }) => {
+        if (error) console.error("Failed to create job:", error);
+      });
+    }
+
     // Open message dialog for scheduling discussion
     setMessageDialog({ open: true, quote, action: "accepted" });
   };

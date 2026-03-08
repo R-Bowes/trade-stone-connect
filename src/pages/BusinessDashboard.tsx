@@ -24,6 +24,7 @@ import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
+import { ClientJobsView } from "@/components/management/ClientJobsView";
 
 const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -103,8 +104,9 @@ const BusinessDashboard = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-8 gap-1">
+            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-9 gap-1">
               <TabsTrigger value="overview" className="whitespace-nowrap">Overview</TabsTrigger>
+              <TabsTrigger value="jobs" className="whitespace-nowrap">My Jobs</TabsTrigger>
               <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
               <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
               <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
@@ -242,6 +244,11 @@ const BusinessDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* My Jobs Tab */}
+          <TabsContent value="jobs" className="space-y-6">
+            <ClientJobsView />
           </TabsContent>
 
           {/* Invoices Tab */}
