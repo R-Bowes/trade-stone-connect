@@ -670,6 +670,7 @@ export type Database = {
           full_name: string | null
           id: string
           location: string | null
+          logo_url: string | null
           phone: string | null
           trade: string | null
           trades: string[] | null
@@ -687,6 +688,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           location?: string | null
+          logo_url?: string | null
           phone?: string | null
           trade?: string | null
           trades?: string[] | null
@@ -704,6 +706,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           location?: string | null
+          logo_url?: string | null
           phone?: string | null
           trade?: string | null
           trades?: string[] | null
@@ -1093,6 +1096,7 @@ export type Database = {
           full_name: string | null
           id: string | null
           location: string | null
+          logo_url: string | null
           trade: string | null
           trades: string[] | null
           ts_profile_code: string | null
@@ -1108,6 +1112,7 @@ export type Database = {
           full_name?: string | null
           id?: string | null
           location?: string | null
+          logo_url?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
@@ -1123,6 +1128,7 @@ export type Database = {
           full_name?: string | null
           id?: string | null
           location?: string | null
+          logo_url?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
