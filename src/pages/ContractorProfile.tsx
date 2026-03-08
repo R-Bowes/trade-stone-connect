@@ -73,6 +73,13 @@ const ContractorProfile = () => {
           setContractorProfile(null);
         } else {
           setContractorProfile(data);
+          // Load documents for this contractor
+          const { data: docs } = await supabase
+            .from('contractor_documents')
+            .select('id, title, description, document_url, file_name, file_size')
+            .eq('contractor_id', data.user_id)
+            .order('display_order', { ascending: true });
+          setContractorDocuments(docs || []);
         }
       } catch (error) {
         console.error('Error loading contractor profile:', error);
