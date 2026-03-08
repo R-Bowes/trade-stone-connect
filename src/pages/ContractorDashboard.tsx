@@ -56,6 +56,82 @@ const ContractorDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const tourSteps: TourStep[] = useMemo(() => [
+    {
+      target: '[data-tour="dashboard-header"]',
+      title: "Welcome to Your Dashboard!",
+      description: "This is your command centre. Get an overview of your revenue, projects, invoices, and clients all in one place.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="tab-quotes"]',
+      title: "Quote Requests",
+      description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
+      placement: "bottom",
+      action: () => setActiveTab("quotes"),
+    },
+    {
+      target: '[data-tour="tab-invoices"]',
+      title: "Invoice Management",
+      description: "Create professional invoices, track payments, and manage your cash flow. Send invoices directly to clients.",
+      placement: "bottom",
+      action: () => setActiveTab("invoices"),
+    },
+    {
+      target: '[data-tour="tab-contracts"]',
+      title: "Contracts",
+      description: "Manage your active contracts, track milestones, and keep all your agreements organised in one place.",
+      placement: "bottom",
+      action: () => setActiveTab("contracts"),
+    },
+    {
+      target: '[data-tour="tab-team"]',
+      title: "Team Management",
+      description: "Add team members, manage roles, and set hourly rates. Keep your crew organised and track their assignments.",
+      placement: "bottom",
+      action: () => setActiveTab("team"),
+    },
+    {
+      target: '[data-tour="tab-schedule"]',
+      title: "Schedule & Calendar",
+      description: "Plan your jobs, set availability, and manage appointments. Never double-book again with the built-in calendar.",
+      placement: "bottom",
+      action: () => setActiveTab("schedule"),
+    },
+    {
+      target: '[data-tour="tab-clients"]',
+      title: "Client CRM",
+      description: "Build your client database, track interactions, and nurture relationships. Your clients are your business — keep them close.",
+      placement: "bottom",
+      action: () => setActiveTab("clients"),
+    },
+    {
+      target: '[data-tour="tab-financials"]',
+      title: "Financial Tracking",
+      description: "Track income and expenses, categorise spending, and get a clear picture of your business finances.",
+      placement: "bottom",
+      action: () => setActiveTab("financials"),
+    },
+    {
+      target: '[data-tour="tab-profile"]',
+      title: "Your Profile",
+      description: "Complete your profile to appear in the contractor directory. Add your skills, portfolio, and contact details to attract clients.",
+      placement: "bottom",
+      action: () => setActiveTab("profile"),
+    },
+  ], []);
+
+  const {
+    isActive: isTourActive,
+    currentStep,
+    totalSteps,
+    step: currentTourStep,
+    startTour,
+    endTour,
+    nextStep,
+    prevStep,
+  } = useOnboardingTour(tourSteps);
+
   // Load current user and quotes
   useEffect(() => {
     const loadUserAndQuotes = async () => {
