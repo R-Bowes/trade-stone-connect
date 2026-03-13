@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Menu, User as UserIcon, LogOut } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
