@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useInvoices } from "@/hooks/useInvoices";
+import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
   Briefcase,
   ArrowLeft,
@@ -23,7 +25,8 @@ import {
   Plus,
   Send,
   FileText,
-  MapPin
+  MapPin,
+  Receipt
 } from "lucide-react";
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, type Job } from "@/hooks/useJobs";
 import { format } from "date-fns";
