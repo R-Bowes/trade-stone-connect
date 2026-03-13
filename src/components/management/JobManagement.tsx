@@ -371,6 +371,17 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
           </Card>
         </div>
       )}
+      {/* Invoice Form Dialog */}
+      <InvoiceFormDialog
+        open={invoiceDialogOpen}
+        onClose={() => { setInvoiceDialogOpen(false); setInvoiceInitialData(null); }}
+        onSave={async (data) => {
+          await createInvoice(data);
+          setInvoiceDialogOpen(false);
+          setInvoiceInitialData(null);
+        }}
+        initialData={invoiceInitialData}
+      />
     </div>
   );
 }
