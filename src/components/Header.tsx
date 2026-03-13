@@ -82,6 +82,7 @@ const Header = () => {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
+              <NotificationBell />
               <Link to="/dashboard" className="text-sm text-slate-700 hover:text-slate-900">
                 {profile?.full_name || "Dashboard"}
               </Link>
