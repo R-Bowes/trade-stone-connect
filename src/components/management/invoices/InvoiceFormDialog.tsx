@@ -9,6 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 
+export type InvoiceFormInitialData = {
+  client_name?: string;
+  client_email?: string;
+  client_phone?: string;
+  client_address?: string;
+  notes?: string;
+  items?: InvoiceItem[];
+};
+
 type InvoiceFormDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -27,6 +36,7 @@ type InvoiceFormDialogProps = {
     status: string;
   }) => Promise<void>;
   invoice?: Invoice | null;
+  initialData?: InvoiceFormInitialData | null;
 };
 
 export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFormDialogProps) {
