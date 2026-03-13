@@ -39,7 +39,7 @@ type InvoiceFormDialogProps = {
   initialData?: InvoiceFormInitialData | null;
 };
 
-export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFormDialogProps) {
+export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData }: InvoiceFormDialogProps) {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
