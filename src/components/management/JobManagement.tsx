@@ -159,6 +159,29 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
     setSelectedMember("");
   };
 
+  const handleCreateInvoice = async () => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email, phone, company_name")
+      .eq("user_id", job.client_id)
+      .single();
+
+    const clientName = profile?.company_name || profile?.full_name || "";
+    const clientEmail = profile?.email || "";
+    const clientPhone = profile?.phone || "";
+
+    setInvoiceInitialData({
+      client_name: clientName,
+      client_email: clientEmail,
+      client_phone: clientPhone,
+      notes: `Invoice for job: ${job.title}`,
+      items: job.contract_value > 0
+        ? [{ description: job.title, quantity: 1, unit_price: Number(job.contract_value), total: Number(job.contract_value) }]
+        : undefined,
+    });
+    setInvoiceDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={onBack}>
