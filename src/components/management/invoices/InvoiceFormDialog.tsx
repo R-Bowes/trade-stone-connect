@@ -9,6 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 
+export type InvoiceFormInitialData = {
+  client_name?: string;
+  client_email?: string;
+  client_phone?: string;
+  client_address?: string;
+  notes?: string;
+  items?: InvoiceItem[];
+};
+
 type InvoiceFormDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -27,9 +36,10 @@ type InvoiceFormDialogProps = {
     status: string;
   }) => Promise<void>;
   invoice?: Invoice | null;
+  initialData?: InvoiceFormInitialData | null;
 };
 
-export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFormDialogProps) {
+export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData }: InvoiceFormDialogProps) {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -61,18 +71,20 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice }: InvoiceFor
       const invoiceItems = Array.isArray(invoice.items) ? (invoice.items as unknown as InvoiceItem[]) : [];
       setItems(invoiceItems.length > 0 ? invoiceItems : [{ description: "", quantity: 1, unit_price: 0, total: 0 }]);
     } else {
-      setClientName("");
-      setClientEmail("");
-      setClientPhone("");
-      setClientAddress("");
+      setClientName(initialData?.client_name || "");
+      setClientEmail(initialData?.client_email || "");
+      setClientPhone(initialData?.client_phone || "");
+      setClientAddress(initialData?.client_address || "");
       const due = new Date();
       due.setDate(due.getDate() + 30);
       setDueDate(due.toISOString().split("T")[0]);
       setTaxRate(20);
-      setNotes("");
-      setItems([{ description: "", quantity: 1, unit_price: 0, total: 0 }]);
+      setNotes(initialData?.notes || "");
+      setItems(initialData?.items && initialData.items.length > 0
+        ? initialData.items
+        : [{ description: "", quantity: 1, unit_price: 0, total: 0 }]);
     }
-  }, [invoice, open]);
+  }, [invoice, open, initialData]);
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     setItems(prev => {

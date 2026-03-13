@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useInvoices } from "@/hooks/useInvoices";
+import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
   Briefcase,
   ArrowLeft,
@@ -23,7 +25,8 @@ import {
   Plus,
   Send,
   FileText,
-  MapPin
+  MapPin,
+  Receipt
 } from "lucide-react";
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, type Job } from "@/hooks/useJobs";
 import { format } from "date-fns";
@@ -102,10 +105,13 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
   const { notes, addNote } = useJobNotes(job.id);
   const { photos, uploadPhoto, deletePhoto } = useJobPhotos(job.id);
   const { teamMembers, assignMember, removeMember } = useJobTeam(job.id);
+  const { createInvoice } = useInvoices();
   const [newNote, setNewNote] = useState("");
   const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team">("overview");
   const [availableTeam, setAvailableTeam] = useState<any[]>([]);
   const [selectedMember, setSelectedMember] = useState("");
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -153,6 +159,29 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
     setSelectedMember("");
   };
 
+  const handleCreateInvoice = async () => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email, phone, company_name")
+      .eq("user_id", job.client_id)
+      .single();
+
+    const clientName = profile?.company_name || profile?.full_name || "";
+    const clientEmail = profile?.email || "";
+    const clientPhone = profile?.phone || "";
+
+    setInvoiceInitialData({
+      client_name: clientName,
+      client_email: clientEmail,
+      client_phone: clientPhone,
+      notes: `Invoice for job: ${job.title}`,
+      items: job.contract_value > 0
+        ? [{ description: job.title, quantity: 1, unit_price: Number(job.contract_value), total: Number(job.contract_value) }]
+        : undefined,
+    });
+    setInvoiceDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={onBack}>
@@ -190,6 +219,9 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
                 <CheckCircle2 className="h-4 w-4 mr-1" /> Mark Complete
               </Button>
             )}
+            <Button size="sm" variant="outline" onClick={handleCreateInvoice}>
+              <Receipt className="h-4 w-4 mr-1" /> Create Invoice
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -363,6 +395,17 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
           </Card>
         </div>
       )}
+      {/* Invoice Form Dialog */}
+      <InvoiceFormDialog
+        open={invoiceDialogOpen}
+        onClose={() => { setInvoiceDialogOpen(false); setInvoiceInitialData(null); }}
+        onSave={async (data) => {
+          await createInvoice(data);
+          setInvoiceDialogOpen(false);
+          setInvoiceInitialData(null);
+        }}
+        initialData={invoiceInitialData}
+      />
     </div>
   );
 }
