@@ -105,10 +105,13 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
   const { notes, addNote } = useJobNotes(job.id);
   const { photos, uploadPhoto, deletePhoto } = useJobPhotos(job.id);
   const { teamMembers, assignMember, removeMember } = useJobTeam(job.id);
+  const { createInvoice } = useInvoices();
   const [newNote, setNewNote] = useState("");
   const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team">("overview");
   const [availableTeam, setAvailableTeam] = useState<any[]>([]);
   const [selectedMember, setSelectedMember] = useState("");
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
