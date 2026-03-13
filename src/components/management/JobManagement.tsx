@@ -196,7 +196,9 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
                 <CheckCircle2 className="h-4 w-4 mr-1" /> Mark Complete
               </Button>
             )}
-          </div>
+            <Button size="sm" variant="outline" onClick={handleCreateInvoice}>
+              <Receipt className="h-4 w-4 mr-1" /> Create Invoice
+            </Button>
         </CardContent>
       </Card>
 
