@@ -199,6 +199,7 @@ function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => v
             <Button size="sm" variant="outline" onClick={handleCreateInvoice}>
               <Receipt className="h-4 w-4 mr-1" /> Create Invoice
             </Button>
+          </div>
         </CardContent>
       </Card>
 
