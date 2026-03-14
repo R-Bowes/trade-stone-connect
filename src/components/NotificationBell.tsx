@@ -38,6 +38,10 @@ export function NotificationBell() {
     if (!notif.is_read) markAsRead(notif.id);
     if (notif.reference_type === "job") {
       navigate("/dashboard");
+    } else if (notif.reference_type === "invoice") {
+      navigate("/dashboard?view=invoices");
+    } else if (notif.reference_type === "issued_quote") {
+      navigate("/dashboard?view=quotes");
     }
     setOpen(false);
   };
