@@ -20,9 +20,9 @@ function NotificationIcon({ type }: { type: string }) {
     case "job_note":
       return <StickyNote className="h-4 w-4 text-primary shrink-0" />;
     case "invoice_response":
-      return <FileText className="h-4 w-4 text-blue-500 shrink-0" />;
+      return <FileText className="h-4 w-4 text-destructive shrink-0" />;
     case "quote_response":
-      return <FileText className="h-4 w-4 text-green-500 shrink-0" />;
+      return <FileText className="h-4 w-4 text-secondary shrink-0" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
