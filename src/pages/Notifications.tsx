@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
 import { formatDistanceToNow, format } from "date-fns";
 import Header from "@/components/Header";
-import { SiteFooter } from "@/components/SiteFooter";
+import SiteFooter from "@/components/SiteFooter";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All Types" },

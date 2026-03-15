@@ -49,6 +49,7 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/about" element={<About />} />
+          <Route path="/notifications" element={<Notifications />} />
           {/* Dashboard routes - auto-redirects based on user type */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/personal" element={<PersonalDashboard />} />
