@@ -23,6 +23,7 @@ import PersonalDashboard from "./pages/PersonalDashboard";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import ContractorDashboard from "./pages/ContractorDashboard";
 import About from "./pages/About";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
