@@ -2,6 +2,19 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+const RECEIPTS_BUCKET = "receipts";
+
+const normalizeReceiptPath = (receiptReference: string) => {
+  if (!receiptReference) return null;
+
+  if (/^https?:\/\//i.test(receiptReference)) {
+    const pathMatch = receiptReference.match(/\/receipts\/(.+?)(?:\?|$)/);
+    return pathMatch?.[1] ?? null;
+  }
+
+  return receiptReference;
+};
+
 export type Expense = {
   id: string;
   contractor_id: string;
@@ -109,23 +122,25 @@ export function useExpenses() {
     const fileExt = file.name.split(".").pop();
     const filePath = `${user.id}/${Date.now()}.${fileExt}`;
 
-    const { error } = await supabase.storage.from("receipts").upload(filePath, file);
+    const { error } = await supabase.storage.from(RECEIPTS_BUCKET).upload(filePath, file);
     if (error) throw error;
 
-    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(filePath);
-    return urlData.publicUrl;
+    return filePath;
   };
 
-  const getSignedReceiptUrl = async (receiptUrl: string): Promise<string> => {
-    // Extract path from the full URL
-    const pathMatch = receiptUrl.match(/receipts\/(.+)$/);
-    if (!pathMatch) return receiptUrl;
+  const getSignedReceiptUrl = async (receiptReference: string): Promise<string> => {
+    const receiptPath = normalizeReceiptPath(receiptReference);
+    if (!receiptPath) return receiptReference;
 
     const { data, error } = await supabase.storage
-      .from("receipts")
-      .createSignedUrl(pathMatch[1], 3600);
+      .from(RECEIPTS_BUCKET)
+      .createSignedUrl(receiptPath, 3600);
 
-    if (error) return receiptUrl;
+    if (error) {
+      console.error("Error creating signed receipt URL:", error);
+      return receiptReference;
+    }
+
     return data.signedUrl;
   };
 
