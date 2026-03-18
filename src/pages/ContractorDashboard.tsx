@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import {
   DollarSign,
@@ -49,6 +50,23 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type QuoteStatus = NonNullable<Quote["status"]>;
+
+const contractorDashboardViews = [
+  { value: "dashboard", label: "Dashboard" },
+  { value: "quotes", label: "Quotes" },
+  { value: "jobs", label: "Jobs" },
+  { value: "invoices", label: "Invoices" },
+  { value: "projects", label: "Projects" },
+  { value: "contracts", label: "Contracts" },
+  { value: "team", label: "Team" },
+  { value: "timesheets", label: "Timesheets" },
+  { value: "photos", label: "Photos" },
+  { value: "documents", label: "Documents" },
+  { value: "financials", label: "Financials" },
+  { value: "schedule", label: "Schedule" },
+  { value: "clients", label: "CRM" },
+  { value: "profile", label: "Profile" },
+] as const;
 
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -271,24 +289,22 @@ const ContractorDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          {/* Mobile: Horizontal scroll, Tablet: 6-col grid, Desktop: full grid */}
-          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 xl:grid-cols-15 gap-1">
-              <TabsTrigger value="dashboard" className="whitespace-nowrap" data-tour="tab-dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap" data-tour="tab-quotes">Quotes</TabsTrigger>
-              <TabsTrigger value="jobs" className="whitespace-nowrap" data-tour="tab-jobs">Jobs</TabsTrigger>
-              <TabsTrigger value="invoices" className="whitespace-nowrap" data-tour="tab-invoices">Invoices</TabsTrigger>
-              <TabsTrigger value="projects" className="whitespace-nowrap" data-tour="tab-projects">Projects</TabsTrigger>
-              <TabsTrigger value="contracts" className="whitespace-nowrap" data-tour="tab-contracts">Contracts</TabsTrigger>
-              <TabsTrigger value="team" className="whitespace-nowrap" data-tour="tab-team">Team</TabsTrigger>
-              <TabsTrigger value="timesheets" className="whitespace-nowrap" data-tour="tab-timesheets">Timesheets</TabsTrigger>
-              <TabsTrigger value="photos" className="whitespace-nowrap" data-tour="tab-photos">Photos</TabsTrigger>
-              <TabsTrigger value="documents" className="whitespace-nowrap" data-tour="tab-documents">Documents</TabsTrigger>
-              <TabsTrigger value="financials" className="whitespace-nowrap" data-tour="tab-financials">Financials</TabsTrigger>
-              <TabsTrigger value="schedule" className="whitespace-nowrap" data-tour="tab-schedule">Schedule</TabsTrigger>
-              <TabsTrigger value="clients" className="whitespace-nowrap" data-tour="tab-clients">CRM</TabsTrigger>
-              <TabsTrigger value="profile" className="whitespace-nowrap" data-tour="tab-profile">Profile</TabsTrigger>
-            </TabsList>
+          <div className="max-w-sm" data-tour={`tab-${activeTab}`}>
+            <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
+              View
+            </label>
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger id="contractor-dashboard-view" className="w-full">
+                <SelectValue placeholder="Select a view" />
+              </SelectTrigger>
+              <SelectContent>
+                {contractorDashboardViews.map((view) => (
+                  <SelectItem key={view.value} value={view.value}>
+                    {view.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Dashboard Tab */}

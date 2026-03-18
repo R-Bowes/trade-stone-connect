@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import {
   DollarSign,
@@ -38,6 +39,21 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type QuoteStatus = NonNullable<Quote["status"]>;
+
+const businessManagementViews = [
+  { value: "dashboard", label: "Dashboard" },
+  { value: "quotes", label: "Quotes" },
+  { value: "invoices", label: "Invoices" },
+  { value: "projects", label: "Projects" },
+  { value: "clients", label: "Clients" },
+  { value: "payments", label: "Payments" },
+  { value: "reports", label: "Reports" },
+  { value: "profile", label: "Profile" },
+  { value: "photos", label: "Photos" },
+  { value: "team", label: "Team" },
+  { value: "timesheets", label: "Timesheets" },
+  { value: "contracts", label: "Contracts" },
+] as const;
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -210,22 +226,22 @@ const BusinessManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          {/* Mobile: Horizontal scroll, Tablet: 6-col grid, Desktop: 12-col grid */}
-          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-6 lg:grid-cols-12 gap-1">
-              <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
-              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
-              <TabsTrigger value="projects" className="whitespace-nowrap">Projects</TabsTrigger>
-              <TabsTrigger value="clients" className="whitespace-nowrap">Clients</TabsTrigger>
-              <TabsTrigger value="payments" className="whitespace-nowrap">Payments</TabsTrigger>
-              <TabsTrigger value="reports" className="whitespace-nowrap">Reports</TabsTrigger>
-              <TabsTrigger value="profile" className="whitespace-nowrap">Profile</TabsTrigger>
-              <TabsTrigger value="photos" className="whitespace-nowrap">Photos</TabsTrigger>
-              <TabsTrigger value="team" className="whitespace-nowrap">Team</TabsTrigger>
-              <TabsTrigger value="timesheets" className="whitespace-nowrap">Timesheets</TabsTrigger>
-              <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
-            </TabsList>
+          <div className="max-w-sm">
+            <label htmlFor="business-management-view" className="mb-2 block text-sm font-medium text-muted-foreground">
+              View
+            </label>
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger id="business-management-view" className="w-full">
+                <SelectValue placeholder="Select a view" />
+              </SelectTrigger>
+              <SelectContent>
+                {businessManagementViews.map((view) => (
+                  <SelectItem key={view.value} value={view.value}>
+                    {view.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Dashboard Tab */}

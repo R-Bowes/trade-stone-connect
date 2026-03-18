@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -25,6 +26,18 @@ import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
+
+const businessDashboardViews = [
+  { value: "overview", label: "Overview" },
+  { value: "jobs", label: "My Jobs" },
+  { value: "invoices", label: "Invoices" },
+  { value: "quotes", label: "Quotes" },
+  { value: "contracts", label: "Contracts" },
+  { value: "bids", label: "Bids" },
+  { value: "suppliers", label: "Suppliers" },
+  { value: "procurement", label: "Procurement" },
+  { value: "messages", label: "Messages" },
+] as const;
 
 const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -103,18 +116,22 @@ const BusinessDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <div className="w-full overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-            <TabsList className="inline-flex w-max md:grid md:w-full md:grid-cols-9 gap-1">
-              <TabsTrigger value="overview" className="whitespace-nowrap">Overview</TabsTrigger>
-              <TabsTrigger value="jobs" className="whitespace-nowrap">My Jobs</TabsTrigger>
-              <TabsTrigger value="invoices" className="whitespace-nowrap">Invoices</TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap">Quotes</TabsTrigger>
-              <TabsTrigger value="contracts" className="whitespace-nowrap">Contracts</TabsTrigger>
-              <TabsTrigger value="bids" className="whitespace-nowrap">Bids</TabsTrigger>
-              <TabsTrigger value="suppliers" className="whitespace-nowrap">Suppliers</TabsTrigger>
-              <TabsTrigger value="procurement" className="whitespace-nowrap">Procurement</TabsTrigger>
-              <TabsTrigger value="messages" className="whitespace-nowrap">Messages</TabsTrigger>
-            </TabsList>
+          <div className="max-w-sm">
+            <label htmlFor="business-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
+              View
+            </label>
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger id="business-dashboard-view" className="w-full">
+                <SelectValue placeholder="Select a view" />
+              </SelectTrigger>
+              <SelectContent>
+                {businessDashboardViews.map((view) => (
+                  <SelectItem key={view.value} value={view.value}>
+                    {view.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Overview Tab */}
