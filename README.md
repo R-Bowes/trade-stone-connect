@@ -88,3 +88,16 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Repository workflow and protection
+
+Production changes should flow through a protected `main` branch.
+
+- Create a local `main` branch for production.
+- Do all implementation work in `feature/*` branches.
+- Open pull requests into `main`.
+- Require the GitHub Actions `CI` workflow to pass before merge.
+- Require at least one approving review before merge.
+
+See [`docs/repository-governance.md`](docs/repository-governance.md) for the full workflow and the automation script used to configure GitHub branch protection.
+
