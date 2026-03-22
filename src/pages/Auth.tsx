@@ -18,11 +18,9 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const quickTestPassword = "TradeStoneDev#9pV";
 
-  // Login form state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // Signup form state
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -31,14 +29,13 @@ const Auth = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
 
-  // Captcha state
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
 
   const captchaSiteKey = "d08cb50e-41d0-464a-9a6c-8bd012486352";
   const captchaEnabled = true;
 
-  const accountTypeDetails: Record<
+  const accountTypeDetails: Record
     "personal" | "business" | "contractor",
     { title: string; description: string }
   > = {
@@ -64,12 +61,10 @@ const Auth = () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-
       if (session?.user) {
         navigate("/");
       }
     };
-
     checkUser();
   }, [navigate]);
 
@@ -176,8 +171,13 @@ const Auth = () => {
       } else {
         toast({
           title: "Account created!",
-          description: "Please check your email to verify your account.",
+          description: userType === "contractor"
+            ? "Welcome! Let's set up your contractor profile."
+            : "Please check your email to verify your account.",
         });
+        if (userType === "contractor") {
+          navigate("/onboarding/contractor");
+        }
       }
     } catch {
       toast({
@@ -248,7 +248,11 @@ const Auth = () => {
           title: `${type.toUpperCase()} Test User Login`,
           description: `Logged in as ${type} user for testing.`,
         });
-        navigate("/");
+        if (type === "contractor") {
+          navigate("/onboarding/contractor");
+        } else {
+          navigate("/");
+        }
       }
     } catch {
       toast({
@@ -288,7 +292,6 @@ const Auth = () => {
                 >
                   Login as Contractor
                 </Button>
-
                 <Button
                   onClick={() => handleQuickLogin("business@test.com", quickTestPassword, "business")}
                   disabled={loading}
@@ -297,7 +300,6 @@ const Auth = () => {
                 >
                   Login as Business
                 </Button>
-
                 <Button
                   onClick={() => handleQuickLogin("personal@test.com", quickTestPassword, "personal")}
                   disabled={loading}
@@ -322,7 +324,6 @@ const Auth = () => {
                   <CardTitle>Login</CardTitle>
                   <CardDescription>Enter your credentials to access your account</CardDescription>
                 </CardHeader>
-
                 <CardContent>
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
@@ -335,7 +336,6 @@ const Auth = () => {
                         required
                       />
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="loginPassword">Password</Label>
                       <Input
@@ -346,7 +346,6 @@ const Auth = () => {
                         required
                       />
                     </div>
-
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? "Signing in..." : "Sign In"}
                     </Button>
@@ -361,7 +360,6 @@ const Auth = () => {
                   <CardTitle>Create Account</CardTitle>
                   <CardDescription>Join TradeStone today</CardDescription>
                 </CardHeader>
-
                 <CardContent>
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
@@ -374,7 +372,6 @@ const Auth = () => {
                         required
                       />
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="signupEmail">Email</Label>
                       <Input
@@ -385,7 +382,6 @@ const Auth = () => {
                         required
                       />
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="signupPassword">Password</Label>
                       <Input
@@ -396,10 +392,8 @@ const Auth = () => {
                         required
                       />
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="userType">Account Type</Label>
-
                       <div className="space-y-2 rounded-md border p-3 text-sm">
                         {Object.entries(accountTypeDetails).map(([key, details]) => (
                           <p
@@ -410,7 +404,6 @@ const Auth = () => {
                           </p>
                         ))}
                       </div>
-
                       <Select
                         value={userType}
                         onValueChange={(value: "personal" | "business" | "contractor") => setUserType(value)}
@@ -425,7 +418,6 @@ const Auth = () => {
                         </SelectContent>
                       </Select>
                     </div>
-
                     {(userType === "business" || userType === "contractor") && (
                       <div className="space-y-2">
                         <Label htmlFor="companyName">Company Name</Label>
@@ -437,7 +429,6 @@ const Auth = () => {
                         />
                       </div>
                     )}
-
                     <div className="space-y-2">
                       <div className="flex items-start gap-3">
                         <Checkbox
@@ -457,7 +448,6 @@ const Auth = () => {
                         </Label>
                       </div>
                     </div>
-
                     {captchaEnabled && (
                       <div className="space-y-2">
                         <Label>Captcha Verification</Label>
@@ -470,8 +460,11 @@ const Auth = () => {
                         />
                       </div>
                     )}
-
-                    <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken) || !termsAccepted}>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={loading || (captchaEnabled && !captchaToken) || !termsAccepted}
+                    >
                       {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
