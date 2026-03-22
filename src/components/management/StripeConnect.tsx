@@ -16,7 +16,6 @@ export const StripeConnect = () => {
   useEffect(() => {
     checkStripeStatus();
 
-    // Handle return from Stripe onboarding
     const params = new URLSearchParams(window.location.search);
     if (params.get("stripe") === "success") {
       toast({
@@ -48,13 +47,7 @@ export const StripeConnect = () => {
 
     const accountId = (profile as any)?.stripe_account_id;
     setStripeAccountId(accountId || null);
-
-    if (accountId) {
-      setStripeStatus("pending");
-    } else {
-      setStripeStatus("not_connected");
-    }
-
+    setStripeStatus(accountId ? "pending" : "not_connected");
     setChecking(false);
   };
 
@@ -71,8 +64,7 @@ export const StripeConnect = () => {
 
       if (response.error) throw new Error(response.error.message);
 
-      const { url } = response.data;
-      window.location.href = url;
+      window.location.href = response.data.url;
     } catch (error: any) {
       toast({
         title: "Error",
@@ -127,7 +119,7 @@ export const StripeConnect = () => {
           </>
         )}
 
-        {stripeStatus === "pending" && (
+        {(stripeStatus === "pending" || stripeStatus === "active") && (
           <>
             <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <CheckCircle className="h-4 w-4 text-blue-600" />
