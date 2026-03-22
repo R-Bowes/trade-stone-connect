@@ -16,7 +16,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const quickTestPassword = "TradeStoneDev#9pV";
+  const quickTestPassword = import.meta.env.VITE_DEV_TEST_PASSWORD ?? "";
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -32,7 +32,7 @@ const Auth = () => {
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
 
-  const captchaSiteKey = "d08cb50e-41d0-464a-9a6c-8bd012486352";
+  const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
   const captchaEnabled = true;
 
   const accountTypeDetails: Record
