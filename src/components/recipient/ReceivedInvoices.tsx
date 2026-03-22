@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, CreditCard, Pause, HelpCircle, Loader2 } from "lucide-react";
+import { FileText, Pause, HelpCircle, Loader2 } from "lucide-react";
 import { useReceivedInvoices, type ReceivedInvoice } from "@/hooks/useReceivedInvoices";
 import { MessageDialog } from "./MessageDialog";
+import { PayInvoiceButton } from "@/components/recipient/PayInvoiceButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -16,33 +17,7 @@ export function ReceivedInvoices() {
   const [messageDialog, setMessageDialog] = useState<{ open: boolean; invoice: ReceivedInvoice | null }>({
     open: false, invoice: null,
   });
-  const [payingId, setPayingId] = useState<string | null>(null);
   const { toast } = useToast();
-
-  const handlePay = async (invoice: ReceivedInvoice) => {
-    setPayingId(invoice.id);
-    try {
-      const { data, error } = await supabase.functions.invoke("create-invoice-payment", {
-        body: { invoice_id: invoice.id },
-      });
-
-      if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
-
-      // Also notify
-      await supabase.functions.invoke("notify-invoice-quote-action", {
-        body: { action_type: "pay", context_type: "invoice", context_id: invoice.id },
-      }).catch(console.error);
-
-      await respondToInvoice(invoice.id, "paid");
-    } catch (error: any) {
-      toast({ title: "Payment Error", description: error.message || "Failed to initiate payment", variant: "destructive" });
-    } finally {
-      setPayingId(null);
-    }
-  };
 
   const handleStall = async (invoice: ReceivedInvoice) => {
     await respondToInvoice(invoice.id, "stalled");
@@ -111,10 +86,17 @@ export function ReceivedInvoices() {
                   <TableCell className="text-right">
                     {!inv.recipient_response && (
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" onClick={() => handlePay(inv)} disabled={payingId === inv.id}>
-                          {payingId === inv.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
-                          Pay
-                        </Button>
+                        <PayInvoiceButton
+                          invoiceId={inv.id}
+                          amount={Number(inv.total)}
+                          status={inv.recipient_response || "pending"}
+                          onPaymentComplete={async () => {
+                            await respondToInvoice(inv.id, "paid");
+                            await supabase.functions.invoke("notify-invoice-quote-action", {
+                              body: { action_type: "pay", context_type: "invoice", context_id: inv.id },
+                            }).catch(console.error);
+                          }}
+                        />
                         <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
                           <Pause className="h-4 w-4 mr-1" />Stall
                         </Button>
