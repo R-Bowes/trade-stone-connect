@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Contractors from "./pages/Contractors";
 import Contracts from "./pages/Contracts";
@@ -35,6 +36,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/contractors" element={<Contractors />} />
           <Route path="/contracts" element={<Contracts />} />
@@ -50,14 +52,16 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/about" element={<About />} />
-          <Route path="/notifications" element={<Notifications />} />
-          {/* Dashboard routes - auto-redirects based on user type */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/personal" element={<PersonalDashboard />} />
-          <Route path="/dashboard/business" element={<BusinessDashboard />} />
-          <Route path="/dashboard/contractor" element={<ContractorDashboard />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="/onboarding/contractor" element={<ContractorOnboarding />} />
+
+          {/* Protected routes */}
+          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/personal" element={<ProtectedRoute><PersonalDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/business" element={<ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/contractor" element={<ProtectedRoute><ContractorDashboard /></ProtectedRoute>} />
+          <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
+
+          {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
