@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, Loader2 } from "lucide-react";
 
-const stripePromise = loadStripe("pk_test_YOUR_PUBLISHABLE_KEY_HERE");
+const stripePromise = loadStripe("pk_test_51T0jcrAB5s9xl5hIfwaVbwe5aSfpdC5DpsE4YmkhJUGSBVPIUVCPOnCK87pv0WKUBo0LUZoXcZfhsIglMsJFfUAK00QZD2E4Xn");
 
 const CheckoutForm = ({
   invoiceId,
