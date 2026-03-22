@@ -46,16 +46,54 @@ const BusinessDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const [dashboardData, setDashboardData] = useState({
+    activeJobs: 0,
+    receivedQuotes: 0,
+    pendingInvoices: 0,
+    completedJobs: 0,
+  });
+
   useEffect(() => {
     const loadData = async () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       if (!currentUser) {
         navigate("/auth");
         return;
       }
-      
+
       setUser(currentUser);
+
+      const { data: activeJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('client_id', currentUser.id)
+        .in('status', ['active', 'in_progress', 'in-progress']);
+
+      const { data: completedJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('client_id', currentUser.id)
+        .eq('status', 'completed');
+
+      const { data: receivedQuotes } = await supabase
+        .from('issued_quotes')
+        .select('id')
+        .eq('recipient_id', currentUser.id);
+
+      const { data: pendingInvoices } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('recipient_id', currentUser.id)
+        .eq('status', 'pending');
+
+      setDashboardData({
+        activeJobs: activeJobs?.length ?? 0,
+        receivedQuotes: receivedQuotes?.length ?? 0,
+        pendingInvoices: pendingInvoices?.length ?? 0,
+        completedJobs: completedJobs?.length ?? 0,
+      });
+
       setLoading(false);
     };
 
@@ -64,29 +102,33 @@ const BusinessDashboard = () => {
 
   const stats = [
     {
-      title: "Active Contracts",
-      value: "0",
+      title: "Active Jobs",
+      value: `${dashboardData.activeJobs}`,
       icon: FileText,
-      description: "Posted opportunities"
+      description: "Currently in progress",
+      tab: "jobs",
     },
     {
-      title: "Bids Received",
-      value: "0",
+      title: "Quotes Received",
+      value: `${dashboardData.receivedQuotes}`,
       icon: Briefcase,
-      description: "From contractors"
+      description: "From contractors",
+      tab: "quotes",
     },
     {
-      title: "Preferred Suppliers",
-      value: "0",
+      title: "Pending Invoices",
+      value: `${dashboardData.pendingInvoices}`,
       icon: Users,
-      description: "Saved contractors"
+      description: "Awaiting payment",
+      tab: "invoices",
     },
     {
       title: "Projects Completed",
-      value: "0",
+      value: `${dashboardData.completedJobs}`,
       icon: TrendingUp,
-      description: "Total finished"
-    }
+      description: "Total finished",
+      tab: "jobs",
+    },
   ];
 
   if (loading) {
@@ -103,7 +145,7 @@ const BusinessDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-2">
@@ -136,10 +178,13 @@ const BusinessDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
-                <Card key={index}>
+                <Card
+                  key={index}
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setActiveTab(stat.tab)}
+                >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
                     <stat.icon className="h-4 w-4 text-muted-foreground" />
@@ -152,7 +197,6 @@ const BusinessDashboard = () => {
               ))}
             </div>
 
-            {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
@@ -160,9 +204,7 @@ const BusinessDashboard = () => {
                     <Plus className="h-5 w-5" />
                     Post a Contract
                   </CardTitle>
-                  <CardDescription>
-                    Create a new contract opportunity for bidding
-                  </CardDescription>
+                  <CardDescription>Create a new contract opportunity for bidding</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button asChild className="w-full">
@@ -180,9 +222,7 @@ const BusinessDashboard = () => {
                     <Hammer className="h-5 w-5" />
                     Find Contractors
                   </CardTitle>
-                  <CardDescription>
-                    Browse verified professionals for your projects
-                  </CardDescription>
+                  <CardDescription>Browse verified professionals for your projects</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" asChild className="w-full">
@@ -200,9 +240,7 @@ const BusinessDashboard = () => {
                     <Package className="h-5 w-5" />
                     Bulk Materials
                   </CardTitle>
-                  <CardDescription>
-                    Source materials at competitive prices
-                  </CardDescription>
+                  <CardDescription>Source materials at competitive prices</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" asChild className="w-full">
@@ -215,7 +253,6 @@ const BusinessDashboard = () => {
               </Card>
             </div>
 
-            {/* Business Features Coming Soon */}
             <Card>
               <CardHeader>
                 <CardTitle>Business Features</CardTitle>
@@ -231,7 +268,6 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
-                  
                   <div className="flex items-center gap-4 p-4 rounded-lg border">
                     <Briefcase className="h-8 w-8 text-primary" />
                     <div>
@@ -240,7 +276,6 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
-                  
                   <div className="flex items-center gap-4 p-4 rounded-lg border">
                     <Users className="h-8 w-8 text-primary" />
                     <div>
@@ -249,7 +284,6 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
-                  
                   <div className="flex items-center gap-4 p-4 rounded-lg border">
                     <TrendingUp className="h-8 w-8 text-primary" />
                     <div>
@@ -263,123 +297,73 @@ const BusinessDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* My Jobs Tab */}
-          <TabsContent value="jobs" className="space-y-6">
-            <ClientJobsView />
-          </TabsContent>
+          <TabsContent value="jobs"><ClientJobsView /></TabsContent>
+          <TabsContent value="invoices"><ReceivedInvoices /></TabsContent>
+          <TabsContent value="quotes"><ReceivedQuotes /></TabsContent>
 
-          {/* Invoices Tab */}
-          <TabsContent value="invoices" className="space-y-6">
-            <ReceivedInvoices />
-          </TabsContent>
-
-          {/* Quotes Tab */}
-          <TabsContent value="quotes" className="space-y-6">
-            <ReceivedQuotes />
-          </TabsContent>
-
-          {/* Contracts Tab */}
           <TabsContent value="contracts" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Contract Opportunities</h2>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Post New Contract
-              </Button>
+              <Button><Plus className="mr-2 h-4 w-4" />Post New Contract</Button>
             </div>
-
             <Card>
               <CardContent className="p-8 text-center">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Contracts Posted</h3>
-                <p className="text-muted-foreground mb-4">
-                  Post your first contract opportunity to receive bids from qualified contractors.
-                </p>
+                <p className="text-muted-foreground mb-4">Post your first contract opportunity to receive bids from qualified contractors.</p>
                 <Badge variant="outline">Contract Posting Coming Soon</Badge>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Bids Tab */}
           <TabsContent value="bids" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Received Bids</h2>
-            </div>
-
+            <h2 className="text-2xl font-bold">Received Bids</h2>
             <Card>
               <CardContent className="p-8 text-center">
                 <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Bids Yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  When contractors bid on your contracts, they'll appear here for review.
-                </p>
-                <Button variant="outline" asChild>
-                  <Link to="/contracts">View Contract Opportunities</Link>
-                </Button>
+                <p className="text-muted-foreground mb-4">When contractors bid on your contracts, they'll appear here for review.</p>
+                <Button variant="outline" asChild><Link to="/contracts">View Contract Opportunities</Link></Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Suppliers Tab */}
           <TabsContent value="suppliers" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Preferred Suppliers</h2>
               <Button variant="outline" asChild>
-                <Link to="/contractors">
-                  <Search className="mr-2 h-4 w-4" />
-                  Find Contractors
-                </Link>
+                <Link to="/contractors"><Search className="mr-2 h-4 w-4" />Find Contractors</Link>
               </Button>
             </div>
-
             <Card>
               <CardContent className="p-8 text-center">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Preferred Suppliers</h3>
-                <p className="text-muted-foreground mb-4">
-                  Build your network of trusted contractors for future projects.
-                </p>
-                <Button asChild>
-                  <Link to="/contractors">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Suppliers
-                  </Link>
-                </Button>
+                <p className="text-muted-foreground mb-4">Build your network of trusted contractors for future projects.</p>
+                <Button asChild><Link to="/contractors"><Plus className="mr-2 h-4 w-4" />Add Suppliers</Link></Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Procurement Tab */}
           <TabsContent value="procurement" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Procurement</h2>
-            </div>
-
+            <h2 className="text-2xl font-bold">Procurement</h2>
             <Card>
               <CardContent className="p-8 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Procurement Management</h3>
-                <p className="text-muted-foreground mb-4">
-                  Track material orders and supplier relationships in one place.
-                </p>
+                <p className="text-muted-foreground mb-4">Track material orders and supplier relationships in one place.</p>
                 <Badge variant="outline">Coming Soon</Badge>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Messages Tab */}
           <TabsContent value="messages" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Messages</h2>
-            </div>
-
+            <h2 className="text-2xl font-bold">Messages</h2>
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Messages</h3>
-                <p className="text-muted-foreground mb-4">
-                  Your communications with contractors will appear here.
-                </p>
+                <p className="text-muted-foreground mb-4">Your communications with contractors will appear here.</p>
                 <Badge variant="outline">Messaging Coming Soon</Badge>
               </CardContent>
             </Card>
