@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, Loader2 } from "lucide-react";
 
-// Replace with your Stripe publishable key
 const stripePromise = loadStripe("pk_test_YOUR_PUBLISHABLE_KEY_HERE");
 
 const CheckoutForm = ({
@@ -46,7 +45,6 @@ const CheckoutForm = ({
       });
       setLoading(false);
     } else {
-      // Mark invoice as paid in Supabase
       await supabase
         .from("invoices")
         .update({ status: "paid", paid_date: new Date().toISOString() })
@@ -90,9 +88,7 @@ export const PayInvoiceButton = ({
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  if (status === "paid") {
-    return null;
-  }
+  if (status === "paid") return null;
 
   const handleOpenPayment = async () => {
     setLoading(true);
