@@ -24,6 +24,7 @@ import BusinessDashboard from "./pages/BusinessDashboard";
 import ContractorDashboard from "./pages/ContractorDashboard";
 import About from "./pages/About";
 import Notifications from "./pages/Notifications";
+import ContractorOnboarding from "./pages/ContractorOnboarding";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/dashboard/business" element={<BusinessDashboard />} />
           <Route path="/dashboard/contractor" element={<ContractorDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/onboarding/contractor" element={<ContractorOnboarding />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
