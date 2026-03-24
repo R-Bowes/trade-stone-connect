@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
+import { TRADE_TYPES } from "@/constants/trades";
 
 interface Profile {
   full_name: string;
@@ -25,18 +26,7 @@ interface Profile {
   logo_url: string;
 }
 
-const allTrades = [
-  "Agricultural Technician", "Air-craft Engineer", "Automation Technician", "Auto Mechanic",
-  "Boilermaker", "Bricklayer / Mason", "Carpentry", "Carpenter", "Carpet Installer",
-  "Concrete Finisher", "Construction Inspector", "Construction Manager", "Consultant",
-  "Crane Operator", "Drywall Installer / Finisher", "Electrician", "Energy Efficiency Consultant",
-  "Elevator Mechanic", "Farmer", "Flooring Installer", "Gardener", "General Building",
-  "Glazier", "Heavy Equipment Operator", "HVAC Technician", "Insulation Worker", "Ironworker",
-  "Landscaper", "Machinist", "Mechanical Installer", "Painter and Decorator", "Plasterer",
-  "Plumber", "Rigger", "Roofer", "Scaffolder", "Security System Installer", "Sheet Metal Worker",
-  "Smart Home Technician", "Solar Panel Installer", "Tiler", "Tree Surgeon / Arborist",
-  "Welder", "Wind Turbine Technician"
-];
+const allTrades = [...TRADE_TYPES];
 
 const radiusOptions = [
   "5 miles", "10 miles", "15 miles", "20 miles", "25 miles", "30 miles", "50 miles", "100 miles", "Nationwide"
