@@ -6,11 +6,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Search, MapPin, SlidersHorizontal, Loader2, Star, Clock3 } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
+import { DEFAULT_TRADE_FILTERS, TRADE_TYPES } from "@/constants/trades";
 
 type RatingFilter = "all" | "4.5" | "4.0";
 type AvailabilityFilter = "all" | "today" | "week";
 
-const fallbackTrades = ["General Building", "Electrical", "Plumbing", "Carpentry", "Painting", "Roofing"];
+const fallbackTrades = [...DEFAULT_TRADE_FILTERS];
 const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
 const fallbackBios = [
   "Experienced in residential and light commercial projects with a strong focus on quality finishes.",
@@ -33,58 +34,8 @@ const ContractorDirectory = () => {
 
   const { data: contractors, isLoading } = useContractors(searchTerm, selectedTrade, location);
 
-  const trades = [
-    "Agricultural Technician",
-    "Air-craft Engineer",
-    "Automation Technician",
-    "Auto Mechanic",
-    "Boilermaker",
-    "Bricklayer / Mason",
-    "Carpentry",
-    "Carpenter",
-    "Carpet Installer",
-    "Concrete Finisher",
-    "Construction Inspector",
-    "Construction Manager",
-    "Consultant",
-    "Crane Operator",
-    "Drywall Installer / Finisher",
-    "Electrician",
-    "Energy Efficiency Consultant",
-    "Elevator Mechanic",
-    "Electrical",
-    "Farmer",
-    "Flooring Installer",
-    "Flooring",
-    "Gardener",
-    "General Building",
-    "Glazier",
-    "Heavy Equipment Operator",
-    "HVAC Technician (Heating, Ventilation, and Air Conditioning)",
-    "Heating",
-    "Insulation Worker",
-    "Ironworker",
-    "Landscaper",
-    "Machinist",
-    "Mechanical Installer",
-    "Painter and Decorator",
-    "Painting",
-    "Plasterer",
-    "Plumber",
-    "Plumbing",
-    "Rigger",
-    "Roofer",
-    "Roofing",
-    "Scaffolder",
-    "Security System Installer",
-    "Sheet Metal Worker",
-    "Smart Home Technician",
-    "Solar Panel Installer",
-    "Tiler",
-    "Tree Surgeon / Arborist",
-    "Welder",
-    "Wind Turbine Technician"
-  ];
+  const trades = [...TRADE_TYPES];
+
 
   const handleTradeChange = (value: string) => {
     if (value === "all") {
