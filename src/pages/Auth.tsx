@@ -35,7 +35,7 @@ const Auth = () => {
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
   const captchaEnabled = true;
 
-  const accountTypeDetails: Record
+  const accountTypeDetails: Record<
     "personal" | "business" | "contractor",
     { title: string; description: string }
   > = {
