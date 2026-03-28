@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.create-invoice-payment]
 verify_jwt = false
+
+[functions.create-payment-intent]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.mark-overdue-invoices]
+verify_jwt = false

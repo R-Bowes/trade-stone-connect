@@ -48,8 +48,9 @@ export function InvoiceManagement() {
     }
     switch (invoice.status) {
       case "paid": return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
-      case "sent": return <Badge className="bg-blue-100 text-blue-800">Sent</Badge>;
-      case "draft": return <Badge variant="secondary">Draft</Badge>;
+      case "sent": return <Badge className="bg-amber-100 text-amber-800">Sent</Badge>;
+      case "overdue": return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
+      case "draft": return <Badge className="bg-slate-200 text-slate-700">Draft</Badge>;
       default: return <Badge variant="outline">{invoice.status}</Badge>;
     }
   };
@@ -153,6 +154,7 @@ export function InvoiceManagement() {
             <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="sent">Sent</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
           </SelectContent>
         </Select>
       </div>

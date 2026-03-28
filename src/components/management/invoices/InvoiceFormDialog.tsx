@@ -16,6 +16,11 @@ export type InvoiceFormInitialData = {
   client_address?: string;
   notes?: string;
   items?: InvoiceItem[];
+  defaultDueDate?: string;
+  defaultTaxRate?: number;
+  contractorId?: string;
+  clientId?: string;
+  jobId?: string;
 };
 
 type InvoiceFormDialogProps = {
@@ -26,6 +31,9 @@ type InvoiceFormDialogProps = {
     client_email: string;
     client_phone?: string;
     client_address?: string;
+    contractor_id?: string;
+    client_id?: string;
+    job_id?: string;
     due_date: string;
     items: InvoiceItem[];
     subtotal: number;
@@ -77,8 +85,8 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
       setClientAddress(initialData?.client_address || "");
       const due = new Date();
       due.setDate(due.getDate() + 30);
-      setDueDate(due.toISOString().split("T")[0]);
-      setTaxRate(20);
+      setDueDate(initialData?.defaultDueDate || due.toISOString().split("T")[0]);
+      setTaxRate(initialData?.defaultTaxRate ?? 20);
       setNotes(initialData?.notes || "");
       setItems(initialData?.items && initialData.items.length > 0
         ? initialData.items
@@ -155,6 +163,9 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
         client_email: clientEmail,
         client_phone: clientPhone || undefined,
         client_address: clientAddress || undefined,
+        contractor_id: initialData?.contractorId,
+        client_id: initialData?.clientId,
+        job_id: initialData?.jobId,
         due_date: dueDate,
         items: items.map(i => ({ ...i, total: i.quantity * i.unit_price })),
         subtotal,

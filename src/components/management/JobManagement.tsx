@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -54,7 +56,10 @@ export function JobManagement() {
   const [newSnagByJob, setNewSnagByJob] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [savingJobId, setSavingJobId] = useState<string | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const { toast } = useToast();
+  const { createInvoice } = useInvoices();
 
   const loadJobs = async () => {
     setLoading(true);
@@ -235,6 +240,70 @@ export function JobManagement() {
     }
   };
 
+  const buildInvoiceFromJob = async (job: JobCardData) => {
+    const { data: fullJob, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, issued_quote_id, contractor_id, client_id")
+      .eq("id", job.id)
+      .single();
+
+    if (jobError || !fullJob) {
+      throw new Error("Unable to load job details.");
+    }
+
+    const { data: quote } = await supabase
+      .from("issued_quotes")
+      .select("id, client_name, client_email, client_phone, client_address, items")
+      .eq("id", fullJob.issued_quote_id)
+      .maybeSingle();
+
+    const quoteItemsRaw = Array.isArray(quote?.items) ? quote.items : [];
+    const quoteItems: InvoiceItem[] = quoteItemsRaw.map((item: any) => ({
+      description: item.description ?? "Quote item",
+      quantity: Number(item.quantity ?? 1),
+      unit_price: Number(item.unit_price ?? 0),
+      total: Number(item.total ?? Number(item.quantity ?? 1) * Number(item.unit_price ?? 0)),
+    }));
+
+    const { data: expenses } = await supabase
+      .from("expenses" as any)
+      .select("description, amount, is_approved, is_rechargeable, job_id")
+      .eq("job_id", fullJob.id)
+      .eq("is_approved", true)
+      .eq("is_rechargeable", true);
+
+    const expenseItems: InvoiceItem[] = (expenses || []).map((expense: any) => ({
+      description: `Rechargeable expense: ${expense.description}`,
+      quantity: 1,
+      unit_price: Number(expense.amount ?? 0),
+      total: Number(expense.amount ?? 0),
+    }));
+
+    const { data: contractorProfile } = await supabase
+      .from("profiles" as any)
+      .select("vat_registered")
+      .eq("user_id", fullJob.contractor_id)
+      .single();
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+
+    setInvoiceInitialData({
+      client_name: quote?.client_name || job.client_name,
+      client_email: quote?.client_email || "",
+      client_phone: quote?.client_phone || "",
+      client_address: quote?.client_address || "",
+      notes: `Generated from completed job: ${job.title}`,
+      items: [...quoteItems, ...expenseItems],
+      defaultDueDate: dueDate.toISOString().slice(0, 10),
+      defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
+      contractorId: fullJob.contractor_id,
+      clientId: fullJob.client_id,
+      jobId: fullJob.id,
+    });
+    setInvoiceDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -255,6 +324,7 @@ export function JobManagement() {
   }
 
   return (
+    <>
     <div className="space-y-8">
       {STATUS_ORDER.map((status) => (
         <section key={status} className="space-y-3">
@@ -302,6 +372,24 @@ export function JobManagement() {
                             </SelectContent>
                           </Select>
                         </div>
+                        {job.status === "complete" && (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await buildInvoiceFromJob(job);
+                              } catch (error: any) {
+                                toast({
+                                  title: "Invoice generation failed",
+                                  description: error?.message || "Could not pre-populate invoice from job data.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            Generate Invoice
+                          </Button>
+                        )}
                       </div>
                     </CardHeader>
 
@@ -358,5 +446,15 @@ export function JobManagement() {
         </section>
       ))}
     </div>
+    <InvoiceFormDialog
+      open={invoiceDialogOpen}
+      onClose={() => {
+        setInvoiceDialogOpen(false);
+        setInvoiceInitialData(null);
+      }}
+      initialData={invoiceInitialData}
+      onSave={createInvoice}
+    />
+    </>
   );
 }
