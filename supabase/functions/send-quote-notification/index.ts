@@ -181,7 +181,7 @@ const handler = async (req: Request): Promise<Response> => {
   if (!resolveCorsOrigin(origin)) {
     return new Response(
       JSON.stringify({ error: "Origin not allowed", success: false }),
-      { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 
@@ -235,7 +235,7 @@ const handler = async (req: Request): Promise<Response> => {
           retryAfter: resetTime.toISOString()
         }),
         { 
-          status: 429, 
+          status: 400,
           headers: { 
             "Content-Type": "application/json",
             "Retry-After": Math.ceil((resetTime.getTime() - Date.now()) / 1000).toString(),

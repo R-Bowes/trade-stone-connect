@@ -50,6 +50,7 @@ const App = () => (
           <Route path="/marketplace/tools" element={<MarketplaceTools />} />
           <Route path="/marketplace/item/:id" element={<MarketplaceItem />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/login" element={<Auth />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/about" element={<About />} />
@@ -58,9 +59,9 @@ const App = () => (
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/dashboard/personal" element={<ProtectedRoute><PersonalDashboard /></ProtectedRoute>} />
-          <Route path="/dashboard/business" element={<ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
-          <Route path="/dashboard/contractor" element={<ProtectedRoute><ContractorDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/personal" element={<ProtectedRoute requiredRole="personal"><PersonalDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
 
           {/* Catch-all */}

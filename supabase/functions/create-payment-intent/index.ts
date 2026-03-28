@@ -17,6 +17,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const jsonResponse = (status: number, payload: Record<string, unknown>) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 type RequestBody = {
   action?: "send_invoice" | "create_client_secret";
   invoiceId: string;
@@ -36,10 +42,7 @@ serve(async (req) => {
     const { action = "create_client_secret", invoiceId }: RequestBody = await req.json();
 
     if (!invoiceId) {
-      return new Response(JSON.stringify({ error: "invoiceId is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(400, { success: false, error: "invoiceId is required" });
     }
 
     const { data: invoice, error: invoiceError } = await supabase
@@ -63,28 +66,19 @@ serve(async (req) => {
       .single();
 
     if (invoiceError || !invoice) {
-      return new Response(JSON.stringify({ error: "Invoice not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(400, { success: false, error: "Invoice not found" });
     }
 
     if (action === "send_invoice") {
       const authHeader = req.headers.get("Authorization");
       const token = authHeader?.replace("Bearer ", "");
       if (!token) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse(401, { success: false, error: "Unauthorized" });
       }
 
-      const { data: authData } = await supabase.auth.getUser(token);
-      if (!authData.user || authData.user.id !== invoice.contractor_id) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user || authData.user.id !== invoice.contractor_id) {
+        return jsonResponse(401, { success: false, error: "Unauthorized" });
       }
     }
 
@@ -95,18 +89,12 @@ serve(async (req) => {
       .single();
 
     if (contractorError || !contractorProfile?.stripe_account_id) {
-      return new Response(JSON.stringify({ error: "Contractor Stripe account is not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(400, { success: false, error: "Contractor Stripe account is not configured" });
     }
 
     const amountInPence = Math.round(Number(invoice.total || 0) * 100);
     if (amountInPence <= 0) {
-      return new Response(JSON.stringify({ error: "Invoice total must be greater than zero" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(400, { success: false, error: "Invoice total must be greater than zero" });
     }
 
     const platformFee = Math.round(amountInPence * PLATFORM_FEE_PERCENT);
@@ -135,10 +123,14 @@ serve(async (req) => {
       paymentIntentId = paymentIntent.id;
       clientSecret = paymentIntent.client_secret;
 
-      await supabase
+      const { error: intentUpdateError } = await supabase
         .from("invoices")
         .update({ stripe_payment_intent_id: paymentIntentId })
         .eq("id", invoice.id);
+
+      if (intentUpdateError) {
+        throw intentUpdateError;
+      }
     }
 
     if (action === "send_invoice") {
@@ -170,8 +162,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(200, {
         clientSecret,
         paymentIntentId,
         invoice: {
@@ -185,16 +176,9 @@ serve(async (req) => {
           tax_amount: Number((invoice as any).tax_amount ?? 0),
           total: Number(invoice.total ?? 0),
         },
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+      });
   } catch (error) {
     console.error("create-payment-intent failed", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(500, { success: false, error: error instanceof Error ? error.message : "Unknown server error" });
   }
 });

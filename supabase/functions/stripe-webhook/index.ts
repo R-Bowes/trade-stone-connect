@@ -11,31 +11,42 @@ const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
+const jsonResponse = (status: number, payload: Record<string, unknown>) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
 serve(async (req) => {
   try {
     const signature = req.headers.get("stripe-signature");
     if (!signature) {
-      return new Response("Missing stripe-signature", { status: 400 });
+      return jsonResponse(400, { success: false, error: "Missing stripe-signature" });
+    }
+
+    if (!webhookSecret) {
+      return jsonResponse(500, { success: false, error: "Stripe webhook secret is not configured" });
     }
 
     const body = await req.text();
-    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+
+    let event: Stripe.Event;
+    try {
+      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+    } catch (error) {
+      console.error("stripe-webhook signature verification failed", error);
+      return jsonResponse(400, { success: false, error: "Invalid Stripe signature" });
+    }
 
     if (event.type !== "payment_intent.succeeded") {
-      return new Response(JSON.stringify({ received: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(200, { success: true, received: true });
     }
 
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     const invoiceId = paymentIntent.metadata?.invoiceId;
 
     if (!invoiceId) {
-      return new Response(JSON.stringify({ received: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(400, { success: false, error: "Missing invoiceId metadata" });
     }
 
     const supabase = createClient(
@@ -43,13 +54,17 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: invoice } = await supabase
+    const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
       .select("id, contractor_id, invoice_number")
       .eq("id", invoiceId)
       .single();
 
-    await supabase
+    if (invoiceError || !invoice) {
+      return jsonResponse(400, { success: false, error: "Invoice not found" });
+    }
+
+    const { error: updateError } = await supabase
       .from("invoices")
       .update({
         status: "paid",
@@ -58,8 +73,12 @@ serve(async (req) => {
       })
       .eq("id", invoiceId);
 
-    if (invoice?.contractor_id) {
-      await supabase.from("notifications").insert({
+    if (updateError) {
+      throw updateError;
+    }
+
+    if (invoice.contractor_id) {
+      const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: invoice.contractor_id,
         title: "Invoice paid",
         message: `Invoice ${invoice.invoice_number ?? invoice.id} has been paid successfully.`,
@@ -68,11 +87,19 @@ serve(async (req) => {
         reference_id: invoice.id,
       });
 
-      const { data: profile } = await supabase
+      if (notificationError) {
+        console.error("Failed to insert contractor notification", notificationError);
+      }
+
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("email")
         .eq("user_id", invoice.contractor_id)
         .single();
+
+      if (profileError) {
+        console.error("Failed to load contractor profile", profileError);
+      }
 
       if (resend && profile?.email) {
         await resend.emails.send({
@@ -84,15 +111,9 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse(200, { success: true, received: true });
   } catch (error) {
     console.error("stripe-webhook error", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse(500, { success: false, error: error instanceof Error ? error.message : "Unknown server error" });
   }
 });

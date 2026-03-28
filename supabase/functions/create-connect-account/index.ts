@@ -11,6 +11,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const jsonResponse = (status: number, payload: Record<string, unknown>) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -22,23 +28,28 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const authHeader = req.headers.get("Authorization")!;
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user } } = await supabase.auth.getUser(token);
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return jsonResponse(401, { success: false, error: "Unauthorized" });
+    }
 
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return jsonResponse(401, { success: false, error: "Unauthorized" });
     }
 
     // Check if contractor already has a Stripe account
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("stripe_account_id, full_name, email")
       .eq("user_id", user.id)
       .single();
+
+    if (profileError) {
+      return jsonResponse(500, { success: false, error: "Failed to load profile" });
+    }
 
     let accountId = profile?.stripe_account_id;
 
@@ -63,10 +74,14 @@ serve(async (req) => {
       accountId = account.id;
 
       // Save to profile
-      await supabase
+      const { error: updateError } = await supabase
         .from("profiles")
         .update({ stripe_account_id: accountId })
         .eq("user_id", user.id);
+
+      if (updateError) {
+        throw updateError;
+      }
     }
 
     const publicUrl = Deno.env.get("PUBLIC_URL")!;
@@ -79,14 +94,9 @@ serve(async (req) => {
       type: "account_onboarding",
     });
 
-    return new Response(JSON.stringify({ url: accountLink.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(200, { success: true, url: accountLink.url });
   } catch (error) {
     console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(500, { success: false, error: error instanceof Error ? error.message : "Unknown server error" });
   }
 });

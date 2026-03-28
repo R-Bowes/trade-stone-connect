@@ -18,7 +18,6 @@ import {
   Send,
   MessageCircle,
   Star,
-  Loader2,
   Hammer,
   HelpCircle,
   AlertCircle,
@@ -43,6 +42,7 @@ import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
 import type { Database } from "@/integrations/supabase/types";
+import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
@@ -81,6 +81,7 @@ const ContractorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
@@ -228,20 +229,38 @@ const ContractorDashboard = () => {
 
   useEffect(() => {
     const loadUserAndData = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setLoadError(null);
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        setLoadError("Unable to validate your account.");
+        setLoading(false);
+        return;
+      }
 
       if (!currentUser) {
-        navigate("/auth");
+        navigate("/login");
         return;
       }
 
       setUser(currentUser);
 
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('trades, location, working_radius, logo_url')
+        .select('trades, location, working_radius, logo_url, user_type')
         .eq('user_id', currentUser.id)
         .single();
+
+      if (profileError) {
+        setLoadError("Unable to load your profile.");
+        setLoading(false);
+        return;
+      }
+
+      if (profileData?.user_type && profileData.user_type !== "contractor") {
+        navigate(`/dashboard/${profileData.user_type}`);
+        return;
+      }
 
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
@@ -265,29 +284,36 @@ const ContractorDashboard = () => {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      const { data: paidInvoices } = await supabase
+      const { data: paidInvoices, error: paidInvoicesError } = await supabase
         .from('invoices')
         .select('total')
         .eq('contractor_id', currentUser.id)
         .eq('status', 'paid')
         .gte('paid_date', startOfMonth);
 
-      const { data: pendingInvoices } = await supabase
+      const { data: pendingInvoices, error: pendingInvoicesError } = await supabase
         .from('invoices')
         .select('total')
         .eq('contractor_id', currentUser.id)
         .eq('status', 'pending');
 
-      const { data: activeJobsCount } = await supabase
+      const { data: activeJobsCount, error: activeJobsCountError } = await supabase
         .from('jobs')
         .select('id')
         .eq('contractor_id', currentUser.id)
         .in('status', ['active', 'in_progress', 'in-progress']);
 
-      const { data: crmClients } = await supabase
+      const { data: crmClients, error: crmClientsError } = await supabase
         .from('crm_clients')
         .select('id')
         .eq('contractor_id', currentUser.id);
+
+      if (paidInvoicesError || pendingInvoicesError || activeJobsCountError || crmClientsError) {
+        console.error('Error loading dashboard metrics', { paidInvoicesError, pendingInvoicesError, activeJobsCountError, crmClientsError });
+        setLoadError('Unable to load dashboard metrics. Please try again.');
+        setLoading(false);
+        return;
+      }
 
       setDashboardData({
         monthlyRevenue: paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
@@ -297,16 +323,19 @@ const ContractorDashboard = () => {
         clientCount: crmClients?.length ?? 0,
       });
 
-      const { data: recentInvoicesData } = await supabase
+      const { data: recentInvoicesData, error: recentInvoicesError } = await supabase
         .from('invoices')
         .select('id, invoice_number, client_name, total, status, due_date, issued_date')
         .eq('contractor_id', currentUser.id)
         .order('created_at', { ascending: false })
         .limit(3);
 
+      if (recentInvoicesError) {
+        console.error('Error loading recent invoices', recentInvoicesError);
+      }
       setRecentInvoices(recentInvoicesData || []);
 
-      const { data: activeJobsData } = await supabase
+      const { data: activeJobsData, error: activeJobsError } = await supabase
         .from('jobs')
         .select('id, title, status, contract_value, start_date, end_date')
         .eq('contractor_id', currentUser.id)
@@ -314,6 +343,9 @@ const ContractorDashboard = () => {
         .order('created_at', { ascending: false })
         .limit(3);
 
+      if (activeJobsError) {
+        console.error('Error loading active jobs', activeJobsError);
+      }
       setActiveJobs(activeJobsData || []);
       await loadEnquiries(currentUser.id);
       setLoading(false);
@@ -445,9 +477,16 @@ const ContractorDashboard = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+        <LoadingState message="Loading your contractor dashboard..." />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <ErrorState message={loadError} onRetry={() => window.location.reload()} />
       </div>
     );
   }
@@ -474,6 +513,13 @@ const ContractorDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+          {activeTab === "dashboard" && quotes.length === 0 && activeJobs.length === 0 && recentInvoices.length === 0 ? (
+            <EmptyState
+              message="No quotes, jobs, or invoices yet. Complete your profile and start bidding to receive work."
+              ctaLabel="Complete profile"
+              onCta={() => setActiveTab("profile")}
+            />
+          ) : null}
           <div className="max-w-sm" data-tour={`tab-${activeTab}`}>
             <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
               View
