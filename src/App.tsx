@@ -26,6 +26,7 @@ import ContractorDashboard from "./pages/ContractorDashboard";
 import About from "./pages/About";
 import Notifications from "./pages/Notifications";
 import ContractorOnboarding from "./pages/ContractorOnboarding";
+import PayInvoicePage from "./pages/PayInvoicePage";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/about" element={<About />} />
+          <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
 
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

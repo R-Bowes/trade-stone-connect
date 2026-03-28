@@ -40,34 +40,73 @@ export function useInvoices() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id">) => {
+  const sendInvoice = async (invoiceId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await supabase.functions.invoke("create-payment-intent", {
+      body: { action: "send_invoice", invoiceId },
+      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+    });
+
+    if (response.error) {
+      throw new Error(response.error.message || "Failed to send invoice");
+    }
+
+    await fetchInvoices();
+  };
+
+  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id"> & { contractor_id?: string }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("invoices").insert({
-      ...invoice,
-      contractor_id: user.id,
-    });
+    const sendNow = invoice.status === "sent";
 
-    if (error) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .insert({
+        ...invoice,
+        status: sendNow ? "draft" : invoice.status,
+        contractor_id: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
       toast({ title: "Error", description: "Failed to create invoice", variant: "destructive" });
       throw error;
     }
 
-    toast({ title: "Invoice Created", description: "Your invoice has been created successfully." });
-    fetchInvoices();
+    if (sendNow) {
+      await sendInvoice(data.id);
+      toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
+    } else {
+      toast({ title: "Invoice Created", description: "Your invoice has been created successfully." });
+      await fetchInvoices();
+    }
   };
 
   const updateInvoice = async (id: string, updates: Partial<InvoiceInsert>) => {
-    const { error } = await supabase.from("invoices").update(updates).eq("id", id);
+    const sendNow = updates.status === "sent";
+
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        ...updates,
+        status: sendNow ? "draft" : updates.status,
+      })
+      .eq("id", id);
 
     if (error) {
       toast({ title: "Error", description: "Failed to update invoice", variant: "destructive" });
       throw error;
     }
 
-    toast({ title: "Invoice Updated", description: "Invoice has been updated." });
-    fetchInvoices();
+    if (sendNow) {
+      await sendInvoice(id);
+      toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
+    } else {
+      toast({ title: "Invoice Updated", description: "Invoice has been updated." });
+      await fetchInvoices();
+    }
   };
 
   const deleteInvoice = async (id: string) => {
@@ -88,10 +127,10 @@ export function useInvoices() {
   };
 
   const markAsSent = async (id: string) => {
-    await updateInvoice(id, { status: "sent" });
+    await sendInvoice(id);
+    toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
   };
 
-  // Stats
   const totalRevenue = invoices
     .filter(i => i.status === "paid")
     .reduce((sum, i) => sum + Number(i.total), 0);
@@ -101,10 +140,7 @@ export function useInvoices() {
     .reduce((sum, i) => sum + Number(i.total), 0);
 
   const totalOverdue = invoices
-    .filter(i => {
-      if (i.status === "paid") return false;
-      return new Date(i.due_date) < new Date();
-    })
+    .filter(i => i.status === "overdue")
     .reduce((sum, i) => sum + Number(i.total), 0);
 
   return {
@@ -115,6 +151,7 @@ export function useInvoices() {
     deleteInvoice,
     markAsPaid,
     markAsSent,
+    sendInvoice,
     totalRevenue,
     totalPending,
     totalOverdue,
