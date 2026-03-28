@@ -26,6 +26,12 @@ const getCorsHeaders = (origin: string | null): HeadersInit => {
   };
 };
 
+const jsonResponse = (status: number, payload: Record<string, unknown>, corsHeaders: HeadersInit) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -35,10 +41,7 @@ serve(async (req) => {
   }
 
   if (origin && !ALLOWED_ORIGINS.includes(origin)) {
-    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
-      status: 403,
-      headers: corsHeaders,
-    });
+    return jsonResponse(400, { success: false, error: "Origin not allowed" }, corsHeaders);
   }
 
   try {
@@ -50,18 +53,18 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
     }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
     }
 
     const { invoice_id } = await req.json();
     if (!invoice_id) {
-      return new Response(JSON.stringify({ error: "invoice_id required" }), { status: 400, headers: corsHeaders });
+      return jsonResponse(400, { success: false, error: "invoice_id required" }, corsHeaders);
     }
 
     // Get the invoice
@@ -73,12 +76,12 @@ serve(async (req) => {
       .single();
 
     if (invError || !invoice) {
-      return new Response(JSON.stringify({ error: "Invoice not found or not authorized" }), { status: 404, headers: corsHeaders });
+      return jsonResponse(400, { success: false, error: "Invoice not found or not authorized" }, corsHeaders);
     }
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
-      return new Response(JSON.stringify({ error: "Payment processing unavailable" }), { status: 500, headers: corsHeaders });
+      return jsonResponse(500, { success: false, error: "Payment processing unavailable" }, corsHeaders);
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -118,15 +121,9 @@ serve(async (req) => {
       },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(200, { success: true, url: session.url }, corsHeaders);
   } catch (error: unknown) {
     console.error("Error in create-invoice-payment:", error);
-    return new Response(JSON.stringify({ error: "An error occurred processing your payment request" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(500, { success: false, error: "An error occurred processing your payment request" }, corsHeaders);
   }
 });

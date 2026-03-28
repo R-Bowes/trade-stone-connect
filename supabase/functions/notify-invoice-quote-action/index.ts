@@ -25,6 +25,12 @@ const getCorsHeaders = (origin: string | null): HeadersInit => {
   };
 };
 
+const jsonResponse = (status: number, payload: Record<string, unknown>, corsHeaders: HeadersInit) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -34,10 +40,7 @@ serve(async (req) => {
   }
 
   if (origin && !ALLOWED_ORIGINS.includes(origin)) {
-    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
-      status: 403,
-      headers: corsHeaders,
-    });
+    return jsonResponse(400, { success: false, error: "Origin not allowed" }, corsHeaders);
   }
 
   try {
@@ -49,13 +52,13 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
     }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
     }
 
     const { action_type, context_type, context_id, message } = await req.json();
@@ -168,15 +171,9 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(200, { success: true }, corsHeaders);
   } catch (error: unknown) {
     console.error("Error in notify-invoice-quote-action:", error);
-    return new Response(JSON.stringify({ error: "An error occurred processing your request" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(500, { success: false, error: "An error occurred processing your request" }, corsHeaders);
   }
 });

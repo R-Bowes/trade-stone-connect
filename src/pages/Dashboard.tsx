@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { ErrorState } from "@/components/AsyncState";
 import Header from "@/components/Header";
 
 type UserType = "personal" | "business" | "contractor";
@@ -9,13 +10,21 @@ type UserType = "personal" | "business" | "contractor";
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const redirectToDashboard = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
+      setLoadError(null);
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        setLoadError("Unable to validate your account right now.");
+        setLoading(false);
+        return;
+      }
+
       if (!user) {
-        navigate("/auth");
+        navigate("/login");
         return;
       }
 
@@ -28,8 +37,8 @@ const Dashboard = () => {
 
       if (error) {
         console.error("Error fetching profile:", error);
-        // Default to personal if error
-        navigate("/dashboard/personal");
+        setLoadError("We couldn't load your profile. Please try again.");
+        setLoading(false);
         return;
       }
 
@@ -52,6 +61,10 @@ const Dashboard = () => {
 
     redirectToDashboard();
   }, [navigate]);
+
+  if (loadError) {
+    return <ErrorState message={loadError} onRetry={() => window.location.reload()} />;
+  }
 
   return (
     <div className="min-h-screen bg-background">

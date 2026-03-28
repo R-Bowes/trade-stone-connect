@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
   Building2,
@@ -15,12 +14,12 @@ import {
   TrendingUp,
   Search,
   Plus,
-  Loader2,
   ExternalLink,
   Package,
   Hammer
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
@@ -43,8 +42,8 @@ const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
   const navigate = useNavigate();
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [dashboardData, setDashboardData] = useState({
     activeJobs: 0,
@@ -55,37 +54,69 @@ const BusinessDashboard = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setLoadError(null);
+
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        setLoadError("Unable to validate your account.");
+        setLoading(false);
+        return;
+      }
 
       if (!currentUser) {
-        navigate("/auth");
+        navigate("/login");
         return;
       }
 
       setUser(currentUser);
 
-      const { data: activeJobs } = await supabase
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+      if (profileError) {
+        setLoadError("Unable to load your profile.");
+        setLoading(false);
+        return;
+      }
+
+      if (profile?.user_type && profile.user_type !== "business") {
+        navigate(`/dashboard/${profile.user_type}`);
+        return;
+      }
+
+      const { data: activeJobs, error: activeJobsError } = await supabase
         .from('jobs')
         .select('id')
         .eq('client_id', currentUser.id)
         .in('status', ['active', 'in_progress', 'in-progress']);
 
-      const { data: completedJobs } = await supabase
+      const { data: completedJobs, error: completedJobsError } = await supabase
         .from('jobs')
         .select('id')
         .eq('client_id', currentUser.id)
         .eq('status', 'completed');
 
-      const { data: receivedQuotes } = await supabase
+      const { data: receivedQuotes, error: receivedQuotesError } = await supabase
         .from('issued_quotes')
         .select('id')
         .eq('recipient_id', currentUser.id);
 
-      const { data: pendingInvoices } = await supabase
+      const { data: pendingInvoices, error: pendingInvoicesError } = await supabase
         .from('invoices')
         .select('id')
         .eq('recipient_id', currentUser.id)
         .eq('status', 'pending');
+
+      if (activeJobsError || completedJobsError || receivedQuotesError || pendingInvoicesError) {
+        console.error("Dashboard query error", { activeJobsError, completedJobsError, receivedQuotesError, pendingInvoicesError });
+        setLoadError("Unable to load dashboard data. Please try again.");
+        setLoading(false);
+        return;
+      }
 
       setDashboardData({
         activeJobs: activeJobs?.length ?? 0,
@@ -99,6 +130,14 @@ const BusinessDashboard = () => {
 
     loadData();
   }, [navigate]);
+
+
+
+  const hasNoActivity =
+    dashboardData.activeJobs === 0 &&
+    dashboardData.receivedQuotes === 0 &&
+    dashboardData.pendingInvoices === 0 &&
+    dashboardData.completedJobs === 0;
 
   const stats = [
     {
@@ -135,9 +174,16 @@ const BusinessDashboard = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+        <LoadingState message="Loading your business dashboard..." />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <ErrorState message={loadError} onRetry={() => window.location.reload()} />
       </div>
     );
   }
@@ -178,6 +224,13 @@ const BusinessDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
+            {hasNoActivity ? (
+              <EmptyState
+                message="Your business dashboard has no jobs, quotes, or invoices yet."
+                ctaLabel="Post your first opportunity"
+                onCta={() => navigate("/contracts")}
+              />
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
                 <Card
