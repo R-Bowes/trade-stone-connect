@@ -985,6 +985,57 @@ export type Database = {
         }
         Relationships: []
       }
+      enquiries: {
+        Row: {
+          contractor_id: string | null
+          created_at: string
+          description: string
+          enquiry_photo_paths: string[] | null
+          homeowner_id: string
+          id: string
+          location: string
+          status: string
+          title: string
+        }
+        Insert: {
+          contractor_id?: string | null
+          created_at?: string
+          description: string
+          enquiry_photo_paths?: string[] | null
+          homeowner_id: string
+          id?: string
+          location: string
+          status?: string
+          title: string
+        }
+        Update: {
+          contractor_id?: string | null
+          created_at?: string
+          description?: string
+          enquiry_photo_paths?: string[] | null
+          homeowner_id?: string
+          id?: string
+          location?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enquiries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_homeowner_id_fkey"
+            columns: ["homeowner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           bio: string | null

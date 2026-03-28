@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DollarSign,
   Users,
@@ -15,13 +16,14 @@ import {
   Eye,
   Edit,
   Send,
-  Filter,
   MessageCircle,
   Star,
-  Mail,
   Loader2,
   Hammer,
-  HelpCircle
+  HelpCircle,
+  AlertCircle,
+  MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -43,9 +45,18 @@ import { JobManagement } from "@/components/management/JobManagement";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
-type QuoteStatus = NonNullable<Quote["status"]>;
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
+type Enquiry = {
+  id: string;
+  homeowner_id: string;
+  title: string;
+  description: string;
+  location: string;
+  status: string;
+  created_at: string;
+  contractor_id: string | null;
+};
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
@@ -70,6 +81,10 @@ const ContractorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
+  const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
+  const [homeownerNameById, setHomeownerNameById] = useState<Record<string, string>>({});
 
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
@@ -83,6 +98,57 @@ const ContractorDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const loadEnquiries = async (contractorId: string) => {
+    setEnquiriesLoading(true);
+    setEnquiriesError(null);
+
+    const { data, error } = await supabase
+      .from("enquiries")
+      .select("id, homeowner_id, title, description, location, status, created_at, contractor_id")
+      .or(`contractor_id.eq.${contractorId},and(status.eq.new,contractor_id.is.null)`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading enquiries:", error);
+      setEnquiriesError("Unable to load enquiries right now. Please try again.");
+      setEnquiries([]);
+      setHomeownerNameById({});
+      setEnquiriesLoading(false);
+      return;
+    }
+
+    const enquiryRows = (data as Enquiry[]) ?? [];
+    setEnquiries(enquiryRows);
+
+    const homeownerIds = [...new Set(enquiryRows.map((enquiry) => enquiry.homeowner_id))];
+    if (homeownerIds.length === 0) {
+      setHomeownerNameById({});
+      setEnquiriesLoading(false);
+      return;
+    }
+
+    const { data: homeowners, error: homeownersError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", homeownerIds);
+
+    if (homeownersError) {
+      console.error("Error loading homeowner names:", homeownersError);
+      setEnquiriesError("Enquiries loaded, but homeowner names could not be retrieved.");
+      setHomeownerNameById({});
+      setEnquiriesLoading(false);
+      return;
+    }
+
+    const names = (homeowners ?? []).reduce<Record<string, string>>((acc, profile) => {
+      const firstName = (profile.full_name ?? "").trim().split(/\s+/)[0] || "Homeowner";
+      acc[profile.id] = firstName;
+      return acc;
+    }, {});
+    setHomeownerNameById(names);
+    setEnquiriesLoading(false);
+  };
 
   const tourSteps: TourStep[] = useMemo(() => [
     {
@@ -249,6 +315,7 @@ const ContractorDashboard = () => {
         .limit(3);
 
       setActiveJobs(activeJobsData || []);
+      await loadEnquiries(currentUser.id);
       setLoading(false);
     };
 
@@ -258,7 +325,7 @@ const ContractorDashboard = () => {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
+    const quotesChannel = supabase
       .channel('new-quotes')
       .on(
         'postgres_changes',
@@ -278,37 +345,52 @@ const ContractorDashboard = () => {
       )
       .subscribe();
 
+    const enquiriesChannel = supabase
+      .channel('new-enquiries')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'enquiries',
+        },
+        async (payload) => {
+          const inserted = payload.new as Enquiry;
+          const visibleToCurrentContractor =
+            inserted.contractor_id === user.id ||
+            (inserted.status === "new" && inserted.contractor_id === null);
+
+          if (!visibleToCurrentContractor) return;
+
+          setEnquiries((prev) => {
+            if (prev.some((entry) => entry.id === inserted.id)) return prev;
+            return [inserted, ...prev];
+          });
+
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .eq("id", inserted.homeowner_id)
+            .maybeSingle();
+
+          if (profileData) {
+            const firstName = (profileData.full_name ?? "").trim().split(/\s+/)[0] || "Homeowner";
+            setHomeownerNameById((prev) => ({ ...prev, [profileData.id]: firstName }));
+          }
+
+          toast({
+            title: "New enquiry received",
+            description: `${inserted.title} was just posted in ${inserted.location}.`,
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(quotesChannel);
+      supabase.removeChannel(enquiriesChannel);
     };
   }, [user, toast]);
-
-  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
-    try {
-      const { error } = await supabase
-        .from('quotes')
-        .update({ status: newStatus })
-        .eq('id', quoteId);
-
-      if (error) throw error;
-
-      setQuotes(prev => prev.map(quote =>
-        quote.id === quoteId ? { ...quote, status: newStatus } : quote
-      ));
-
-      toast({
-        title: "Quote Updated",
-        description: `Quote status updated to ${newStatus}`,
-      });
-    } catch (error) {
-      console.error('Error updating quote status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update quote status",
-        variant: "destructive",
-      });
-    }
-  };
 
   const dashboardStats = [
     {
@@ -343,6 +425,10 @@ const ContractorDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "new": return "bg-blue-100 text-blue-800";
+      case "replied": return "bg-yellow-100 text-yellow-800";
+      case "converted": return "bg-green-100 text-green-800";
+      case "archived": return "bg-gray-100 text-gray-800";
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "overdue": return "bg-red-100 text-red-800";
@@ -499,53 +585,47 @@ const ContractorDashboard = () => {
           {/* Quotes Tab */}
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Quote Requests</h2>
-              <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
+              <h2 className="text-2xl font-bold">New Enquiries</h2>
+              <Button variant="outline" onClick={() => user && loadEnquiries(user.id)} disabled={enquiriesLoading}>
+                {enquiriesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Refresh
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p><p className="text-sm text-muted-foreground">Pending</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p><p className="text-sm text-muted-foreground">Viewed</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p><p className="text-sm text-muted-foreground">Responded</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{quotes.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'new').length}</p><p className="text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'replied').length}</p><p className="text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'converted').length}</p><p className="text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{enquiries.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
             </div>
 
-            {quotes.length === 0 ? (
-              <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3><p className="text-muted-foreground">Share your TradeStone profile to start receiving quotes!</p></CardContent></Card>
+            {enquiriesLoading ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground"><Loader2 className="h-10 w-10 mx-auto mb-4 animate-spin" /><p>Loading enquiries...</p></CardContent></Card>
+            ) : enquiriesError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Could not load enquiries</AlertTitle>
+                <AlertDescription>{enquiriesError}</AlertDescription>
+              </Alert>
+            ) : enquiries.length === 0 ? (
+              <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3><p className="text-muted-foreground">New homeowner enquiries will appear here in real time.</p></CardContent></Card>
             ) : (
               <div className="space-y-4">
-                {quotes.map((quote) => (
-                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
+                {enquiries.map((enquiry) => (
+                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
-                            <Badge className={getStatusColor(quote.status || 'pending')}>{quote.status}</Badge>
+                            <h3 className="text-lg font-semibold">{enquiry.title}</h3>
+                            <Badge className={getStatusColor(enquiry.status || 'new')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
+                          <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>From: {quote.customer_name}</span>
-                            <span>Email: {quote.customer_email}</span>
-                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
-                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
-                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
+                            <span>Homeowner: {homeownerNameById[enquiry.homeowner_id] ?? "Homeowner"}</span>
+                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{enquiry.location}</span>
+                            <span>Received: {new Date(enquiry.created_at).toLocaleString('en-GB')}</span>
                           </div>
-                        </div>
-                        <div className="flex flex-col gap-2 md:min-w-[140px]">
-                          {quote.status === 'pending' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>Mark as Viewed</Button>
-                          )}
-                          {quote.status === 'viewed' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>Mark as Responded</Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.location.href = `mailto:${quote.customer_email}?subject=Re: ${encodeURIComponent(quote.project_title)}&body=Hi ${encodeURIComponent(quote.customer_name)},%0D%0A%0D%0AThank you for your quote request.%0D%0A%0D%0A`}
-                          >
-                            <Mail className="h-3 w-3 mr-1" />Contact
-                          </Button>
                         </div>
                       </div>
                     </CardContent>

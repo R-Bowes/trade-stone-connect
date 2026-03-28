@@ -1,8 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -15,7 +20,11 @@ import {
   Building,
   Loader2,
   ExternalLink,
-  Plus
+  Plus,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
@@ -24,68 +33,239 @@ import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 
-interface QuoteRequest {
+interface Enquiry {
   id: string;
-  project_title: string;
-  project_description: string;
-  status: string | null;
+  homeowner_id: string;
+  title: string;
+  description: string;
+  location: string;
+  status: string;
   created_at: string;
-  contractor_id: string;
+  enquiry_photo_paths: string[] | null;
 }
+
+const MAX_PHOTOS = 3;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 const PersonalDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [loadingEnquiries, setLoadingEnquiries] = useState(false);
+  const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setLocation("");
+    setPhotos([]);
+  };
+
+  const loadEnquiries = async (userId: string) => {
+    setLoadingEnquiries(true);
+    setEnquiriesError(null);
+
+    const { data, error } = await supabase
+      .from("enquiries")
+      .select("id, homeowner_id, title, description, location, status, created_at, enquiry_photo_paths")
+      .eq("homeowner_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading enquiries:", error);
+      setEnquiriesError("We couldn't load your enquiries. Please refresh and try again.");
+      setEnquiries([]);
+    } else {
+      setEnquiries((data as Enquiry[]) ?? []);
+    }
+
+    setLoadingEnquiries(false);
+  };
+
   useEffect(() => {
     const loadData = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
       if (!currentUser) {
         navigate("/auth");
         return;
       }
-      
+
       setUser(currentUser);
-      
-      // Personal accounts don't have direct access to quotes table (contractor_id based)
-      // In future, we'd track user-submitted quote requests via a separate mechanism
+      await loadEnquiries(currentUser.id);
       setLoading(false);
     };
 
     loadData();
   }, [navigate]);
 
-  const stats = [
-    {
-      title: "Quote Requests Sent",
-      value: "0",
-      icon: FileText,
-      description: "Total requests submitted"
-    },
-    {
-      title: "Saved Contractors",
-      value: "0",
-      icon: Heart,
-      description: "Contractors you've bookmarked"
-    },
-    {
-      title: "Active Projects",
-      value: "0",
-      icon: Clock,
-      description: "Projects in progress"
-    },
-    {
-      title: "Reviews Given",
-      value: "0",
-      icon: Star,
-      description: "Feedback you've provided"
+  const stats = useMemo(
+    () => [
+      {
+        title: "Enquiries Sent",
+        value: enquiries.length.toString(),
+        icon: FileText,
+        description: "Total requests submitted",
+      },
+      {
+        title: "Saved Contractors",
+        value: "0",
+        icon: Heart,
+        description: "Contractors you've bookmarked",
+      },
+      {
+        title: "Active Projects",
+        value: "0",
+        icon: Clock,
+        description: "Projects in progress",
+      },
+      {
+        title: "Reviews Given",
+        value: "0",
+        icon: Star,
+        description: "Feedback you've provided",
+      },
+    ],
+    [enquiries.length]
+  );
+
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+
+    if (selectedFiles.length === 0) {
+      setPhotos([]);
+      return;
     }
-  ];
+
+    if (selectedFiles.length > MAX_PHOTOS) {
+      setFormError(`You can upload up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+
+    const invalidFile = selectedFiles.find((file) => !ALLOWED_IMAGE_TYPES.includes(file.type));
+    if (invalidFile) {
+      setFormError("Only JPG, PNG, WEBP, and HEIC images are allowed.");
+      return;
+    }
+
+    const tooLarge = selectedFiles.find((file) => file.size > 8 * 1024 * 1024);
+    if (tooLarge) {
+      setFormError("Each image must be 8MB or smaller.");
+      return;
+    }
+
+    setFormError(null);
+    setPhotos(selectedFiles);
+  };
+
+  const handleSubmitEnquiry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!user) {
+      setFormError("You need to be signed in to submit an enquiry.");
+      return;
+    }
+
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    const trimmedLocation = location.trim();
+
+    if (!trimmedTitle || !trimmedDescription || !trimmedLocation) {
+      setFormError("Please complete title, description, and postcode before submitting.");
+      return;
+    }
+
+    if (photos.length > MAX_PHOTOS) {
+      setFormError(`You can upload up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError(null);
+    setFormSuccess(null);
+
+    try {
+      const { data: insertedEnquiry, error: insertError } = await supabase
+        .from("enquiries")
+        .insert({
+          homeowner_id: user.id,
+          title: trimmedTitle,
+          description: trimmedDescription,
+          location: trimmedLocation,
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !insertedEnquiry?.id) {
+        throw new Error(insertError?.message ?? "Failed to create enquiry.");
+      }
+
+      const enquiryId = insertedEnquiry.id;
+      const uploadedPaths: string[] = [];
+
+      for (const file of photos) {
+        const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filePath = `${enquiryId}/${Date.now()}-${sanitizedFilename}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("enquiry-photos")
+          .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+        if (uploadError) {
+          throw new Error(`Image upload failed for ${file.name}: ${uploadError.message}`);
+        }
+
+        uploadedPaths.push(filePath);
+      }
+
+      if (uploadedPaths.length > 0) {
+        const { error: updateError } = await supabase
+          .from("enquiries")
+          .update({ enquiry_photo_paths: uploadedPaths })
+          .eq("id", enquiryId)
+          .eq("homeowner_id", user.id);
+
+        if (updateError) {
+          throw new Error(`Enquiry was created, but photo links could not be saved: ${updateError.message}`);
+        }
+      }
+
+      setFormSuccess("Your enquiry has been submitted successfully.");
+      resetForm();
+      await loadEnquiries(user.id);
+
+      toast({
+        title: "Enquiry submitted",
+        description: "Your enquiry is now visible to contractors.",
+      });
+    } catch (error) {
+      console.error("Error submitting enquiry:", error);
+      const message = error instanceof Error ? error.message : "Failed to submit enquiry. Please try again.";
+      setFormError(message);
+      toast({
+        title: "Submission failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -101,13 +281,11 @@ const PersonalDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">My Dashboard</h1>
-          <p className="text-muted-foreground">
-            Track your project requests and manage your saved contractors.
-          </p>
+          <p className="text-muted-foreground">Track your project requests and manage your saved contractors.</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
@@ -121,9 +299,7 @@ const PersonalDashboard = () => {
             <TabsTrigger value="messages">Messages</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
                 <Card key={index}>
@@ -139,7 +315,6 @@ const PersonalDashboard = () => {
               ))}
             </div>
 
-            {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -147,9 +322,7 @@ const PersonalDashboard = () => {
                     <Search className="h-5 w-5" />
                     Find a Contractor
                   </CardTitle>
-                  <CardDescription>
-                    Browse verified professionals in your area
-                  </CardDescription>
+                  <CardDescription>Browse verified professionals in your area</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button asChild className="w-full">
@@ -167,9 +340,7 @@ const PersonalDashboard = () => {
                     <Building className="h-5 w-5" />
                     Materials Marketplace
                   </CardTitle>
-                  <CardDescription>
-                    Find surplus materials at great prices
-                  </CardDescription>
+                  <CardDescription>Find surplus materials at great prices</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" asChild className="w-full">
@@ -182,7 +353,6 @@ const PersonalDashboard = () => {
               </Card>
             </div>
 
-            {/* Getting Started Guide */}
             <Card>
               <CardHeader>
                 <CardTitle>Getting Started</CardTitle>
@@ -202,18 +372,18 @@ const PersonalDashboard = () => {
                       <Link to="/contractors">Go</Link>
                     </Button>
                   </div>
-                  
+
                   <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
                       2
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium">Request a Quote</p>
-                      <p className="text-sm text-muted-foreground">Describe your project and get competitive pricing</p>
+                      <p className="font-medium">Create an Enquiry</p>
+                      <p className="text-sm text-muted-foreground">Describe your project and share photos with contractors</p>
                     </div>
-                    <Badge variant="outline">Coming Soon</Badge>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("requests")}>Start</Button>
                   </div>
-                  
+
                   <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
                       3
@@ -229,45 +399,168 @@ const PersonalDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* My Jobs Tab */}
           <TabsContent value="jobs" className="space-y-6">
             <ClientJobsView />
           </TabsContent>
 
-          {/* Invoices Tab */}
           <TabsContent value="invoices" className="space-y-6">
             <ReceivedInvoices />
           </TabsContent>
 
-          {/* Quotes Tab */}
           <TabsContent value="quotes" className="space-y-6">
             <ReceivedQuotes />
           </TabsContent>
 
-          {/* My Requests Tab */}
           <TabsContent value="requests" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">My Quote Requests</h2>
+              <h2 className="text-2xl font-bold">My Enquiries</h2>
             </div>
 
             <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  When you request quotes from contractors, they'll appear here.
-                </p>
-                <Button asChild>
-                  <Link to="/contractors">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Find a Contractor
-                  </Link>
-                </Button>
+              <CardHeader>
+                <CardTitle>Submit a New Enquiry</CardTitle>
+                <CardDescription>
+                  Tell contractors what you need. Include a title, project details, postcode, and up to three photos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={handleSubmitEnquiry}>
+                  {formSuccess && (
+                    <Alert className="border-green-200 bg-green-50 text-green-900">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <AlertTitle>Submitted</AlertTitle>
+                      <AlertDescription>{formSuccess}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {formError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Could not submit enquiry</AlertTitle>
+                      <AlertDescription>{formError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="enquiry-title">Title</Label>
+                    <Input
+                      id="enquiry-title"
+                      placeholder="Kitchen extension and flooring"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      maxLength={120}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="enquiry-description">Description</Label>
+                    <Textarea
+                      id="enquiry-description"
+                      placeholder="Describe the work, timeline, and any constraints."
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      rows={5}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="enquiry-location">Postcode</Label>
+                    <Input
+                      id="enquiry-location"
+                      placeholder="SW1A 1AA"
+                      value={location}
+                      onChange={(event) => setLocation(event.target.value)}
+                      maxLength={16}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="enquiry-photos">Photos (optional, up to 3)</Label>
+                    <Input
+                      id="enquiry-photos"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      multiple
+                      onChange={handlePhotoSelection}
+                    />
+                    <p className="text-sm text-muted-foreground">Allowed: JPG, PNG, WEBP, HEIC. Maximum 8MB per photo.</p>
+                    {photos.length > 0 && (
+                      <ul className="space-y-1 text-sm text-muted-foreground">
+                        {photos.map((photo) => (
+                          <li key={photo.name} className="flex items-center gap-2">
+                            <ImageIcon className="h-3.5 w-3.5" />
+                            {photo.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSubmitting ? "Submitting..." : "Submit Enquiry"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Enquiries</CardTitle>
+                <CardDescription>Track statuses as contractors review your requests.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingEnquiries && (
+                  <div className="flex items-center justify-center py-10 text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading enquiries...
+                  </div>
+                )}
+
+                {!loadingEnquiries && enquiriesError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Could not load enquiries</AlertTitle>
+                    <AlertDescription>{enquiriesError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {!loadingEnquiries && !enquiriesError && enquiries.length === 0 && (
+                  <div className="p-8 text-center">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
+                    <p className="text-muted-foreground">Submit your first enquiry using the form above.</p>
+                  </div>
+                )}
+
+                {!loadingEnquiries && !enquiriesError && enquiries.length > 0 && (
+                  <div className="space-y-3">
+                    {enquiries.map((enquiry) => (
+                      <div key={enquiry.id} className="rounded-lg border p-4">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="font-semibold">{enquiry.title}</h3>
+                          <Badge variant={enquiry.status === "new" ? "default" : "secondary"}>{enquiry.status}</Badge>
+                        </div>
+                        <p className="mb-2 text-sm text-muted-foreground line-clamp-2">{enquiry.description}</p>
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {enquiry.location}
+                          </span>
+                          <span>{new Date(enquiry.created_at).toLocaleString("en-GB")}</span>
+                          <span>{enquiry.enquiry_photo_paths?.length ?? 0} photo(s)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Saved Tab */}
           <TabsContent value="saved" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Saved Contractors</h2>
@@ -277,9 +570,7 @@ const PersonalDashboard = () => {
               <CardContent className="p-8 text-center">
                 <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Saved Contractors</h3>
-                <p className="text-muted-foreground mb-4">
-                  Save contractors to quickly access their profiles later.
-                </p>
+                <p className="text-muted-foreground mb-4">Save contractors to quickly access their profiles later.</p>
                 <Button asChild>
                   <Link to="/contractors">
                     <Search className="mr-2 h-4 w-4" />
@@ -290,7 +581,6 @@ const PersonalDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Messages Tab */}
           <TabsContent value="messages" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Messages</h2>
@@ -300,9 +590,7 @@ const PersonalDashboard = () => {
               <CardContent className="p-8 text-center">
                 <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Messages</h3>
-                <p className="text-muted-foreground mb-4">
-                  Your conversations with contractors will appear here.
-                </p>
+                <p className="text-muted-foreground mb-4">Your conversations with contractors will appear here.</p>
                 <Badge variant="outline">Messaging Coming Soon</Badge>
               </CardContent>
             </Card>
