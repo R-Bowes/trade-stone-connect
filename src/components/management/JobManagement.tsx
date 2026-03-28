@@ -1,411 +1,362 @@
-import { useState, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useInvoices } from "@/hooks/useInvoices";
-import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
-import {
-  Briefcase,
-  ArrowLeft,
-  Clock,
-  PlayCircle,
-  CheckCircle2,
-  StickyNote,
-  Camera,
-  Users,
-  Loader2,
-  Trash2,
-  Upload,
-  Plus,
-  Send,
-  FileText,
-  MapPin,
-  Receipt
-} from "lucide-react";
-import { useJobs, useJobNotes, useJobPhotos, useJobTeam, type Job } from "@/hooks/useJobs";
-import { format } from "date-fns";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
-  not_started: { label: "Not Started", icon: Clock, color: "bg-muted text-muted-foreground" },
-  in_progress: { label: "In Progress", icon: PlayCircle, color: "bg-blue-100 text-blue-800" },
-  completed: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
+const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
+type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
+
+type JobCardData = {
+  id: string;
+  title: string;
+  status: JobStatus;
+  start_date: string | null;
+  client_id: string;
+  client_name: string;
 };
 
-export function JobManagement() {
-  const { jobs, loading, updateJobStatus } = useJobs("contractor");
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+type SnagItem = {
+  id: string;
+  job_id: string;
+  title: string;
+  is_resolved: boolean;
+};
 
-  if (loading) {
-    return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+const statusLabel: Record<JobStatus, string> = {
+  scheduled: "Scheduled",
+  in_progress: "In progress",
+  snagging: "Snagging",
+  complete: "Complete",
+  cancelled: "Cancelled",
+};
+
+function getAllowedTransitions(currentStatus: JobStatus): JobStatus[] {
+  if (currentStatus === "cancelled" || currentStatus === "complete") {
+    return [];
   }
 
-  if (selectedJob) {
-    return <JobDetail job={selectedJob} onBack={() => setSelectedJob(null)} updateJobStatus={updateJobStatus} />;
-  }
+  const idx = STATUS_ORDER.indexOf(currentStatus as (typeof STATUS_ORDER)[number]);
+  if (idx === -1) return [];
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Jobs</h2>
-      </div>
-
-      {jobs.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Jobs Yet</h3>
-            <p className="text-muted-foreground">Jobs are automatically created when a client accepts one of your quotes.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {jobs.map((job) => {
-            const sc = statusConfig[job.status] || statusConfig.not_started;
-            const StatusIcon = sc.icon;
-            return (
-              <Card key={job.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedJob(job)}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">{job.title}</h3>
-                        <Badge className={sc.color}>
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {sc.label}
-                        </Badge>
-                      </div>
-                      {job.location && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" /> {job.location}
-                        </p>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        Created {format(new Date(job.created_at), "dd MMM yyyy")}
-                        {job.contract_value > 0 && ` • £${Number(job.contract_value).toFixed(2)}`}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return [STATUS_ORDER[idx + 1], "cancelled"].filter(Boolean) as JobStatus[];
 }
 
-function JobDetail({ job, onBack, updateJobStatus }: { job: Job; onBack: () => void; updateJobStatus: (id: string, status: string) => void }) {
-  const { notes, addNote } = useJobNotes(job.id);
-  const { photos, uploadPhoto, deletePhoto } = useJobPhotos(job.id);
-  const { teamMembers, assignMember, removeMember } = useJobTeam(job.id);
-  const { createInvoice } = useInvoices();
-  const [newNote, setNewNote] = useState("");
-  const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team">("overview");
-  const [availableTeam, setAvailableTeam] = useState<any[]>([]);
-  const [selectedMember, setSelectedMember] = useState("");
-  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export function JobManagement() {
+  const [jobs, setJobs] = useState<JobCardData[]>([]);
+  const [snagItemsByJob, setSnagItemsByJob] = useState<Record<string, SnagItem[]>>({});
+  const [newSnagByJob, setNewSnagByJob] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingJobId, setSavingJobId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const sc = statusConfig[job.status] || statusConfig.not_started;
-  const StatusIcon = sc.icon;
+  const loadJobs = async () => {
+    setLoading(true);
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData.user;
 
-  const loadAvailableTeam = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from("team_members")
-      .select("id, full_name, role")
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(`
+        id,
+        title,
+        status,
+        start_date,
+        client_id,
+        client:profiles!jobs_client_id_fkey(full_name, company_name)
+      `)
       .eq("contractor_id", user.id)
-      .eq("is_active", true);
-    setAvailableTeam(data || []);
-  };
+      .order("start_date", { ascending: true, nullsFirst: false });
 
-  const handleAddNote = async () => {
-    if (!newNote.trim()) return;
-    await addNote(newNote.trim());
-    setNewNote("");
-  };
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Invalid file", description: "Only images are allowed.", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Max 5MB.", variant: "destructive" });
-      return;
-    }
-    await uploadPhoto(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleAssignMember = async () => {
-    if (!selectedMember) return;
-    const error = await assignMember(selectedMember);
     if (error) {
-      toast({ title: "Error", description: "Member may already be assigned.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to load jobs", variant: "destructive" });
+      setLoading(false);
+      return;
     }
-    setSelectedMember("");
+
+    const mapped = (data || []).map((job: any) => ({
+      id: job.id,
+      title: job.title,
+      status: job.status,
+      start_date: job.start_date,
+      client_id: job.client_id,
+      client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
+    })) as JobCardData[];
+
+    setJobs(mapped);
+
+    const jobIds = mapped.map((job) => job.id);
+    if (jobIds.length > 0) {
+      const { data: snagData, error: snagError } = await supabase
+        .from("job_snag_items")
+        .select("id, job_id, title, is_resolved")
+        .in("job_id", jobIds)
+        .order("created_at", { ascending: true });
+
+      if (snagError) {
+        toast({ title: "Warning", description: "Could not load snag items", variant: "destructive" });
+      } else {
+        const grouped = (snagData || []).reduce<Record<string, SnagItem[]>>((acc, item: any) => {
+          if (!acc[item.job_id]) acc[item.job_id] = [];
+          acc[item.job_id].push(item);
+          return acc;
+        }, {});
+        setSnagItemsByJob(grouped);
+      }
+    } else {
+      setSnagItemsByJob({});
+    }
+
+    setLoading(false);
   };
 
-  const handleCreateInvoice = async () => {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, email, phone, company_name")
-      .eq("user_id", job.client_id)
+  useEffect(() => {
+    loadJobs();
+  }, []);
+
+  const groupedJobs = useMemo(() => {
+    const initial: Record<(typeof STATUS_ORDER)[number], JobCardData[]> = {
+      scheduled: [],
+      in_progress: [],
+      snagging: [],
+      complete: [],
+    };
+
+    jobs.forEach((job) => {
+      if (job.status in initial) {
+        initial[job.status as (typeof STATUS_ORDER)[number]].push(job);
+      }
+    });
+
+    return initial;
+  }, [jobs]);
+
+  const changeStatus = async (job: JobCardData, nextStatus: JobStatus) => {
+    const allowed = getAllowedTransitions(job.status);
+    if (!allowed.includes(nextStatus)) {
+      toast({
+        title: "Invalid transition",
+        description: `You can only move ${statusLabel[job.status]} to ${allowed.map((s) => statusLabel[s]).join(" or ")}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (job.status === "snagging" && nextStatus === "complete") {
+      const openCount = (snagItemsByJob[job.id] || []).filter((item) => !item.is_resolved).length;
+      if (openCount > 0) {
+        toast({
+          title: "Cannot complete job",
+          description: "Resolve all snag items before moving this job to complete.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const previousStatus = job.status;
+    setSavingJobId(job.id);
+    setJobs((current) => current.map((item) => (item.id === job.id ? { ...item, status: nextStatus } : item)));
+
+    const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
+
+    if (error) {
+      setJobs((current) => current.map((item) => (item.id === job.id ? { ...item, status: previousStatus } : item)));
+      toast({
+        title: "Status update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Job updated",
+        description: `${job.title} moved to ${statusLabel[nextStatus]}.`,
+      });
+    }
+
+    setSavingJobId(null);
+  };
+
+  const addSnagItem = async (jobId: string) => {
+    const title = (newSnagByJob[jobId] || "").trim();
+    if (!title) return;
+
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData.user;
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("job_snag_items")
+      .insert({ job_id: jobId, contractor_id: user.id, created_by: user.id, title })
+      .select("id, job_id, title, is_resolved")
       .single();
 
-    const clientName = profile?.company_name || profile?.full_name || "";
-    const clientEmail = profile?.email || "";
-    const clientPhone = profile?.phone || "";
+    if (error) {
+      toast({ title: "Error", description: "Failed to add snag item", variant: "destructive" });
+      return;
+    }
 
-    setInvoiceInitialData({
-      client_name: clientName,
-      client_email: clientEmail,
-      client_phone: clientPhone,
-      notes: `Invoice for job: ${job.title}`,
-      items: job.contract_value > 0
-        ? [{ description: job.title, quantity: 1, unit_price: Number(job.contract_value), total: Number(job.contract_value) }]
-        : undefined,
-    });
-    setInvoiceDialogOpen(true);
+    setSnagItemsByJob((current) => ({
+      ...current,
+      [jobId]: [...(current[jobId] || []), data as SnagItem],
+    }));
+    setNewSnagByJob((current) => ({ ...current, [jobId]: "" }));
   };
 
-  return (
-    <div className="space-y-6">
-      <Button variant="ghost" onClick={onBack}>
-        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Jobs
-      </Button>
+  const toggleSnagResolved = async (jobId: string, item: SnagItem, isResolved: boolean) => {
+    const optimistic: SnagItem = { ...item, is_resolved: isResolved };
+    setSnagItemsByJob((current) => ({
+      ...current,
+      [jobId]: (current[jobId] || []).map((row) => (row.id === item.id ? optimistic : row)),
+    }));
 
-      {/* Header */}
+    const { error } = await supabase
+      .from("job_snag_items")
+      .update({ is_resolved: isResolved, resolved_at: isResolved ? new Date().toISOString() : null })
+      .eq("id", item.id);
+
+    if (error) {
+      setSnagItemsByJob((current) => ({
+        ...current,
+        [jobId]: (current[jobId] || []).map((row) => (row.id === item.id ? item : row)),
+      }));
+      toast({ title: "Error", description: "Failed to update snag item", variant: "destructive" });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-xl">{job.title}</CardTitle>
-              {job.description && <CardDescription>{job.description}</CardDescription>}
-            </div>
-            <Badge className={sc.color}>
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {sc.label}
-            </Badge>
-          </div>
+          <CardTitle>No jobs yet</CardTitle>
+          <CardDescription>Your assigned jobs will appear here and be grouped by status.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-            {job.location && <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{job.location}</span>}
-            {job.contract_value > 0 && <span className="flex items-center gap-1"><FileText className="h-4 w-4" />£{Number(job.contract_value).toFixed(2)}</span>}
-            {job.start_date && <span>Start: {format(new Date(job.start_date), "dd MMM yyyy")}</span>}
-          </div>
-          <div className="flex gap-2">
-            {job.status === "not_started" && (
-              <Button size="sm" onClick={() => updateJobStatus(job.id, "in_progress")}>
-                <PlayCircle className="h-4 w-4 mr-1" /> Start Job
-              </Button>
-            )}
-            {job.status === "in_progress" && (
-              <Button size="sm" onClick={() => updateJobStatus(job.id, "completed")}>
-                <CheckCircle2 className="h-4 w-4 mr-1" /> Mark Complete
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={handleCreateInvoice}>
-              <Receipt className="h-4 w-4 mr-1" /> Create Invoice
-            </Button>
-          </div>
-        </CardContent>
       </Card>
+    );
+  }
 
-      {/* Section Nav */}
-      <div className="flex gap-2">
-        {(["overview", "notes", "photos", "team"] as const).map((section) => (
-          <Button
-            key={section}
-            variant={activeSection === section ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setActiveSection(section);
-              if (section === "team") loadAvailableTeam();
-            }}
-          >
-            {section === "overview" && <Briefcase className="h-4 w-4 mr-1" />}
-            {section === "notes" && <StickyNote className="h-4 w-4 mr-1" />}
-            {section === "photos" && <Camera className="h-4 w-4 mr-1" />}
-            {section === "team" && <Users className="h-4 w-4 mr-1" />}
-            {section.charAt(0).toUpperCase() + section.slice(1)}
-          </Button>
-        ))}
-      </div>
+  return (
+    <div className="space-y-8">
+      {STATUS_ORDER.map((status) => (
+        <section key={status} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold">{statusLabel[status]}</h3>
+            <Badge variant="secondary">{groupedJobs[status].length}</Badge>
+          </div>
 
-      {/* Notes Section */}
-      {activeSection === "notes" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Notes</CardTitle>
-            <CardDescription>Notes shared between you and the client</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {notes.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No notes yet.</p>}
-              {notes.map((note) => (
-                <div key={note.id} className="p-3 rounded-lg bg-muted/50 space-y-1">
-                  <p className="text-sm">{note.content}</p>
-                  <p className="text-xs text-muted-foreground">{format(new Date(note.created_at), "dd MMM yyyy HH:mm")}</p>
-                </div>
-              ))}
+          {groupedJobs[status].length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-sm text-muted-foreground">No jobs in this status.</CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {groupedJobs[status].map((job) => {
+                const snagItems = snagItemsByJob[job.id] || [];
+                const openSnags = snagItems.filter((item) => !item.is_resolved).length;
+                const transitions = getAllowedTransitions(job.status);
+
+                return (
+                  <Card key={job.id}>
+                    <CardHeader>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{job.title}</CardTitle>
+                          <CardDescription>
+                            {job.client_name}
+                            {job.start_date ? ` • Starts ${format(new Date(job.start_date), "dd MMM yyyy")}` : " • No start date"}
+                          </CardDescription>
+                          <Badge>{statusLabel[job.status]}</Badge>
+                        </div>
+
+                        <div className="w-full md:w-56">
+                          <Label className="mb-2 block">Move status</Label>
+                          <Select onValueChange={(value) => changeStatus(job, value as JobStatus)} disabled={savingJobId === job.id || transitions.length === 0}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={transitions.length === 0 ? "No further moves" : "Choose status"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {transitions.map((next) => (
+                                <SelectItem key={next} value={next}>
+                                  {statusLabel[next]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      <div className="rounded-md border p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <Wrench className="h-4 w-4" />
+                            Snag list
+                          </div>
+                          {openSnags > 0 ? (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertTriangle className="h-3 w-3" /> {openSnags} open
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> All resolved
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add snag item"
+                            value={newSnagByJob[job.id] || ""}
+                            onChange={(event) => setNewSnagByJob((current) => ({ ...current, [job.id]: event.target.value }))}
+                          />
+                          <Button type="button" onClick={() => addSnagItem(job.id)}>Add</Button>
+                        </div>
+
+                        {snagItems.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No snag items yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {snagItems.map((item) => (
+                              <label key={item.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={item.is_resolved}
+                                  onChange={(event) => toggleSnagResolved(job.id, item, event.target.checked)}
+                                />
+                                <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>{item.title}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
-            <Separator />
-            <div className="flex gap-2">
-              <Textarea
-                placeholder="Add a note..."
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                rows={2}
-                className="flex-1"
-              />
-              <Button onClick={handleAddNote} disabled={!newNote.trim()} className="self-end">
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Photos Section */}
-      {activeSection === "photos" && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Job Photos</CardTitle>
-                <CardDescription>Document your work progress</CardDescription>
-              </div>
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" /> Add Photo
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {photos.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No photos uploaded yet.</p>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {photos.map((photo) => (
-                  <div key={photo.id} className="relative group rounded-lg overflow-hidden border">
-                    <img src={photo.photo_url} alt={photo.title || "Job photo"} className="aspect-square object-cover w-full" />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                      onClick={() => deletePhoto(photo)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Team Section */}
-      {activeSection === "team" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Assigned Team</CardTitle>
-            <CardDescription>Team members working on this job</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {teamMembers.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No team members assigned.</p>}
-            {teamMembers.map((tm) => (
-              <div key={tm.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{(tm.full_name || "?")[0]}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-sm">{tm.full_name || "Unknown"}</p>
-                    <p className="text-xs text-muted-foreground">{tm.role_title || tm.role}</p>
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => removeMember(tm.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-            <Separator />
-            <div className="flex gap-2">
-              <Select value={selectedMember} onValueChange={setSelectedMember}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Select team member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTeam
-                    .filter(t => !teamMembers.some(tm => tm.team_member_id === t.id))
-                    .map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.full_name} ({t.role})</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleAssignMember} disabled={!selectedMember}>
-                <Plus className="h-4 w-4 mr-1" /> Assign
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Overview - shown by default */}
-      {activeSection === "overview" && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("notes")}>
-            <CardContent className="p-6 text-center">
-              <StickyNote className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <p className="font-semibold">{notes.length} Notes</p>
-              <p className="text-xs text-muted-foreground">View & add notes</p>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("photos")}>
-            <CardContent className="p-6 text-center">
-              <Camera className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <p className="font-semibold">{photos.length} Photos</p>
-              <p className="text-xs text-muted-foreground">Document work</p>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveSection("team"); loadAvailableTeam(); }}>
-            <CardContent className="p-6 text-center">
-              <Users className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <p className="font-semibold">{teamMembers.length} Team Members</p>
-              <p className="text-xs text-muted-foreground">Manage team</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-      {/* Invoice Form Dialog */}
-      <InvoiceFormDialog
-        open={invoiceDialogOpen}
-        onClose={() => { setInvoiceDialogOpen(false); setInvoiceInitialData(null); }}
-        onSave={async (data) => {
-          await createInvoice(data);
-          setInvoiceDialogOpen(false);
-          setInvoiceInitialData(null);
-        }}
-        initialData={invoiceInitialData}
-      />
+          )}
+        </section>
+      ))}
     </div>
   );
 }
