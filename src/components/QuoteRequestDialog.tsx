@@ -22,7 +22,7 @@ const baseSchema = z.object({
 interface QuoteField {
   name: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'email' | 'tel';
+  type: 'text' | 'textarea' | 'select' | 'email' | 'tel' | 'file';
   required: boolean;
   options?: string[];
 }
@@ -278,6 +278,8 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
                 <Input
                   {...formField}
                   type={field.type}
+                  accept={field.type === 'file' ? 'image/*' : undefined}
+                  capture={field.type === 'file' ? 'environment' : undefined}
                   placeholder={`Enter ${field.label.toLowerCase()}`}
                 />
               )}
