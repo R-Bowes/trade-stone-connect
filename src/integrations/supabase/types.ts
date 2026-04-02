@@ -47,6 +47,105 @@ export type Database = {
         }
         Relationships: []
       }
+      companies: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_size: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          industry: string | null
+          logo_url: string | null
+          name: string
+          owner_id: string | null
+          phone: string | null
+          postcode: string | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_size?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          name: string
+          owner_id?: string | null
+          phone?: string | null
+          postcode?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_size?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          industry?: string | null
+          logo_url?: string | null
+          name?: string
+          owner_id?: string | null
+          phone?: string | null
+          postcode?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      compliance_items: {
+        Row: {
+          alert_sent: boolean | null
+          contractor_id: string | null
+          created_at: string | null
+          document_url: string | null
+          expiry_date: string
+          id: string
+          issued_date: string | null
+          issuing_body: string | null
+          name: string
+          reference_number: string | null
+          status: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          alert_sent?: boolean | null
+          contractor_id?: string | null
+          created_at?: string | null
+          document_url?: string | null
+          expiry_date: string
+          id?: string
+          issued_date?: string | null
+          issuing_body?: string | null
+          name: string
+          reference_number?: string | null
+          status?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          alert_sent?: boolean | null
+          contractor_id?: string | null
+          created_at?: string | null
+          document_url?: string | null
+          expiry_date?: string
+          id?: string
+          issued_date?: string | null
+          issuing_body?: string | null
+          name?: string
+          reference_number?: string | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       contractor_documents: {
         Row: {
           contractor_id: string
@@ -98,6 +197,53 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      contractor_panel: {
+        Row: {
+          added_by: string | null
+          approved_at: string | null
+          company_id: string | null
+          contractor_id: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          status: string | null
+          tier: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          approved_at?: string | null
+          company_id?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          status?: string | null
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          approved_at?: string | null
+          company_id?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          status?: string | null
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_panel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -422,6 +568,86 @@ export type Database = {
           receipt_url?: string | null
           updated_at?: string
           vendor?: string | null
+        }
+        Relationships: []
+      }
+      favourites: {
+        Row: {
+          contractor_id: string | null
+          created_at: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          contractor_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          contractor_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favourites_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favourites_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favourites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favourites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gdpr_erasure_log: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          performed_by: string | null
+          requested_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          requested_at: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          requested_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -767,6 +993,8 @@ export type Database = {
       jobs: {
         Row: {
           client_id: string
+          company_id: string | null
+          completed_at: string | null
           contract_value: number | null
           contractor_id: string
           created_at: string
@@ -776,6 +1004,11 @@ export type Database = {
           issued_quote_id: string | null
           location: string | null
           portfolio_approved: boolean | null
+          priority: string | null
+          responded_at: string | null
+          sla_resolution_due: string | null
+          sla_response_due: string | null
+          sla_rule_id: string | null
           start_date: string | null
           status: string
           title: string
@@ -783,6 +1016,8 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          company_id?: string | null
+          completed_at?: string | null
           contract_value?: number | null
           contractor_id: string
           created_at?: string
@@ -792,6 +1027,11 @@ export type Database = {
           issued_quote_id?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
+          priority?: string | null
+          responded_at?: string | null
+          sla_resolution_due?: string | null
+          sla_response_due?: string | null
+          sla_rule_id?: string | null
           start_date?: string | null
           status?: string
           title: string
@@ -799,6 +1039,8 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          company_id?: string | null
+          completed_at?: string | null
           contract_value?: number | null
           contractor_id?: string
           created_at?: string
@@ -808,6 +1050,11 @@ export type Database = {
           issued_quote_id?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
+          priority?: string | null
+          responded_at?: string | null
+          sla_resolution_due?: string | null
+          sla_response_due?: string | null
+          sla_rule_id?: string | null
           start_date?: string | null
           status?: string
           title?: string
@@ -829,6 +1076,13 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
           {
+            foreignKeyName: "jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
@@ -847,6 +1101,13 @@ export type Database = {
             columns: ["issued_quote_id"]
             isOneToOne: false
             referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_sla_rule_id_fkey"
+            columns: ["sla_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sla_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -985,111 +1246,156 @@ export type Database = {
         }
         Relationships: []
       }
-      enquiries: {
+      payments: {
         Row: {
-          contractor_id: string | null
-          created_at: string
-          description: string
-          enquiry_photo_paths: string[] | null
-          homeowner_id: string
+          amount: number
+          created_at: string | null
+          escrow_released_at: string | null
           id: string
-          location: string
-          status: string
-          title: string
+          invoice_id: string | null
+          job_id: string | null
+          notes: string | null
+          payee_id: string | null
+          payer_id: string | null
+          platform_fee: number | null
+          released_by: string | null
+          status: string | null
+          stripe_payment_intent_id: string | null
+          stripe_transfer_id: string | null
+          updated_at: string | null
         }
         Insert: {
-          contractor_id?: string | null
-          created_at?: string
-          description: string
-          enquiry_photo_paths?: string[] | null
-          homeowner_id: string
+          amount: number
+          created_at?: string | null
+          escrow_released_at?: string | null
           id?: string
-          location: string
-          status?: string
-          title: string
+          invoice_id?: string | null
+          job_id?: string | null
+          notes?: string | null
+          payee_id?: string | null
+          payer_id?: string | null
+          platform_fee?: number | null
+          released_by?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_transfer_id?: string | null
+          updated_at?: string | null
         }
         Update: {
-          contractor_id?: string | null
-          created_at?: string
-          description?: string
-          enquiry_photo_paths?: string[] | null
-          homeowner_id?: string
+          amount?: number
+          created_at?: string | null
+          escrow_released_at?: string | null
           id?: string
-          location?: string
-          status?: string
-          title?: string
+          invoice_id?: string | null
+          job_id?: string | null
+          notes?: string | null
+          payee_id?: string | null
+          payer_id?: string | null
+          platform_fee?: number | null
+          released_by?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_transfer_id?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "enquiries_contractor_id_fkey"
-            columns: ["contractor_id"]
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "enquiries_homeowner_id_fkey"
-            columns: ["homeowner_id"]
+            foreignKeyName: "payments_job_id_fkey"
+            columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
       }
       profiles: {
         Row: {
+          address: string | null
+          avatar_url: string | null
           bio: string | null
           company_name: string | null
           created_at: string
           email: string | null
           full_name: string | null
+          hourly_rate: number | null
           id: string
+          is_available: boolean | null
+          is_verified: boolean | null
           location: string | null
           logo_url: string | null
+          onboarding_completed: boolean | null
           phone: string | null
+          stripe_account_id: string | null
           trade: string | null
           trades: string[] | null
           ts_profile_code: string | null
           updated_at: string
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
+          website: string | null
           working_radius: string | null
+          years_experience: number | null
         }
         Insert: {
+          address?: string | null
+          avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
+          hourly_rate?: number | null
           id?: string
+          is_available?: boolean | null
+          is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          onboarding_completed?: boolean | null
           phone?: string | null
+          stripe_account_id?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          website?: string | null
           working_radius?: string | null
+          years_experience?: number | null
         }
         Update: {
+          address?: string | null
+          avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
+          hourly_rate?: number | null
           id?: string
+          is_available?: boolean | null
+          is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          onboarding_completed?: boolean | null
           phone?: string | null
+          stripe_account_id?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          website?: string | null
           working_radius?: string | null
+          years_experience?: number | null
         }
         Relationships: []
       }
@@ -1204,27 +1510,6 @@ export type Database = {
           },
         ]
       }
-      rate_limits: {
-        Row: {
-          action_type: string
-          created_at: string
-          id: string
-          identifier: string
-        }
-        Insert: {
-          action_type: string
-          created_at?: string
-          id?: string
-          identifier: string
-        }
-        Update: {
-          action_type?: string
-          created_at?: string
-          id?: string
-          identifier?: string
-        }
-        Relationships: []
-      }
       schedule_events: {
         Row: {
           all_day: boolean
@@ -1292,6 +1577,129 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: false
             referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sla_breaches: {
+        Row: {
+          acknowledged: boolean | null
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          breach_type: string | null
+          breached_at: string
+          company_id: string | null
+          contractor_id: string | null
+          created_at: string | null
+          due_at: string
+          id: string
+          job_id: string | null
+          minutes_overdue: number | null
+          notes: string | null
+          sla_rule_id: string | null
+        }
+        Insert: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          breach_type?: string | null
+          breached_at: string
+          company_id?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          due_at: string
+          id?: string
+          job_id?: string | null
+          minutes_overdue?: number | null
+          notes?: string | null
+          sla_rule_id?: string | null
+        }
+        Update: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          breach_type?: string | null
+          breached_at?: string
+          company_id?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          due_at?: string
+          id?: string
+          job_id?: string | null
+          minutes_overdue?: number | null
+          notes?: string | null
+          sla_rule_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_breaches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sla_breaches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sla_breaches_sla_rule_id_fkey"
+            columns: ["sla_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sla_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sla_rules: {
+        Row: {
+          applies_to_trade: string | null
+          company_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          priority: string
+          resolution_hours: number
+          response_hours: number
+          updated_at: string | null
+        }
+        Insert: {
+          applies_to_trade?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          priority: string
+          resolution_hours: number
+          response_hours: number
+          updated_at?: string | null
+        }
+        Update: {
+          applies_to_trade?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          priority?: string
+          resolution_hours?: number
+          response_hours?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1400,6 +1808,130 @@ export type Database = {
           },
         ]
       }
+      tender_responses: {
+        Row: {
+          contractor_id: string | null
+          cover_note: string | null
+          created_at: string | null
+          documents_url: string[] | null
+          id: string
+          proposed_end_date: string | null
+          proposed_price: number | null
+          proposed_start_date: string | null
+          status: string | null
+          submitted_at: string | null
+          tender_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          contractor_id?: string | null
+          cover_note?: string | null
+          created_at?: string | null
+          documents_url?: string[] | null
+          id?: string
+          proposed_end_date?: string | null
+          proposed_price?: number | null
+          proposed_start_date?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          tender_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          contractor_id?: string | null
+          cover_note?: string | null
+          created_at?: string | null
+          documents_url?: string[] | null
+          id?: string
+          proposed_end_date?: string | null
+          proposed_price?: number | null
+          proposed_start_date?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          tender_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_responses_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenders: {
+        Row: {
+          budget_max: number | null
+          budget_min: number | null
+          company_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          documents_url: string[] | null
+          end_date: string | null
+          id: string
+          invite_only: boolean | null
+          location: string | null
+          postcode: string | null
+          start_date: string | null
+          status: string | null
+          submission_deadline: string | null
+          title: string
+          trade_category: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          budget_max?: number | null
+          budget_min?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          documents_url?: string[] | null
+          end_date?: string | null
+          id?: string
+          invite_only?: boolean | null
+          location?: string | null
+          postcode?: string | null
+          start_date?: string | null
+          status?: string | null
+          submission_deadline?: string | null
+          title: string
+          trade_category?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          budget_max?: number | null
+          budget_min?: number | null
+          company_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          documents_url?: string[] | null
+          end_date?: string | null
+          id?: string
+          invite_only?: boolean | null
+          location?: string | null
+          postcode?: string | null
+          start_date?: string | null
+          status?: string | null
+          submission_deadline?: string | null
+          title?: string
+          trade_category?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       timesheets: {
         Row: {
           contractor_id: string
@@ -1465,57 +1997,86 @@ export type Database = {
     Views: {
       public_pro_profiles: {
         Row: {
+          avatar_url: string | null
           bio: string | null
           company_name: string | null
           created_at: string | null
           full_name: string | null
+          hourly_rate: number | null
           id: string | null
+          is_available: boolean | null
+          is_verified: boolean | null
           location: string | null
           logo_url: string | null
+          onboarding_completed: boolean | null
+          phone: string | null
+          stripe_account_id: string | null
           trade: string | null
           trades: string[] | null
           ts_profile_code: string | null
           updated_at: string | null
           user_id: string | null
           user_type: Database["public"]["Enums"]["user_type"] | null
+          website: string | null
           working_radius: string | null
+          years_experience: number | null
         }
         Insert: {
+          avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
           created_at?: string | null
           full_name?: string | null
+          hourly_rate?: number | null
           id?: string | null
+          is_available?: boolean | null
+          is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          onboarding_completed?: boolean | null
+          phone?: string | null
+          stripe_account_id?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
+          website?: string | null
           working_radius?: string | null
+          years_experience?: number | null
         }
         Update: {
+          avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
           created_at?: string | null
           full_name?: string | null
+          hourly_rate?: number | null
           id?: string | null
+          is_available?: boolean | null
+          is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          onboarding_completed?: boolean | null
+          phone?: string | null
+          stripe_account_id?: string | null
           trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
+          website?: string | null
           working_radius?: string | null
+          years_experience?: number | null
         }
         Relationships: []
       }
     }
     Functions: {
+      anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
+      check_sla_breaches: { Args: never; Returns: undefined }
       generate_ts_profile_code: { Args: never; Returns: string }
     }
     Enums: {
