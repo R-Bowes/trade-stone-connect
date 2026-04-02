@@ -43,6 +43,7 @@ type ContractorProfileData = {
   working_radius: string | null;
   bio: string | null;
   logo_url: string | null;
+  is_verified: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -64,7 +65,7 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from('public_pro_profiles')
-          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, created_at, updated_at')
+          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at')
           .eq('ts_profile_code', code)
           .maybeSingle();
 
@@ -110,7 +111,7 @@ const ContractorProfile = () => {
     phone: null,
     email: null,
     image: contractorProfile?.logo_url || "",
-    verified: true,
+    verified: contractorProfile?.is_verified ?? false,
     yearsExperience: 12,
     projectsCompleted: 340,
     responseTime: "Within 2 hours",
