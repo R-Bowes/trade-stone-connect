@@ -13,6 +13,7 @@ export interface Contractor {
   working_radius: string | null;
   bio: string | null;
   logo_url: string | null;
+  is_available: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -28,13 +29,23 @@ export const useContractors = (searchTerm?: string, trade?: string, location?: s
     queryFn: async () => {
       let query = supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, is_available, created_at, updated_at")
         .eq("user_type", "contractor");
 
       if (searchTerm) {
-        // Sanitize and limit search term length
         const sanitizedTerm = escapeILIKE(searchTerm.slice(0, 100));
+        // Support searching by full TS code (TS-C-4AE203) or just suffix (4AE203)
         query = query.or(`full_name.ilike.%${sanitizedTerm}%,company_name.ilike.%${sanitizedTerm}%,ts_profile_code.ilike.%${sanitizedTerm}%`);
+      }
+
+      if (trade) {
+        // Match contractors where trade field matches OR trades array contains the value
+        query = query.or(`trade.eq.${trade},trades.cs.{"${trade}"}`);
+      }
+
+      if (location) {
+        const sanitizedLocation = escapeILIKE(location.slice(0, 100));
+        query = query.ilike("location", `%${sanitizedLocation}%`);
       }
 
       const { data, error } = await query;
@@ -51,7 +62,7 @@ export const useContractorByCode = (code: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, is_available, created_at, updated_at")
         .eq("ts_profile_code", code)
         .eq("user_type", "contractor")
         .maybeSingle();
