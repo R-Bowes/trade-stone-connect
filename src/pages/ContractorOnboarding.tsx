@@ -16,6 +16,7 @@ const ContractorOnboarding = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
   const [form, setForm] = useState({
     account_type: "",
@@ -47,12 +48,32 @@ const ContractorOnboarding = () => {
   const canProceed = () => {
     if (step === 1) return form.account_type !== "";
     if (step === 2) return form.full_name.trim() !== "" && form.phone.trim() !== "";
-    if (step === 3) return form.trades.length > 0 && form.location.trim() !== "";
+    if (step === 3) return form.trades.length > 0;
     if (step === 4) return form.bio.trim().length >= 20;
     return true;
   };
 
+  const handlePrimaryAction = () => {
+    if (step === 3) {
+      if (!form.location.trim()) {
+        setLocationError("Location is required");
+        return;
+      }
+      setLocationError("");
+    }
+    if (step < 4) {
+      setStep(step + 1);
+    } else {
+      void save();
+    }
+  };
+
   const save = async () => {
+    if (!form.location.trim()) {
+      setLocationError("Location is required");
+      setStep(3);
+      return;
+    }
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -194,14 +215,30 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="mb-4">
-                <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
-                  Base location <span className="text-[#E8640A]">*</span>
+                <Label htmlFor="contractor-base-location" className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
+                  Your base location (town or city) <span className="text-[#E8640A]">*</span>
                 </Label>
                 <Input
+                  id="contractor-base-location"
+                  required
+                  aria-invalid={!!locationError}
+                  aria-describedby={locationError ? "contractor-base-location-error" : undefined}
                   value={form.location}
-                  onChange={(e) => update("location", e.target.value)}
+                  onChange={(e) => {
+                    update("location", e.target.value);
+                    if (e.target.value.trim()) setLocationError("");
+                  }}
+                  onBlur={() => {
+                    if (!form.location.trim()) setLocationError("Location is required");
+                  }}
                   placeholder="Manchester"
+                  className={locationError ? "border-destructive focus-visible:ring-destructive" : undefined}
                 />
+                {locationError ? (
+                  <p id="contractor-base-location-error" className="text-sm text-destructive mt-1.5" role="alert">
+                    {locationError}
+                  </p>
+                ) : null}
               </div>
 
               <div className="mb-4">
@@ -296,7 +333,7 @@ const ContractorOnboarding = () => {
             </Button>
           )}
           <Button
-            onClick={() => step < 4 ? setStep(step + 1) : save()}
+            onClick={handlePrimaryAction}
             disabled={!canProceed() || saving}
             className="flex-[2] bg-[#1C2B3A] hover:bg-[#E8640A] text-white transition-colors"
           >
