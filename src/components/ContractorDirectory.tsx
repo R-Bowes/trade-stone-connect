@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, MapPin, SlidersHorizontal, Loader2, Star, Clock3, X } from "lucide-react";
+import { Search, MapPin, Loader2, Star, Clock3, X } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
 import { DEFAULT_TRADE_FILTERS, TRADE_TYPES } from "@/constants/trades";
 
 type RatingFilter = "all" | "4.5" | "4.0";
 type AvailabilityFilter = "all" | "available" | "unavailable";
+type HourlyRateFilter = "all" | "under-25" | "25-50" | "50-100" | "100-plus";
 
 const fallbackTrades = [...DEFAULT_TRADE_FILTERS];
 const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
@@ -30,13 +30,20 @@ const ContractorDirectory = () => {
   const [location, setLocation] = useState("");
   const [minRating, setMinRating] = useState<RatingFilter>("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [hourlyRateFilter, setHourlyRateFilter] = useState<HourlyRateFilter>("all");
 
-  const { data: contractors, isLoading } = useContractors(searchTerm, selectedTrade, location);
+  const { data: contractorQuery, isLoading } = useContractors(
+    searchTerm,
+    selectedTrade,
+    location,
+    minRating,
+    availability,
+    hourlyRateFilter
+  );
+  const contractors = contractorQuery?.contractors;
+  const hasActiveFilters = contractorQuery?.hasActiveFilters ?? false;
 
   const trades = [...TRADE_TYPES];
-
-  const hasActiveFilters = selectedTrade !== undefined || location !== "" || minRating !== "all" || availability !== "all" || searchTerm !== "";
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -44,6 +51,7 @@ const ContractorDirectory = () => {
     setLocation("");
     setMinRating("all");
     setAvailability("all");
+    setHourlyRateFilter("all");
   };
 
   const handleTradeChange = (value: string) => {
@@ -127,7 +135,7 @@ const ContractorDirectory = () => {
               />
             </div>
 
-            <div className="hidden lg:flex lg:items-center lg:justify-end lg:gap-4 lg:min-w-[460px]">
+            <div className="flex items-center justify-end gap-4 min-w-0 lg:min-w-[460px]">
               {/* Trade Filter */}
               <Select value={selectedTrade ?? "all"} onValueChange={handleTradeChange}>
                 <SelectTrigger className="w-[220px]">
@@ -154,78 +162,48 @@ const ContractorDirectory = () => {
                 />
               </div>
             </div>
-
-            <div className="lg:hidden">
-              <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="w-full">
-                    <SlidersHorizontal className="h-4 w-4 mr-2" />
-                    Filters
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-full sm:max-w-md">
-                  <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
-                  </SheetHeader>
-
-                  <div className="space-y-4 mt-6">
-                    <Select value={selectedTrade ?? "all"} onValueChange={handleTradeChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select trade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Trades</SelectItem>
-                        {trades.map((trade) => (
-                          <SelectItem key={trade} value={trade}>
-                            {trade}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Location or postcode"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-
-                    <Select value={minRating} onValueChange={(value: RatingFilter) => setMinRating(value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Minimum rating" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Any rating</SelectItem>
-                        <SelectItem value="4.5">4.5+ stars</SelectItem>
-                        <SelectItem value="4.0">4.0+ stars</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={availability} onValueChange={(value: AvailabilityFilter) => setAvailability(value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Availability" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Any availability</SelectItem>
-                        <SelectItem value="available">Available</SelectItem>
-                        <SelectItem value="unavailable">Unavailable</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Button className="w-full" onClick={() => setIsFiltersOpen(false)}>
-                      Apply Filters
-                    </Button>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
           </div>
 
           <div className="mt-4 pt-4 border-t flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1">
+                <Button
+                  variant={hourlyRateFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setHourlyRateFilter("all")}
+                >
+                  Any rate
+                </Button>
+                <Button
+                  variant={hourlyRateFilter === "under-25" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setHourlyRateFilter("under-25")}
+                >
+                  Under GBP25/hr
+                </Button>
+                <Button
+                  variant={hourlyRateFilter === "25-50" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setHourlyRateFilter("25-50")}
+                >
+                  GBP25-GBP50/hr
+                </Button>
+                <Button
+                  variant={hourlyRateFilter === "50-100" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setHourlyRateFilter("50-100")}
+                >
+                  GBP50-GBP100/hr
+                </Button>
+                <Button
+                  variant={hourlyRateFilter === "100-plus" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setHourlyRateFilter("100-plus")}
+                >
+                  GBP100+/hr
+                </Button>
+              </div>
+
               <Select value={minRating} onValueChange={(value: RatingFilter) => setMinRating(value)}>
                 <SelectTrigger className="w-[170px] h-8">
                   <div className="flex items-center gap-1 text-xs">
