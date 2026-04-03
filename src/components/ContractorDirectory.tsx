@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, MapPin, SlidersHorizontal, Loader2, Star, Clock3 } from "lucide-react";
+import { Search, MapPin, SlidersHorizontal, Loader2, Star, Clock3, X } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
 import { DEFAULT_TRADE_FILTERS, TRADE_TYPES } from "@/constants/trades";
 
 type RatingFilter = "all" | "4.5" | "4.0";
-type AvailabilityFilter = "all" | "today" | "week";
+type AvailabilityFilter = "all" | "available" | "unavailable";
 
 const fallbackTrades = [...DEFAULT_TRADE_FILTERS];
 const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
@@ -36,6 +36,15 @@ const ContractorDirectory = () => {
 
   const trades = [...TRADE_TYPES];
 
+  const hasActiveFilters = selectedTrade !== undefined || location !== "" || minRating !== "all" || availability !== "all" || searchTerm !== "";
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedTrade(undefined);
+    setLocation("");
+    setMinRating("all");
+    setAvailability("all");
+  };
 
   const handleTradeChange = (value: string) => {
     if (value === "all") {
@@ -50,8 +59,6 @@ const ContractorDirectory = () => {
       const seed = hashValue(contractor.user_id ?? contractor.ts_profile_code ?? contractor.full_name ?? "contractor");
       const rating = Number((4 + (seed % 11) / 10).toFixed(1));
       const reviewCount = 10 + (seed % 90);
-      const isAvailableToday = seed % 2 === 0;
-      const isAvailableThisWeek = seed % 5 !== 0;
 
       // Use real trades array, fall back to single trade, then fallbacks
       const realTrades = contractor.trades && contractor.trades.length > 0
@@ -74,21 +81,20 @@ const ContractorDirectory = () => {
         reviewCount,
         specialties,
         bioSnippet: contractor.bio || fallbackBios[seed % fallbackBios.length],
-        locationLabel: contractor.location || location || fallbackLocations[seed % fallbackLocations.length],
+        locationLabel: contractor.location || fallbackLocations[seed % fallbackLocations.length],
         distance: `${(1 + (seed % 14)).toFixed(1)} mi`,
-        isAvailableToday,
-        isAvailableThisWeek,
+        isAvailable: contractor.is_available ?? true,
       };
     });
-  }, [contractors, location, selectedTrade]);
+  }, [contractors, selectedTrade]);
 
   const filteredContractors = useMemo(() => {
     return contractorsWithMeta.filter((contractor) => {
       const ratingMatch = minRating === "all" || contractor.rating >= Number(minRating);
       const availabilityMatch =
         availability === "all" ||
-        (availability === "today" && contractor.isAvailableToday) ||
-        (availability === "week" && contractor.isAvailableThisWeek);
+        (availability === "available" && contractor.isAvailable) ||
+        (availability === "unavailable" && !contractor.isAvailable);
 
       return ratingMatch && availabilityMatch;
     });
@@ -123,7 +129,7 @@ const ContractorDirectory = () => {
 
             <div className="hidden lg:flex lg:items-center lg:justify-end lg:gap-4 lg:min-w-[460px]">
               {/* Trade Filter */}
-              <Select value={selectedTrade} onValueChange={handleTradeChange}>
+              <Select value={selectedTrade ?? "all"} onValueChange={handleTradeChange}>
                 <SelectTrigger className="w-[220px]">
                   <SelectValue placeholder="Select trade" />
                 </SelectTrigger>
@@ -163,7 +169,7 @@ const ContractorDirectory = () => {
                   </SheetHeader>
 
                   <div className="space-y-4 mt-6">
-                    <Select value={selectedTrade} onValueChange={handleTradeChange}>
+                    <Select value={selectedTrade ?? "all"} onValueChange={handleTradeChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select trade" />
                       </SelectTrigger>
@@ -204,8 +210,8 @@ const ContractorDirectory = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Any availability</SelectItem>
-                        <SelectItem value="today">Available today</SelectItem>
-                        <SelectItem value="week">Available this week</SelectItem>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="unavailable">Unavailable</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -243,15 +249,17 @@ const ContractorDirectory = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any availability</SelectItem>
-                  <SelectItem value="today">Available today</SelectItem>
-                  <SelectItem value="week">Available this week</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="unavailable">Unavailable</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Button variant="ghost" size="sm">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Advanced Filters
-              </Button>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="h-4 w-4 mr-1" />
+                  Clear filters
+                </Button>
+              )}
             </div>
 
             <div className="text-sm text-muted-foreground">{filteredContractors.length} contractors found</div>

@@ -526,6 +526,92 @@ export type Database = {
         }
         Relationships: []
       }
+      enquiries: {
+        Row: {
+          additional_details: string | null
+          budget_range: string | null
+          contractor_id: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          customer_ts_code: string | null
+          id: string
+          job_description: string
+          location: string
+          photo_urls: string[] | null
+          preferred_timeline: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          additional_details?: string | null
+          budget_range?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_ts_code?: string | null
+          id?: string
+          job_description: string
+          location: string
+          photo_urls?: string[] | null
+          preferred_timeline?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          additional_details?: string | null
+          budget_range?: string | null
+          contractor_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_ts_code?: string | null
+          id?: string
+          job_description?: string
+          location?: string
+          photo_urls?: string[] | null
+          preferred_timeline?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enquiries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -1448,6 +1534,8 @@ export type Database = {
         Row: {
           additional_details: Json | null
           budget_range: string | null
+          confirmed_at: string | null
+          contact_revealed: boolean | null
           contractor_id: string
           created_at: string
           customer_email: string
@@ -1464,6 +1552,8 @@ export type Database = {
         Insert: {
           additional_details?: Json | null
           budget_range?: string | null
+          confirmed_at?: string | null
+          contact_revealed?: boolean | null
           contractor_id: string
           created_at?: string
           customer_email: string
@@ -1480,6 +1570,8 @@ export type Database = {
         Update: {
           additional_details?: Json | null
           budget_range?: string | null
+          confirmed_at?: string | null
+          contact_revealed?: boolean | null
           contractor_id?: string
           created_at?: string
           customer_email?: string
@@ -2077,6 +2169,7 @@ export type Database = {
     Functions: {
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       check_sla_breaches: { Args: never; Returns: undefined }
+      generate_ts_code: { Args: { user_type_val: string }; Returns: string }
       generate_ts_profile_code: { Args: never; Returns: string }
     }
     Enums: {
