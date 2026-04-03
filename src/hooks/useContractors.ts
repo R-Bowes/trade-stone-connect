@@ -24,9 +24,9 @@ const escapeILIKE = (str: string): string => {
   return str.replace(/[%_\\]/g, '\\$&');
 };
 
-export const useContractors = (searchTerm = "", trade?: string, location = "") => {
+export const useContractors = (searchTerm = "", trade?: string, location?: string | null) => {
   const normalizedSearchTerm = searchTerm.trim();
-  const normalizedLocation = location.trim();
+  const normalizedLocation = String(location ?? "").trim();
 
   return useQuery({
     queryKey: ["contractors", normalizedSearchTerm, trade, normalizedLocation],
@@ -35,6 +35,12 @@ export const useContractors = (searchTerm = "", trade?: string, location = "") =
         .from("public_pro_profiles")
         .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, hourly_rate, is_available, created_at, updated_at")
         .eq("user_type", "contractor");
+
+      // Apply location before .or() groups so it always ANDs with name/trade filters
+      if (normalizedLocation.length > 0) {
+        const sanitizedLocation = escapeILIKE(normalizedLocation.slice(0, 100));
+        query = query.ilike("location", `%${sanitizedLocation}%`);
+      }
 
       if (normalizedSearchTerm) {
         const sanitizedTerm = escapeILIKE(normalizedSearchTerm.slice(0, 100));
@@ -46,11 +52,6 @@ export const useContractors = (searchTerm = "", trade?: string, location = "") =
         const escaped = trade.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
         // Match single trade field OR trades array contains the value (PostgREST cs)
         query = query.or(`trade.eq."${escaped}",trades.cs.{"${escaped}"}`);
-      }
-
-      if (normalizedLocation) {
-        const sanitizedLocation = escapeILIKE(normalizedLocation.slice(0, 100));
-        query = query.ilike("location", `%${sanitizedLocation}%`);
       }
 
       const { data, error } = await query;
