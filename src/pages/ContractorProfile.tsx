@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import QuoteRequestDialog from "@/components/QuoteRequestDialog";
+import { ContractorMessageDialog } from "@/components/ContractorMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,6 +54,7 @@ const ContractorProfile = () => {
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(false);
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
+  const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
   const [contractorDocuments, setContractorDocuments] = useState<Array<{ id: string; title: string; description: string | null; document_url: string; file_name: string; file_size: number | null }>>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +94,18 @@ const ContractorProfile = () => {
 
     loadContractorProfile();
   }, [code]);
+
+  const openMessageFlow = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    if (!contractorProfile?.user_id) return;
+    setIsMessageDialogOpen(true);
+  };
 
   // Contractor data - use real profile data with fallback for display fields
   const contractor = {
@@ -213,7 +227,12 @@ const ContractorProfile = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button size="sm" className="hero-gradient">
+                  <Button
+                    size="sm"
+                    className="hero-gradient"
+                    onClick={() => void openMessageFlow()}
+                    disabled={!contractorProfile?.user_id}
+                  >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Message
                   </Button>
@@ -287,7 +306,12 @@ const ContractorProfile = () => {
 
                 {/* Contact Actions */}
                 <div className="flex flex-wrap gap-3">
-                  <Button size="lg" className="hero-gradient">
+                  <Button
+                    size="lg"
+                    className="hero-gradient"
+                    onClick={() => void openMessageFlow()}
+                    disabled={!contractorProfile?.user_id}
+                  >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Send Message
                   </Button>
@@ -457,7 +481,11 @@ const ContractorProfile = () => {
                         <Badge className="bg-green-500">{contractor.availability}</Badge>
                       </div>
                       <Separator />
-                      <Button className="w-full hero-gradient">
+                      <Button
+                        className="w-full hero-gradient"
+                        onClick={() => void openMessageFlow()}
+                        disabled={!contractorProfile?.user_id}
+                      >
                         <MessageSquare className="h-4 w-4 mr-2" />
                         Send Message
                       </Button>
@@ -477,6 +505,16 @@ const ContractorProfile = () => {
         contractorId={contractor.user_id}
         contractorName={contractor.name}
       />
+
+      {contractorProfile?.user_id && (
+        <ContractorMessageDialog
+          open={isMessageDialogOpen}
+          onOpenChange={setIsMessageDialogOpen}
+          recipientUserId={contractorProfile.user_id}
+          contractorName={contractor.name}
+          contractorLocation={contractor.location}
+        />
+      )}
     </div>
   );
 };
