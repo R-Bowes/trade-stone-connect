@@ -60,7 +60,7 @@ const ContractorCard = ({
               <p className="text-sm text-muted-foreground">{company}</p>
             </div>
             <Badge variant="secondary" className="text-xs font-mono">
-              TS{code}
+              {code}
             </Badge>
           </div>
 

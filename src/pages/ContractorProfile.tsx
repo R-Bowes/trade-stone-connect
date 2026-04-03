@@ -202,7 +202,7 @@ const ContractorProfile = () => {
                 
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary" className="font-mono">
-                    TS{contractor.code}
+                    {contractor.code}
                   </Badge>
                   {contractor.verified && (
                     <Badge variant="default" className="bg-green-500">
