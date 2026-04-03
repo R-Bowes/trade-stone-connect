@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
-import { TRADE_TYPES } from "@/constants/trades";
+import { CONTRACTOR_TRADES } from "@/constants/trades";
 
 interface Profile {
   full_name: string;
@@ -26,7 +26,7 @@ interface Profile {
   logo_url: string;
 }
 
-const allTrades = [...TRADE_TYPES];
+const allTrades = [...CONTRACTOR_TRADES];
 
 const radiusOptions = [
   "5 miles", "10 miles", "15 miles", "20 miles", "25 miles", "30 miles", "50 miles", "100 miles", "Nationwide"

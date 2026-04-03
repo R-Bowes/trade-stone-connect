@@ -24,30 +24,12 @@ const escapeILIKE = (str: string): string => {
   return str.replace(/[%_\\]/g, '\\$&');
 };
 
-type RatingFilter = "all" | "4.5" | "4.0";
-type AvailabilityFilter = "all" | "available" | "unavailable";
-type HourlyRateFilter = "all" | "under-25" | "25-50" | "50-100" | "100-plus";
-
-export const useContractors = (
-  searchTerm = "",
-  trade?: string,
-  location = "",
-  minRating: RatingFilter = "all",
-  availability: AvailabilityFilter = "all",
-  hourlyRate: HourlyRateFilter = "all"
-) => {
+export const useContractors = (searchTerm = "", trade?: string, location = "") => {
   const normalizedSearchTerm = searchTerm.trim();
   const normalizedLocation = location.trim();
-  const hasActiveFilters =
-    normalizedSearchTerm !== "" ||
-    Boolean(trade) ||
-    normalizedLocation !== "" ||
-    minRating !== "all" ||
-    availability !== "all" ||
-    hourlyRate !== "all";
 
   return useQuery({
-    queryKey: ["contractors", normalizedSearchTerm, trade, normalizedLocation, minRating, availability, hourlyRate],
+    queryKey: ["contractors", normalizedSearchTerm, trade, normalizedLocation],
     queryFn: async () => {
       let query = supabase
         .from("public_pro_profiles")
@@ -61,9 +43,9 @@ export const useContractors = (
       }
 
       if (trade) {
-        const escapedTrade = trade.replace(/"/g, '\\"');
-        // Match contractors where trade field matches OR trades array contains the selected trade
-        query = query.or(`trade.eq."${escapedTrade}",trades.cs.${JSON.stringify([trade])}`);
+        const escaped = trade.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        // Match single trade field OR trades array contains the value (PostgREST cs)
+        query = query.or(`trade.eq."${escaped}",trades.cs.{"${escaped}"}`);
       }
 
       if (normalizedLocation) {
@@ -71,22 +53,11 @@ export const useContractors = (
         query = query.ilike("location", `%${sanitizedLocation}%`);
       }
 
-      if (hourlyRate === "under-25") {
-        query = query.lt("hourly_rate", 25);
-      } else if (hourlyRate === "25-50") {
-        query = query.gte("hourly_rate", 25).lte("hourly_rate", 50);
-      } else if (hourlyRate === "50-100") {
-        query = query.gte("hourly_rate", 50).lte("hourly_rate", 100);
-      } else if (hourlyRate === "100-plus") {
-        query = query.gte("hourly_rate", 100);
-      }
-
       const { data, error } = await query;
 
       if (error) throw error;
       return {
         contractors: data as Contractor[],
-        hasActiveFilters,
       };
     },
   });

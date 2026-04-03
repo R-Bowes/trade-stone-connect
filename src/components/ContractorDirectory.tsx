@@ -5,13 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, MapPin, Loader2, Star, Clock3, X } from "lucide-react";
 import ContractorCard from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
-import { DEFAULT_TRADE_FILTERS, TRADE_TYPES } from "@/constants/trades";
+import { CONTRACTOR_TRADES } from "@/constants/trades";
 
 type RatingFilter = "all" | "4.5" | "4.0";
 type AvailabilityFilter = "all" | "available" | "unavailable";
-type HourlyRateFilter = "all" | "under-25" | "25-50" | "50-100" | "100-plus";
 
-const fallbackTrades = [...DEFAULT_TRADE_FILTERS];
+const fallbackTrades = [...CONTRACTOR_TRADES];
 const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
 const fallbackBios = [
   "Experienced in residential and light commercial projects with a strong focus on quality finishes.",
@@ -30,20 +29,18 @@ const ContractorDirectory = () => {
   const [location, setLocation] = useState("");
   const [minRating, setMinRating] = useState<RatingFilter>("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
-  const [hourlyRateFilter, setHourlyRateFilter] = useState<HourlyRateFilter>("all");
 
-  const { data: contractorQuery, isLoading } = useContractors(
-    searchTerm,
-    selectedTrade,
-    location,
-    minRating,
-    availability,
-    hourlyRateFilter
-  );
+  const { data: contractorQuery, isLoading } = useContractors(searchTerm, selectedTrade, location);
   const contractors = contractorQuery?.contractors;
-  const hasActiveFilters = contractorQuery?.hasActiveFilters ?? false;
 
-  const trades = [...TRADE_TYPES];
+  const trades = [...CONTRACTOR_TRADES];
+
+  const showClearFilters =
+    searchTerm.trim() !== "" ||
+    selectedTrade !== undefined ||
+    location.trim() !== "" ||
+    minRating !== "all" ||
+    availability !== "all";
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -51,7 +48,6 @@ const ContractorDirectory = () => {
     setLocation("");
     setMinRating("all");
     setAvailability("all");
-    setHourlyRateFilter("all");
   };
 
   const handleTradeChange = (value: string) => {
@@ -166,44 +162,6 @@ const ContractorDirectory = () => {
 
           <div className="mt-4 pt-4 border-t flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap items-center gap-1">
-                <Button
-                  variant={hourlyRateFilter === "all" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setHourlyRateFilter("all")}
-                >
-                  Any rate
-                </Button>
-                <Button
-                  variant={hourlyRateFilter === "under-25" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setHourlyRateFilter("under-25")}
-                >
-                  Under GBP25/hr
-                </Button>
-                <Button
-                  variant={hourlyRateFilter === "25-50" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setHourlyRateFilter("25-50")}
-                >
-                  GBP25-GBP50/hr
-                </Button>
-                <Button
-                  variant={hourlyRateFilter === "50-100" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setHourlyRateFilter("50-100")}
-                >
-                  GBP50-GBP100/hr
-                </Button>
-                <Button
-                  variant={hourlyRateFilter === "100-plus" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setHourlyRateFilter("100-plus")}
-                >
-                  GBP100+/hr
-                </Button>
-              </div>
-
               <Select value={minRating} onValueChange={(value: RatingFilter) => setMinRating(value)}>
                 <SelectTrigger className="w-[170px] h-8">
                   <div className="flex items-center gap-1 text-xs">
@@ -232,10 +190,10 @@ const ContractorDirectory = () => {
                 </SelectContent>
               </Select>
 
-              {hasActiveFilters && (
+              {showClearFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="h-4 w-4 mr-1" />
-                  Clear filters
+                  Clear Filters
                 </Button>
               )}
             </div>

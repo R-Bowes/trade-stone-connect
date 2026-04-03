@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { TRADE_TYPES } from "@/constants/trades";
+import { CONTRACTOR_TRADES } from "@/constants/trades";
 
-const TRADES = TRADE_TYPES;
+const TRADES = CONTRACTOR_TRADES;
 
 const RADII = ["5 miles", "10 miles", "15 miles", "25 miles", "50 miles", "Nationwide"];
 
