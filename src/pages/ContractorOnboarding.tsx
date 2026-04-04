@@ -90,7 +90,6 @@ const ContractorOnboarding = () => {
           location: form.location,
           working_radius: form.working_radius,
           trades: form.trades,
-          trade: form.trades[0] || "",
           hourly_rate: form.hourly_rate ? parseFloat(form.hourly_rate) : null,
           years_experience: form.years_experience ? parseInt(form.years_experience) : null,
           bio: form.bio,

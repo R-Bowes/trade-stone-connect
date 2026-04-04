@@ -64,11 +64,11 @@ const ContractorDirectory = () => {
       const rating = Number((4 + (seed % 11) / 10).toFixed(1));
       const reviewCount = 10 + (seed % 90);
 
-      // Use real trades array, fall back to single trade, then fallbacks
+      // Use real trades array when present, else fallbacks
       const realTrades = contractor.trades && contractor.trades.length > 0
         ? contractor.trades
-        : contractor.trade
-          ? [contractor.trade]
+        : contractor.trades?.[0]
+          ? contractor.trades
           : null;
       
       const specialties = realTrades

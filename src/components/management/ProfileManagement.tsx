@@ -79,12 +79,9 @@ export function ProfileManagement() {
 
       if (data) {
         const rawTrades = (data as any).trades;
-        const rawTrade = (data as any).trade;
         let trades: string[] = [];
         if (Array.isArray(rawTrades) && rawTrades.length > 0) {
           trades = rawTrades;
-        } else if (rawTrade) {
-          trades = [rawTrade];
         }
 
         setIsContractor(data.user_type === "contractor");
@@ -180,7 +177,6 @@ export function ProfileManagement() {
 
       if (isContractor) {
         updateData.trades = profile.trades;
-        updateData.trade = profile.trades[0] || null;
         updateData.location = profile.location;
         updateData.working_radius = profile.working_radius;
         updateData.bio = profile.bio;

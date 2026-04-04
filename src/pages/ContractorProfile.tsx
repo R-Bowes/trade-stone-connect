@@ -115,8 +115,8 @@ const ContractorProfile = () => {
     user_id: contractorProfile?.user_id || "mock-user-id",
     specialties: contractorProfile?.trades && contractorProfile.trades.length > 0
       ? contractorProfile.trades
-      : contractorProfile?.trade
-        ? [contractorProfile.trade]
+      : contractorProfile?.trades?.[0]
+        ? contractorProfile?.trades
         : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
