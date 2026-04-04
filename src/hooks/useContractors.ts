@@ -7,7 +7,6 @@ export interface Contractor {
   company_name: string | null;
   ts_profile_code: string | null;
   user_type: string;
-  trade: string | null;
   trades: string[] | null;
   location: string | null;
   working_radius: string | null;
@@ -33,7 +32,7 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
     queryFn: async () => {
       let query = supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, hourly_rate, is_available, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, hourly_rate, is_available, created_at, updated_at")
         .eq("user_type", "contractor");
 
       // Apply location before .or() groups so it always ANDs with name/trade filters
@@ -51,7 +50,7 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
       if (trade) {
         const escaped = trade.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
         // Match single trade field OR trades array contains the value (PostgREST cs)
-        query = query.or(`trade.eq."${escaped}",trades.cs.{"${escaped}"}`);
+        query = query.or(`trades.cs.{"${escaped}"}`);
       }
 
       const { data, error } = await query;
@@ -70,7 +69,7 @@ export const useContractorByCode = (code: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, hourly_rate, is_available, created_at, updated_at")
+        .select("user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, hourly_rate, is_available, created_at, updated_at")
         .eq("ts_profile_code", code)
         .eq("user_type", "contractor")
         .maybeSingle();
