@@ -38,7 +38,6 @@ type ContractorProfileData = {
   company_name: string | null;
   ts_profile_code: string | null;
   user_type: "personal" | "business" | "contractor";
-  trade: string | null;
   trades: string[] | null;
   location: string | null;
   working_radius: string | null;
@@ -67,7 +66,7 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from('public_pro_profiles')
-          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trade, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at')
+          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at')
           .eq('ts_profile_code', code)
           .maybeSingle();
 
@@ -109,7 +108,7 @@ const ContractorProfile = () => {
 
   // Contractor data - use real profile data with fallback for display fields
   const contractor = {
-    name: contractorProfile?.full_name || "Mike Johnson",
+    name: contractorProfile?.full_name || "",
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.user_id || "mock-user-id",
