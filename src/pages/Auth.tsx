@@ -33,7 +33,7 @@ const Auth = () => {
   const captchaRef = useRef<HCaptcha | null>(null);
 
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
-  const captchaEnabled = true;
+  const captchaEnabled = false;
 
   const accountTypeDetails: Record<
     "personal" | "business" | "contractor",
@@ -94,9 +94,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
-        options: {
-          captchaToken: captchaToken || undefined,
-        },
+        options: {},
       });
 
       if (error) {
@@ -153,7 +151,6 @@ const Auth = () => {
         password: signupPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
-          captchaToken: captchaToken || undefined,
           data: {
             full_name: fullName,
             user_type: userType,
@@ -220,7 +217,6 @@ const Auth = () => {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
-          captchaToken: captchaToken || undefined,
           data: {
             full_name: nameMap[type],
             user_type: type,
@@ -232,9 +228,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          captchaToken: captchaToken || undefined,
-        },
+        options: {},
       });
 
       if (error && !error.message.includes("Invalid login credentials")) {
