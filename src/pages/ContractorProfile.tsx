@@ -111,7 +111,7 @@ const ContractorProfile = () => {
     name: contractorProfile?.full_name || "",
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
-    user_id: contractorProfile?.user_id || "mock-user-id",
+    user_id: contractorProfile?.id || "mock-user-id",
     specialties: contractorProfile?.trades && contractorProfile.trades.length > 0
       ? contractorProfile.trades
       : contractorProfile?.trades?.[0]
