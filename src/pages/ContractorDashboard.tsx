@@ -23,6 +23,7 @@ import {
   AlertCircle,
   MapPin,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -49,13 +50,15 @@ type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 type Enquiry = {
   id: string;
-  homeowner_id: string;
-  title: string;
-  description: string;
+  contractor_id: string | null;
+  customer_name: string;
+  customer_email: string;
+  job_description: string;
   location: string;
+  preferred_timeline: string | null;
+  budget_range: string | null;
   status: string;
   created_at: string;
-  contractor_id: string | null;
 };
 
 const contractorDashboardViews = [
@@ -85,8 +88,6 @@ const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
-  const [homeownerNameById, setHomeownerNameById] = useState<Record<string, string>>({});
-
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
     activeJobs: 0,
@@ -106,48 +107,19 @@ const ContractorDashboard = () => {
 
     const { data, error } = await supabase
       .from("enquiries")
-      .select("id, homeowner_id, title, description, location, status, created_at, contractor_id")
-      .or(`contractor_id.eq.${contractorId},and(status.eq.new,contractor_id.is.null)`)
+      .select("id, contractor_id, customer_name, customer_email, job_description, location, preferred_timeline, budget_range, status, created_at")
+      .eq("contractor_id", contractorId)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error loading enquiries:", error);
       setEnquiriesError("Unable to load enquiries right now. Please try again.");
       setEnquiries([]);
-      setHomeownerNameById({});
       setEnquiriesLoading(false);
       return;
     }
 
-    const enquiryRows = (data as Enquiry[]) ?? [];
-    setEnquiries(enquiryRows);
-
-    const homeownerIds = [...new Set(enquiryRows.map((enquiry) => enquiry.homeowner_id))];
-    if (homeownerIds.length === 0) {
-      setHomeownerNameById({});
-      setEnquiriesLoading(false);
-      return;
-    }
-
-    const { data: homeowners, error: homeownersError } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", homeownerIds);
-
-    if (homeownersError) {
-      console.error("Error loading homeowner names:", homeownersError);
-      setEnquiriesError("Enquiries loaded, but homeowner names could not be retrieved.");
-      setHomeownerNameById({});
-      setEnquiriesLoading(false);
-      return;
-    }
-
-    const names = (homeowners ?? []).reduce<Record<string, string>>((acc, profile) => {
-      const firstName = (profile.full_name ?? "").trim().split(/\s+/)[0] || "Homeowner";
-      acc[profile.id] = firstName;
-      return acc;
-    }, {});
-    setHomeownerNameById(names);
+    setEnquiries((data as Enquiry[]) ?? []);
     setEnquiriesLoading(false);
   };
 
@@ -347,7 +319,12 @@ const ContractorDashboard = () => {
         console.error('Error loading active jobs', activeJobsError);
       }
       setActiveJobs(activeJobsData || []);
-      await loadEnquiries(currentUser.id);
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .single();
+      if (profileRow?.id) await loadEnquiries(profileRow.id);
       setLoading(false);
     };
 
@@ -386,33 +363,18 @@ const ContractorDashboard = () => {
           schema: 'public',
           table: 'enquiries',
         },
-        async (payload) => {
+        (payload) => {
           const inserted = payload.new as Enquiry;
-          const visibleToCurrentContractor =
-            inserted.contractor_id === user.id ||
-            (inserted.status === "new" && inserted.contractor_id === null);
-
-          if (!visibleToCurrentContractor) return;
+          if (inserted.contractor_id !== user.id) return;
 
           setEnquiries((prev) => {
             if (prev.some((entry) => entry.id === inserted.id)) return prev;
             return [inserted, ...prev];
           });
 
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("id, full_name")
-            .eq("id", inserted.homeowner_id)
-            .maybeSingle();
-
-          if (profileData) {
-            const firstName = (profileData.full_name ?? "").trim().split(/\s+/)[0] || "Homeowner";
-            setHomeownerNameById((prev) => ({ ...prev, [profileData.id]: firstName }));
-          }
-
           toast({
             title: "New enquiry received",
-            description: `${inserted.title} was just posted in ${inserted.location}.`,
+            description: `${inserted.customer_name} — ${inserted.location}.`,
           });
         }
       )
@@ -654,7 +616,7 @@ const ContractorDashboard = () => {
                 <AlertDescription>{enquiriesError}</AlertDescription>
               </Alert>
             ) : enquiries.length === 0 ? (
-              <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3><p className="text-muted-foreground">New homeowner enquiries will appear here in real time.</p></CardContent></Card>
+              <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3><p className="text-muted-foreground">New enquiries assigned to you will appear here in real time.</p></CardContent></Card>
             ) : (
               <div className="space-y-4">
                 {enquiries.map((enquiry) => (
@@ -663,12 +625,14 @@ const ContractorDashboard = () => {
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{enquiry.title}</h3>
+                            <h3 className="text-lg font-semibold">{enquiry.customer_name}</h3>
                             <Badge className={getStatusColor(enquiry.status || 'new')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.description}</p>
+                          <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.job_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>Homeowner: {homeownerNameById[enquiry.homeowner_id] ?? "Homeowner"}</span>
+                            <span>{enquiry.customer_email}</span>
+                            {enquiry.preferred_timeline ? <span>Timeline: {enquiry.preferred_timeline}</span> : null}
+                            {enquiry.budget_range ? <span>Budget: {enquiry.budget_range}</span> : null}
                             <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{enquiry.location}</span>
                             <span>Received: {new Date(enquiry.created_at).toLocaleString('en-GB')}</span>
                           </div>
