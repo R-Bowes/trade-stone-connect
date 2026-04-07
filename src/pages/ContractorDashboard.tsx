@@ -42,6 +42,7 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
+import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
@@ -88,6 +89,8 @@ const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
+  const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<Enquiry | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
     activeJobs: 0,
@@ -324,6 +327,7 @@ const ContractorDashboard = () => {
         .select('id')
         .eq('user_id', currentUser.id)
         .single();
+      setProfileId(profileRow?.id ?? null);
       if (profileRow?.id) await loadEnquiries(profileRow.id);
       setLoading(false);
     };
@@ -638,6 +642,17 @@ const ContractorDashboard = () => {
                           </div>
                         </div>
                       </div>
+                      <div className="flex gap-2 mt-4">
+                        <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
+                          Send Quote
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          await supabase.from("enquiries").update({ status: "archived" }).eq("id", enquiry.id);
+                          user && loadEnquiries(profileId || user.id);
+                        }}>
+                          Decline
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -710,6 +725,14 @@ const ContractorDashboard = () => {
           onPrev={prevStep}
           onSkip={() => endTour(true)}
         />
+        {sendQuoteEnquiry && (
+          <SendQuoteDialog
+            open={!!sendQuoteEnquiry}
+            onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
+            enquiry={sendQuoteEnquiry}
+            onSuccess={() => user && loadEnquiries(profileId || user.id)}
+          />
+        )}
       </main>
     </div>
   );
