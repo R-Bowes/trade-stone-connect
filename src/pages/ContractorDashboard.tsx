@@ -43,6 +43,7 @@ import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
+import { RequestInfoDialog } from "@/components/management/RequestInfoDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
@@ -52,13 +53,15 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 type Enquiry = {
   id: string;
   contractor_id: string | null;
-  customer_name: string;
-  customer_email: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
   job_description: string;
   location: string;
   preferred_timeline: string | null;
   budget_range: string | null;
-  status: string;
+  status: string | null;
   created_at: string;
 };
 
@@ -90,6 +93,7 @@ const ContractorDashboard = () => {
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
   const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<Enquiry | null>(null);
+  const [requestInfoEnquiry, setRequestInfoEnquiry] = useState<Enquiry | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
@@ -110,7 +114,7 @@ const ContractorDashboard = () => {
 
     const { data, error } = await supabase
       .from("enquiries")
-      .select("id, contractor_id, customer_name, customer_email, job_description, location, preferred_timeline, budget_range, status, created_at")
+      .select("id, contractor_id, customer_id, customer_name, customer_email, customer_phone, job_description, location, preferred_timeline, budget_range, status, created_at")
       .eq("contractor_id", contractorId)
       .order("created_at", { ascending: false });
 
@@ -369,7 +373,7 @@ const ContractorDashboard = () => {
         },
         (payload) => {
           const inserted = payload.new as Enquiry;
-          if (inserted.contractor_id !== user.id) return;
+          if (inserted.contractor_id !== profileId) return;
 
           setEnquiries((prev) => {
             if (prev.some((entry) => entry.id === inserted.id)) return prev;
@@ -378,7 +382,7 @@ const ContractorDashboard = () => {
 
           toast({
             title: "New enquiry received",
-            description: `${inserted.customer_name} — ${inserted.location}.`,
+            description: `${inserted.customer_name ?? "A customer"} — ${inserted.location}.`,
           });
         }
       )
@@ -388,7 +392,7 @@ const ContractorDashboard = () => {
       supabase.removeChannel(quotesChannel);
       supabase.removeChannel(enquiriesChannel);
     };
-  }, [user, toast]);
+  }, [user, profileId, toast]);
 
   const dashboardStats = [
     {
@@ -598,7 +602,7 @@ const ContractorDashboard = () => {
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">New Enquiries</h2>
-              <Button variant="outline" onClick={() => user && loadEnquiries(user.id)} disabled={enquiriesLoading}>
+              <Button variant="outline" onClick={() => profileId && loadEnquiries(profileId)} disabled={enquiriesLoading}>
                 {enquiriesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Refresh
               </Button>
@@ -629,12 +633,12 @@ const ContractorDashboard = () => {
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{enquiry.customer_name}</h3>
-                            <Badge className={getStatusColor(enquiry.status || 'new')}>{enquiry.status}</Badge>
+                            <h3 className="text-lg font-semibold">{enquiry.customer_name ?? "Unknown"}</h3>
+                            <Badge className={getStatusColor(enquiry.status ?? 'new')}>{enquiry.status ?? 'new'}</Badge>
                           </div>
                           <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.job_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>{enquiry.customer_email}</span>
+                            {enquiry.customer_email ? <span>{enquiry.customer_email}</span> : null}
                             {enquiry.preferred_timeline ? <span>Timeline: {enquiry.preferred_timeline}</span> : null}
                             {enquiry.budget_range ? <span>Budget: {enquiry.budget_range}</span> : null}
                             <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{enquiry.location}</span>
@@ -642,13 +646,17 @@ const ContractorDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-wrap gap-2 mt-4">
                         <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
-                          Send Quote
+                          Accept & Quote
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setRequestInfoEnquiry(enquiry)}>
+                          Request Info
                         </Button>
                         <Button size="sm" variant="outline" onClick={async () => {
-                          await supabase.from("enquiries").update({ status: "archived" }).eq("id", enquiry.id);
-                          user && loadEnquiries(profileId || user.id);
+                          if (!window.confirm(`Decline the enquiry from ${enquiry.customer_name ?? "this customer"}?`)) return;
+                          await supabase.from("enquiries").update({ status: "declined" }).eq("id", enquiry.id);
+                          profileId && loadEnquiries(profileId);
                         }}>
                           Decline
                         </Button>
@@ -730,7 +738,15 @@ const ContractorDashboard = () => {
             open={!!sendQuoteEnquiry}
             onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
             enquiry={sendQuoteEnquiry}
-            onSuccess={() => user && loadEnquiries(profileId || user.id)}
+            onSuccess={() => profileId && loadEnquiries(profileId)}
+          />
+        )}
+        {requestInfoEnquiry && (
+          <RequestInfoDialog
+            open={!!requestInfoEnquiry}
+            onOpenChange={(open) => { if (!open) setRequestInfoEnquiry(null); }}
+            enquiry={requestInfoEnquiry}
+            onSuccess={() => profileId && loadEnquiries(profileId)}
           />
         )}
       </main>
