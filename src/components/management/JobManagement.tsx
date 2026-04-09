@@ -60,6 +60,15 @@ type JobCardData = {
   client_name: string;
 };
 
+type TimesheetEntry = {
+  id: string;
+  job_id: string;
+  date: string;
+  hours: number;
+  worker_id: string | null;
+  description: string | null;
+};
+
 type SnagItem = {
   id: string;
   job_id: string;
@@ -171,6 +180,7 @@ export function JobManagement() {
   const [jobs, setJobs] = useState<JobCardData[]>([]);
   const [snagItemsByJob, setSnagItemsByJob] = useState<Record<string, SnagItem[]>>({});
   const [newSnagByJob, setNewSnagByJob] = useState<Record<string, string>>({});
+  const [timesheetsByJob, setTimesheetsByJob] = useState<Record<string, TimesheetEntry[]>>({});
   const [loading, setLoading] = useState(true);
   const [savingJobId, setSavingJobId] = useState<string | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
@@ -236,6 +246,22 @@ export function JobManagement() {
       }
     } else {
       setSnagItemsByJob({});
+    }
+
+    if (jobIds.length > 0) {
+      const { data: tsData } = await (supabase as any)
+        .from("timesheets")
+        .select("id, job_id, date, hours, worker_id, description")
+        .in("job_id", jobIds);
+
+      const groupedTs = (tsData || []).reduce<Record<string, TimesheetEntry[]>>((acc, row: any) => {
+        if (!acc[row.job_id]) acc[row.job_id] = [];
+        acc[row.job_id].push(row as TimesheetEntry);
+        return acc;
+      }, {});
+      setTimesheetsByJob(groupedTs);
+    } else {
+      setTimesheetsByJob({});
     }
 
     setLoading(false);
@@ -361,9 +387,40 @@ export function JobManagement() {
 
     const { data: contractorProfile } = await supabase
       .from("profiles" as any)
-      .select("vat_registered")
+      .select("vat_registered, hourly_rate")
       .eq("user_id", fullJob.contractor_id)
       .single();
+
+    // Build labour line items from timesheets
+    const jobTimesheets = timesheetsByJob[fullJob.id] || [];
+    let labourItems: InvoiceItem[] = [];
+    if (jobTimesheets.length > 0 && contractorProfile?.hourly_rate) {
+      const hourlyRate = Number(contractorProfile.hourly_rate);
+
+      // Fetch worker names for team members
+      const workerIds = [...new Set(jobTimesheets.map((t) => t.worker_id).filter(Boolean))] as string[];
+      let workerNames: Record<string, string> = {};
+      if (workerIds.length > 0) {
+        const { data: teamMembers } = await supabase
+          .from("team_members" as any)
+          .select("id, name")
+          .in("id", workerIds);
+        for (const tm of teamMembers || []) {
+          workerNames[(tm as any).id] = (tm as any).name || "Team member";
+        }
+      }
+
+      labourItems = jobTimesheets.map((ts) => {
+        const workerLabel = ts.worker_id ? (workerNames[ts.worker_id] || "Team member") : "Contractor";
+        const hours = Number(ts.hours ?? 0);
+        return {
+          description: `Labour: ${workerLabel} — ${ts.date}${ts.description ? ` (${ts.description})` : ""}`,
+          quantity: hours,
+          unit_price: hourlyRate,
+          total: hours * hourlyRate,
+        };
+      });
+    }
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 14);
@@ -374,7 +431,7 @@ export function JobManagement() {
       client_phone: quote?.client_phone || "",
       client_address: quote?.client_address || "",
       notes: `Generated from completed job: ${job.title}`,
-      items: [...quoteItems, ...expenseItems],
+      items: [...quoteItems, ...expenseItems, ...labourItems],
       defaultDueDate: dueDate.toISOString().slice(0, 10),
       defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
       contractorId: fullJob.contractor_id,
@@ -505,6 +562,21 @@ export function JobManagement() {
                     )}
                   </div>
                 )}
+
+                {/* ── Logged hours ──────────────────────────────────────── */}
+                {(() => {
+                  const entries = timesheetsByJob[job.id] || [];
+                  if (entries.length === 0) return null;
+                  const total = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
+                  return (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4 shrink-0" />
+                      <span>
+                        <span className="font-medium text-foreground">{total}h</span> logged
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* ── Actions ───────────────────────────────────────────── */}
                 <div className="flex flex-wrap gap-2">
