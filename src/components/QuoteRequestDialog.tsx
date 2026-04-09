@@ -80,7 +80,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
 
       if (profile) {
         setCustomerName(profile.full_name || "");
-        setCustomerEmail(profile.email || user.email || "");
+        setCustomerEmail(user.email || profile.email || "");
         setCustomerPhone(profile.phone || "");
         setTsProfileCode(profile.ts_profile_code || "");
         setLocation(profile.location || "");
