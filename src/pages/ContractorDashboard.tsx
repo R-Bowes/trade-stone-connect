@@ -43,7 +43,8 @@ import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
-import { RequestInfoDialog } from "@/components/management/RequestInfoDialog";
+import { RespondDialog } from "@/components/management/RespondDialog";
+import { RejectDialog } from "@/components/management/RejectDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
@@ -93,7 +94,8 @@ const ContractorDashboard = () => {
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
   const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<Enquiry | null>(null);
-  const [requestInfoEnquiry, setRequestInfoEnquiry] = useState<Enquiry | null>(null);
+  const [respondEnquiry, setRespondEnquiry] = useState<Enquiry | null>(null);
+  const [rejectEnquiry, setRejectEnquiry] = useState<Enquiry | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
@@ -431,6 +433,7 @@ const ContractorDashboard = () => {
       case "replied": return "bg-yellow-100 text-yellow-800";
       case "converted": return "bg-green-100 text-green-800";
       case "archived": return "bg-gray-100 text-gray-800";
+      case "declined": return "bg-red-100 text-red-800";
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "overdue": return "bg-red-100 text-red-800";
@@ -650,15 +653,11 @@ const ContractorDashboard = () => {
                         <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
                           Accept & Quote
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setRequestInfoEnquiry(enquiry)}>
-                          Request Info
+                        <Button size="sm" variant="outline" onClick={() => setRespondEnquiry(enquiry)}>
+                          Respond
                         </Button>
-                        <Button size="sm" variant="outline" onClick={async () => {
-                          if (!window.confirm(`Decline the enquiry from ${enquiry.customer_name ?? "this customer"}?`)) return;
-                          await supabase.from("enquiries").update({ status: "declined" }).eq("id", enquiry.id);
-                          profileId && loadEnquiries(profileId);
-                        }}>
-                          Decline
+                        <Button size="sm" variant="outline" onClick={() => setRejectEnquiry(enquiry)}>
+                          Reject
                         </Button>
                       </div>
                     </CardContent>
@@ -741,11 +740,19 @@ const ContractorDashboard = () => {
             onSuccess={() => profileId && loadEnquiries(profileId)}
           />
         )}
-        {requestInfoEnquiry && (
-          <RequestInfoDialog
-            open={!!requestInfoEnquiry}
-            onOpenChange={(open) => { if (!open) setRequestInfoEnquiry(null); }}
-            enquiry={requestInfoEnquiry}
+        {respondEnquiry && (
+          <RespondDialog
+            open={!!respondEnquiry}
+            onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
+            enquiry={respondEnquiry}
+            onSuccess={() => profileId && loadEnquiries(profileId)}
+          />
+        )}
+        {rejectEnquiry && (
+          <RejectDialog
+            open={!!rejectEnquiry}
+            onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
+            enquiry={rejectEnquiry}
             onSuccess={() => profileId && loadEnquiries(profileId)}
           />
         )}

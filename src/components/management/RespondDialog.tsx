@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,14 +21,14 @@ type Enquiry = {
   status: string | null;
 };
 
-interface RequestInfoDialogProps {
+interface RespondDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   enquiry: Enquiry;
   onSuccess?: () => void;
 }
 
-export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: RequestInfoDialogProps) {
+export function RespondDialog({ open, onOpenChange, enquiry, onSuccess }: RespondDialogProps) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -52,8 +52,8 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("Not authenticated");
 
-      // issued_quotes.recipient_id and conversations.recipient_id reference profiles.user_id,
-      // but enquiry.customer_id is profiles.id — look up the customer's auth user_id.
+      // conversations.recipient_id references profiles.user_id,
+      // but enquiry.customer_id is profiles.id — look up the auth user_id.
       let recipientId: string | null = null;
       if (enquiry.customer_id) {
         const { data: profile } = await supabase
@@ -64,9 +64,8 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
         recipientId = profile?.user_id ?? null;
       }
 
-      // Find an existing conversation between this contractor and the customer, or create one.
+      // Find or create a conversation for this contractor/customer pair.
       let conversationId: string;
-
       const { data: existing } = await supabase
         .from("conversations")
         .select("id")
@@ -84,7 +83,7 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
             initiator_id: user.id,
             initiator_type: "contractor",
             recipient_id: recipientId,
-            subject: `Enquiry: ${enquiry.job_description.slice(0, 80)}`,
+            subject: `Re: ${enquiry.job_description.slice(0, 80)}`,
             quote_id: null,
           })
           .select("id")
@@ -99,19 +98,24 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
         sender_id: user.id,
         content: message.trim(),
       });
-
       if (msgError) throw msgError;
 
+      const { error: enquiryError } = await supabase
+        .from("enquiries")
+        .update({ status: "replied" })
+        .eq("id", enquiry.id);
+      if (enquiryError) throw enquiryError;
+
       toast({
-        title: "Message sent",
+        title: "Response sent",
         description: `Your message has been sent to ${enquiry.customer_name ?? "the customer"}.`,
       });
       onSuccess?.();
       onOpenChange(false);
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error("Failed to send response:", error);
       toast({
-        title: "Could not send message",
+        title: "Could not send response",
         description: "Please try again.",
         variant: "destructive",
       });
@@ -124,25 +128,33 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Request More Information</DialogTitle>
+          <DialogTitle>Respond to Enquiry</DialogTitle>
           <DialogDescription>
-            Send a message to {enquiry.customer_name ?? "the customer"} about their enquiry.
+            Send a message to {enquiry.customer_name ?? "the customer"}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-md bg-muted p-3 text-sm">
-            <p className="font-medium text-foreground mb-1">Enquiry</p>
-            <p className="text-muted-foreground line-clamp-3">{enquiry.job_description}</p>
+          {/* Read-only enquiry summary */}
+          <div className="rounded-md bg-muted p-4 space-y-2 text-sm">
+            <p className="font-medium text-foreground">Enquiry details</p>
+            <p className="text-muted-foreground">{enquiry.job_description}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />{enquiry.location}
+              </span>
+              {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
+              {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="info-message">Your message</Label>
+            <Label htmlFor="respond-message">Your message</Label>
             <Textarea
-              id="info-message"
+              id="respond-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="e.g. Could you share photos of the area? What type of finish are you after?"
+              placeholder="e.g. Thanks for reaching out — I'd be happy to help with this..."
               className="min-h-28"
               disabled={submitting}
             />
@@ -154,7 +166,7 @@ export function RequestInfoDialog({ open, onOpenChange, enquiry, onSuccess }: Re
             </Button>
             <Button onClick={() => void handleSubmit()} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Send Message
+              Send Response
             </Button>
           </div>
         </div>

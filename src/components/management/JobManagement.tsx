@@ -1,25 +1,61 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Loader2,
+  Wrench,
+  AlertTriangle,
+  CheckCircle2,
+  Calendar,
+  Hammer,
+  Clock,
+  Check,
+  CheckCircle,
+  MapPin,
+} from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
+
+// ─── Types & constants ────────────────────────────────────────────────────────
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
+
+const STATUS_PRIORITY: Record<string, number> = {
+  scheduled: 0,
+  in_progress: 1,
+  snagging: 2,
+  complete: 3,
+  cancelled: 4,
+};
+
+const statusLabel: Record<JobStatus, string> = {
+  scheduled: "Scheduled",
+  in_progress: "In progress",
+  snagging: "Snagging",
+  complete: "Complete",
+  cancelled: "Cancelled",
+};
+
+const STEPS = [
+  { status: "scheduled" as const, label: "Job Scheduled", Icon: Calendar },
+  { status: "in_progress" as const, label: "Work Started", Icon: Hammer },
+  { status: "snagging" as const, label: "Final Checks", Icon: AlertTriangle },
+  { status: "complete" as const, label: "Job Complete", Icon: CheckCircle },
+];
 
 type JobCardData = {
   id: string;
   title: string;
   status: JobStatus;
   start_date: string | null;
+  location: string | null;
   client_id: string;
   client_name: string;
 };
@@ -31,24 +67,105 @@ type SnagItem = {
   is_resolved: boolean;
 };
 
-const statusLabel: Record<JobStatus, string> = {
-  scheduled: "Scheduled",
-  in_progress: "In progress",
-  snagging: "Snagging",
-  complete: "Complete",
-  cancelled: "Cancelled",
-};
+// ─── Step Tracker ─────────────────────────────────────────────────────────────
 
-function getAllowedTransitions(currentStatus: JobStatus): JobStatus[] {
-  if (currentStatus === "cancelled" || currentStatus === "complete") {
-    return [];
-  }
+function StepTracker({ currentStatus }: { currentStatus: JobStatus }) {
+  const isCancelled = currentStatus === "cancelled";
+  const currentIdx = isCancelled
+    ? -1
+    : STATUS_ORDER.indexOf(currentStatus as (typeof STATUS_ORDER)[number]);
 
-  const idx = STATUS_ORDER.indexOf(currentStatus as (typeof STATUS_ORDER)[number]);
-  if (idx === -1) return [];
+  return (
+    <div className="flex items-start w-full">
+      {STEPS.map((step, idx) => {
+        const isCompleted = currentIdx !== -1 && idx < currentIdx;
+        const isActive = currentIdx !== -1 && idx === currentIdx;
 
-  return [STATUS_ORDER[idx + 1], "cancelled"].filter(Boolean) as JobStatus[];
+        return (
+          <Fragment key={step.status}>
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  "h-10 w-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
+                  isCompleted && "bg-[#1e3a5f] border-[#1e3a5f]",
+                  isActive && "border-[#f07820] animate-pulse",
+                  !isCompleted && !isActive && "border-muted-foreground/30 bg-muted/30",
+                )}
+              >
+                {isCompleted ? (
+                  <Check className="h-4 w-4 text-white" />
+                ) : (
+                  <step.Icon
+                    className={cn(
+                      "h-4 w-4",
+                      isActive ? "text-[#f07820]" : "text-muted-foreground/40",
+                    )}
+                  />
+                )}
+              </div>
+              <span
+                className={cn(
+                  "mt-1.5 text-[10px] text-center leading-tight w-16",
+                  isCompleted && "font-medium text-[#1e3a5f]",
+                  !isCompleted && !isActive && "text-muted-foreground/40",
+                )}
+                style={isActive ? { color: "#f07820", fontWeight: 600 } : undefined}
+              >
+                {step.label}
+              </span>
+            </div>
+            {idx < STEPS.length - 1 && (
+              <div
+                className={cn(
+                  "flex-1 h-0.5 mt-5",
+                  idx < currentIdx ? "bg-[#1e3a5f]" : "bg-muted-foreground/20",
+                )}
+              />
+            )}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 }
+
+// ─── Live Timer ───────────────────────────────────────────────────────────────
+
+function LiveTimer({ startDate }: { startDate: string | null }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    if (!startDate) return;
+
+    const compute = () => {
+      const diffMs = Date.now() - new Date(startDate).getTime();
+      if (diffMs < 0) { setElapsed("0m"); return; }
+      const days = Math.floor(diffMs / 86_400_000);
+      const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
+      const minutes = Math.floor((diffMs % 3_600_000) / 60_000);
+      setElapsed(
+        days > 0 ? `${days}d ${hours}h ${minutes}m` :
+        hours > 0 ? `${hours}h ${minutes}m` :
+        `${minutes}m`,
+      );
+    };
+
+    compute();
+    const id = setInterval(compute, 60_000);
+    return () => clearInterval(id);
+  }, [startDate]);
+
+  if (!startDate || !elapsed) return null;
+
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "#f07820" }}>
+      <Clock className="h-4 w-4 animate-pulse" />
+      In progress for {elapsed}
+    </div>
+  );
+}
+
+// ─── JobManagement ────────────────────────────────────────────────────────────
 
 export function JobManagement() {
   const [jobs, setJobs] = useState<JobCardData[]>([]);
@@ -65,11 +182,7 @@ export function JobManagement() {
     setLoading(true);
     const { data: authData } = await supabase.auth.getUser();
     const user = authData.user;
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) { setLoading(false); return; }
 
     const { data, error } = await supabase
       .from("jobs")
@@ -78,6 +191,7 @@ export function JobManagement() {
         title,
         status,
         start_date,
+        location,
         client_id,
         client:profiles!jobs_client_id_fkey(full_name, company_name)
       `)
@@ -95,13 +209,14 @@ export function JobManagement() {
       title: job.title,
       status: job.status,
       start_date: job.start_date,
+      location: job.location ?? null,
       client_id: job.client_id,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
     })) as JobCardData[];
 
     setJobs(mapped);
 
-    const jobIds = mapped.map((job) => job.id);
+    const jobIds = mapped.map((j) => j.id);
     if (jobIds.length > 0) {
       const { data: snagData, error: snagError } = await supabase
         .from("job_snag_items")
@@ -126,40 +241,17 @@ export function JobManagement() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
+  useEffect(() => { loadJobs(); }, []);
 
-  const groupedJobs = useMemo(() => {
-    const initial: Record<(typeof STATUS_ORDER)[number], JobCardData[]> = {
-      scheduled: [],
-      in_progress: [],
-      snagging: [],
-      complete: [],
-    };
-
-    jobs.forEach((job) => {
-      if (job.status in initial) {
-        initial[job.status as (typeof STATUS_ORDER)[number]].push(job);
-      }
-    });
-
-    return initial;
-  }, [jobs]);
+  // Sort active jobs first (by workflow stage), cancelled at the end.
+  const sortedJobs = useMemo(
+    () => [...jobs].sort((a, b) => (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99)),
+    [jobs],
+  );
 
   const changeStatus = async (job: JobCardData, nextStatus: JobStatus) => {
-    const allowed = getAllowedTransitions(job.status);
-    if (!allowed.includes(nextStatus)) {
-      toast({
-        title: "Invalid transition",
-        description: `You can only move ${statusLabel[job.status]} to ${allowed.map((s) => statusLabel[s]).join(" or ")}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (job.status === "snagging" && nextStatus === "complete") {
-      const openCount = (snagItemsByJob[job.id] || []).filter((item) => !item.is_resolved).length;
+      const openCount = (snagItemsByJob[job.id] || []).filter((i) => !i.is_resolved).length;
       if (openCount > 0) {
         toast({
           title: "Cannot complete job",
@@ -170,24 +262,17 @@ export function JobManagement() {
       }
     }
 
-    const previousStatus = job.status;
+    const prev = job.status;
     setSavingJobId(job.id);
-    setJobs((current) => current.map((item) => (item.id === job.id ? { ...item, status: nextStatus } : item)));
+    setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
 
     const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
 
     if (error) {
-      setJobs((current) => current.map((item) => (item.id === job.id ? { ...item, status: previousStatus } : item)));
-      toast({
-        title: "Status update failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: prev } : j)));
+      toast({ title: "Status update failed", description: error.message, variant: "destructive" });
     } else {
-      toast({
-        title: "Job updated",
-        description: `${job.title} moved to ${statusLabel[nextStatus]}.`,
-      });
+      toast({ title: "Job updated", description: `${job.title} moved to ${statusLabel[nextStatus]}.` });
     }
 
     setSavingJobId(null);
@@ -212,18 +297,15 @@ export function JobManagement() {
       return;
     }
 
-    setSnagItemsByJob((current) => ({
-      ...current,
-      [jobId]: [...(current[jobId] || []), data as SnagItem],
-    }));
-    setNewSnagByJob((current) => ({ ...current, [jobId]: "" }));
+    setSnagItemsByJob((cur) => ({ ...cur, [jobId]: [...(cur[jobId] || []), data as SnagItem] }));
+    setNewSnagByJob((cur) => ({ ...cur, [jobId]: "" }));
   };
 
   const toggleSnagResolved = async (jobId: string, item: SnagItem, isResolved: boolean) => {
     const optimistic: SnagItem = { ...item, is_resolved: isResolved };
-    setSnagItemsByJob((current) => ({
-      ...current,
-      [jobId]: (current[jobId] || []).map((row) => (row.id === item.id ? optimistic : row)),
+    setSnagItemsByJob((cur) => ({
+      ...cur,
+      [jobId]: (cur[jobId] || []).map((row) => (row.id === item.id ? optimistic : row)),
     }));
 
     const { error } = await supabase
@@ -232,9 +314,9 @@ export function JobManagement() {
       .eq("id", item.id);
 
     if (error) {
-      setSnagItemsByJob((current) => ({
-        ...current,
-        [jobId]: (current[jobId] || []).map((row) => (row.id === item.id ? item : row)),
+      setSnagItemsByJob((cur) => ({
+        ...cur,
+        [jobId]: (cur[jobId] || []).map((row) => (row.id === item.id ? item : row)),
       }));
       toast({ title: "Error", description: "Failed to update snag item", variant: "destructive" });
     }
@@ -247,9 +329,7 @@ export function JobManagement() {
       .eq("id", job.id)
       .single();
 
-    if (jobError || !fullJob) {
-      throw new Error("Unable to load job details.");
-    }
+    if (jobError || !fullJob) throw new Error("Unable to load job details.");
 
     const { data: quote } = await supabase
       .from("issued_quotes")
@@ -315,146 +395,162 @@ export function JobManagement() {
   if (jobs.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>No jobs yet</CardTitle>
-          <CardDescription>Your assigned jobs will appear here and be grouped by status.</CardDescription>
-        </CardHeader>
+        <CardContent className="p-8 text-center">
+          <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No jobs yet</h3>
+          <p className="text-muted-foreground">Your assigned jobs will appear here once created.</p>
+        </CardContent>
       </Card>
     );
   }
 
   return (
     <>
-    <div className="space-y-8">
-      {STATUS_ORDER.map((status) => (
-        <section key={status} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">{statusLabel[status]}</h3>
-            <Badge variant="secondary">{groupedJobs[status].length}</Badge>
-          </div>
+      <div className="space-y-4">
+        {sortedJobs.map((job) => {
+          const snagItems = snagItemsByJob[job.id] || [];
+          const openSnags = snagItems.filter((i) => !i.is_resolved).length;
+          const statusIdx = STATUS_ORDER.indexOf(job.status as (typeof STATUS_ORDER)[number]);
+          const nextStatus = statusIdx >= 0 && statusIdx < STATUS_ORDER.length - 1
+            ? STATUS_ORDER[statusIdx + 1]
+            : null;
+          const canProgress = !!nextStatus;
+          const isSaving = savingJobId === job.id;
 
-          {groupedJobs[status].length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-sm text-muted-foreground">No jobs in this status.</CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {groupedJobs[status].map((job) => {
-                const snagItems = snagItemsByJob[job.id] || [];
-                const openSnags = snagItems.filter((item) => !item.is_resolved).length;
-                const transitions = getAllowedTransitions(job.status);
+          return (
+            <Card
+              key={job.id}
+              className={cn("transition-opacity", job.status === "cancelled" && "opacity-60")}
+            >
+              <CardContent className="p-6 space-y-5">
+                {/* ── Step tracker ─────────────────────────────────────── */}
+                <StepTracker currentStatus={job.status} />
 
-                return (
-                  <Card key={job.id}>
-                    <CardHeader>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">{job.title}</CardTitle>
-                          <CardDescription>
-                            {job.client_name}
-                            {job.start_date ? ` • Starts ${format(new Date(job.start_date), "dd MMM yyyy")}` : " • No start date"}
-                          </CardDescription>
-                          <Badge>{statusLabel[job.status]}</Badge>
-                        </div>
+                {/* ── Job meta ──────────────────────────────────────────── */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {job.client_name}
+                      {job.start_date
+                        ? ` • Started ${format(new Date(job.start_date), "dd MMM yyyy")}`
+                        : ""}
+                    </p>
+                    {job.location && (
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />{job.location}
+                      </p>
+                    )}
+                  </div>
+                  {job.status === "cancelled" && (
+                    <Badge variant="destructive">Cancelled</Badge>
+                  )}
+                </div>
 
-                        <div className="w-full md:w-56">
-                          <Label className="mb-2 block">Move status</Label>
-                          <Select onValueChange={(value) => changeStatus(job, value as JobStatus)} disabled={savingJobId === job.id || transitions.length === 0}>
-                            <SelectTrigger>
-                              <SelectValue placeholder={transitions.length === 0 ? "No further moves" : "Choose status"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {transitions.map((next) => (
-                                <SelectItem key={next} value={next}>
-                                  {statusLabel[next]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {job.status === "complete" && (
-                          <Button
-                            variant="outline"
-                            onClick={async () => {
-                              try {
-                                await buildInvoiceFromJob(job);
-                              } catch (error: any) {
-                                toast({
-                                  title: "Invoice generation failed",
-                                  description: error?.message || "Could not pre-populate invoice from job data.",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
+                {/* ── Live timer — in_progress only ─────────────────────── */}
+                {job.status === "in_progress" && (
+                  <LiveTimer startDate={job.start_date} />
+                )}
+
+                {/* ── Snag list — snagging only ─────────────────────────── */}
+                {job.status === "snagging" && (
+                  <div className="rounded-md border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Wrench className="h-4 w-4" />
+                        Snag list
+                      </div>
+                      {openSnags > 0 ? (
+                        <Badge variant="destructive" className="gap-1">
+                          <AlertTriangle className="h-3 w-3" /> {openSnags} open
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> All resolved
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add snag item"
+                        value={newSnagByJob[job.id] || ""}
+                        onChange={(e) =>
+                          setNewSnagByJob((cur) => ({ ...cur, [job.id]: e.target.value }))
+                        }
+                      />
+                      <Button type="button" onClick={() => addSnagItem(job.id)}>Add</Button>
+                    </div>
+
+                    {snagItems.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No snag items yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {snagItems.map((item) => (
+                          <label
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-md border p-2 text-sm cursor-pointer"
                           >
-                            Generate Invoice
-                          </Button>
-                        )}
+                            <input
+                              type="checkbox"
+                              checked={item.is_resolved}
+                              onChange={(e) => toggleSnagResolved(job.id, item, e.target.checked)}
+                            />
+                            <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>
+                              {item.title}
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                    </CardHeader>
+                    )}
+                  </div>
+                )}
 
-                    <CardContent className="space-y-4">
-                      <div className="rounded-md border p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm font-medium">
-                            <Wrench className="h-4 w-4" />
-                            Snag list
-                          </div>
-                          {openSnags > 0 ? (
-                            <Badge variant="destructive" className="gap-1">
-                              <AlertTriangle className="h-3 w-3" /> {openSnags} open
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" /> All resolved
-                            </Badge>
-                          )}
-                        </div>
+                {/* ── Actions ───────────────────────────────────────────── */}
+                <div className="flex flex-wrap gap-2">
+                  {canProgress && (
+                    <Button
+                      onClick={() => changeStatus(job, nextStatus!)}
+                      disabled={isSaving}
+                    >
+                      {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Move to next stage
+                    </Button>
+                  )}
+                  {job.status === "complete" && (
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await buildInvoiceFromJob(job);
+                        } catch (error: any) {
+                          toast({
+                            title: "Invoice generation failed",
+                            description: error?.message || "Could not pre-populate invoice from job data.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      Generate Invoice
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Add snag item"
-                            value={newSnagByJob[job.id] || ""}
-                            onChange={(event) => setNewSnagByJob((current) => ({ ...current, [job.id]: event.target.value }))}
-                          />
-                          <Button type="button" onClick={() => addSnagItem(job.id)}>Add</Button>
-                        </div>
-
-                        {snagItems.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No snag items yet.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {snagItems.map((item) => (
-                              <label key={item.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={item.is_resolved}
-                                  onChange={(event) => toggleSnagResolved(job.id, item, event.target.checked)}
-                                />
-                                <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>{item.title}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      ))}
-    </div>
-    <InvoiceFormDialog
-      open={invoiceDialogOpen}
-      onClose={() => {
-        setInvoiceDialogOpen(false);
-        setInvoiceInitialData(null);
-      }}
-      initialData={invoiceInitialData}
-      onSave={createInvoice}
-    />
+      <InvoiceFormDialog
+        open={invoiceDialogOpen}
+        onClose={() => {
+          setInvoiceDialogOpen(false);
+          setInvoiceInitialData(null);
+        }}
+        initialData={invoiceInitialData}
+        onSave={createInvoice}
+      />
     </>
   );
 }

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, MapPin, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -179,6 +179,19 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Read-only enquiry context */}
+          <div className="rounded-md bg-muted p-4 space-y-2 text-sm">
+            <p className="font-medium text-foreground">Enquiry details</p>
+            <p className="text-muted-foreground line-clamp-3">{enquiry.job_description}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />{enquiry.location}
+              </span>
+              {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
+              {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="quote-title">Title</Label>
             <Input
