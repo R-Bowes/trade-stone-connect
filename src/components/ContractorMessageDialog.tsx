@@ -55,7 +55,7 @@ export function ContractorMessageDialog({
       .maybeSingle();
     const { data: contractorProfile } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, user_id")
       .eq("user_id", recipientUserId)
       .maybeSingle();
 
@@ -70,15 +70,33 @@ export function ContractorMessageDialog({
     if (!errDashboard) return;
 
     if (senderProfile?.id && contractorProfile?.id) {
-      const { error: errTypes } = await supabase.from("enquiries").insert({
-        customer_id: senderProfile.id,
-        contractor_id: contractorProfile.id,
-        job_description: text,
-        location,
-        status: "message",
-      });
-      if (!errTypes) return;
-      throw errTypes;
+      const { data: enquiryRow, error: errTypes } = await supabase
+        .from("enquiries")
+        .insert({
+          customer_id: senderProfile.id,
+          contractor_id: contractorProfile.id,
+          job_description: text,
+          location,
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (errTypes) throw errTypes;
+
+      // Notify the contractor via in-app notification.
+      if (contractorProfile.user_id && enquiryRow?.id) {
+        await supabase.from("notifications").insert({
+          user_id: contractorProfile.user_id,
+          title: "New enquiry received",
+          message: `A customer sent an enquiry: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`,
+          type: "enquiry",
+          reference_id: enquiryRow.id,
+          reference_type: "enquiry",
+          is_read: false,
+        }).catch(console.error);
+      }
+      return;
     }
 
     throw errDashboard;

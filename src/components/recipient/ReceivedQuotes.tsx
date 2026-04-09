@@ -25,6 +25,17 @@ export function ReceivedQuotes() {
       body: { action_type: "accept", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
 
+    // Insert in-app notification for the contractor.
+    await supabase.from("notifications").insert({
+      user_id: quote.contractor_id,
+      title: "Quote accepted",
+      message: `${quote.client_name} has accepted your quote for ${quote.title}`,
+      type: "quote",
+      reference_id: quote.id,
+      reference_type: "quote",
+      is_read: false,
+    }).catch(console.error);
+
     // Auto-create a job from the accepted quote
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -50,6 +61,18 @@ export function ReceivedQuotes() {
     await supabase.functions.invoke("notify-invoice-quote-action", {
       body: { action_type: "reject", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
+
+    // Insert in-app notification for the contractor.
+    await supabase.from("notifications").insert({
+      user_id: quote.contractor_id,
+      title: "Quote declined",
+      message: `${quote.client_name} has declined your quote for ${quote.title}`,
+      type: "quote",
+      reference_id: quote.id,
+      reference_type: "quote",
+      is_read: false,
+    }).catch(console.error);
+
     toast({ title: "Quote Rejected", description: "The contractor has been notified." });
   };
 
@@ -93,6 +116,7 @@ export function ReceivedQuotes() {
             <TableHeader>
               <TableRow>
                 <TableHead>Quote #</TableHead>
+                <TableHead>Contractor</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Valid Until</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -104,6 +128,7 @@ export function ReceivedQuotes() {
               {quotes.map((q) => (
                 <TableRow key={q.id}>
                   <TableCell className="font-medium">{q.quote_number || "—"}</TableCell>
+                  <TableCell>{q.contractor_name}</TableCell>
                   <TableCell>{q.title}</TableCell>
                   <TableCell>{format(new Date(q.valid_until), "dd MMM yyyy")}</TableCell>
                   <TableCell className="text-right font-bold">£{Number(q.total).toFixed(2)}</TableCell>

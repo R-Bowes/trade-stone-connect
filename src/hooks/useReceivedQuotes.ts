@@ -10,6 +10,7 @@ export interface ReceivedQuote {
   client_name: string;
   client_email: string;
   contractor_id: string;
+  contractor_name: string;
   recipient_id: string | null;
   recipient_response: string | null;
   responded_at: string | null;
@@ -42,9 +43,28 @@ export function useReceivedQuotes() {
 
     if (error) {
       console.error("Error fetching received quotes:", error);
-    } else {
-      setQuotes((data || []) as unknown as ReceivedQuote[]);
+      setLoading(false);
+      return;
     }
+
+    const rawQuotes = (data || []) as unknown as ReceivedQuote[];
+
+    // Enrich with contractor names via a secondary lookup.
+    const contractorIds = [...new Set(rawQuotes.map((q) => q.contractor_id))];
+    let nameMap: Record<string, string> = {};
+    if (contractorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, company_name")
+        .in("user_id", contractorIds);
+      for (const p of profiles || []) {
+        nameMap[p.user_id] = (p as any).company_name || (p as any).full_name || "Contractor";
+      }
+    }
+
+    setQuotes(
+      rawQuotes.map((q) => ({ ...q, contractor_name: nameMap[q.contractor_id] ?? "Contractor" }))
+    );
     setLoading(false);
   }, []);
 
