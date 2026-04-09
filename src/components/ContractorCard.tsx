@@ -11,8 +11,8 @@ interface ContractorCardProps {
   code: string;
   specialties: string[];
   bioSnippet?: string;
-  rating: number;
-  reviewCount: number;
+  rating?: number | null;
+  reviewCount?: number | null;
   location: string;
   image?: string;
   distance?: string;
@@ -66,15 +66,18 @@ const ContractorCard = ({
 
           {/* Rating and Location */}
           <div className="flex items-center space-x-4 mb-3 text-sm">
-            <div className="flex items-center space-x-1">
-              <Star className="h-4 w-4 fill-primary text-primary" />
-              <span className="font-medium">{rating}</span>
-              <span className="text-muted-foreground">({reviewCount})</span>
-            </div>
+            {rating != null && (
+              <div className="flex items-center space-x-1">
+                <Star className="h-4 w-4 fill-primary text-primary" />
+                <span className="font-medium">{rating}</span>
+                {reviewCount != null && (
+                  <span className="text-muted-foreground">({reviewCount})</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center space-x-1 text-muted-foreground">
               <MapPin className="h-4 w-4" />
               <span>{location}</span>
-              {distance && <span>• {distance}</span>}
             </div>
           </div>
 
