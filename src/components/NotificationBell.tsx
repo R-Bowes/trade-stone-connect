@@ -36,12 +36,14 @@ export function NotificationBell() {
 
   const handleClick = (notif: Notification) => {
     if (!notif.is_read) markAsRead(notif.id);
-    if (notif.reference_type === "job") {
+    if (notif.reference_type === "enquiry") {
+      navigate("/dashboard/contractor");
+    } else if (notif.reference_type === "job") {
       navigate("/dashboard");
     } else if (notif.reference_type === "invoice") {
       navigate("/dashboard?view=invoices");
-    } else if (notif.reference_type === "issued_quote") {
-      navigate("/dashboard?view=quotes");
+    } else if (notif.reference_type === "issued_quote" || notif.reference_type === "quote") {
+      navigate("/dashboard");
     }
     setOpen(false);
   };
