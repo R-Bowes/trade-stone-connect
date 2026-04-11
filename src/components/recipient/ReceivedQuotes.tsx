@@ -18,62 +18,120 @@ export function ReceivedQuotes() {
   });
   const { toast } = useToast();
   const [openNegotiationFor, setOpenNegotiationFor] = useState<string | null>(null);
+  // Track in-flight responses for optimistic UI locking
+  const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
   const handleAccept = async (quote: ReceivedQuote) => {
-    await respondToQuote(quote.id, "accepted");
+    setPendingIds((prev) => ({ ...prev, [quote.id]: "accepted" }));
+    try {
+      await respondToQuote(quote.id, "accepted");
 
-    // Email notification (best-effort)
-    supabase.functions.invoke("notify-invoice-quote-action", {
-      body: { action_type: "accept", context_type: "quote", context_id: quote.id },
-    }).catch(console.error);
+      // Email notification (best-effort)
+      supabase.functions.invoke("notify-invoice-quote-action", {
+        body: { action_type: "accept", context_type: "quote", context_id: quote.id },
+      }).catch(console.error);
 
-    // Auto-create a job from the accepted quote.
-    // In-app notification for the contractor is handled by the
-    // notify_quote_response DB trigger on issued_quotes UPDATE.
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { error: jobError } = await supabase.from("jobs").insert({
-        contractor_id: quote.contractor_id,
-        client_id: user.id,
-        issued_quote_id: quote.id,
-        title: quote.title,
-        description: quote.description || null,
-        contract_value: quote.total || 0,
-        status: "scheduled",
+      // Look up location from linked enquiry if available
+      let location: string | null = null;
+      if (quote.enquiry_id) {
+        const { data: enquiry } = await supabase
+          .from("enquiries")
+          .select("location")
+          .eq("id", quote.enquiry_id)
+          .maybeSingle();
+        location = enquiry?.location ?? null;
+      }
+
+      // Auto-create a job from the accepted quote.
+      // In-app notification for the contractor is handled by the
+      // notify_quote_response DB trigger on issued_quotes UPDATE.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: jobError } = await supabase.from("jobs").insert({
+          contractor_id: quote.contractor_id,
+          client_id: user.id,
+          issued_quote_id: quote.id,
+          title: quote.title,
+          description: quote.description || null,
+          location: location || null,
+          contract_value: quote.total || 0,
+          status: "scheduled",
+        });
+        if (jobError) console.error("Failed to create job:", jobError);
+      }
+
+      toast({
+        title: "Quote accepted",
+        description: "Job has been created. You can discuss scheduling with your contractor.",
       });
-      if (jobError) console.error("Failed to create job:", jobError);
-    }
 
-    // Open message dialog for scheduling discussion
-    setMessageDialog({ open: true, quote, action: "accepted" });
+      // Open message dialog for scheduling discussion
+      setMessageDialog({ open: true, quote, action: "accepted" });
+    } finally {
+      setPendingIds((prev) => {
+        const next = { ...prev };
+        delete next[quote.id];
+        return next;
+      });
+    }
   };
 
   const handleReject = async (quote: ReceivedQuote) => {
-    await respondToQuote(quote.id, "rejected");
+    setPendingIds((prev) => ({ ...prev, [quote.id]: "rejected" }));
+    try {
+      await respondToQuote(quote.id, "rejected");
 
-    // Email notification (best-effort)
-    supabase.functions.invoke("notify-invoice-quote-action", {
-      body: { action_type: "reject", context_type: "quote", context_id: quote.id },
-    }).catch(console.error);
+      // Email notification (best-effort)
+      supabase.functions.invoke("notify-invoice-quote-action", {
+        body: { action_type: "reject", context_type: "quote", context_id: quote.id },
+      }).catch(console.error);
 
-    // In-app notification handled by the notify_quote_response DB trigger.
-    toast({ title: "Quote Rejected", description: "The contractor has been notified." });
+      // In-app notification handled by the notify_quote_response DB trigger.
+      toast({ title: "Quote Rejected", description: "The contractor has been notified." });
+    } finally {
+      setPendingIds((prev) => {
+        const next = { ...prev };
+        delete next[quote.id];
+        return next;
+      });
+    }
   };
 
   const handleStall = async (quote: ReceivedQuote) => {
-    await respondToQuote(quote.id, "stalled");
-    supabase.functions.invoke("notify-invoice-quote-action", {
-      body: { action_type: "stall", context_type: "quote", context_id: quote.id },
-    }).catch(console.error);
-    setMessageDialog({ open: true, quote, action: "stalled" });
+    setPendingIds((prev) => ({ ...prev, [quote.id]: "stalled" }));
+    try {
+      await respondToQuote(quote.id, "stalled");
+      supabase.functions.invoke("notify-invoice-quote-action", {
+        body: { action_type: "stall", context_type: "quote", context_id: quote.id },
+      }).catch(console.error);
+      setMessageDialog({ open: true, quote, action: "stalled" });
+    } finally {
+      setPendingIds((prev) => {
+        const next = { ...prev };
+        delete next[quote.id];
+        return next;
+      });
+    }
   };
 
   const getResponseBadge = (quote: ReceivedQuote) => {
-    if (quote.recipient_response === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
-    if (quote.recipient_response === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
-    if (quote.recipient_response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
+    const response = quote.recipient_response ?? pendingIds[quote.id] ?? null;
+    if (response === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
+    if (response === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+    if (response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
+    if (quote.status === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
+    if (quote.status === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+    if (quote.status === "expired") return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
     return <Badge variant="outline">Pending</Badge>;
   };
+
+  // A quote can only be acted on when status is 'sent' and not yet responded to
+  const canRespond = (quote: ReceivedQuote) =>
+    quote.status === "sent" &&
+    !quote.recipient_response &&
+    !pendingIds[quote.id];
+
+  const isResponding = (quote: ReceivedQuote) => quote.id in pendingIds;
 
   if (loading) {
     return <div className="flex justify-center items-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -118,7 +176,12 @@ export function ReceivedQuotes() {
                   <TableCell className="text-right font-bold">£{Number(q.total).toFixed(2)}</TableCell>
                   <TableCell>{getResponseBadge(q)}</TableCell>
                   <TableCell className="text-right">
-                    {!q.recipient_response && (
+                    {isResponding(q) && (
+                      <div className="flex justify-end">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {canRespond(q) && (
                       <div className="flex justify-end gap-1">
                         <Button size="sm" onClick={() => handleAccept(q)}>
                           <CheckCircle className="h-4 w-4 mr-1" />Accept
@@ -131,7 +194,7 @@ export function ReceivedQuotes() {
                         </Button>
                       </div>
                     )}
-                    {q.recipient_response === "accepted" && (
+                    {(q.recipient_response === "accepted" || pendingIds[q.id] === "accepted") && (
                       <Button
                         size="sm"
                         variant="outline"

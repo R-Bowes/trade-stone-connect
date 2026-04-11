@@ -24,6 +24,7 @@ export interface ReceivedQuote {
   notes: string | null;
   terms: string | null;
   created_at: string;
+  enquiry_id: string | null;
 }
 
 export function useReceivedQuotes() {
@@ -37,7 +38,7 @@ export function useReceivedQuotes() {
 
     const { data, error } = await supabase
       .from("issued_quotes")
-      .select("*")
+      .select("*, enquiry_id")
       .eq("recipient_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -87,8 +88,7 @@ export function useReceivedQuotes() {
       throw error;
     }
 
-    toast({ title: "Response Sent", description: `Quote ${response}.` });
-    fetchQuotes();
+    await fetchQuotes();
     return quoteId;
   };
 
