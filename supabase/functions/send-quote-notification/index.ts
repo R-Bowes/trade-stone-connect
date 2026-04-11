@@ -211,9 +211,43 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Resolve the auth user from the JWT so we can derive customer fields server-side
+    // rather than trusting values supplied in the request body.
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    let authUser: { id: string; email?: string } | null = null;
+    let customerProfile: { id: string; user_id: string; email: string | null; full_name: string | null } | null = null;
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        authUser = user;
+        const { data: cp } = await supabase
+          .from('profiles')
+          .select('id, user_id, email, full_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        customerProfile = cp ?? null;
+      }
+    }
+    console.log('[send-quote-notification] authUser:', authUser?.id, 'customerProfile.id:', customerProfile?.id);
+
+    // Look up contractor's profiles.id (row PK) — the enquiries table contractor_id
+    // column references profiles.id, not the auth UUID.
+    let contractorProfileId: string | null = null;
+    const { data: contractorProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', requestData.contractor_id)
+      .maybeSingle();
+    contractorProfileId = contractorProfile?.id ?? null;
+
     // Sanitize inputs
-    const customerEmail = requestData.customer_email.trim().toLowerCase();
-    const customerName = sanitizeText(requestData.customer_name);
+    // customer_email is derived from the JWT auth user; fall back to request body only
+    // if no authenticated session is present (e.g. guest submission).
+    const customerEmail = (authUser?.email ?? requestData.customer_email).trim().toLowerCase();
+    const customerName = sanitizeText(
+      customerProfile?.full_name || requestData.customer_name
+    );
     const contractorName = sanitizeText(requestData.contractorName);
     const projectTitle = sanitizeText(requestData.project_title);
     const projectDescription = sanitizeText(requestData.project_description);
@@ -279,6 +313,34 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     console.log("Quote inserted successfully:", quoteData?.id);
+
+    // Insert an enquiry row so the contractor sees this request in their management
+    // dashboard (which queries the enquiries table). customer_id and customer_email
+    // are derived from the JWT, not the request body.
+    if (contractorProfileId) {
+      const { error: enquiryError } = await supabase
+        .from('enquiries')
+        .insert({
+          customer_id: customerProfile?.id ?? null,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: requestData.customer_phone?.trim() || null,
+          contractor_id: contractorProfileId,
+          job_description: requestData.project_description.trim(),
+          location: requestData.project_location?.trim() || '',
+          preferred_timeline: requestData.timeline || null,
+          budget_range: requestData.budget_range || null,
+          status: 'new',
+        });
+      if (enquiryError) {
+        console.error('[send-quote-notification] Failed to insert enquiry:', enquiryError);
+        // Non-fatal — quote was saved; contractor notification will still fire
+      } else {
+        console.log('[send-quote-notification] Enquiry inserted for contractor profile:', contractorProfileId);
+      }
+    } else {
+      console.warn('[send-quote-notification] contractor profiles.id not found — enquiry row skipped');
+    }
 
     // Notify the contractor in-app about the new quote request
     if (quoteData?.id) {
