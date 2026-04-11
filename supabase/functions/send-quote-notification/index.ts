@@ -213,20 +213,30 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Resolve the auth user from the JWT so we can derive customer fields server-side
     // rather than trusting values supplied in the request body.
+    // Use a separate anon client scoped to the user's token — getUser() on a
+    // service-role client does not validate the JWT correctly.
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
     let authUser: { id: string; email?: string } | null = null;
     let customerProfile: { id: string; user_id: string; email: string | null; full_name: string | null } | null = null;
     if (token) {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        authUser = user;
-        const { data: cp } = await supabase
-          .from('profiles')
-          .select('id, user_id, email, full_name')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        customerProfile = cp ?? null;
+      try {
+        const anonClient = createClient(SUPABASE_URL, token);
+        const { data: { user }, error: userError } = await anonClient.auth.getUser();
+        if (userError) {
+          console.warn('[send-quote-notification] getUser error:', userError.message);
+        } else if (user) {
+          authUser = user;
+          const { data: cp } = await supabase
+            .from('profiles')
+            .select('id, user_id, email, full_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          customerProfile = cp ?? null;
+        }
+      } catch (authErr) {
+        console.warn('[send-quote-notification] auth resolution failed:', authErr);
+        // Non-fatal — fall back to request body values
       }
     }
     console.log('[send-quote-notification] authUser:', authUser?.id, 'customerProfile.id:', customerProfile?.id);
