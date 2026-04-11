@@ -280,6 +280,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Quote inserted successfully:", quoteData?.id);
 
+    // Notify the contractor in-app about the new quote request
+    if (quoteData?.id) {
+      const { error: notifError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: requestData.contractor_id,
+          title: "New Quote Request",
+          message: `${sanitizeText(requestData.customer_name)} has requested a quote for "${sanitizeText(requestData.project_title)}"`,
+          type: "quote_request",
+          reference_type: "quote",
+          reference_id: quoteData.id,
+        });
+      if (notifError) {
+        console.error("Failed to insert contractor notification:", notifError);
+        // Non-fatal — quote was saved and email will be sent
+      }
+    }
+
     // Send confirmation email to customer
     console.log("Sending confirmation email to:", customerEmail);
     
