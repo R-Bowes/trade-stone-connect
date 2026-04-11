@@ -21,7 +21,6 @@ import {
   Loader2,
   ExternalLink,
   Plus,
-  MapPin,
   CheckCircle2,
   AlertCircle,
   Image as ImageIcon,
@@ -34,17 +33,6 @@ import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
-interface Enquiry {
-  id: string;
-  homeowner_id: string;
-  title: string;
-  description: string;
-  location: string;
-  status: string;
-  created_at: string;
-  enquiry_photo_paths: string[] | null;
-}
-
 const MAX_PHOTOS = 3;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
@@ -52,9 +40,6 @@ const PersonalDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [loadingEnquiries, setLoadingEnquiries] = useState(false);
-  const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
@@ -68,32 +53,36 @@ const PersonalDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // useMemo must be called unconditionally — before any early returns
+  const stats = useMemo(
+    () => [
+      {
+        title: "Saved Contractors",
+        value: "0",
+        icon: Heart,
+        description: "Contractors you've bookmarked",
+      },
+      {
+        title: "Active Projects",
+        value: "0",
+        icon: Clock,
+        description: "Projects in progress",
+      },
+      {
+        title: "Reviews Given",
+        value: "0",
+        icon: Star,
+        description: "Feedback you've provided",
+      },
+    ],
+    []
+  );
+
   const resetForm = () => {
     setTitle("");
     setDescription("");
     setLocation("");
     setPhotos([]);
-  };
-
-  const loadEnquiries = async (userId: string) => {
-    setLoadingEnquiries(true);
-    setEnquiriesError(null);
-
-    const { data, error } = await supabase
-      .from("enquiries")
-      .select("id, homeowner_id, title, description, location, status, created_at, enquiry_photo_paths")
-      .eq("homeowner_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error loading enquiries:", error);
-      setEnquiriesError("We couldn't load your enquiries. Please refresh and try again.");
-      setEnquiries([]);
-    } else {
-      setEnquiries((data as Enquiry[]) ?? []);
-    }
-
-    setLoadingEnquiries(false);
   };
 
   useEffect(() => {
@@ -133,7 +122,6 @@ const PersonalDashboard = () => {
       }
 
       setUser(currentUser);
-      await loadEnquiries(currentUser.id);
       setLoading(false);
     };
 
@@ -157,36 +145,6 @@ const PersonalDashboard = () => {
       </div>
     );
   }
-
-  const stats = useMemo(
-    () => [
-      {
-        title: "Enquiries Sent",
-        value: enquiries.length.toString(),
-        icon: FileText,
-        description: "Total requests submitted",
-      },
-      {
-        title: "Saved Contractors",
-        value: "0",
-        icon: Heart,
-        description: "Contractors you've bookmarked",
-      },
-      {
-        title: "Active Projects",
-        value: "0",
-        icon: Clock,
-        description: "Projects in progress",
-      },
-      {
-        title: "Reviews Given",
-        value: "0",
-        icon: Star,
-        description: "Feedback you've provided",
-      },
-    ],
-    [enquiries.length]
-  );
 
   const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
@@ -292,7 +250,6 @@ const PersonalDashboard = () => {
 
       setFormSuccess("Your enquiry has been submitted successfully.");
       resetForm();
-      await loadEnquiries(user.id);
 
       toast({
         title: "Enquiry submitted",
@@ -334,7 +291,7 @@ const PersonalDashboard = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {stats.map((stat, index) => (
                 <Card key={index}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -538,59 +495,6 @@ const PersonalDashboard = () => {
                     {isSubmitting ? "Submitting..." : "Submit Enquiry"}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Enquiries</CardTitle>
-                <CardDescription>Track statuses as contractors review your requests.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingEnquiries && (
-                  <div className="flex items-center justify-center py-10 text-muted-foreground">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading enquiries...
-                  </div>
-                )}
-
-                {!loadingEnquiries && enquiriesError && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Could not load enquiries</AlertTitle>
-                    <AlertDescription>{enquiriesError}</AlertDescription>
-                  </Alert>
-                )}
-
-                {!loadingEnquiries && !enquiriesError && enquiries.length === 0 && (
-                  <div className="p-8 text-center">
-                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
-                    <p className="text-muted-foreground">Submit your first enquiry using the form above.</p>
-                  </div>
-                )}
-
-                {!loadingEnquiries && !enquiriesError && enquiries.length > 0 && (
-                  <div className="space-y-3">
-                    {enquiries.map((enquiry) => (
-                      <div key={enquiry.id} className="rounded-lg border p-4">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <h3 className="font-semibold">{enquiry.title}</h3>
-                          <Badge variant={enquiry.status === "new" ? "default" : "secondary"}>{enquiry.status}</Badge>
-                        </div>
-                        <p className="mb-2 text-sm text-muted-foreground line-clamp-2">{enquiry.description}</p>
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {enquiry.location}
-                          </span>
-                          <span>{new Date(enquiry.created_at).toLocaleString("en-GB")}</span>
-                          <span>{enquiry.enquiry_photo_paths?.length ?? 0} photo(s)</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
