@@ -10,6 +10,7 @@ const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_WINDOW_MINUTES = 5;
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  "https://lovable.tradestone.app",
   "https://tradestone.lovable.app",
   "http://localhost:5173",
   "http://localhost:4173",
@@ -236,10 +237,11 @@ const handler = async (req: Request): Promise<Response> => {
     // Look up contractor's profiles.id (row PK) — the enquiries table contractor_id
     // column references profiles.id, not the auth UUID.
     let contractorProfileId: string | null = null;
+    console.log('[debug] contractor_id received:', requestData.contractor_id);
     const { data: contractorProfile } = await supabase
       .from('profiles')
-      .select('id')
-      .eq('user_id', requestData.contractor_id)
+      .select('id, user_id')
+      .eq('id', requestData.contractor_id)
       .maybeSingle();
     contractorProfileId = contractorProfile?.id ?? null;
 
