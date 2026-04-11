@@ -217,7 +217,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
             <Label>Line items</Label>
             <div className="space-y-2">
               <div className="grid grid-cols-[1fr_72px_104px_32px] gap-2 px-1 text-xs font-medium text-muted-foreground">
-                <span>Description</span>
+                <span>Description <span className="text-destructive">*</span></span>
                 <span className="text-right">Qty</span>
                 <span className="text-right">Unit price (£)</span>
                 <span />

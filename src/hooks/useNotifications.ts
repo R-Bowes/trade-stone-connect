@@ -30,7 +30,9 @@ export function useNotifications() {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (!error && data) {
+    if (error) {
+      console.error("Failed to fetch notifications:", error);
+    } else if (data) {
       setNotifications(data as unknown as Notification[]);
     }
     setLoading(false);

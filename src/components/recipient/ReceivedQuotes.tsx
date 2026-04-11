@@ -21,35 +21,27 @@ export function ReceivedQuotes() {
 
   const handleAccept = async (quote: ReceivedQuote) => {
     await respondToQuote(quote.id, "accepted");
-    await supabase.functions.invoke("notify-invoice-quote-action", {
+
+    // Email notification (best-effort)
+    supabase.functions.invoke("notify-invoice-quote-action", {
       body: { action_type: "accept", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
 
-    // Insert in-app notification for the contractor.
-    await supabase.from("notifications").insert({
-      user_id: quote.contractor_id,
-      title: "Quote accepted",
-      message: `${quote.client_name} has accepted your quote for ${quote.title}`,
-      type: "quote",
-      reference_id: quote.id,
-      reference_type: "quote",
-      is_read: false,
-    }).catch(console.error);
-
-    // Auto-create a job from the accepted quote
+    // Auto-create a job from the accepted quote.
+    // In-app notification for the contractor is handled by the
+    // notify_quote_response DB trigger on issued_quotes UPDATE.
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from("jobs").insert({
+      const { error: jobError } = await supabase.from("jobs").insert({
         contractor_id: quote.contractor_id,
         client_id: user.id,
         issued_quote_id: quote.id,
         title: quote.title,
         description: quote.description || null,
         contract_value: quote.total || 0,
-        status: "not_started",
-      }).then(({ error }) => {
-        if (error) console.error("Failed to create job:", error);
+        status: "scheduled",
       });
+      if (jobError) console.error("Failed to create job:", jobError);
     }
 
     // Open message dialog for scheduling discussion
@@ -58,27 +50,19 @@ export function ReceivedQuotes() {
 
   const handleReject = async (quote: ReceivedQuote) => {
     await respondToQuote(quote.id, "rejected");
-    await supabase.functions.invoke("notify-invoice-quote-action", {
+
+    // Email notification (best-effort)
+    supabase.functions.invoke("notify-invoice-quote-action", {
       body: { action_type: "reject", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
 
-    // Insert in-app notification for the contractor.
-    await supabase.from("notifications").insert({
-      user_id: quote.contractor_id,
-      title: "Quote declined",
-      message: `${quote.client_name} has declined your quote for ${quote.title}`,
-      type: "quote",
-      reference_id: quote.id,
-      reference_type: "quote",
-      is_read: false,
-    }).catch(console.error);
-
+    // In-app notification handled by the notify_quote_response DB trigger.
     toast({ title: "Quote Rejected", description: "The contractor has been notified." });
   };
 
   const handleStall = async (quote: ReceivedQuote) => {
     await respondToQuote(quote.id, "stalled");
-    await supabase.functions.invoke("notify-invoice-quote-action", {
+    supabase.functions.invoke("notify-invoice-quote-action", {
       body: { action_type: "stall", context_type: "quote", context_id: quote.id },
     }).catch(console.error);
     setMessageDialog({ open: true, quote, action: "stalled" });
