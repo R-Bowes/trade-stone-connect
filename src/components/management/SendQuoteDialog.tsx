@@ -101,17 +101,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("Not authenticated");
 
-      // issued_quotes.recipient_id references profiles.user_id, but enquiry.customer_id
-      // is profiles.id — look up the customer's auth user_id.
-      let recipientId: string | null = null;
-      if (enquiry.customer_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_id")
-          .eq("id", enquiry.customer_id)
-          .maybeSingle();
-        recipientId = profile?.user_id ?? null;
-      }
+      // enquiry.customer_id references profiles.id, and profiles.id = profiles.user_id
+      // (aligned by migration 20260328110000), so it can be used directly as recipient_id
+      // (FK target is profiles.user_id). A direct profile lookup would be RLS-blocked.
+      const recipientId = enquiry.customer_id ?? null;
 
       const lineItems = filledItems.map(({ description, quantity, unit_price }) => ({
         description: description.trim(),
