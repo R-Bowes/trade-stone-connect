@@ -85,67 +85,6 @@ const PersonalDashboard = () => {
     setPhotos([]);
   };
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoadError(null);
-      const {
-        data: { user: currentUser },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        setLoadError("Unable to validate your account.");
-        setLoading(false);
-        return;
-      }
-
-      if (!currentUser) {
-        navigate("/login");
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("user_id", currentUser.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setLoadError("Unable to load your profile.");
-        setLoading(false);
-        return;
-      }
-
-      if (profile?.user_type && profile.user_type !== "personal") {
-        navigate(`/dashboard/${profile.user_type}`);
-        return;
-      }
-
-      setUser(currentUser);
-      setLoading(false);
-    };
-
-    loadData();
-  }, [navigate]);
-
-  if (loadError) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <ErrorState message={loadError} onRetry={() => window.location.reload()} />
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <LoadingState message="Loading your dashboard..." />
-      </div>
-    );
-  }
-
   const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
 
@@ -268,6 +207,67 @@ const PersonalDashboard = () => {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoadError(null);
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        setLoadError("Unable to validate your account.");
+        setLoading(false);
+        return;
+      }
+
+      if (!currentUser) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+      if (profileError) {
+        setLoadError("Unable to load your profile.");
+        setLoading(false);
+        return;
+      }
+
+      if (profile?.user_type && profile.user_type !== "personal") {
+        navigate(`/dashboard/${profile.user_type}`);
+        return;
+      }
+
+      setUser(currentUser);
+      setLoading(false);
+    };
+
+    loadData();
+  }, [navigate]);
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <ErrorState message={loadError} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <LoadingState message="Loading your dashboard..." />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
