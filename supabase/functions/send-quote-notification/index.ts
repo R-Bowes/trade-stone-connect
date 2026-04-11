@@ -211,32 +211,24 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Resolve the auth user from the JWT so we can derive customer fields server-side
-    // rather than trusting values supplied in the request body.
-    // Use a separate anon client scoped to the user's token — getUser() on a
-    // service-role client does not validate the JWT correctly.
+    // Resolve the auth user from the JWT — pass the token directly to getUser()
+    // on the service-role client. This is the correct pattern for edge functions.
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
     let authUser: { id: string; email?: string } | null = null;
     let customerProfile: { id: string; user_id: string; email: string | null; full_name: string | null } | null = null;
     if (token) {
-      try {
-        const anonClient = createClient(SUPABASE_URL, token);
-        const { data: { user }, error: userError } = await anonClient.auth.getUser();
-        if (userError) {
-          console.warn('[send-quote-notification] getUser error:', userError.message);
-        } else if (user) {
-          authUser = user;
-          const { data: cp } = await supabase
-            .from('profiles')
-            .select('id, user_id, email, full_name')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          customerProfile = cp ?? null;
-        }
-      } catch (authErr) {
-        console.warn('[send-quote-notification] auth resolution failed:', authErr);
-        // Non-fatal — fall back to request body values
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError) {
+        console.warn('[send-quote-notification] getUser error:', authError.message);
+      } else if (user) {
+        authUser = user;
+        const { data: cp } = await supabase
+          .from('profiles')
+          .select('id, user_id, email, full_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        customerProfile = cp ?? null;
       }
     }
     console.log('[send-quote-notification] authUser:', authUser?.id, 'customerProfile.id:', customerProfile?.id);
@@ -294,36 +286,6 @@ const handler = async (req: Request): Promise<Response> => {
     // Record this request for rate limiting
     await recordRateLimitEntry(supabase, rateLimitIdentifier, 'quote_request');
 
-    // Insert quote into database using service role
-    console.log("Inserting quote into database");
-    const { data: quoteData, error: insertError } = await supabase
-      .from('quotes')
-      .insert({
-        contractor_id: requestData.contractor_id,
-        customer_name: requestData.customer_name.trim(),
-        customer_email: customerEmail,
-        customer_phone: requestData.customer_phone?.trim() || null,
-        project_title: requestData.project_title.trim(),
-        project_description: requestData.project_description.trim(),
-        project_location: requestData.project_location?.trim() || null,
-        budget_range: requestData.budget_range || null,
-        timeline: requestData.timeline || null,
-        additional_details: requestData.additional_details || null,
-        status: 'pending'
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      console.error("Failed to insert quote:", insertError);
-      return new Response(
-        JSON.stringify({ error: "Failed to submit quote request", success: false }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    console.log("Quote inserted successfully:", quoteData?.id);
-
     // Insert an enquiry row so the contractor sees this request in their management
     // dashboard (which queries the enquiries table). customer_id and customer_email
     // are derived from the JWT, not the request body.
@@ -353,21 +315,18 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Notify the contractor in-app about the new quote request
-    if (quoteData?.id) {
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: requestData.contractor_id,
-          title: "New Quote Request",
-          message: `${sanitizeText(requestData.customer_name)} has requested a quote for "${sanitizeText(requestData.project_title)}"`,
-          type: "quote_request",
-          reference_type: "quote",
-          reference_id: quoteData.id,
-        });
-      if (notifError) {
-        console.error("Failed to insert contractor notification:", notifError);
-        // Non-fatal — quote was saved and email will be sent
-      }
+    const { error: notifError } = await supabase
+      .from("notifications")
+      .insert({
+        user_id: requestData.contractor_id,
+        title: "New Quote Request",
+        message: `${sanitizeText(requestData.customer_name)} has requested a quote for "${sanitizeText(requestData.project_title)}"`,
+        type: "quote_request",
+        reference_type: "enquiry",
+      });
+    if (notifError) {
+      console.error("Failed to insert contractor notification:", notifError);
+      // Non-fatal — enquiry was saved and email will be sent
     }
 
     // Send confirmation email to customer
@@ -446,7 +405,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      quoteId: quoteData?.id,
       rateLimitRemaining: remainingRequests - 1
     }), {
       status: 200,
