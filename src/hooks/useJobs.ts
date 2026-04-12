@@ -7,6 +7,7 @@ export interface Job {
   contractor_id: string;
   client_id: string;
   issued_quote_id: string | null;
+  quote_number: string | null;
   title: string;
   description: string | null;
   location: string | null;
@@ -67,14 +68,18 @@ export function useJobs(role: "contractor" | "client") {
     const column = role === "contractor" ? "contractor_id" : "client_id";
     const { data, error } = await supabase
       .from("jobs")
-      .select("*")
+      .select("*, issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
       .eq(column, user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error loading jobs:", error);
     } else {
-      setJobs((data || []) as Job[]);
+      const mapped = (data || []).map((j: any) => ({
+        ...j,
+        quote_number: j.issued_quotes?.quote_number ?? null,
+      }));
+      setJobs(mapped as Job[]);
     }
     setLoading(false);
   };

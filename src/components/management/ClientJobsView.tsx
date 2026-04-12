@@ -67,6 +67,11 @@ export function ClientJobsView() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold truncate">{job.title}</h3>
+                        {job.quote_number && (
+                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                         {job.quote_number}
+                         </span>
+)}
                         <Badge className={sc.color}>
                           <StatusIcon className="h-3 w-3 mr-1" />
                           {sc.label}
@@ -144,6 +149,11 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-xl">{job.title}</CardTitle>
+{job.quote_number && (
+  <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">
+    Quote {job.quote_number}
+  </span>
+)}
               {job.description && <CardDescription>{job.description}</CardDescription>}
             </div>
             <Badge className={sc.color}>

@@ -59,6 +59,7 @@ type JobCardData = {
   client_id: string;
   client_name: string;
   client_ts_code: string | null;
+  quote_number: string | null;
 };
 
 type TimesheetEntry = {
@@ -210,7 +211,9 @@ export function JobManagement() {
         start_date,
         location,
         client_id,
-        client:profiles!jobs_client_id_fkey(full_name, company_name, ts_profile_code)
+        issued_quote_id,
+        client:profiles!jobs_client_id_fkey(full_name, company_name, ts_profile_code),
+        quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number)
       `)
       .eq("contractor_id", profileRow?.id)
       .order("start_date", { ascending: true, nullsFirst: false });
@@ -230,6 +233,7 @@ export function JobManagement() {
       client_id: job.client_id,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
       client_ts_code: job.client?.ts_profile_code ?? null,
+      quote_number: job.quote?.quote_number ?? null,
     })) as JobCardData[];
 
     setJobs(mapped);
@@ -489,7 +493,14 @@ export function JobManagement() {
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-0.5">
-                    <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+  <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
+  {(job as any).quote_number && (
+    <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+      {(job as any).quote_number}
+    </span>
+  )}
+</div>
                     <p className="text-sm text-muted-foreground">
                       <span>{job.client_name}</span>
                       {job.client_ts_code && (
