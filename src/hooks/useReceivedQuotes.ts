@@ -24,7 +24,6 @@ export interface ReceivedQuote {
   notes: string | null;
   terms: string | null;
   created_at: string;
-  enquiry_id: string | null;
 }
 
 export function useReceivedQuotes() {
@@ -44,7 +43,7 @@ const { data: profileRow } = await supabase
 
 const { data, error } = await supabase
   .from("issued_quotes")
-  .select("*, enquiry_id")
+  .select("*")
   .eq("recipient_id", profileRow?.id)
   .order("created_at", { ascending: false });
 
