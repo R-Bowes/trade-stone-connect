@@ -140,9 +140,15 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       .eq("user_id", user?.id ?? "")
       .maybeSingle();
 
-    await supabase.from("jobs").insert({
-      contractor_id: quote.contractor_id,
-      client_id: profileRow?.id ?? user?.id,
+    const { data: contractorProfile } = await supabase
+  .from("profiles")
+  .select("id")
+  .eq("user_id", quote.contractor_id)
+  .maybeSingle();
+
+await supabase.from("jobs").insert({
+  contractor_id: contractorProfile?.id ?? quote.contractor_id,
+  client_id: profileRow?.id ?? user?.id,
       issued_quote_id: quote.id,
       title: quote.title,
       description: quote.description || null,

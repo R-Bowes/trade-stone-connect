@@ -194,6 +194,12 @@ export function JobManagement() {
     const user = authData.user;
     if (!user) { setLoading(false); return; }
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("jobs")
       .select(`
@@ -205,7 +211,7 @@ export function JobManagement() {
         client_id,
         client:profiles!jobs_client_id_fkey(full_name, company_name)
       `)
-      .eq("contractor_id", user.id)
+      .eq("contractor_id", profileRow?.id)
       .order("start_date", { ascending: true, nullsFirst: false });
 
     if (error) {
