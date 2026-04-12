@@ -656,10 +656,6 @@ const ContractorDashboard = () => {
                           </div>
                           <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.job_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            {enquiry.status === 'converted' 
-                              ? (enquiry.customer_email ? <span>{enquiry.customer_email}</span> : null)
-                              : <span className="text-xs italic text-muted-foreground">Contact hidden until job confirmed</span>
-                            }
                             {enquiry.preferred_timeline ? <span>Timeline: {enquiry.preferred_timeline}</span> : null}
                             {enquiry.budget_range ? <span>Budget: {enquiry.budget_range}</span> : null}
                             <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{enquiry.location}</span>

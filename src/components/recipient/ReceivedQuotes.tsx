@@ -7,7 +7,6 @@ import { FileText, CheckCircle, XCircle, Pause, Loader2 } from "lucide-react";
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
 import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
-import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -21,58 +20,22 @@ export function ReceivedQuotes() {
   const [openNegotiationFor, setOpenNegotiationFor] = useState<string | null>(null);
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
-  // Deposit payment dialog state
-  const [depositDialog, setDepositDialog] = useState<{ open: boolean; quote: ReceivedQuote | null }>({
-    open: false,
-    quote: null,
-  });
-
-  // Called after Stripe confirms payment successfully
-  const handleDepositSuccess = async (quote: ReceivedQuote) => {
+  const handleAccept = async (quote: ReceivedQuote) => {
     setPendingIds((prev) => ({ ...prev, [quote.id]: "accepted" }));
-
     try {
-      // Mark quote accepted in our DB
       await respondToQuote(quote.id, "accepted");
 
-      // Notify contractor (best-effort)
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "accept", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
 
-      // Look up location from linked enquiry
-      let location: string | null = null;
-      if (quote.enquiry_id) {
-        const { data: enquiry } = await supabase
-          .from("enquiries")
-          .select("location")
-          .eq("id", quote.enquiry_id)
-          .maybeSingle();
-        location = enquiry?.location ?? null;
-      }
-
-      // Create the job
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { error: jobError } = await supabase.from("jobs").insert({
-          contractor_id: quote.contractor_id,
-          client_id: user.id,
-          issued_quote_id: quote.id,
-          title: quote.title,
-          description: quote.description || null,
-          location: location || null,
-          contract_value: quote.total || 0,
-          status: "scheduled",
-        });
-        if (jobError) console.error("Failed to create job:", jobError);
-      }
-
       toast({
-        title: "Deposit paid — job confirmed!",
-        description: "Your job has been created. You can discuss scheduling with your contractor.",
+        title: "Quote accepted",
+        description: "Now agree a schedule with your contractor to confirm the job.",
       });
 
-      setMessageDialog({ open: true, quote, action: "accepted" });
+      // Auto-open schedule negotiation
+      setOpenNegotiationFor(quote.id);
     } finally {
       setPendingIds((prev) => {
         const next = { ...prev };
@@ -86,11 +49,9 @@ export function ReceivedQuotes() {
     setPendingIds((prev) => ({ ...prev, [quote.id]: "rejected" }));
     try {
       await respondToQuote(quote.id, "rejected");
-
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "reject", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
-
       toast({ title: "Quote Rejected", description: "The contractor has been notified." });
     } finally {
       setPendingIds((prev) => {
@@ -195,14 +156,8 @@ export function ReceivedQuotes() {
                     )}
                     {canRespond(q) && (
                       <div className="flex justify-end gap-1">
-                        <Button
-                          size="sm"
-                          style={{ backgroundColor: "#f07820" }}
-                          className="text-white hover:opacity-90"
-                          onClick={() => setDepositDialog({ open: true, quote: q })}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Accept & Pay Deposit
+                        <Button size="sm" onClick={() => handleAccept(q)}>
+                          <CheckCircle className="h-4 w-4 mr-1" />Accept
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => handleReject(q)}>
                           <XCircle className="h-4 w-4 mr-1" />Reject
@@ -212,13 +167,13 @@ export function ReceivedQuotes() {
                         </Button>
                       </div>
                     )}
-                    {(q.recipient_response === "accepted" || pendingIds[q.id] === "accepted") && (
+                    {(q.recipient_response === "accepted" || q.status === "accepted" || pendingIds[q.id] === "accepted") && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setOpenNegotiationFor(openNegotiationFor === q.id ? null : q.id)}
                       >
-                        {openNegotiationFor === q.id ? "Hide Schedule" : "Negotiate Schedule"}
+                        {openNegotiationFor === q.id ? "Hide Schedule" : "Agree Schedule"}
                       </Button>
                     )}
                   </TableCell>
@@ -229,31 +184,30 @@ export function ReceivedQuotes() {
         </CardContent>
       </Card>
 
+      {/* Schedule negotiation — confirm/pay step lives inside here */}
       {quotes
-        .filter((quote) => quote.recipient_response === "accepted" && openNegotiationFor === quote.id)
-        .map((quote) => (
-          <QuoteScheduleNegotiation key={quote.id} quoteId={quote.id} contractorId={quote.contractor_id} mode="recipient" />
+        .filter((q) =>
+          (q.recipient_response === "accepted" || q.status === "accepted") &&
+          openNegotiationFor === q.id
+        )
+        .map((q) => (
+          <QuoteScheduleNegotiation
+            key={q.id}
+            quoteId={q.id}
+            contractorId={q.contractor_id}
+            mode="recipient"
+            quoteTotal={Number(q.total)}
+            quoteDepositAmount={(q as any).deposit_amount ? Number((q as any).deposit_amount) : null}
+            contractorName={q.contractor_name ?? "Contractor"}
+            onJobConfirmed={() => {
+              setOpenNegotiationFor(null);
+              toast({
+                title: "Job confirmed!",
+                description: "Your job has been created and the contractor has been notified.",
+              });
+            }}
+          />
         ))}
-
-      {/* Deposit payment dialog */}
-      {depositDialog.quote && (
-        <DepositPaymentDialog
-          quoteId={depositDialog.quote.id}
-          totalAmount={Number(depositDialog.quote.total)}
-          depositAmount={
-            (depositDialog.quote as any).deposit_amount
-              ? Number((depositDialog.quote as any).deposit_amount)
-              : undefined
-          }
-          contractorName={depositDialog.quote.contractor_name ?? "Contractor"}
-          open={depositDialog.open}
-          onClose={() => setDepositDialog({ open: false, quote: null })}
-          onSuccess={() => {
-            if (depositDialog.quote) handleDepositSuccess(depositDialog.quote);
-            setDepositDialog({ open: false, quote: null });
-          }}
-        />
-      )}
 
       {messageDialog.quote && (
         <MessageDialog
