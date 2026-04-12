@@ -709,7 +709,7 @@ const BusinessManagement = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>Client Satisfaction</span>
-                    <span className="font-bold">4.8/5</span>
+                    <span className="font-bold text-muted-foreground">No reviews yet</span>
                   </div>
                 </CardContent>
               </Card>
