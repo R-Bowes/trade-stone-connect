@@ -11,6 +11,7 @@ export interface ReceivedQuote {
   client_email: string;
   contractor_id: string;
   contractor_name: string;
+  contractor_ts_code: string | null;
   recipient_id: string | null;
   recipient_response: string | null;
   responded_at: string | null;
@@ -33,19 +34,19 @@ export function useReceivedQuotes() {
 
   const fetchQuotes = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-if (!user) return;
+    if (!user) return;
 
-const { data: profileRow } = await supabase
-  .from("profiles")
-  .select("id")
-  .eq("user_id", user.id)
-  .maybeSingle();
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-const { data, error } = await supabase
-  .from("issued_quotes")
-  .select("*")
-  .eq("recipient_id", profileRow?.id)
-  .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("issued_quotes")
+      .select("*")
+      .eq("recipient_id", profileRow?.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching received quotes:", error);
@@ -55,22 +56,27 @@ const { data, error } = await supabase
 
     const rawQuotes = (data || []) as unknown as ReceivedQuote[];
 
-    // Enrich with contractor names via public_pro_profiles (SECURITY DEFINER view —
-    // accessible to all authenticated users, unlike the locked-down profiles table).
     const contractorIds = [...new Set(rawQuotes.map((q) => q.contractor_id))];
     let nameMap: Record<string, string> = {};
+    let tsCodeMap: Record<string, string> = {};
+
     if (contractorIds.length > 0) {
       const { data: proProfiles } = await supabase
         .from("public_pro_profiles")
-        .select("user_id, full_name, company_name")
+        .select("user_id, full_name, company_name, ts_profile_code")
         .in("user_id", contractorIds);
       for (const p of proProfiles || []) {
         nameMap[p.user_id] = (p as any).company_name || (p as any).full_name || "Contractor";
+        if ((p as any).ts_profile_code) tsCodeMap[p.user_id] = (p as any).ts_profile_code;
       }
     }
 
     setQuotes(
-      rawQuotes.map((q) => ({ ...q, contractor_name: nameMap[q.contractor_id] ?? "Contractor" }))
+      rawQuotes.map((q) => ({
+        ...q,
+        contractor_name: nameMap[q.contractor_id] ?? "Contractor",
+        contractor_ts_code: tsCodeMap[q.contractor_id] ?? null,
+      }))
     );
     setLoading(false);
   }, []);

@@ -170,7 +170,14 @@ export function ReceivedQuotes() {
               {quotes.map((q) => (
                 <TableRow key={q.id}>
                   <TableCell className="font-medium">{q.quote_number || "—"}</TableCell>
-                  <TableCell>{q.contractor_name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span>{q.contractor_name}</span>
+                      {q.contractor_ts_code && (
+                        <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{q.contractor_ts_code}</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{q.title}</TableCell>
                   <TableCell>{format(new Date(q.valid_until), "dd MMM yyyy")}</TableCell>
                   <TableCell className="text-right font-bold">£{Number(q.total).toFixed(2)}</TableCell>
