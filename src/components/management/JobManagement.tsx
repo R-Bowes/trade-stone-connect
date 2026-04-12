@@ -58,6 +58,7 @@ type JobCardData = {
   location: string | null;
   client_id: string;
   client_name: string;
+  client_ts_code: string | null;
 };
 
 type TimesheetEntry = {
@@ -209,7 +210,7 @@ export function JobManagement() {
         start_date,
         location,
         client_id,
-        client:profiles!jobs_client_id_fkey(full_name, company_name)
+        client:profiles!jobs_client_id_fkey(full_name, company_name, ts_profile_code)
       `)
       .eq("contractor_id", profileRow?.id)
       .order("start_date", { ascending: true, nullsFirst: false });
@@ -228,6 +229,7 @@ export function JobManagement() {
       location: job.location ?? null,
       client_id: job.client_id,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
+      client_ts_code: job.client?.ts_profile_code ?? null,
     })) as JobCardData[];
 
     setJobs(mapped);
@@ -275,7 +277,6 @@ export function JobManagement() {
 
   useEffect(() => { loadJobs(); }, []);
 
-  // Sort active jobs first (by workflow stage), cancelled at the end.
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99)),
     [jobs],
@@ -397,13 +398,11 @@ export function JobManagement() {
       .eq("user_id", fullJob.contractor_id)
       .single();
 
-    // Build labour line items from timesheets
     const jobTimesheets = timesheetsByJob[fullJob.id] || [];
     let labourItems: InvoiceItem[] = [];
     if (jobTimesheets.length > 0 && contractorProfile?.hourly_rate) {
       const hourlyRate = Number(contractorProfile.hourly_rate);
 
-      // Fetch worker names for team members
       const workerIds = [...new Set(jobTimesheets.map((t) => t.worker_id).filter(Boolean))] as string[];
       let workerNames: Record<string, string> = {};
       if (workerIds.length > 0) {
@@ -486,15 +485,16 @@ export function JobManagement() {
               className={cn("transition-opacity", job.status === "cancelled" && "opacity-60")}
             >
               <CardContent className="p-6 space-y-5">
-                {/* ── Step tracker ─────────────────────────────────────── */}
                 <StepTracker currentStatus={job.status} />
 
-                {/* ── Job meta ──────────────────────────────────────────── */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-0.5">
                     <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {job.client_name}
+                      <span>{job.client_name}</span>
+                      {job.client_ts_code && (
+                        <span className="ml-2 text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{job.client_ts_code}</span>
+                      )}
                       {job.start_date
                         ? ` • Started ${format(new Date(job.start_date), "dd MMM yyyy")}`
                         : ""}
@@ -510,12 +510,10 @@ export function JobManagement() {
                   )}
                 </div>
 
-                {/* ── Live timer — in_progress only ─────────────────────── */}
                 {job.status === "in_progress" && (
                   <LiveTimer startDate={job.start_date} />
                 )}
 
-                {/* ── Snag list — snagging only ─────────────────────────── */}
                 {job.status === "snagging" && (
                   <div className="rounded-md border p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -569,7 +567,6 @@ export function JobManagement() {
                   </div>
                 )}
 
-                {/* ── Logged hours ──────────────────────────────────────── */}
                 {(() => {
                   const entries = timesheetsByJob[job.id] || [];
                   if (entries.length === 0) return null;
@@ -584,7 +581,6 @@ export function JobManagement() {
                   );
                 })()}
 
-                {/* ── Actions ───────────────────────────────────────────── */}
                 <div className="flex flex-wrap gap-2">
                   {canProgress && (
                     <Button
