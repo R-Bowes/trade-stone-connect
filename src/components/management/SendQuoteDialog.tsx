@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MapPin, Plus, Trash2 } from "lucide-react";
@@ -45,6 +46,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [items, setItems] = useState<LineItem[]>([blankItem()]);
+  const [completionTime, setCompletionTime] = useState("");
   const [taxRate, setTaxRate] = useState(20);
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
@@ -56,6 +58,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setTitle(`Quote for ${enquiry.customer_name ?? "customer"}`);
     setDescription(enquiry.job_description ?? "");
     setItems([blankItem()]);
+    setCompletionTime("");
     setTaxRate(20);
     setValidUntil("");
     setNotes("");
@@ -135,6 +138,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         total,
         valid_until: validUntil,
         notes: notes.trim() || null,
+        completion_time: completionTime || null,
         terms: terms.trim() || null,
         status: "sent",
         sent_at: new Date().toISOString(),
@@ -320,6 +324,24 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               className="min-h-16"
               disabled={submitting}
             />
+          </div>
+
+<div className="space-y-2">
+            <Label>Estimated Completion Time</Label>
+            <Select value={completionTime} onValueChange={setCompletionTime}>
+              <SelectTrigger disabled={submitting}>
+                <SelectValue placeholder="Select duration..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="half_day">Half Day (4 hours)</SelectItem>
+                <SelectItem value="full_day">Full Day (8 hours)</SelectItem>
+                <SelectItem value="2_days">2 Days</SelectItem>
+                <SelectItem value="3_days">3 Days</SelectItem>
+                <SelectItem value="1_week">1 Week</SelectItem>
+                <SelectItem value="2_weeks">2 Weeks</SelectItem>
+                <SelectItem value="1_month">1 Month+</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

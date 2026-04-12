@@ -105,28 +105,71 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
   }, [contractorId, fetchData, quoteId, toast, userId]);
 
   const acceptProposal = useCallback(async (proposalId: string) => {
-    if (!quoteId) return;
+  if (!quoteId) return;
 
-    const { error } = await supabase
-      .from("schedule_events")
-      .update({ status: "accepted", is_confirmed: true })
-      .eq("id", proposalId);
+  // Mark this proposal as accepted
+  const { error } = await supabase
+    .from("schedule_events")
+    .update({ status: "accepted", is_confirmed: true })
+    .eq("id", proposalId);
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to accept proposal", variant: "destructive" });
-      throw error;
-    }
+  if (error) {
+    toast({ title: "Error", description: "Failed to accept proposal", variant: "destructive" });
+    throw error;
+  }
 
+  // Decline all other proposals for this quote
+  await supabase
+    .from("schedule_events")
+    .update({ status: "declined", is_confirmed: false })
+    .eq("quote_id", quoteId)
+    .neq("id", proposalId)
+    .eq("status", "proposed");
+
+  // Fetch the accepted proposal and quote details to create a job
+  const [{ data: proposal }, { data: quote }] = await Promise.all([
+    supabase.from("schedule_events").select("*").eq("id", proposalId).maybeSingle(),
+    supabase.from("issued_quotes").select("*").eq("id", quoteId).maybeSingle(),
+  ]);
+
+  if (proposal && quote) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user?.id ?? "")
+      .maybeSingle();
+
+    await supabase.from("jobs").insert({
+      contractor_id: quote.contractor_id,
+      client_id: profileRow?.id ?? user?.id,
+      issued_quote_id: quote.id,
+      title: quote.title,
+      description: quote.description || null,
+      contract_value: quote.total || 0,
+      status: "scheduled",
+      start_date: proposal.start_time,
+      end_date: proposal.end_time,
+    });
+
+    // Update quote status to converted
     await supabase
-      .from("schedule_events")
-      .update({ status: "declined", is_confirmed: false })
-      .eq("quote_id", quoteId)
-      .neq("id", proposalId)
-      .eq("status", "proposed");
+      .from("issued_quotes")
+      .update({ status: "accepted" })
+      .eq("id", quoteId);
 
-    toast({ title: "Schedule confirmed", description: "The selected date was accepted." });
-    await fetchData();
-  }, [fetchData, quoteId, toast]);
+    // Update enquiry status to converted if linked
+    if (quote.enquiry_id) {
+      await supabase
+        .from("enquiries")
+        .update({ status: "converted" })
+        .eq("id", quote.enquiry_id);
+    }
+  }
+
+  toast({ title: "Schedule confirmed", description: "The selected date was accepted." });
+  await fetchData();
+}, [fetchData, quoteId, toast]);
 
   const hasConfirmedProposal = useMemo(
     () => proposals.some((proposal) => proposal.is_confirmed || proposal.status === "accepted"),
