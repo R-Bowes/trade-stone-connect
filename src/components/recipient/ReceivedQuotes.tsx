@@ -7,6 +7,7 @@ import { FileText, CheckCircle, XCircle, Pause, Loader2 } from "lucide-react";
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
 import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
+import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -18,20 +19,28 @@ export function ReceivedQuotes() {
   });
   const { toast } = useToast();
   const [openNegotiationFor, setOpenNegotiationFor] = useState<string | null>(null);
-  // Track in-flight responses for optimistic UI locking
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
-  const handleAccept = async (quote: ReceivedQuote) => {
+  // Deposit payment dialog state
+  const [depositDialog, setDepositDialog] = useState<{ open: boolean; quote: ReceivedQuote | null }>({
+    open: false,
+    quote: null,
+  });
+
+  // Called after Stripe confirms payment successfully
+  const handleDepositSuccess = async (quote: ReceivedQuote) => {
     setPendingIds((prev) => ({ ...prev, [quote.id]: "accepted" }));
+
     try {
+      // Mark quote accepted in our DB
       await respondToQuote(quote.id, "accepted");
 
-      // Email notification (best-effort)
+      // Notify contractor (best-effort)
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "accept", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
 
-      // Look up location from linked enquiry if available
+      // Look up location from linked enquiry
       let location: string | null = null;
       if (quote.enquiry_id) {
         const { data: enquiry } = await supabase
@@ -42,9 +51,7 @@ export function ReceivedQuotes() {
         location = enquiry?.location ?? null;
       }
 
-      // Auto-create a job from the accepted quote.
-      // In-app notification for the contractor is handled by the
-      // notify_quote_response DB trigger on issued_quotes UPDATE.
+      // Create the job
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { error: jobError } = await supabase.from("jobs").insert({
@@ -61,11 +68,10 @@ export function ReceivedQuotes() {
       }
 
       toast({
-        title: "Quote accepted",
-        description: "Job has been created. You can discuss scheduling with your contractor.",
+        title: "Deposit paid — job confirmed!",
+        description: "Your job has been created. You can discuss scheduling with your contractor.",
       });
 
-      // Open message dialog for scheduling discussion
       setMessageDialog({ open: true, quote, action: "accepted" });
     } finally {
       setPendingIds((prev) => {
@@ -81,12 +87,10 @@ export function ReceivedQuotes() {
     try {
       await respondToQuote(quote.id, "rejected");
 
-      // Email notification (best-effort)
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "reject", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
 
-      // In-app notification handled by the notify_quote_response DB trigger.
       toast({ title: "Quote Rejected", description: "The contractor has been notified." });
     } finally {
       setPendingIds((prev) => {
@@ -125,7 +129,6 @@ export function ReceivedQuotes() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
-  // A quote can only be acted on when status is 'sent' and not yet responded to
   const canRespond = (quote: ReceivedQuote) =>
     quote.status === "sent" &&
     !quote.recipient_response &&
@@ -174,7 +177,9 @@ export function ReceivedQuotes() {
                     <div className="flex items-center gap-2">
                       <span>{q.contractor_name}</span>
                       {q.contractor_ts_code && (
-                        <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{q.contractor_ts_code}</span>
+                        <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+                          {q.contractor_ts_code}
+                        </span>
                       )}
                     </div>
                   </TableCell>
@@ -190,8 +195,14 @@ export function ReceivedQuotes() {
                     )}
                     {canRespond(q) && (
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" onClick={() => handleAccept(q)}>
-                          <CheckCircle className="h-4 w-4 mr-1" />Accept
+                        <Button
+                          size="sm"
+                          style={{ backgroundColor: "#f07820" }}
+                          className="text-white hover:opacity-90"
+                          onClick={() => setDepositDialog({ open: true, quote: q })}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Accept & Pay Deposit
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => handleReject(q)}>
                           <XCircle className="h-4 w-4 mr-1" />Reject
@@ -224,12 +235,34 @@ export function ReceivedQuotes() {
           <QuoteScheduleNegotiation key={quote.id} quoteId={quote.id} contractorId={quote.contractor_id} mode="recipient" />
         ))}
 
+      {/* Deposit payment dialog */}
+      {depositDialog.quote && (
+        <DepositPaymentDialog
+          quoteId={depositDialog.quote.id}
+          totalAmount={Number(depositDialog.quote.total)}
+          depositAmount={
+            (depositDialog.quote as any).deposit_amount
+              ? Number((depositDialog.quote as any).deposit_amount)
+              : undefined
+          }
+          contractorName={depositDialog.quote.contractor_name ?? "Contractor"}
+          open={depositDialog.open}
+          onClose={() => setDepositDialog({ open: false, quote: null })}
+          onSuccess={() => {
+            if (depositDialog.quote) handleDepositSuccess(depositDialog.quote);
+            setDepositDialog({ open: false, quote: null });
+          }}
+        />
+      )}
+
       {messageDialog.quote && (
         <MessageDialog
           open={messageDialog.open}
           onClose={() => setMessageDialog({ open: false, quote: null, action: "" })}
           contractorId={messageDialog.quote.contractor_id}
-          subject={`Quote ${messageDialog.quote.quote_number || messageDialog.quote.id} - ${messageDialog.action === "accepted" ? "Accepted - Let's Schedule" : "Stalled - Discussion Needed"}`}
+          subject={`Quote ${messageDialog.quote.quote_number || messageDialog.quote.id} - ${
+            messageDialog.action === "accepted" ? "Accepted - Let's Schedule" : "Stalled - Discussion Needed"
+          }`}
           contextType="quote"
           contextId={messageDialog.quote.id}
         />
