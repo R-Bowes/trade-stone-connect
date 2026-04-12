@@ -56,6 +56,7 @@ type Enquiry = {
   contractor_id: string | null;
   customer_id: string | null;
   customer_name: string | null;
+  customer_ts_code: string | null;
   customer_email: string | null;
   customer_phone: string | null;
   job_description: string;
@@ -128,7 +129,18 @@ const ContractorDashboard = () => {
       return;
     }
 
-    setEnquiries((data as Enquiry[]) ?? []);
+    // Enrich with customer TS codes
+    const enriched = await Promise.all((data ?? []).map(async (enquiry: any) => {
+      if (!enquiry.customer_id) return enquiry;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("ts_profile_code")
+        .eq("id", enquiry.customer_id)
+        .maybeSingle();
+      return { ...enquiry, customer_ts_code: profile?.ts_profile_code ?? null };
+    }));
+
+    setEnquiries(enriched as Enquiry[]);
     setEnquiriesLoading(false);
   };
 
@@ -633,10 +645,13 @@ const ContractorDashboard = () => {
                 {enquiries.map((enquiry) => (
                   <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="text-lg font-semibold">{enquiry.customer_name ?? "Unknown"}</h3>
+                            {enquiry.customer_ts_code && (
+                              <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{enquiry.customer_ts_code}</span>
+                            )}
                             <Badge className={getStatusColor(enquiry.status ?? 'new')}>{enquiry.status ?? 'new'}</Badge>
                           </div>
                           <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.job_description}</p>
