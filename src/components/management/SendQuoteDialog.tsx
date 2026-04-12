@@ -51,6 +51,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
+  const [depositRequired, setDepositRequired] = useState(false);
+  const [depositPercentage, setDepositPercentage] = useState(25);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setValidUntil("");
     setNotes("");
     setTerms("");
+    setDepositRequired(false);
+    setDepositPercentage(25);
   }, [open, enquiry]);
 
   const updateItem = useCallback(
@@ -79,6 +83,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
+  const depositAmount = depositRequired ? total * (depositPercentage / 100) : 0;
 
   const fmt = (n: number) =>
     n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -113,7 +118,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
           .maybeSingle();
         recipientId = customerProfile?.id ?? null;
       }
-      console.log('[SendQuoteDialog] enquiry.customer_id:', enquiry.customer_id, '→ resolved user_id:', recipientId);
 
       const lineItems = filledItems.map(({ description, quantity, unit_price }) => ({
         description: description.trim(),
@@ -139,6 +143,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         valid_until: validUntil,
         notes: notes.trim() || null,
         completion_time: completionTime || null,
+        deposit_required: depositRequired,
+        deposit_percentage: depositRequired ? depositPercentage : 0,
         terms: terms.trim() || null,
         status: "sent",
         sent_at: new Date().toISOString(),
@@ -297,6 +303,12 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               <span>Total</span>
               <span>£{fmt(total)}</span>
             </div>
+            {depositRequired && (
+              <div className="flex justify-between text-primary font-medium border-t pt-2">
+                <span>Deposit due ({depositPercentage}%)</span>
+                <span>£{fmt(depositAmount)}</span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -315,18 +327,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-notes">Notes (optional)</Label>
-            <Textarea
-              id="quote-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional notes for the customer..."
-              className="min-h-16"
-              disabled={submitting}
-            />
-          </div>
-
-<div className="space-y-2">
             <Label>Estimated Completion Time</Label>
             <Select value={completionTime} onValueChange={setCompletionTime}>
               <SelectTrigger disabled={submitting}>
@@ -342,6 +342,52 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
                 <SelectItem value="1_month">1 Month+</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-3 rounded-md border p-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="deposit-required"
+                checked={depositRequired}
+                onChange={(e) => setDepositRequired(e.target.checked)}
+                disabled={submitting}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="deposit-required" className="cursor-pointer">Deposit required</Label>
+            </div>
+            {depositRequired && (
+              <div className="space-y-2 pl-6">
+                <Label>Deposit percentage</Label>
+                <Select value={String(depositPercentage)} onValueChange={(v) => setDepositPercentage(Number(v))}>
+                  <SelectTrigger disabled={submitting} className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10%</SelectItem>
+                    <SelectItem value="25">25%</SelectItem>
+                    <SelectItem value="50">50%</SelectItem>
+                    <SelectItem value="75">75%</SelectItem>
+                    <SelectItem value="100">100% (full payment upfront)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Customer will be asked to pay <span className="font-medium text-foreground">£{fmt(depositAmount)}</span> before contact details are revealed.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quote-notes">Notes (optional)</Label>
+            <Textarea
+              id="quote-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any additional notes for the customer..."
+              className="min-h-16"
+              disabled={submitting}
+            />
           </div>
 
           <div className="space-y-2">
