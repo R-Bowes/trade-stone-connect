@@ -105,10 +105,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       if (enquiry.customer_id) {
         const { data: customerProfile } = await supabase
           .from('profiles')
-          .select('user_id')
+          .select('id')
           .eq('id', enquiry.customer_id)
           .maybeSingle();
-        recipientId = customerProfile?.user_id ?? null;
+        recipientId = customerProfile?.id ?? null;
       }
       console.log('[SendQuoteDialog] enquiry.customer_id:', enquiry.customer_id, '→ resolved user_id:', recipientId);
 

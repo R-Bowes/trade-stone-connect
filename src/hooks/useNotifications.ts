@@ -23,10 +23,16 @@ export function useNotifications() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", profileRow?.id ?? user.id)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -44,14 +50,21 @@ export function useNotifications() {
 
   // Subscribe to realtime inserts
   useEffect(() => {
-    let userId: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | undefined;
 
     const setup = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      userId = user.id;
 
-      const channel = supabase
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const profileId = profileRow?.id ?? user.id;
+
+      channel = supabase
         .channel("notifications-realtime")
         .on(
           "postgres_changes",
@@ -59,7 +72,7 @@ export function useNotifications() {
             event: "INSERT",
             schema: "public",
             table: "notifications",
-            filter: `user_id=eq.${user.id}`,
+            filter: `user_id=eq.${profileId}`,
           },
           (payload) => {
             const newNotif = payload.new as unknown as Notification;
@@ -71,12 +84,9 @@ export function useNotifications() {
           }
         )
         .subscribe();
-
-      return channel;
     };
 
-    let channel: ReturnType<typeof supabase.channel> | undefined;
-    setup().then((ch) => { channel = ch; });
+    setup();
 
     return () => {
       if (channel) supabase.removeChannel(channel);
@@ -95,11 +105,19 @@ export function useNotifications() {
   const markAllAsRead = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("user_id", user.id)
+      .eq("user_id", profileRow?.id ?? user.id)
       .eq("is_read", false);
+
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 

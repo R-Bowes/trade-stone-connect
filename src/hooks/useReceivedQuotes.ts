@@ -34,13 +34,19 @@ export function useReceivedQuotes() {
 
   const fetchQuotes = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+if (!user) return;
 
-    const { data, error } = await supabase
-      .from("issued_quotes")
-      .select("*, enquiry_id")
-      .eq("recipient_id", user.id)
-      .order("created_at", { ascending: false });
+const { data: profileRow } = await supabase
+  .from("profiles")
+  .select("id")
+  .eq("user_id", user.id)
+  .maybeSingle();
+
+const { data, error } = await supabase
+  .from("issued_quotes")
+  .select("*, enquiry_id")
+  .eq("recipient_id", profileRow?.id)
+  .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching received quotes:", error);
