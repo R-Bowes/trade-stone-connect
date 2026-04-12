@@ -141,17 +141,24 @@ const PersonalDashboard = () => {
     setFormSuccess(null);
 
     try {
-      const { data: insertedEnquiry, error: insertError } = await supabase
-        .from("enquiries")
-        .insert({
-          homeowner_id: user.id,
-          title: trimmedTitle,
-          description: trimmedDescription,
-          location: trimmedLocation,
-          status: "new",
-        })
-        .select("id")
-        .single();
+      const { data: profileRow } = await supabase
+  .from("profiles")
+  .select("id")
+  .eq("user_id", user.id)
+  .maybeSingle();
+
+const { data: insertedEnquiry, error: insertError } = await supabase
+  .from("enquiries")
+  .insert({
+    customer_id: profileRow?.id ?? null,
+    customer_name: user.user_metadata?.full_name ?? user.email ?? "Customer",
+    customer_email: user.email ?? "",
+    job_description: trimmedDescription,
+    location: trimmedLocation,
+    status: "new",
+  })
+  .select("id")
+  .single();
 
       if (insertError || !insertedEnquiry?.id) {
         throw new Error(insertError?.message ?? "Failed to create enquiry.");
