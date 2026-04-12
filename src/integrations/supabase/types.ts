@@ -835,6 +835,7 @@ export type Database = {
           client_name: string
           client_phone: string | null
           client_type: string
+          completion_time: string | null
           contractor_id: string
           created_at: string
           description: string | null
@@ -863,6 +864,7 @@ export type Database = {
           client_name: string
           client_phone?: string | null
           client_type?: string
+          completion_time?: string | null
           contractor_id: string
           created_at?: string
           description?: string | null
@@ -891,6 +893,7 @@ export type Database = {
           client_name?: string
           client_phone?: string | null
           client_type?: string
+          completion_time?: string | null
           contractor_id?: string
           created_at?: string
           description?: string | null
@@ -918,14 +921,14 @@ export type Database = {
             columns: ["recipient_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "issued_quotes_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1419,7 +1422,6 @@ export type Database = {
           onboarding_completed: boolean | null
           phone: string | null
           stripe_account_id: string | null
-          trade: string | null
           trades: string[] | null
           ts_profile_code: string | null
           updated_at: string
@@ -1446,7 +1448,6 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone?: string | null
           stripe_account_id?: string | null
-          trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
@@ -1473,7 +1474,6 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone?: string | null
           stripe_account_id?: string | null
-          trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
@@ -1601,6 +1601,27 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      rate_limits: {
+        Row: {
+          action_type: string
+          created_at: string | null
+          id: string
+          identifier: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string | null
+          id?: string
+          identifier: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string | null
+          id?: string
+          identifier?: string
+        }
+        Relationships: []
       }
       schedule_events: {
         Row: {
@@ -2100,16 +2121,11 @@ export type Database = {
           is_verified: boolean | null
           location: string | null
           logo_url: string | null
-          onboarding_completed: boolean | null
-          phone: string | null
-          stripe_account_id: string | null
-          trade: string | null
           trades: string[] | null
           ts_profile_code: string | null
           updated_at: string | null
           user_id: string | null
           user_type: Database["public"]["Enums"]["user_type"] | null
-          website: string | null
           working_radius: string | null
           years_experience: number | null
         }
@@ -2125,16 +2141,11 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
-          onboarding_completed?: boolean | null
-          phone?: string | null
-          stripe_account_id?: string | null
-          trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
-          website?: string | null
           working_radius?: string | null
           years_experience?: number | null
         }
@@ -2150,16 +2161,11 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
-          onboarding_completed?: boolean | null
-          phone?: string | null
-          stripe_account_id?: string | null
-          trade?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string | null
           user_id?: string | null
           user_type?: Database["public"]["Enums"]["user_type"] | null
-          website?: string | null
           working_radius?: string | null
           years_experience?: number | null
         }
@@ -2170,7 +2176,9 @@ export type Database = {
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       check_sla_breaches: { Args: never; Returns: undefined }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
-      generate_ts_profile_code: { Args: never; Returns: string }
+      generate_ts_profile_code:
+        | { Args: never; Returns: string }
+        | { Args: { p_user_type?: string }; Returns: string }
     }
     Enums: {
       user_type: "personal" | "business" | "contractor"
