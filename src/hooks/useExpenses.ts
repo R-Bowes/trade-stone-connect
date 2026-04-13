@@ -55,10 +55,16 @@ export function useExpenses() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("expenses")
       .select("*")
-      .eq("contractor_id", user.id)
+      .eq("contractor_id", profileRow?.id)
       .order("expense_date", { ascending: false });
 
     if (error) {
@@ -77,9 +83,15 @@ export function useExpenses() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("expenses").insert({
       ...expense,
-      contractor_id: user.id,
+      contractor_id: profileRow?.id,
     });
 
     if (error) {

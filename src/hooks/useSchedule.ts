@@ -46,10 +46,16 @@ export function useSchedule() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("schedule_events")
       .select("*")
-      .eq("contractor_id", user.id)
+      .eq("contractor_id", profileRow?.id)
       .order("start_time", { ascending: true });
 
     if (error) {
@@ -63,10 +69,16 @@ export function useSchedule() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("availability_slots")
       .select("*")
-      .eq("contractor_id", user.id)
+      .eq("contractor_id", profileRow?.id)
       .order("day_of_week", { ascending: true });
 
     if (error) {
@@ -89,9 +101,15 @@ export function useSchedule() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { error } = await supabase
       .from("schedule_events")
-      .insert({ ...event, contractor_id: user.id });
+      .insert({ ...event, contractor_id: profileRow?.id });
 
     if (error) {
       toast({ title: "Error", description: "Failed to create event", variant: "destructive" });
@@ -136,9 +154,15 @@ export function useSchedule() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     // Upsert all slots
     const records = slots.map(s => ({
-      contractor_id: user.id,
+      contractor_id: profileRow?.id,
       day_of_week: s.day_of_week,
       start_time: s.start_time,
       end_time: s.end_time,
@@ -146,7 +170,7 @@ export function useSchedule() {
     }));
 
     // Delete existing and re-insert for simplicity
-    await supabase.from("availability_slots").delete().eq("contractor_id", user.id);
+    await supabase.from("availability_slots").delete().eq("contractor_id", profileRow?.id);
     const { error } = await supabase.from("availability_slots").insert(records);
 
     if (error) {

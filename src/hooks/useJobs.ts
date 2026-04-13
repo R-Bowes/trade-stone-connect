@@ -65,11 +65,17 @@ export function useJobs(role: "contractor" | "client") {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const column = role === "contractor" ? "contractor_id" : "client_id";
     const { data, error } = await supabase
       .from("jobs")
       .select("*, issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
-      .eq(column, user.id)
+      .eq(column, profileRow?.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -284,6 +290,12 @@ export function useJobReview(jobId: string | null) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     // Get the job to get contractor_id
     const { data: job } = await supabase
       .from("jobs")
@@ -296,7 +308,7 @@ export function useJobReview(jobId: string | null) {
       .from("job_reviews")
       .insert({
         job_id: jobId,
-        client_id: user.id,
+        client_id: profileRow?.id,
         contractor_id: (job as any).contractor_id,
         rating,
         comment: comment || null,

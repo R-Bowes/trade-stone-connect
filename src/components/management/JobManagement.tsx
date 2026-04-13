@@ -323,9 +323,15 @@ export function JobManagement() {
     const user = authData.user;
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("job_snag_items")
-      .insert({ job_id: jobId, contractor_id: user.id, created_by: user.id, title })
+      .insert({ job_id: jobId, contractor_id: profileRow?.id, created_by: profileRow?.id, title })
       .select("id, job_id, title, is_resolved")
       .single();
 

@@ -79,7 +79,7 @@ const ContractorProfile = () => {
           const { data: docs } = await supabase
             .from('contractor_documents')
             .select('id, title, description, document_url, file_name, file_size')
-            .eq('contractor_id', data.user_id)
+            .eq('contractor_id', data.id)
             .order('display_order', { ascending: true });
           setContractorDocuments(docs || []);
         }

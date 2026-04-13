@@ -59,10 +59,16 @@ export function ScheduleManagement() {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("issued_quotes")
         .select("id, quote_number, title, contractor_id, recipient_response")
-        .eq("contractor_id", authData.user.id)
+        .eq("contractor_id", profileRow?.id)
         .eq("recipient_response", "accepted")
         .order("responded_at", { ascending: false });
 

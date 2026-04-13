@@ -40,10 +40,16 @@ export function PhotoGallery() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("contractor_photos")
         .select("*")
-        .eq("contractor_id", user.id)
+        .eq("contractor_id", profileRow?.id)
         .order("display_order", { ascending: true });
 
       if (error) throw error;
@@ -65,8 +71,14 @@ export function PhotoGallery() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const { error } = await supabase.from("contractor_photos").insert({
-        contractor_id: user.id,
+        contractor_id: profileRow?.id,
         ...newPhoto,
       });
 

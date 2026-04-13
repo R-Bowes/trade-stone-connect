@@ -54,10 +54,16 @@ export function ContractManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("contracts")
         .select("*")
-        .eq("contractor_id", user.id)
+        .eq("contractor_id", profileRow?.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -79,8 +85,14 @@ export function ContractManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const contractData = {
-        contractor_id: user.id,
+        contractor_id: profileRow?.id,
         client_name: formData.client_name,
         client_email: formData.client_email,
         client_phone: formData.client_phone || null,

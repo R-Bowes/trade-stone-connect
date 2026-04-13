@@ -22,10 +22,16 @@ export function useInvoices() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("invoices")
       .select("*")
-      .eq("contractor_id", user.id)
+      .eq("contractor_id", profileRow?.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -58,6 +64,12 @@ export function useInvoices() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const sendNow = invoice.status === "sent";
 
     const { data, error } = await supabase
@@ -65,7 +77,7 @@ export function useInvoices() {
       .insert({
         ...invoice,
         status: sendNow ? "draft" : invoice.status,
-        contractor_id: user.id,
+        contractor_id: profileRow?.id,
       })
       .select("id")
       .single();

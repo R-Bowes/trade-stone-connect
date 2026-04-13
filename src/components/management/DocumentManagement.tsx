@@ -36,6 +36,7 @@ export function DocumentManagement() {
   const [description, setDescription] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -49,10 +50,17 @@ export function DocumentManagement() {
       if (!user) return;
       setUserId(user.id);
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setProfileId(profileRow?.id ?? null);
+
       const { data, error } = await supabase
         .from("contractor_documents")
         .select("*")
-        .eq("contractor_id", user.id)
+        .eq("contractor_id", profileRow?.id)
         .order("display_order", { ascending: true });
 
       if (error) throw error;
@@ -82,7 +90,7 @@ export function DocumentManagement() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !userId || !title.trim()) return;
+    if (!selectedFile || !userId || !profileId || !title.trim()) return;
 
     setUploading(true);
     try {
@@ -99,7 +107,7 @@ export function DocumentManagement() {
       const { error: insertError } = await supabase
         .from("contractor_documents")
         .insert({
-          contractor_id: userId,
+          contractor_id: profileId,
           title: title.trim(),
           description: description.trim() || null,
           document_url: publicUrl,

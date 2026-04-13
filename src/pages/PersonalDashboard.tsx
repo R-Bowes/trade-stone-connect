@@ -187,7 +187,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
           .from("enquiries")
           .update({ enquiry_photo_paths: uploadedPaths })
           .eq("id", enquiryId)
-          .eq("homeowner_id", user.id);
+          .eq("homeowner_id", profileRow?.id);
 
         if (updateError) {
           throw new Error(`Enquiry was created, but photo links could not be saved: ${updateError.message}`);

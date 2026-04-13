@@ -125,9 +125,15 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const subcontractData = {
         contract_id: contractId,
-        contractor_id: user.id,
+        contractor_id: profileRow?.id,
         subcontractor_id: formData.subcontractor_id,
         scope_description: formData.scope_description,
         subcontract_value: parseFloat(formData.subcontract_value),

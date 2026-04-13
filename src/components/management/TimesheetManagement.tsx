@@ -62,16 +62,22 @@ export function TimesheetManagement() {
 
       setCurrentUserId(user.id);
 
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const [{ data: contractorJobs, error: contractorErr }, { data: workerRows, error: workerErr }] = await Promise.all([
         supabase
           .from("jobs")
           .select("id, title, contractor_id")
-          .eq("contractor_id", user.id)
+          .eq("contractor_id", profileRow?.id)
           .order("start_date", { ascending: false }),
         supabase
           .from("timesheets")
           .select("job_id, jobs!inner(id, title, contractor_id)")
-          .eq("worker_id", user.id),
+          .eq("worker_id", profileRow?.id),
       ]);
 
       if (contractorErr) throw contractorErr;

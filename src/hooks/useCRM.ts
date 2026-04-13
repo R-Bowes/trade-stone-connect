@@ -98,8 +98,14 @@ export function useCRM() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("crm_clients").insert({
-      contractor_id: user.id,
+      contractor_id: profileRow?.id,
       full_name: data.full_name,
       email: data.email || null,
       phone: data.phone || null,
@@ -151,8 +157,14 @@ export function useCRM() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("crm_activities").insert({
-      contractor_id: user.id,
+      contractor_id: profileRow?.id,
       client_id: clientId,
       activity_type: data.activity_type,
       title: data.title,

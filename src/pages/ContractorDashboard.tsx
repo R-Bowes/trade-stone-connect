@@ -354,7 +354,7 @@ const ContractorDashboard = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profileId) return;
 
     const quotesChannel = supabase
       .channel('new-quotes')
@@ -364,7 +364,7 @@ const ContractorDashboard = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'quotes',
-          filter: `contractor_id=eq.${user.id}`,
+          filter: `contractor_id=eq.${profileId}`,
         },
         (payload) => {
           setQuotes((prev) => [payload.new as Quote, ...prev]);
