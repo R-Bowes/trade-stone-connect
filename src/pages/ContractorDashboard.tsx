@@ -144,6 +144,18 @@ const ContractorDashboard = () => {
     setEnquiriesLoading(false);
   };
 
+  const REJECTED_STATUSES = new Set(["rejected", "declined"]);
+
+  const sortedEnquiries = useMemo(() =>
+    [...enquiries].sort((a, b) => {
+      const aRejected = REJECTED_STATUSES.has(a.status ?? "");
+      const bRejected = REJECTED_STATUSES.has(b.status ?? "");
+      if (aRejected !== bRejected) return aRejected ? 1 : -1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }),
+    [enquiries]
+  );
+
   const tourSteps: TourStep[] = useMemo(() => [
     {
       target: '[data-tour="dashboard-header"]',
@@ -642,7 +654,7 @@ const ContractorDashboard = () => {
               <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3><p className="text-muted-foreground">New enquiries assigned to you will appear here in real time.</p></CardContent></Card>
             ) : (
               <div className="space-y-4">
-                {enquiries.map((enquiry) => (
+                {sortedEnquiries.map((enquiry) => (
                   <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
