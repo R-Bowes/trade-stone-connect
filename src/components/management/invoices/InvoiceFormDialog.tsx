@@ -32,7 +32,7 @@ type InvoiceFormDialogProps = {
     client_phone?: string;
     client_address?: string;
     contractor_id?: string;
-    client_id?: string;
+    recipient_id?: string;
     job_id?: string;
     due_date: string;
     items: InvoiceItem[];
@@ -164,7 +164,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
         client_phone: clientPhone || undefined,
         client_address: clientAddress || undefined,
         contractor_id: initialData?.contractorId,
-        client_id: initialData?.clientId,
+        recipient_id: initialData?.clientId,
         job_id: initialData?.jobId,
         due_date: dueDate,
         items: items.map(i => ({ ...i, total: i.quantity * i.unit_price })),

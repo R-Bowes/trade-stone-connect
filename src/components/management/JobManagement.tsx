@@ -303,6 +303,7 @@ export function JobManagement() {
     setSavingJobId(job.id);
     setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
 
+    console.log("changeStatus called:", { jobId: job.id, nextStatus });
     const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
 
     if (error) {
