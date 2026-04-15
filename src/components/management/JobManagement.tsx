@@ -60,6 +60,7 @@ type JobCardData = {
   client_name: string;
   client_ts_code: string | null;
   quote_number: string | null;
+  issued_quote_id: string | null;
 };
 
 type TimesheetEntry = {
@@ -187,6 +188,7 @@ export function JobManagement() {
   const [savingJobId, setSavingJobId] = useState<string | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
+  const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
 
@@ -234,6 +236,7 @@ export function JobManagement() {
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
       client_ts_code: job.client?.ts_profile_code ?? null,
       quote_number: job.quote?.quote_number ?? null,
+      issued_quote_id: job.issued_quote_id ?? null,
     })) as JobCardData[];
 
     setJobs(mapped);
@@ -258,6 +261,17 @@ export function JobManagement() {
       }
     } else {
       setSnagItemsByJob({});
+    }
+
+    const quoteIds = mapped.map((j) => j.issued_quote_id).filter(Boolean) as string[];
+    if (quoteIds.length > 0) {
+      const { data: existingInvoices } = await supabase
+        .from("invoices")
+        .select("quote_id")
+        .in("quote_id", quoteIds);
+      setInvoicedQuoteIds(new Set((existingInvoices || []).map((i: any) => i.quote_id).filter(Boolean)));
+    } else {
+      setInvoicedQuoteIds(new Set());
     }
 
     if (jobIds.length > 0) {
@@ -610,22 +624,28 @@ export function JobManagement() {
                     </Button>
                   )}
                   {job.status === "complete" && (
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          await buildInvoiceFromJob(job);
-                        } catch (error: any) {
-                          toast({
-                            title: "Invoice generation failed",
-                            description: error?.message || "Could not pre-populate invoice from job data.",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    >
-                      Generate Invoice
-                    </Button>
+                    job.issued_quote_id && invoicedQuoteIds.has(job.issued_quote_id) ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Invoice Sent
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await buildInvoiceFromJob(job);
+                          } catch (error: any) {
+                            toast({
+                              title: "Invoice generation failed",
+                              description: error?.message || "Could not pre-populate invoice from job data.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        Generate Invoice
+                      </Button>
+                    )
                   )}
                 </div>
               </CardContent>
@@ -641,7 +661,7 @@ export function JobManagement() {
           setInvoiceInitialData(null);
         }}
         initialData={invoiceInitialData}
-        onSave={createInvoice}
+        onSave={async (data) => { await createInvoice(data); loadJobs(); }}
       />
     </>
   );

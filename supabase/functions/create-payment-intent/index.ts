@@ -1,14 +1,9 @@
-import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
+import Stripe from "https://esm.sh/stripe@14.21.0?target=deno&no-check";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.7.0";
-
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2024-06-20",
 });
-
-const resendApiKey = Deno.env.get("RESEND_API_KEY");
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const PLATFORM_FEE_PERCENT = 0.035;
 
@@ -41,6 +36,8 @@ serve(async (req) => {
 
     const { action = "create_client_secret", invoiceId }: RequestBody = await req.json();
 
+    console.log("Received invoiceId:", invoiceId);
+
     if (!invoiceId) {
       return jsonResponse(400, { success: false, error: "invoiceId is required" });
     }
@@ -64,6 +61,8 @@ serve(async (req) => {
       `)
       .eq("id", invoiceId)
       .single();
+
+    console.log("Invoice fetch result:", { invoice, invoiceError });
 
     if (invoiceError || !invoice) {
       return jsonResponse(400, { success: false, error: "Invoice not found" });
@@ -141,24 +140,6 @@ serve(async (req) => {
 
       if (sendUpdateError) {
         throw sendUpdateError;
-      }
-
-      if (resend) {
-        const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "http://localhost:5173";
-        const paymentLink = `${publicUrl}/pay/${invoice.id}`;
-
-        await resend.emails.send({
-          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <invoices@tradestone.app>",
-          to: [invoice.client_email],
-          subject: `Invoice ${invoice.invoice_number ?? invoice.id} is ready for payment`,
-          html: `
-            <h2>Invoice from TradeStone contractor</h2>
-            <p>Hi ${invoice.client_name},</p>
-            <p>Your invoice <strong>${invoice.invoice_number ?? invoice.id}</strong> is now ready.</p>
-            <p><a href="${paymentLink}">Pay invoice securely</a></p>
-            <p>Thank you.</p>
-          `,
-        });
       }
     }
 
