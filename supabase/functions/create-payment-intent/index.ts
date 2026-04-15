@@ -51,7 +51,7 @@ serve(async (req) => {
         id,
         invoice_number,
         contractor_id,
-        client_id,
+        recipient_id,
         client_email,
         client_name,
         due_date,
@@ -69,6 +69,16 @@ serve(async (req) => {
       return jsonResponse(400, { success: false, error: "Invoice not found" });
     }
 
+    const { data: contractorProfile, error: contractorError } = await supabase
+      .from("profiles")
+      .select("stripe_account_id, user_id")
+      .eq("id", invoice.contractor_id)
+      .single();
+
+    if (contractorError || !contractorProfile?.stripe_account_id) {
+      return jsonResponse(400, { success: false, error: "Contractor Stripe account is not configured" });
+    }
+
     if (action === "send_invoice") {
       const authHeader = req.headers.get("Authorization");
       const token = authHeader?.replace("Bearer ", "");
@@ -77,19 +87,9 @@ serve(async (req) => {
       }
 
       const { data: authData, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !authData.user || authData.user.id !== invoice.contractor_id) {
+      if (authError || !authData.user || authData.user.id !== contractorProfile?.user_id) {
         return jsonResponse(401, { success: false, error: "Unauthorized" });
       }
-    }
-
-    const { data: contractorProfile, error: contractorError } = await supabase
-      .from("profiles")
-      .select("stripe_account_id")
-      .eq("user_id", invoice.contractor_id)
-      .single();
-
-    if (contractorError || !contractorProfile?.stripe_account_id) {
-      return jsonResponse(400, { success: false, error: "Contractor Stripe account is not configured" });
     }
 
     const amountInPence = Math.round(Number(invoice.total || 0) * 100);
@@ -116,7 +116,7 @@ serve(async (req) => {
         metadata: {
           invoiceId: invoice.id,
           contractorId: invoice.contractor_id,
-          clientId: invoice.client_id,
+          clientId: invoice.recipient_id,
         },
       });
 
