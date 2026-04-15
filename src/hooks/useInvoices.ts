@@ -60,7 +60,7 @@ export function useInvoices() {
     await fetchInvoices();
   };
 
-  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id"> & { contractor_id?: string }) => {
+  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id"> & { contractor_id?: string; quote_id?: string | null }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 

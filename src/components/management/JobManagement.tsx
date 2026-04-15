@@ -452,7 +452,7 @@ export function JobManagement() {
       defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
       contractorId: fullJob.contractor_id,
       clientId: fullJob.client_id,
-      jobId: fullJob.id,
+      quoteId: fullJob.issued_quote_id,
     });
     setInvoiceDialogOpen(true);
   };
