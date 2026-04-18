@@ -91,7 +91,7 @@ const BusinessDashboard = () => {
       const { data: activeJobs, error: activeJobsError } = await supabase
         .from('jobs')
         .select('id')
-        .eq('client_id', currentUser.id)
+        .eq('customer_id', currentUser.id)
         .in('status', ['active', 'in_progress', 'in-progress']);
 
       const { data: completedJobs, error: completedJobsError } = await supabase

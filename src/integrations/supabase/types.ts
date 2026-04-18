@@ -542,7 +542,10 @@ export type Database = {
           location: string
           photo_urls: string[] | null
           preferred_timeline: string | null
+          project_id: string | null
           status: string | null
+          title: string | null
+          trade: string | null
           updated_at: string | null
         }
         Insert: {
@@ -560,7 +563,10 @@ export type Database = {
           location: string
           photo_urls?: string[] | null
           preferred_timeline?: string | null
+          project_id?: string | null
           status?: string | null
+          title?: string | null
+          trade?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -578,7 +584,10 @@ export type Database = {
           location?: string
           photo_urls?: string[] | null
           preferred_timeline?: string | null
+          project_id?: string | null
           status?: string | null
+          title?: string | null
+          trade?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -610,6 +619,51 @@ export type Database = {
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "enquiries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enquiry_measurements: {
+        Row: {
+          created_at: string
+          enquiry_id: string
+          id: string
+          label: string
+          sort_order: number | null
+          unit: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          enquiry_id: string
+          id?: string
+          label: string
+          sort_order?: number | null
+          unit?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          enquiry_id?: string
+          id?: string
+          label?: string
+          sort_order?: number | null
+          unit?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enquiry_measurements_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
         ]
       }
       expenses: {
@@ -622,9 +676,13 @@ export type Database = {
           expense_date: string
           id: string
           is_recurring: boolean
+          job_id: string | null
           notes: string | null
+          project_id: string | null
           receipt_url: string | null
           updated_at: string
+          vat_amount: number | null
+          vat_reclaimable: boolean | null
           vendor: string | null
         }
         Insert: {
@@ -636,9 +694,13 @@ export type Database = {
           expense_date?: string
           id?: string
           is_recurring?: boolean
+          job_id?: string | null
           notes?: string | null
+          project_id?: string | null
           receipt_url?: string | null
           updated_at?: string
+          vat_amount?: number | null
+          vat_reclaimable?: boolean | null
           vendor?: string | null
         }
         Update: {
@@ -650,12 +712,31 @@ export type Database = {
           expense_date?: string
           id?: string
           is_recurring?: boolean
+          job_id?: string | null
           notes?: string | null
+          project_id?: string | null
           receipt_url?: string | null
           updated_at?: string
+          vat_amount?: number | null
+          vat_reclaimable?: boolean | null
           vendor?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expenses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       favourites: {
         Row: {
@@ -739,78 +820,132 @@ export type Database = {
       }
       invoices: {
         Row: {
+          amount_due: number | null
           client_address: string | null
           client_email: string
           client_name: string
           client_phone: string | null
           contractor_id: string
           created_at: string
+          deposit_amount: number | null
+          deposit_deducted: number | null
+          deposit_paid: boolean | null
+          deposit_paid_at: string | null
           due_date: string
           id: string
           invoice_number: string | null
           issued_date: string
           items: Json
+          job_id: string | null
           notes: string | null
           paid_date: string | null
+          project_id: string | null
+          quote_id: string | null
           recipient_id: string | null
           recipient_response: string | null
           responded_at: string | null
+          sent_at: string | null
           status: string
+          stripe_payment_intent_id: string | null
           subtotal: number
           tax_amount: number
           tax_rate: number
           total: number
           updated_at: string
+          viewed_at: string | null
         }
         Insert: {
+          amount_due?: number | null
           client_address?: string | null
           client_email: string
           client_name: string
           client_phone?: string | null
           contractor_id: string
           created_at?: string
+          deposit_amount?: number | null
+          deposit_deducted?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_at?: string | null
           due_date: string
           id?: string
           invoice_number?: string | null
           issued_date?: string
           items?: Json
+          job_id?: string | null
           notes?: string | null
           paid_date?: string | null
+          project_id?: string | null
+          quote_id?: string | null
           recipient_id?: string | null
           recipient_response?: string | null
           responded_at?: string | null
+          sent_at?: string | null
           status?: string
+          stripe_payment_intent_id?: string | null
           subtotal?: number
           tax_amount?: number
           tax_rate?: number
           total?: number
           updated_at?: string
+          viewed_at?: string | null
         }
         Update: {
+          amount_due?: number | null
           client_address?: string | null
           client_email?: string
           client_name?: string
           client_phone?: string | null
           contractor_id?: string
           created_at?: string
+          deposit_amount?: number | null
+          deposit_deducted?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_at?: string | null
           due_date?: string
           id?: string
           invoice_number?: string | null
           issued_date?: string
           items?: Json
+          job_id?: string | null
           notes?: string | null
           paid_date?: string | null
+          project_id?: string | null
+          quote_id?: string | null
           recipient_id?: string | null
           recipient_response?: string | null
           responded_at?: string | null
+          sent_at?: string | null
           status?: string
+          stripe_payment_intent_id?: string | null
           subtotal?: number
           tax_amount?: number
           tax_rate?: number
           total?: number
           updated_at?: string
+          viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_recipient_id_fkey"
             columns: ["recipient_id"]
@@ -829,6 +964,7 @@ export type Database = {
       }
       issued_quotes: {
         Row: {
+          accepted_at: string | null
           business_name: string | null
           client_address: string | null
           client_email: string
@@ -838,13 +974,23 @@ export type Database = {
           completion_time: string | null
           contractor_id: string
           created_at: string
+          customer_note: string | null
+          deposit_amount: number | null
+          deposit_paid: boolean | null
+          deposit_paid_at: string | null
+          deposit_percentage: number | null
+          deposit_required: boolean | null
           description: string | null
+          enquiry_id: string | null
           id: string
           items: Json
           notes: string | null
+          parent_quote_id: string | null
+          project_id: string | null
           quote_number: string | null
           recipient_id: string | null
           recipient_response: string | null
+          rejected_at: string | null
           responded_at: string | null
           sent_at: string | null
           status: string
@@ -856,8 +1002,11 @@ export type Database = {
           total: number
           updated_at: string
           valid_until: string
+          version: number | null
+          viewed_at: string | null
         }
         Insert: {
+          accepted_at?: string | null
           business_name?: string | null
           client_address?: string | null
           client_email: string
@@ -867,13 +1016,23 @@ export type Database = {
           completion_time?: string | null
           contractor_id: string
           created_at?: string
+          customer_note?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_at?: string | null
+          deposit_percentage?: number | null
+          deposit_required?: boolean | null
           description?: string | null
+          enquiry_id?: string | null
           id?: string
           items?: Json
           notes?: string | null
+          parent_quote_id?: string | null
+          project_id?: string | null
           quote_number?: string | null
           recipient_id?: string | null
           recipient_response?: string | null
+          rejected_at?: string | null
           responded_at?: string | null
           sent_at?: string | null
           status?: string
@@ -885,8 +1044,11 @@ export type Database = {
           total?: number
           updated_at?: string
           valid_until: string
+          version?: number | null
+          viewed_at?: string | null
         }
         Update: {
+          accepted_at?: string | null
           business_name?: string | null
           client_address?: string | null
           client_email?: string
@@ -896,13 +1058,23 @@ export type Database = {
           completion_time?: string | null
           contractor_id?: string
           created_at?: string
+          customer_note?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_at?: string | null
+          deposit_percentage?: number | null
+          deposit_required?: boolean | null
           description?: string | null
+          enquiry_id?: string | null
           id?: string
           items?: Json
           notes?: string | null
+          parent_quote_id?: string | null
+          project_id?: string | null
           quote_number?: string | null
           recipient_id?: string | null
           recipient_response?: string | null
+          rejected_at?: string | null
           responded_at?: string | null
           sent_at?: string | null
           status?: string
@@ -914,8 +1086,31 @@ export type Database = {
           total?: number
           updated_at?: string
           valid_until?: string
+          version?: number | null
+          viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "issued_quotes_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issued_quotes_parent_quote_id_fkey"
+            columns: ["parent_quote_id"]
+            isOneToOne: false
+            referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issued_quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "issued_quotes_recipient_id_fkey"
             columns: ["recipient_id"]
@@ -1008,27 +1203,42 @@ export type Database = {
           comment: string | null
           contractor_id: string
           created_at: string
+          direction: string | null
           id: string
           job_id: string
+          project_id: string | null
           rating: number
+          reply: string | null
+          reply_at: string | null
+          verified: boolean | null
         }
         Insert: {
           client_id: string
           comment?: string | null
           contractor_id: string
           created_at?: string
+          direction?: string | null
           id?: string
           job_id: string
+          project_id?: string | null
           rating: number
+          reply?: string | null
+          reply_at?: string | null
+          verified?: boolean | null
         }
         Update: {
           client_id?: string
           comment?: string | null
           contractor_id?: string
           created_at?: string
+          direction?: string | null
           id?: string
           job_id?: string
+          project_id?: string | null
           rating?: number
+          reply?: string | null
+          reply_at?: string | null
+          verified?: boolean | null
         }
         Relationships: [
           {
@@ -1038,27 +1248,134 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "job_reviews_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_snag_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_resolved: boolean
+          job_id: string
+          photo_url: string | null
+          project_id: string | null
+          raised_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_resolved?: boolean
+          job_id: string
+          photo_url?: string | null
+          project_id?: string | null
+          raised_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_resolved?: boolean
+          job_id?: string
+          photo_url?: string | null
+          project_id?: string | null
+          raised_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_snag_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       job_team_members: {
         Row: {
+          actual_arrival: string | null
+          actual_departure: string | null
           assigned_at: string
+          date: string | null
+          expected_arrival: string | null
+          expected_departure: string | null
           id: string
           job_id: string
+          notes: string | null
           role: string | null
           team_member_id: string
         }
         Insert: {
+          actual_arrival?: string | null
+          actual_departure?: string | null
           assigned_at?: string
+          date?: string | null
+          expected_arrival?: string | null
+          expected_departure?: string | null
           id?: string
           job_id: string
+          notes?: string | null
           role?: string | null
           team_member_id: string
         }
         Update: {
+          actual_arrival?: string | null
+          actual_departure?: string | null
           assigned_at?: string
+          date?: string | null
+          expected_arrival?: string | null
+          expected_departure?: string | null
           id?: string
           job_id?: string
+          notes?: string | null
           role?: string | null
           team_member_id?: string
         }
@@ -1081,20 +1398,26 @@ export type Database = {
       }
       jobs: {
         Row: {
-          client_id: string
+          actual_end: string | null
+          actual_start: string | null
           company_id: string | null
           completed_at: string | null
           contract_value: number | null
           contractor_id: string
           created_at: string
+          customer_id: string
           description: string | null
           end_date: string | null
           id: string
           issued_quote_id: string | null
+          job_number: string | null
           location: string | null
           portfolio_approved: boolean | null
           priority: string | null
+          project_id: string | null
           responded_at: string | null
+          signed_off_at: string | null
+          signed_off_by: string | null
           sla_resolution_due: string | null
           sla_response_due: string | null
           sla_rule_id: string | null
@@ -1104,20 +1427,26 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          client_id: string
+          actual_end?: string | null
+          actual_start?: string | null
           company_id?: string | null
           completed_at?: string | null
           contract_value?: number | null
           contractor_id: string
           created_at?: string
+          customer_id: string
           description?: string | null
           end_date?: string | null
           id?: string
           issued_quote_id?: string | null
+          job_number?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
           priority?: string | null
+          project_id?: string | null
           responded_at?: string | null
+          signed_off_at?: string | null
+          signed_off_by?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
@@ -1127,20 +1456,26 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          client_id?: string
+          actual_end?: string | null
+          actual_start?: string | null
           company_id?: string | null
           completed_at?: string | null
           contract_value?: number | null
           contractor_id?: string
           created_at?: string
+          customer_id?: string
           description?: string | null
           end_date?: string | null
           id?: string
           issued_quote_id?: string | null
+          job_number?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
           priority?: string | null
+          project_id?: string | null
           responded_at?: string | null
+          signed_off_at?: string | null
+          signed_off_by?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
@@ -1150,20 +1485,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "jobs_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "jobs_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "public_pro_profiles"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "jobs_company_id_fkey"
             columns: ["company_id"]
@@ -1176,20 +1497,55 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "jobs_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "jobs_issued_quote_id_fkey"
             columns: ["issued_quote_id"]
             isOneToOne: false
             referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1338,6 +1694,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          contractor_payout: number | null
           created_at: string | null
           escrow_released_at: string | null
           id: string
@@ -1347,14 +1704,17 @@ export type Database = {
           payee_id: string | null
           payer_id: string | null
           platform_fee: number | null
+          project_id: string | null
           released_by: string | null
           status: string | null
           stripe_payment_intent_id: string | null
           stripe_transfer_id: string | null
+          type: string | null
           updated_at: string | null
         }
         Insert: {
           amount: number
+          contractor_payout?: number | null
           created_at?: string | null
           escrow_released_at?: string | null
           id?: string
@@ -1364,14 +1724,17 @@ export type Database = {
           payee_id?: string | null
           payer_id?: string | null
           platform_fee?: number | null
+          project_id?: string | null
           released_by?: string | null
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_transfer_id?: string | null
+          type?: string | null
           updated_at?: string | null
         }
         Update: {
           amount?: number
+          contractor_payout?: number | null
           created_at?: string | null
           escrow_released_at?: string | null
           id?: string
@@ -1381,10 +1744,12 @@ export type Database = {
           payee_id?: string | null
           payer_id?: string | null
           platform_fee?: number | null
+          project_id?: string | null
           released_by?: string | null
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_transfer_id?: string | null
+          type?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1402,6 +1767,13 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -1410,6 +1782,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           company_name: string | null
+          completed_jobs: number | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -1421,6 +1794,8 @@ export type Database = {
           logo_url: string | null
           onboarding_completed: boolean | null
           phone: string | null
+          rating: number | null
+          review_count: number | null
           stripe_account_id: string | null
           trades: string[] | null
           ts_profile_code: string | null
@@ -1436,6 +1811,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
+          completed_jobs?: number | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1447,6 +1823,8 @@ export type Database = {
           logo_url?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
+          rating?: number | null
+          review_count?: number | null
           stripe_account_id?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
@@ -1462,6 +1840,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           company_name?: string | null
+          completed_jobs?: number | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -1473,6 +1852,8 @@ export type Database = {
           logo_url?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
+          rating?: number | null
+          review_count?: number | null
           stripe_account_id?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
@@ -1484,6 +1865,216 @@ export type Database = {
           years_experience?: number | null
         }
         Relationships: []
+      }
+      project_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json | null
+          project_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          project_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_members: {
+        Row: {
+          id: string
+          joined_at: string | null
+          profile_id: string
+          project_id: string
+          role: string
+          status: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string | null
+          profile_id: string
+          project_id: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string | null
+          profile_id?: string
+          project_id?: string
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_notes: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          project_id: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          project_id: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          address_line_1: string | null
+          address_line_2: string | null
+          city: string | null
+          created_at: string
+          customer_id: string
+          description: string | null
+          id: string
+          postcode: string | null
+          status: string
+          title: string
+          trade_category: string | null
+          updated_at: string
+        }
+        Insert: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          id?: string
+          postcode?: string | null
+          status?: string
+          title: string
+          trade_category?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          id?: string
+          postcode?: string | null
+          status?: string
+          title?: string
+          trade_category?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quote_form_templates: {
         Row: {
@@ -1532,6 +2123,7 @@ export type Database = {
       }
       quotes: {
         Row: {
+          accepted_at: string | null
           additional_details: Json | null
           budget_range: string | null
           confirmed_at: string | null
@@ -1546,10 +2138,12 @@ export type Database = {
           project_location: string | null
           project_title: string
           status: string | null
+          status_updated_at: string | null
           timeline: string | null
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
           additional_details?: Json | null
           budget_range?: string | null
           confirmed_at?: string | null
@@ -1564,10 +2158,12 @@ export type Database = {
           project_location?: string | null
           project_title: string
           status?: string | null
+          status_updated_at?: string | null
           timeline?: string | null
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
           additional_details?: Json | null
           budget_range?: string | null
           confirmed_at?: string | null
@@ -1582,6 +2178,7 @@ export type Database = {
           project_location?: string | null
           project_title?: string
           status?: string | null
+          status_updated_at?: string | null
           timeline?: string | null
           updated_at?: string
         }
@@ -1636,6 +2233,7 @@ export type Database = {
           event_type: string
           id: string
           is_confirmed: boolean | null
+          job_id: string | null
           location: string | null
           proposed_by: string | null
           quote_id: string | null
@@ -1656,6 +2254,7 @@ export type Database = {
           event_type?: string
           id?: string
           is_confirmed?: boolean | null
+          job_id?: string | null
           location?: string | null
           proposed_by?: string | null
           quote_id?: string | null
@@ -1676,6 +2275,7 @@ export type Database = {
           event_type?: string
           id?: string
           is_confirmed?: boolean | null
+          job_id?: string | null
           location?: string | null
           proposed_by?: string | null
           quote_id?: string | null
@@ -1685,6 +2285,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "schedule_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedule_events_quote_id_fkey"
             columns: ["quote_id"]
@@ -1877,7 +2484,9 @@ export type Database = {
           id: string
           is_active: boolean
           phone: string | null
+          profile_id: string | null
           role: string
+          status: string | null
           updated_at: string
         }
         Insert: {
@@ -1889,7 +2498,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           phone?: string | null
+          profile_id?: string | null
           role: string
+          status?: string | null
           updated_at?: string
         }
         Update: {
@@ -1901,7 +2512,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           phone?: string | null
+          profile_id?: string | null
           role?: string
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1918,6 +2531,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "team_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
           },
         ]
       }

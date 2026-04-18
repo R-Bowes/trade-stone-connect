@@ -56,7 +56,7 @@ type JobCardData = {
   status: JobStatus;
   start_date: string | null;
   location: string | null;
-  client_id: string;
+  customer_id: string;
   client_name: string;
   client_ts_code: string | null;
   quote_number: string | null;
@@ -212,9 +212,9 @@ export function JobManagement() {
         status,
         start_date,
         location,
-        client_id,
+        customer_id,
         issued_quote_id,
-        client:profiles!jobs_client_id_fkey(full_name, company_name, ts_profile_code),
+        client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
         quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number)
       `)
       .eq("contractor_id", profileRow?.id)
@@ -232,7 +232,7 @@ export function JobManagement() {
       status: job.status,
       start_date: job.start_date,
       location: job.location ?? null,
-      client_id: job.client_id,
+      customer_id: job.customer_id,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
       client_ts_code: job.client?.ts_profile_code ?? null,
       quote_number: job.quote?.quote_number ?? null,
@@ -280,7 +280,7 @@ export function JobManagement() {
         .select("id, job_id, date, hours, worker_id, description")
         .in("job_id", jobIds);
 
-      const groupedTs = (tsData || []).reduce<Record<string, TimesheetEntry[]>>((acc, row: any) => {
+      const groupedTs = ((tsData || []) as any[]).reduce((acc: Record<string, TimesheetEntry[]>, row: any) => {
         if (!acc[row.job_id]) acc[row.job_id] = [];
         acc[row.job_id].push(row as TimesheetEntry);
         return acc;
@@ -346,7 +346,7 @@ export function JobManagement() {
 
     const { data, error } = await supabase
       .from("job_snag_items")
-      .insert({ job_id: jobId, contractor_id: profileRow?.id, created_by: profileRow?.id, title })
+      .insert({ job_id: jobId, raised_by: profileRow?.id, title })
       .select("id, job_id, title, is_resolved")
       .single();
 
@@ -383,7 +383,7 @@ export function JobManagement() {
   const buildInvoiceFromJob = async (job: JobCardData) => {
     const { data: fullJob, error: jobError } = await supabase
       .from("jobs")
-      .select("id, issued_quote_id, contractor_id, client_id")
+      .select("id, issued_quote_id, contractor_id, customer_id")
       .eq("id", job.id)
       .single();
 
@@ -417,11 +417,11 @@ export function JobManagement() {
       total: Number(expense.amount ?? 0),
     }));
 
-    const { data: contractorProfile } = await supabase
-      .from("profiles" as any)
+    const { data: contractorProfile } = await (supabase as any)
+      .from("profiles")
       .select("vat_registered, hourly_rate")
-      .eq("user_id", fullJob.contractor_id)
-      .single();
+      .eq("user_id", (fullJob as any).contractor_id)
+      .maybeSingle() as { data: { vat_registered?: boolean; hourly_rate?: number } | null };
 
     const jobTimesheets = timesheetsByJob[fullJob.id] || [];
     let labourItems: InvoiceItem[] = [];
@@ -465,7 +465,7 @@ export function JobManagement() {
       defaultDueDate: dueDate.toISOString().slice(0, 10),
       defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
       contractorId: fullJob.contractor_id,
-      clientId: fullJob.client_id,
+      clientId: fullJob.customer_id,
       quoteId: fullJob.issued_quote_id,
     });
     setInvoiceDialogOpen(true);

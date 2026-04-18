@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 export interface Job {
   id: string;
   contractor_id: string;
-  client_id: string;
+  customer_id: string;
   issued_quote_id: string | null;
   quote_number: string | null;
   title: string;
@@ -71,7 +71,7 @@ export function useJobs(role: "contractor" | "client") {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const column = role === "contractor" ? "contractor_id" : "client_id";
+    const column = role === "contractor" ? "contractor_id" : "customer_id";
     const { data, error } = await supabase
       .from("jobs")
       .select("*, issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
