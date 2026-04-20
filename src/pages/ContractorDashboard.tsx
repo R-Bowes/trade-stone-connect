@@ -19,7 +19,6 @@ import {
   Filter,
   MessageCircle,
   Star,
-  Mail,
   Loader2,
   Hammer,
   HelpCircle
@@ -596,7 +595,6 @@ const ContractorDashboard = () => {
                           <p className="text-muted-foreground mb-2">{quote.project_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span>From: {quote.customer_name}</span>
-                            <span>Email: {quote.customer_email}</span>
                             {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
                             {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
                             {quote.timeline && <span>Timeline: {quote.timeline}</span>}
@@ -613,15 +611,6 @@ const ContractorDashboard = () => {
                               Mark as Responded
                             </Button>
                           )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              window.location.href = `mailto:${quote.customer_email}?subject=Re: ${encodeURIComponent(quote.project_title)}&body=Hi ${encodeURIComponent(quote.customer_name)},%0D%0A%0D%0AThank you for your quote request regarding "${encodeURIComponent(quote.project_title)}".%0D%0A%0D%0A`
-                            }
-                          >
-                            <Mail className="h-3 w-3 mr-1" />Contact
-                          </Button>
                         </div>
                       </div>
                     </CardContent>
