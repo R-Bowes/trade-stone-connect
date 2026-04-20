@@ -239,6 +239,7 @@ export function JobManagement() {
       issued_quote_id: job.issued_quote_id ?? null,
     })) as JobCardData[];
 
+    console.log("Loaded jobs:", mapped.map(j => ({ id: j.id, title: j.title })));
     setJobs(mapped);
 
     const jobIds = mapped.map((j) => j.id);
@@ -317,7 +318,6 @@ export function JobManagement() {
     setSavingJobId(job.id);
     setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
 
-    console.log("changeStatus called:", { jobId: job.id, nextStatus });
     const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
 
     if (error) {

@@ -32,10 +32,12 @@ interface Props {
 }
 
 function CheckoutForm({
+  quoteId,
   depositAmount,
   totalAmount,
   onSuccess,
 }: {
+  quoteId: string;
   depositAmount: number;
   totalAmount: number;
   onSuccess: () => void;
@@ -62,14 +64,50 @@ function CheckoutForm({
         description: error.message ?? "Please try again.",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Deposit paid",
-        description: "Your job is confirmed!",
-      });
-      onSuccess();
+      setLoading(false);
+      return;
     }
+
+    // Payment succeeded — create the job
+    try {
+      const { data: quote } = await supabase
+        .from("issued_quotes")
+        .select("contractor_id, recipient_id, title, client_address")
+        .eq("id", quoteId)
+        .single();
+
+      if (quote) {
+        const { error: jobError } = await supabase.from("jobs").insert({
+          contractor_id: quote.contractor_id,
+          customer_id: quote.recipient_id,
+          issued_quote_id: quoteId,
+          title: quote.title,
+          location: quote.client_address ?? null,
+          status: "scheduled",
+          contract_value: totalAmount,
+        });
+
+        if (jobError) {
+          console.error("Job creation failed", jobError);
+          toast({
+            title: "Payment taken but job creation failed",
+            description: "Please contact support with your quote reference.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Job creation error", err);
+    }
+
+    toast({
+      title: "Deposit paid",
+      description: "Your job is confirmed!",
+    });
     setLoading(false);
+    onSuccess();
   };
 
   return (
@@ -157,7 +195,6 @@ export function DepositPaymentDialog({
   }, [open, quoteId]);
 
   const handleClose = () => {
-    // Don't reset clientSecret — if they reopen we reuse the same intent
     onClose();
   };
 
@@ -194,6 +231,7 @@ export function DepositPaymentDialog({
             }}
           >
             <CheckoutForm
+              quoteId={quoteId}
               depositAmount={resolvedDeposit}
               totalAmount={totalAmount}
               onSuccess={() => {

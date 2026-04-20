@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import {
   DollarSign,
   Users,
@@ -16,21 +16,19 @@ import {
   Eye,
   Edit,
   Send,
+  Filter,
   MessageCircle,
   Star,
-  Hammer,
-  HelpCircle,
-  AlertCircle,
-  MapPin,
-  RefreshCw,
+  Mail,
   Loader2,
+  Hammer,
+  HelpCircle
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
-import { StripeConnect } from "@/components/management/StripeConnect";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
@@ -42,30 +40,12 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
-import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
-import { RespondDialog } from "@/components/management/RespondDialog";
-import { RejectDialog } from "@/components/management/RejectDialog";
 import type { Database } from "@/integrations/supabase/types";
-import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
+type QuoteStatus = NonNullable<Quote["status"]>;
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
-type Enquiry = {
-  id: string;
-  contractor_id: string | null;
-  customer_id: string | null;
-  customer_name: string | null;
-  customer_ts_code: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  job_description: string;
-  location: string;
-  preferred_timeline: string | null;
-  budget_range: string | null;
-  status: string | null;
-  created_at: string;
-};
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
@@ -90,14 +70,8 @@ const ContractorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
-  const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
-  const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<Enquiry | null>(null);
-  const [respondEnquiry, setRespondEnquiry] = useState<Enquiry | null>(null);
-  const [rejectEnquiry, setRejectEnquiry] = useState<Enquiry | null>(null);
-  const [profileId, setProfileId] = useState<string | null>(null);
+
+  // Real dashboard data
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
     activeJobs: 0,
@@ -110,51 +84,6 @@ const ContractorDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
-
-  const loadEnquiries = async (contractorId: string) => {
-    setEnquiriesLoading(true);
-    setEnquiriesError(null);
-
-    const { data, error } = await supabase
-      .from("enquiries")
-      .select("id, contractor_id, customer_id, customer_name, customer_email, customer_phone, job_description, location, preferred_timeline, budget_range, status, created_at")
-      .eq("contractor_id", contractorId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error loading enquiries:", error);
-      setEnquiriesError("Unable to load enquiries right now. Please try again.");
-      setEnquiries([]);
-      setEnquiriesLoading(false);
-      return;
-    }
-
-    // Enrich with customer TS codes
-    const enriched = await Promise.all((data ?? []).map(async (enquiry: any) => {
-      if (!enquiry.customer_id) return enquiry;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("ts_profile_code")
-        .eq("id", enquiry.customer_id)
-        .maybeSingle();
-      return { ...enquiry, customer_ts_code: profile?.ts_profile_code ?? null };
-    }));
-
-    setEnquiries(enriched as Enquiry[]);
-    setEnquiriesLoading(false);
-  };
-
-  const REJECTED_STATUSES = new Set(["rejected", "declined"]);
-
-  const sortedEnquiries = useMemo(() =>
-    [...enquiries].sort((a, b) => {
-      const aRejected = REJECTED_STATUSES.has(a.status ?? "");
-      const bRejected = REJECTED_STATUSES.has(b.status ?? "");
-      if (aRejected !== bRejected) return aRejected ? 1 : -1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    }),
-    [enquiries]
-  );
 
   const tourSteps: TourStep[] = useMemo(() => [
     {
@@ -232,40 +161,24 @@ const ContractorDashboard = () => {
     prevStep,
   } = useOnboardingTour(tourSteps);
 
+  // Load current user, quotes, and real dashboard stats
   useEffect(() => {
     const loadUserAndData = async () => {
-      setLoadError(null);
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-
-      if (userError) {
-        setLoadError("Unable to validate your account.");
-        setLoading(false);
-        return;
-      }
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
 
       if (!currentUser) {
-        navigate("/login");
+        navigate("/auth");
         return;
       }
 
       setUser(currentUser);
 
-      const { data: profileData, error: profileError } = await supabase
+      // Check profile completeness
+      const { data: profileData } = await supabase
         .from('profiles')
-        .select('trades, location, working_radius, logo_url, user_type')
+        .select('trades, location, working_radius, logo_url')
         .eq('user_id', currentUser.id)
         .single();
-
-      if (profileError) {
-        setLoadError("Unable to load your profile.");
-        setLoading(false);
-        return;
-      }
-
-      if (profileData?.user_type && profileData.user_type !== "contractor") {
-        navigate(`/dashboard/${profileData.user_type}`);
-        return;
-      }
 
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
@@ -274,6 +187,7 @@ const ContractorDashboard = () => {
         setActiveTab("profile");
       }
 
+      // Load quotes
       const { data: quotesData, error: quotesError } = await supabase
         .from('quotes')
         .select('*')
@@ -286,61 +200,62 @@ const ContractorDashboard = () => {
         setQuotes(quotesData || []);
       }
 
+      // --- Real dashboard stats ---
+
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      const { data: paidInvoices, error: paidInvoicesError } = await supabase
+      // Monthly revenue: paid invoices with a paid_date this month
+      const { data: paidInvoices } = await supabase
         .from('invoices')
         .select('total')
         .eq('contractor_id', currentUser.id)
         .eq('status', 'paid')
         .gte('paid_date', startOfMonth);
 
-      const { data: pendingInvoices, error: pendingInvoicesError } = await supabase
+      // Pending invoices
+      const { data: pendingInvoices } = await supabase
         .from('invoices')
         .select('total')
         .eq('contractor_id', currentUser.id)
         .eq('status', 'pending');
 
-      const { data: activeJobsCount, error: activeJobsCountError } = await supabase
+      // Active jobs
+      const { data: activeJobsCount } = await supabase
         .from('jobs')
         .select('id')
         .eq('contractor_id', currentUser.id)
         .in('status', ['active', 'in_progress', 'in-progress']);
 
-      const { data: crmClients, error: crmClientsError } = await supabase
+      // CRM clients
+      const { data: crmClients } = await supabase
         .from('crm_clients')
         .select('id')
         .eq('contractor_id', currentUser.id);
 
-      if (paidInvoicesError || pendingInvoicesError || activeJobsCountError || crmClientsError) {
-        console.error('Error loading dashboard metrics', { paidInvoicesError, pendingInvoicesError, activeJobsCountError, crmClientsError });
-        setLoadError('Unable to load dashboard metrics. Please try again.');
-        setLoading(false);
-        return;
-      }
+      const monthlyRevenue = paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0;
+      const pendingTotal = pendingInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0;
 
       setDashboardData({
-        monthlyRevenue: paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
+        monthlyRevenue,
         activeJobs: activeJobsCount?.length ?? 0,
-        pendingInvoicesTotal: pendingInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
+        pendingInvoicesTotal: pendingTotal,
         pendingInvoicesCount: pendingInvoices?.length ?? 0,
         clientCount: crmClients?.length ?? 0,
       });
 
-      const { data: recentInvoicesData, error: recentInvoicesError } = await supabase
+      // Recent invoices (last 3)
+      const { data: recentInvoicesData } = await supabase
         .from('invoices')
         .select('id, invoice_number, client_name, total, status, due_date, issued_date')
         .eq('contractor_id', currentUser.id)
         .order('created_at', { ascending: false })
         .limit(3);
 
-      if (recentInvoicesError) {
-        console.error('Error loading recent invoices', recentInvoicesError);
-      }
       setRecentInvoices(recentInvoicesData || []);
 
-      const { data: activeJobsData, error: activeJobsError } = await supabase
+      // Active jobs for projects card (last 3)
+      const { data: activeJobsData } = await supabase
         .from('jobs')
         .select('id, title, status, contract_value, start_date, end_date')
         .eq('contractor_id', currentUser.id)
@@ -348,27 +263,19 @@ const ContractorDashboard = () => {
         .order('created_at', { ascending: false })
         .limit(3);
 
-      if (activeJobsError) {
-        console.error('Error loading active jobs', activeJobsError);
-      }
       setActiveJobs(activeJobsData || []);
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .single();
-      setProfileId(profileRow?.id ?? null);
-      if (profileRow?.id) await loadEnquiries(profileRow.id);
+
       setLoading(false);
     };
 
     loadUserAndData();
   }, [navigate]);
 
+  // Real-time new quote subscription
   useEffect(() => {
-    if (!user || !profileId) return;
+    if (!user) return;
 
-    const quotesChannel = supabase
+    const channel = supabase
       .channel('new-quotes')
       .on(
         'postgres_changes',
@@ -376,7 +283,7 @@ const ContractorDashboard = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'quotes',
-          filter: `contractor_id=eq.${profileId}`,
+          filter: `contractor_id=eq.${user.id}`,
         },
         (payload) => {
           setQuotes((prev) => [payload.new as Quote, ...prev]);
@@ -388,42 +295,43 @@ const ContractorDashboard = () => {
       )
       .subscribe();
 
-    const enquiriesChannel = supabase
-      .channel('new-enquiries')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'enquiries',
-        },
-        (payload) => {
-          const inserted = payload.new as Enquiry;
-          if (inserted.contractor_id !== profileId) return;
-
-          setEnquiries((prev) => {
-            if (prev.some((entry) => entry.id === inserted.id)) return prev;
-            return [inserted, ...prev];
-          });
-
-          toast({
-            title: "New enquiry received",
-            description: `${inserted.customer_name ?? "A customer"} — ${inserted.location}.`,
-          });
-        }
-      )
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(quotesChannel);
-      supabase.removeChannel(enquiriesChannel);
+      supabase.removeChannel(channel);
     };
-  }, [user, profileId, toast]);
+  }, [user, toast]);
 
+  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .update({ status: newStatus })
+        .eq('id', quoteId);
+
+      if (error) throw error;
+
+      setQuotes(prev => prev.map(quote =>
+        quote.id === quoteId ? { ...quote, status: newStatus } : quote
+      ));
+
+      toast({
+        title: "Quote Updated",
+        description: `Quote status updated to ${newStatus}`,
+      });
+    } catch (error) {
+      console.error('Error updating quote status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update quote status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Real dashboard stats cards
   const dashboardStats = [
     {
       title: "Monthly Revenue",
-      value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB')}`,
+      value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
       change: "Paid invoices this month",
       icon: DollarSign,
       trend: "up",
@@ -437,7 +345,7 @@ const ContractorDashboard = () => {
     },
     {
       title: "Pending Invoices",
-      value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB')}`,
+      value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
       change: `${dashboardData.pendingInvoicesCount} invoice${dashboardData.pendingInvoicesCount !== 1 ? 's' : ''} outstanding`,
       icon: Clock,
       trend: "warning",
@@ -453,15 +361,10 @@ const ContractorDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "new": return "bg-blue-100 text-blue-800";
-      case "replied": return "bg-yellow-100 text-yellow-800";
-      case "converted": return "bg-green-100 text-green-800";
-      case "archived": return "bg-gray-100 text-gray-800";
-      case "declined": return "bg-red-100 text-red-800";
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "overdue": return "bg-red-100 text-red-800";
-      case "active":
+      case "active": return "bg-blue-100 text-blue-800";
       case "in_progress":
       case "in-progress": return "bg-blue-100 text-blue-800";
       case "completed": return "bg-green-100 text-green-800";
@@ -474,16 +377,9 @@ const ContractorDashboard = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <LoadingState message="Loading your contractor dashboard..." />
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <ErrorState message={loadError} onRetry={() => window.location.reload()} />
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     );
   }
@@ -510,13 +406,6 @@ const ContractorDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          {activeTab === "dashboard" && quotes.length === 0 && activeJobs.length === 0 && recentInvoices.length === 0 ? (
-            <EmptyState
-              message="No quotes, jobs, or invoices yet. Complete your profile and start bidding to receive work."
-              ctaLabel="Complete profile"
-              onCta={() => setActiveTab("profile")}
-            />
-          ) : null}
           <div className="max-w-sm" data-tour={`tab-${activeTab}`}>
             <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
               View
@@ -555,12 +444,14 @@ const ContractorDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Recent Invoices */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Recent Invoices
                     <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}>
-                      <Plus className="h-4 w-4 mr-2" />New Invoice
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Invoice
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -586,12 +477,14 @@ const ContractorDashboard = () => {
                 </CardContent>
               </Card>
 
+              {/* Active Jobs */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Active Jobs
                     <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}>
-                      <Plus className="h-4 w-4 mr-2" />New Job
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Job
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -606,7 +499,9 @@ const ContractorDashboard = () => {
                             <div>
                               <p className="font-medium">{job.title}</p>
                               <p className="text-sm text-muted-foreground">
-                                {job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}
+                                {job.contract_value
+                                  ? `£${Number(job.contract_value).toLocaleString('en-GB')}`
+                                  : 'Value TBC'}
                               </p>
                             </div>
                             <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
@@ -628,63 +523,106 @@ const ContractorDashboard = () => {
           {/* Quotes Tab */}
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">New Enquiries</h2>
-              <Button variant="outline" onClick={() => profileId && loadEnquiries(profileId)} disabled={enquiriesLoading}>
-                {enquiriesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Refresh
-              </Button>
+              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'new').length}</p><p className="text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'replied').length}</p><p className="text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{enquiries.filter((entry) => entry.status === 'converted').length}</p><p className="text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{enquiries.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
+                      <p className="text-sm text-muted-foreground">Pending</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-yellow-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
+                      <p className="text-sm text-muted-foreground">Viewed</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Send className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
+                      <p className="text-sm text-muted-foreground">Responded</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{quotes.length}</p>
+                      <p className="text-sm text-muted-foreground">Total</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {enquiriesLoading ? (
-              <Card><CardContent className="p-8 text-center text-muted-foreground"><Loader2 className="h-10 w-10 mx-auto mb-4 animate-spin" /><p>Loading enquiries...</p></CardContent></Card>
-            ) : enquiriesError ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Could not load enquiries</AlertTitle>
-                <AlertDescription>{enquiriesError}</AlertDescription>
-              </Alert>
-            ) : enquiries.length === 0 ? (
-              <Card><CardContent className="p-8 text-center"><MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3><p className="text-muted-foreground">New enquiries assigned to you will appear here in real time.</p></CardContent></Card>
+            {quotes.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
+                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving quotes!</p>
+                </CardContent>
+              </Card>
             ) : (
               <div className="space-y-4">
-                {sortedEnquiries.map((enquiry) => (
-                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
+                {quotes.map((quote) => (
+                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
-                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{enquiry.customer_name ?? "Unknown"}</h3>
-                            {enquiry.customer_ts_code && (
-                              <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{enquiry.customer_ts_code}</span>
-                            )}
-                            <Badge className={getStatusColor(enquiry.status ?? 'new')}>{enquiry.status ?? 'new'}</Badge>
+                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
+                            <Badge className={getStatusColor(quote.status || 'pending')}>{quote.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2 line-clamp-2">{enquiry.job_description}</p>
+                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            {enquiry.preferred_timeline ? <span>Timeline: {enquiry.preferred_timeline}</span> : null}
-                            {enquiry.budget_range ? <span>Budget: {enquiry.budget_range}</span> : null}
-                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{enquiry.location}</span>
-                            <span>Received: {new Date(enquiry.created_at).toLocaleString('en-GB')}</span>
+                            <span>From: {quote.customer_name}</span>
+                            <span>Email: {quote.customer_email}</span>
+                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
+                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
+                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
-                          Accept & Quote
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setRespondEnquiry(enquiry)}>
-                          Respond
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setRejectEnquiry(enquiry)}>
-                          Reject
-                        </Button>
+                        <div className="flex flex-col gap-2 md:min-w-[140px]">
+                          {quote.status === 'pending' && (
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
+                              Mark as Viewed
+                            </Button>
+                          )}
+                          {quote.status === 'viewed' && (
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
+                              Mark as Responded
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              window.location.href = `mailto:${quote.customer_email}?subject=Re: ${encodeURIComponent(quote.project_title)}&body=Hi ${encodeURIComponent(quote.customer_name)},%0D%0A%0D%0AThank you for your quote request regarding "${encodeURIComponent(quote.project_title)}".%0D%0A%0D%0A`
+                            }
+                          >
+                            <Mail className="h-3 w-3 mr-1" />Contact
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -693,7 +631,10 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="invoices"><InvoiceManagement /></TabsContent>
+          {/* Invoices Tab */}
+          <TabsContent value="invoices">
+            <InvoiceManagement />
+          </TabsContent>
 
           {/* Projects Tab */}
           <TabsContent value="projects" className="space-y-6">
@@ -702,7 +643,13 @@ const ContractorDashboard = () => {
               <Button onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
             </div>
             {activeJobs.length === 0 ? (
-              <Card><CardContent className="p-8 text-center"><FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-medium mb-2">No Active Projects</h3><p className="text-muted-foreground">Create a job to get started.</p></CardContent></Card>
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Active Projects</h3>
+                  <p className="text-muted-foreground">Create a job to get started.</p>
+                </CardContent>
+              </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {activeJobs.map((job) => (
@@ -711,17 +658,35 @@ const ContractorDashboard = () => {
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg">{job.title}</CardTitle>
-                          <CardDescription>{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</CardDescription>
+                          <CardDescription>
+                            {job.contract_value
+                              ? `£${Number(job.contract_value).toLocaleString('en-GB')}`
+                              : 'Value TBC'}
+                          </CardDescription>
                         </div>
                         <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {job.start_date && <div className="flex justify-between text-sm"><span>Start:</span><span>{new Date(job.start_date).toLocaleDateString('en-GB')}</span></div>}
-                      {job.end_date && <div className="flex justify-between text-sm"><span>Deadline:</span><span>{new Date(job.end_date).toLocaleDateString('en-GB')}</span></div>}
+                      {job.start_date && (
+                        <div className="flex justify-between text-sm">
+                          <span>Start:</span>
+                          <span>{new Date(job.start_date).toLocaleDateString('en-GB')}</span>
+                        </div>
+                      )}
+                      {job.end_date && (
+                        <div className="flex justify-between text-sm">
+                          <span>Deadline:</span>
+                          <span>{new Date(job.end_date).toLocaleDateString('en-GB')}</span>
+                        </div>
+                      )}
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Eye className="h-4 w-4 mr-2" />View</Button>
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Edit className="h-4 w-4 mr-2" />Edit</Button>
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}>
+                          <Eye className="h-4 w-4 mr-2" />View
+                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}>
+                          <Edit className="h-4 w-4 mr-2" />Edit
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -730,25 +695,46 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
+          {/* Jobs Tab */}
           <TabsContent value="jobs"><JobManagement /></TabsContent>
-          <TabsContent value="contracts"><ContractManagement /></TabsContent>
-          <TabsContent value="team"><TeamManagement /></TabsContent>
-          <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>
-          <TabsContent value="photos"><PhotoGallery /></TabsContent>
-          <TabsContent value="documents"><DocumentManagement /></TabsContent>
-          <TabsContent value="financials"><FinancialsManagement /></TabsContent>
-          <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
-          <TabsContent value="clients"><CRMManagement /></TabsContent>
 
-          {/* Profile Tab — StripeConnect added here */}
-          <TabsContent value="profile">
-            <div className="space-y-6">
-              <StripeConnect />
-              <ProfileManagement />
-            </div>
+          {/* Contracts Tab */}
+          <TabsContent value="contracts"><ContractManagement /></TabsContent>
+
+          {/* Team Tab */}
+          <TabsContent value="team"><TeamManagement /></TabsContent>
+
+          {/* Timesheets Tab */}
+          <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>
+
+          {/* Photos Tab */}
+          <TabsContent value="photos"><PhotoGallery /></TabsContent>
+
+          {/* Documents Tab */}
+          <TabsContent value="documents">
+            <DocumentManagement />
           </TabsContent>
+
+          {/* Financials Tab */}
+          <TabsContent value="financials">
+            <FinancialsManagement />
+          </TabsContent>
+
+          {/* Schedule Tab */}
+          <TabsContent value="schedule">
+            <ScheduleManagement />
+          </TabsContent>
+
+          {/* CRM Tab */}
+          <TabsContent value="clients">
+            <CRMManagement />
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile"><ProfileManagement /></TabsContent>
         </Tabs>
 
+        {/* Onboarding Tour */}
         <OnboardingTour
           isActive={isTourActive}
           step={currentTourStep}
@@ -758,30 +744,6 @@ const ContractorDashboard = () => {
           onPrev={prevStep}
           onSkip={() => endTour(true)}
         />
-        {sendQuoteEnquiry && (
-          <SendQuoteDialog
-            open={!!sendQuoteEnquiry}
-            onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
-            enquiry={sendQuoteEnquiry}
-            onSuccess={() => profileId && loadEnquiries(profileId)}
-          />
-        )}
-        {respondEnquiry && (
-          <RespondDialog
-            open={!!respondEnquiry}
-            onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
-            enquiry={respondEnquiry}
-            onSuccess={() => profileId && loadEnquiries(profileId)}
-          />
-        )}
-        {rejectEnquiry && (
-          <RejectDialog
-            open={!!rejectEnquiry}
-            onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
-            enquiry={rejectEnquiry}
-            onSuccess={() => profileId && loadEnquiries(profileId)}
-          />
-        )}
       </main>
     </div>
   );
