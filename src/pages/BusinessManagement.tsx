@@ -25,7 +25,6 @@ import {
   Filter,
   MessageCircle,
   Star,
-  Mail
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
@@ -61,7 +60,6 @@ const BusinessManagement = () => {
   const [user, setUser] = useState<User | null>(null);
   const { toast } = useToast();
 
-  // Load current user and quotes
   useEffect(() => {
     const loadUserAndQuotes = async () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -92,9 +90,7 @@ const BusinessManagement = () => {
         .update({ status: newStatus })
         .eq('id', quoteId);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setQuotes(prev => prev.map(quote => 
         quote.id === quoteId ? { ...quote, status: newStatus } : quote
@@ -114,93 +110,23 @@ const BusinessManagement = () => {
     }
   };
 
-  // Mock data
   const dashboardStats = [
-    {
-      title: "Monthly Revenue",
-      value: "£12,450",
-      change: "+15.3%",
-      icon: DollarSign,
-      trend: "up"
-    },
-    {
-      title: "Active Projects",
-      value: "8",
-      change: "+2",
-      icon: FileText,
-      trend: "up"
-    },
-    {
-      title: "Pending Invoices",
-      value: "£3,200",
-      change: "5 invoices",
-      icon: Clock,
-      trend: "warning"
-    },
-    {
-      title: "Clients",
-      value: "23",
-      change: "+3 this month",
-      icon: Users,
-      trend: "up"
-    }
+    { title: "Monthly Revenue", value: "£12,450", change: "+15.3%", icon: DollarSign, trend: "up" },
+    { title: "Active Projects", value: "8", change: "+2", icon: FileText, trend: "up" },
+    { title: "Pending Invoices", value: "£3,200", change: "5 invoices", icon: Clock, trend: "warning" },
+    { title: "Clients", value: "23", change: "+3 this month", icon: Users, trend: "up" },
   ];
 
   const recentInvoices = [
-    {
-      id: "INV-001",
-      client: "Johnson Construction",
-      amount: "£2,450",
-      status: "paid",
-      date: "2024-01-15",
-      dueDate: "2024-01-30"
-    },
-    {
-      id: "INV-002", 
-      client: "Smith Renovations",
-      amount: "£1,800",
-      status: "pending",
-      date: "2024-01-18",
-      dueDate: "2024-02-02"
-    },
-    {
-      id: "INV-003",
-      client: "Green Building Ltd",
-      amount: "£950",
-      status: "overdue",
-      date: "2024-01-10",
-      dueDate: "2024-01-25"
-    }
+    { id: "INV-001", client: "Johnson Construction", amount: "£2,450", status: "paid", date: "2024-01-15", dueDate: "2024-01-30" },
+    { id: "INV-002", client: "Smith Renovations", amount: "£1,800", status: "pending", date: "2024-01-18", dueDate: "2024-02-02" },
+    { id: "INV-003", client: "Green Building Ltd", amount: "£950", status: "overdue", date: "2024-01-10", dueDate: "2024-01-25" },
   ];
 
   const activeProjects = [
-    {
-      id: "PRJ-001",
-      name: "Kitchen Renovation - Wilson Home",
-      client: "Mrs. Wilson",
-      progress: 75,
-      deadline: "2024-02-15",
-      value: "£4,500",
-      status: "on-track"
-    },
-    {
-      id: "PRJ-002",
-      name: "Bathroom Remodel - Davis Property",
-      client: "Davis Family",
-      progress: 45,
-      deadline: "2024-03-01",
-      value: "£3,200",
-      status: "at-risk"
-    },
-    {
-      id: "PRJ-003",
-      name: "Garage Extension - Brown House",
-      client: "Mr. Brown",
-      progress: 90,
-      deadline: "2024-01-30",
-      value: "£8,900",
-      status: "ahead"
-    }
+    { id: "PRJ-001", name: "Kitchen Renovation - Wilson Home", client: "Mrs. Wilson", progress: 75, deadline: "2024-02-15", value: "£4,500", status: "on-track" },
+    { id: "PRJ-002", name: "Bathroom Remodel - Davis Property", client: "Davis Family", progress: 45, deadline: "2024-03-01", value: "£3,200", status: "at-risk" },
+    { id: "PRJ-003", name: "Garage Extension - Brown House", client: "Mr. Brown", progress: 90, deadline: "2024-01-30", value: "£8,900", status: "ahead" },
   ];
 
   const getStatusColor = (status: Quote["status"]) => {
@@ -244,9 +170,7 @@ const BusinessManagement = () => {
             </Select>
           </div>
 
-          {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {dashboardStats.map((stat, index) => (
                 <Card key={index}>
@@ -264,16 +188,13 @@ const BusinessManagement = () => {
               ))}
             </div>
 
-            {/* Recent Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Invoices */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Recent Invoices
                     <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Invoice
+                      <Plus className="h-4 w-4 mr-2" />New Invoice
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -287,9 +208,7 @@ const BusinessManagement = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-medium">{invoice.amount}</p>
-                          <Badge className={getStatusColor(invoice.status)}>
-                            {invoice.status}
-                          </Badge>
+                          <Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge>
                         </div>
                       </div>
                     ))}
@@ -297,14 +216,12 @@ const BusinessManagement = () => {
                 </CardContent>
               </Card>
 
-              {/* Active Projects */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Active Projects
                     <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Project
+                      <Plus className="h-4 w-4 mr-2" />New Project
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -317,9 +234,7 @@ const BusinessManagement = () => {
                             <p className="font-medium">{project.name}</p>
                             <p className="text-sm text-muted-foreground">{project.client}</p>
                           </div>
-                          <Badge className={getStatusColor(project.status)}>
-                            {project.status}
-                          </Badge>
+                          <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
@@ -336,63 +251,21 @@ const BusinessManagement = () => {
             </div>
           </TabsContent>
 
-          {/* Quotes Tab */}
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Quote Requests</h2>
               <div className="flex gap-2">
                 <Button variant="outline">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
+                  <Filter className="h-4 w-4 mr-2" />Filter
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
-                      <p className="text-sm text-muted-foreground">Pending</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-yellow-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
-                      <p className="text-sm text-muted-foreground">Viewed</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Send className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
-                      <p className="text-sm text-muted-foreground">Responded</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{quotes.length}</p>
-                      <p className="text-sm text-muted-foreground">Total Quotes</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p><p className="text-sm text-muted-foreground">Pending</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p><p className="text-sm text-muted-foreground">Viewed</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p><p className="text-sm text-muted-foreground">Responded</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{quotes.length}</p><p className="text-sm text-muted-foreground">Total Quotes</p></div></div></CardContent></Card>
             </div>
 
             <div className="space-y-4">
@@ -401,12 +274,8 @@ const BusinessManagement = () => {
                   <CardContent className="p-8 text-center">
                     <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Quote requests from potential customers will appear here.
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Share your TradeStone profile link to start receiving quote requests!
-                    </p>
+                    <p className="text-muted-foreground mb-4">Quote requests from potential customers will appear here.</p>
+                    <p className="text-sm text-muted-foreground">Share your TradeStone profile link to start receiving quote requests!</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -417,14 +286,11 @@ const BusinessManagement = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="text-lg font-semibold">{quote.project_title}</h3>
-                            <Badge className={getStatusColor(quote.status)}>
-                              {quote.status}
-                            </Badge>
+                            <Badge className={getStatusColor(quote.status)}>{quote.status}</Badge>
                           </div>
                           <p className="text-muted-foreground mb-2">{quote.project_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span>From: {quote.customer_name}</span>
-                            <span>Email: {quote.customer_email}</span>
                             {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
                             {quote.project_location && <span>Location: {quote.project_location}</span>}
                             {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
@@ -436,25 +302,15 @@ const BusinessManagement = () => {
                         </div>
                         <div className="flex flex-col gap-2 md:min-w-[140px]">
                           {quote.status === 'pending' && (
-                            <Button 
-                              size="sm" 
-                              onClick={() => updateQuoteStatus(quote.id, 'viewed')}
-                            >
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
                               Mark as Viewed
                             </Button>
                           )}
                           {quote.status === 'viewed' && (
-                            <Button 
-                              size="sm"
-                              onClick={() => updateQuoteStatus(quote.id, 'responded')}
-                            >
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
                               Mark as Responded
                             </Button>
                           )}
-                          <Button variant="outline" size="sm">
-                            <Mail className="h-3 w-3 mr-1" />
-                            Contact
-                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -464,24 +320,15 @@ const BusinessManagement = () => {
             </div>
           </TabsContent>
 
-          {/* Invoices Tab */}
           <TabsContent value="invoices" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Invoice Management</h2>
               <div className="flex gap-2">
-                <Button variant="outline">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Invoice
-                </Button>
+                <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
+                <Button><Plus className="h-4 w-4 mr-2" />Create Invoice</Button>
               </div>
             </div>
-
             <TransactionFeeNotice />
-
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -502,23 +349,13 @@ const BusinessManagement = () => {
                           <td className="p-4 font-medium">{invoice.id}</td>
                           <td className="p-4">{invoice.client}</td>
                           <td className="p-4 font-medium">{invoice.amount}</td>
-                          <td className="p-4">
-                            <Badge className={getStatusColor(invoice.status)}>
-                              {invoice.status}
-                            </Badge>
-                          </td>
+                          <td className="p-4"><Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge></td>
                           <td className="p-4">{invoice.dueDate}</td>
                           <td className="p-4">
                             <div className="flex gap-2">
-                              <Button variant="outline" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Send className="h-4 w-4" />
-                              </Button>
+                              <Button variant="outline" size="sm"><Eye className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm"><Send className="h-4 w-4" /></Button>
                             </div>
                           </td>
                         </tr>
@@ -530,16 +367,11 @@ const BusinessManagement = () => {
             </Card>
           </TabsContent>
 
-          {/* Projects Tab */}
           <TabsContent value="projects" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Project Management</h2>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New Project
-              </Button>
+              <Button><Plus className="h-4 w-4 mr-2" />New Project</Button>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {activeProjects.map((project) => (
                 <Card key={project.id}>
@@ -549,36 +381,19 @@ const BusinessManagement = () => {
                         <CardTitle className="text-lg">{project.name}</CardTitle>
                         <CardDescription>{project.client}</CardDescription>
                       </div>
-                      <Badge className={getStatusColor(project.status)}>
-                        {project.status}
-                      </Badge>
+                      <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex justify-between text-sm">
-                      <span>Value:</span>
-                      <span className="font-medium">{project.value}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Deadline:</span>
-                      <span>{project.deadline}</span>
-                    </div>
+                    <div className="flex justify-between text-sm"><span>Value:</span><span className="font-medium">{project.value}</span></div>
+                    <div className="flex justify-between text-sm"><span>Deadline:</span><span>{project.deadline}</span></div>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Progress</span>
-                        <span>{project.progress}%</span>
-                      </div>
+                      <div className="flex justify-between text-sm"><span>Progress</span><span>{project.progress}%</span></div>
                       <Progress value={project.progress} />
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1"><Eye className="h-4 w-4 mr-2" />View</Button>
+                      <Button variant="outline" size="sm" className="flex-1"><Edit className="h-4 w-4 mr-2" />Edit</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -586,16 +401,11 @@ const BusinessManagement = () => {
             </div>
           </TabsContent>
 
-          {/* Clients Tab */}
           <TabsContent value="clients" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Client Management</h2>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Client
-              </Button>
+              <Button><Plus className="h-4 w-4 mr-2" />Add Client</Button>
             </div>
-
             <Card>
               <CardHeader>
                 <CardTitle>Client Directory</CardTitle>
@@ -605,141 +415,56 @@ const BusinessManagement = () => {
                 <div className="text-center py-12">
                   <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">Client Management Coming Soon</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Full client management features including contact details, project history, and communication logs.
-                  </p>
-                  <Button variant="outline">
-                    Request Early Access
-                  </Button>
+                  <p className="text-muted-foreground mb-4">Full client management features including contact details, project history, and communication logs.</p>
+                  <Button variant="outline">Request Early Access</Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Payments Tab */}
           <TabsContent value="payments" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Payment Tracking</h2>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
+              <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button>
             </div>
-
             <TransactionFeeNotice />
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Outstanding Payments</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">£3,200</div>
-                  <p className="text-sm text-muted-foreground">5 overdue invoices</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">This Month</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">£8,450</div>
-                  <p className="text-sm text-muted-foreground">12 payments received</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Average Payment Time</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">18 days</div>
-                  <p className="text-sm text-muted-foreground">3 days faster than last month</p>
-                </CardContent>
-              </Card>
+              <Card><CardHeader><CardTitle className="text-lg">Outstanding Payments</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-red-600">£3,200</div><p className="text-sm text-muted-foreground">5 overdue invoices</p></CardContent></Card>
+              <Card><CardHeader><CardTitle className="text-lg">This Month</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">£8,450</div><p className="text-sm text-muted-foreground">12 payments received</p></CardContent></Card>
+              <Card><CardHeader><CardTitle className="text-lg">Average Payment Time</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">18 days</div><p className="text-sm text-muted-foreground">3 days faster than last month</p></CardContent></Card>
             </div>
           </TabsContent>
 
-          {/* Reports Tab */}
           <TabsContent value="reports" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Business Reports</h2>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Generate Report
-              </Button>
+              <Button variant="outline"><Download className="h-4 w-4 mr-2" />Generate Report</Button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Financial Overview</CardTitle>
-                  <CardDescription>Revenue and expense tracking</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle>Financial Overview</CardTitle><CardDescription>Revenue and expense tracking</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span>Total Revenue (YTD)</span>
-                    <span className="font-bold">£45,200</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Expenses (YTD)</span>
-                    <span className="font-bold">£18,400</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Net Profit</span>
-                    <span className="font-bold text-green-600">£26,800</span>
-                  </div>
+                  <div className="flex justify-between"><span>Total Revenue (YTD)</span><span className="font-bold">£45,200</span></div>
+                  <div className="flex justify-between"><span>Total Expenses (YTD)</span><span className="font-bold">£18,400</span></div>
+                  <div className="flex justify-between border-t pt-2"><span className="font-medium">Net Profit</span><span className="font-bold text-green-600">£26,800</span></div>
                 </CardContent>
               </Card>
-
               <Card>
-                <CardHeader>
-                  <CardTitle>Project Performance</CardTitle>
-                  <CardDescription>Completed projects and efficiency metrics</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle>Project Performance</CardTitle><CardDescription>Completed projects and efficiency metrics</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span>Projects Completed</span>
-                    <span className="font-bold">15</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>On-Time Completion Rate</span>
-                    <span className="font-bold">87%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Client Satisfaction</span>
-                    <span className="font-bold text-muted-foreground">No reviews yet</span>
-                  </div>
+                  <div className="flex justify-between"><span>Projects Completed</span><span className="font-bold">15</span></div>
+                  <div className="flex justify-between"><span>On-Time Completion Rate</span><span className="font-bold">87%</span></div>
+                  <div className="flex justify-between"><span>Client Satisfaction</span><span className="font-bold text-muted-foreground">No reviews yet</span></div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <ProfileManagement />
-          </TabsContent>
-
-          {/* Photos Tab */}
-          <TabsContent value="photos">
-            <PhotoGallery />
-          </TabsContent>
-
-          {/* Team Tab */}
-          <TabsContent value="team">
-            <TeamManagement />
-          </TabsContent>
-
-          {/* Timesheets Tab */}
-          <TabsContent value="timesheets">
-            <TimesheetManagement />
-          </TabsContent>
-
-          {/* Contracts Tab */}
-          <TabsContent value="contracts">
-            <ContractManagement />
-          </TabsContent>
+          <TabsContent value="profile"><ProfileManagement /></TabsContent>
+          <TabsContent value="photos"><PhotoGallery /></TabsContent>
+          <TabsContent value="team"><TeamManagement /></TabsContent>
+          <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>
+          <TabsContent value="contracts"><ContractManagement /></TabsContent>
         </Tabs>
       </main>
     </div>
