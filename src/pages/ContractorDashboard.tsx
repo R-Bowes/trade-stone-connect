@@ -296,11 +296,13 @@ const ContractorDashboard = () => {
   const loadEnquiries = async () => {
     if (!profileId) return;
     setEnquiriesLoading(true);
+    console.log("loadEnquiries profileId:", profileId);
     const { data, error } = await supabase
       .from('enquiries')
       .select('*')
       .eq('contractor_id', profileId)
       .order('created_at', { ascending: false });
+    console.log("loadEnquiries data:", data, "error:", error);
     if (!error) setEnquiries(data || []);
     setEnquiriesLoading(false);
   };
