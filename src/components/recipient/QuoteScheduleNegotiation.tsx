@@ -142,7 +142,7 @@ export function QuoteScheduleNegotiation({
                   {proposal.description && (
                     <p className="text-sm text-muted-foreground">{proposal.description}</p>
                   )}
-                  {mode === "recipient" && !hasConfirmedProposal && !isMine && proposal.status === "proposed" && (
+                  {!hasConfirmedProposal && !isMine && proposal.status === "proposed" && (
                     <Button size="sm" onClick={() => acceptProposal(proposal.id)}>
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                       Accept this date
