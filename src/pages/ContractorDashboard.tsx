@@ -49,7 +49,8 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
-  { value: "quotes", label: "Quotes" },
+  { value: "enquiries", label: "Enquiries" },
+  { value: "issued-quotes", label: "Issued Quotes" },
   { value: "jobs", label: "Jobs" },
   { value: "invoices", label: "Invoices" },
   { value: "projects", label: "Projects" },
@@ -67,7 +68,10 @@ const contractorDashboardViews = [
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
+  const [issuedQuotesLoading, setIssuedQuotesLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
@@ -98,7 +102,7 @@ const ContractorDashboard = () => {
       title: "Quote Requests",
       description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
       placement: "bottom",
-      action: () => setActiveTab("quotes"),
+      action: () => setActiveTab("enquiries"),
     },
     {
       target: '[data-tour="tab-invoices"]',
@@ -177,9 +181,12 @@ const ContractorDashboard = () => {
       // Check profile completeness
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('trades, location, working_radius, logo_url')
+        .select('id, trades, location, working_radius, logo_url')
         .eq('user_id', currentUser.id)
         .single();
+
+      const pid = (profileData as any)?.id ?? null;
+      setProfileId(pid);
 
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
@@ -188,7 +195,7 @@ const ContractorDashboard = () => {
         setActiveTab("profile");
       }
 
-      // Load quotes
+      // Load enquiries (inbound quote requests)
       const { data: quotesData, error: quotesError } = await supabase
         .from('quotes')
         .select('*')
@@ -196,9 +203,19 @@ const ContractorDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (quotesError) {
-        console.error('Error loading quotes:', quotesError);
+        console.error('Error loading enquiries:', quotesError);
       } else {
         setQuotes(quotesData || []);
+      }
+
+      // Load issued quotes
+      if (pid) {
+        const { data: iqData } = await supabase
+          .from('issued_quotes')
+          .select('id, quote_number, client_name, total, status, recipient_response, created_at')
+          .eq('contractor_id', pid)
+          .order('created_at', { ascending: false });
+        setIssuedQuotes(iqData || []);
       }
 
       // --- Real dashboard stats ---
@@ -272,7 +289,7 @@ const ContractorDashboard = () => {
     loadUserAndData();
   }, [navigate]);
 
-  const loadQuotes = async () => {
+  const loadEnquiries = async () => {
     if (!user) return;
     setQuotesLoading(true);
     const { data, error } = await supabase
@@ -282,6 +299,18 @@ const ContractorDashboard = () => {
       .order('created_at', { ascending: false });
     if (!error) setQuotes(data || []);
     setQuotesLoading(false);
+  };
+
+  const loadIssuedQuotes = async () => {
+    if (!profileId) return;
+    setIssuedQuotesLoading(true);
+    const { data } = await supabase
+      .from('issued_quotes')
+      .select('id, quote_number, client_name, total, status, recipient_response, created_at')
+      .eq('contractor_id', profileId)
+      .order('created_at', { ascending: false });
+    setIssuedQuotes(data || []);
+    setIssuedQuotesLoading(false);
   };
 
   // Real-time new quote subscription
@@ -533,12 +562,12 @@ const ContractorDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Quotes Tab */}
-          <TabsContent value="quotes" className="space-y-6">
+          {/* Enquiries Tab */}
+          <TabsContent value="enquiries" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <h2 className="text-2xl font-bold">Enquiries</h2>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={loadQuotes} disabled={quotesLoading}>
+                <Button variant="outline" onClick={loadEnquiries} disabled={quotesLoading}>
                   {quotesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Refresh
                 </Button>
@@ -597,8 +626,8 @@ const ContractorDashboard = () => {
               <Card>
                 <CardContent className="p-8 text-center">
                   <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
-                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving quotes!</p>
+                  <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
+                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving enquiries!</p>
                 </CardContent>
               </Card>
             ) : (
@@ -637,6 +666,67 @@ const ContractorDashboard = () => {
                   </Card>
                 ))}
               </div>
+            )}
+          </TabsContent>
+
+          {/* Issued Quotes Tab */}
+          <TabsContent value="issued-quotes" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Issued Quotes</h2>
+              <Button variant="outline" onClick={loadIssuedQuotes} disabled={issuedQuotesLoading}>
+                {issuedQuotesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Refresh
+              </Button>
+            </div>
+            {issuedQuotes.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
+                  <p className="text-muted-foreground">Quotes you send to customers will appear here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left p-4 text-sm font-medium">Quote #</th>
+                          <th className="text-left p-4 text-sm font-medium">Client</th>
+                          <th className="text-left p-4 text-sm font-medium">Total</th>
+                          <th className="text-left p-4 text-sm font-medium">Status</th>
+                          <th className="text-left p-4 text-sm font-medium">Response</th>
+                          <th className="text-left p-4 text-sm font-medium">Date Sent</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {issuedQuotes.map((iq) => (
+                          <tr key={iq.id} className="border-t">
+                            <td className="p-4 font-medium">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
+                            <td className="p-4">{iq.client_name || '—'}</td>
+                            <td className="p-4 font-medium">{iq.total != null ? `£${Number(iq.total).toLocaleString('en-GB')}` : '—'}</td>
+                            <td className="p-4"><Badge className={getStatusColor(iq.status || '')}>{iq.status || '—'}</Badge></td>
+                            <td className="p-4">
+                              <Badge className={
+                                iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' :
+                                iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }>
+                                {iq.recipient_response || 'awaiting'}
+                              </Badge>
+                            </td>
+                            <td className="p-4 text-sm text-muted-foreground">
+                              {new Date(iq.created_at).toLocaleDateString('en-GB')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
