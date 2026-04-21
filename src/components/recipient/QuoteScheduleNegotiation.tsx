@@ -54,6 +54,8 @@ export function QuoteScheduleNegotiation({
 
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [ampm, setAmpm] = useState<"AM" | "PM" | null>(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
@@ -83,21 +85,38 @@ export function QuoteScheduleNegotiation({
   };
 
   const submitProposal = async () => {
-    if (!startTime) return;
     setSaving(true);
     try {
-      const calculatedEnd = endTime || format(addMinutes(new Date(startTime), 120), "yyyy-MM-dd'T'HH:mm");
-      await proposeDate({
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(calculatedEnd).toISOString(),
-        note,
-      });
+      let start: string;
+      let end: string;
+      if (mode === "recipient") {
+        if (!selectedDate || !ampm) return;
+        const startHour = ampm === "AM" ? "09:00" : "13:00";
+        const endHour = ampm === "AM" ? "12:00" : "17:00";
+        start = new Date(`${selectedDate}T${startHour}`).toISOString();
+        end = new Date(`${selectedDate}T${endHour}`).toISOString();
+      } else {
+        if (!startTime) return;
+        const calculatedEnd = endTime || format(addMinutes(new Date(startTime), 120), "yyyy-MM-dd'T'HH:mm");
+        start = new Date(startTime).toISOString();
+        end = new Date(calculatedEnd).toISOString();
+      }
+      await proposeDate({ startTime: start, endTime: end, note });
       setStartTime("");
       setEndTime("");
+      setSelectedDate("");
+      setAmpm(null);
       setNote("");
     } finally {
       setSaving(false);
     }
+  };
+
+  const getAmPmLabel = (startIso: string) => {
+    const h = new Date(startIso).getHours();
+    if (h === 9) return "Morning (AM)";
+    if (h === 13) return "Afternoon (PM)";
+    return null;
   };
 
   return (
@@ -136,8 +155,10 @@ export function QuoteScheduleNegotiation({
                     <Badge variant="secondary">{isMine ? "Proposed by you" : "Proposed by counterparty"}</Badge>
                   </div>
                   <p className="font-medium text-sm">
-                    {format(new Date(proposal.start_time), "EEE d MMM yyyy, p")} –{" "}
-                    {format(new Date(proposal.end_time), "p")}
+                    {format(new Date(proposal.start_time), "EEE d MMM yyyy")}
+                    {getAmPmLabel(proposal.start_time)
+                      ? ` · ${getAmPmLabel(proposal.start_time)}`
+                      : `, ${format(new Date(proposal.start_time), "p")} – ${format(new Date(proposal.end_time), "p")}`}
                   </p>
                   {proposal.description && (
                     <p className="text-sm text-muted-foreground">{proposal.description}</p>
@@ -159,19 +180,61 @@ export function QuoteScheduleNegotiation({
                 <CalendarCheck2 className="h-4 w-4" />
                 {mode === "contractor" ? "Propose available dates" : "Propose an alternative"}
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Input
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-                <Input
-                  type="datetime-local"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  placeholder="End time (optional)"
-                />
-              </div>
+              {mode === "recipient" ? (
+                <>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={ampm === "AM" ? "default" : "outline"}
+                      onClick={() => setAmpm("AM")}
+                      className="flex-1"
+                    >
+                      AM
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={ampm === "PM" ? "default" : "outline"}
+                      onClick={() => setAmpm("PM")}
+                      className="flex-1"
+                    >
+                      PM
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {(() => {
+                    const recipientHint = proposals.find(
+                      (p) => p.proposed_by !== userId && p.status === "proposed" && getAmPmLabel(p.start_time),
+                    );
+                    return recipientHint ? (
+                      <p className="text-xs text-muted-foreground">
+                        Customer preference: {format(new Date(recipientHint.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(recipientHint.start_time)}
+                      </p>
+                    ) : null;
+                  })()}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input
+                      type="datetime-local"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                    <Input
+                      type="datetime-local"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      placeholder="End time (optional)"
+                    />
+                  </div>
+                </>
+              )}
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -181,7 +244,7 @@ export function QuoteScheduleNegotiation({
               <Button
                 size="sm"
                 className="w-fit"
-                disabled={!startTime || saving}
+                disabled={saving || (mode === "recipient" ? !selectedDate || !ampm : !startTime)}
                 onClick={submitProposal}
               >
                 {saving ? "Saving…" : mode === "contractor" ? "Send proposed date" : "Send alternative"}
