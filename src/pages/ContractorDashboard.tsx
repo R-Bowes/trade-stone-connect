@@ -21,7 +21,8 @@ import {
   Star,
   Loader2,
   Hammer,
-  HelpCircle
+  HelpCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -68,6 +69,7 @@ const ContractorDashboard = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quotesLoading, setQuotesLoading] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   // Real dashboard data
@@ -269,6 +271,18 @@ const ContractorDashboard = () => {
 
     loadUserAndData();
   }, [navigate]);
+
+  const loadQuotes = async () => {
+    if (!user) return;
+    setQuotesLoading(true);
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('*')
+      .eq('contractor_id', user.id)
+      .order('created_at', { ascending: false });
+    if (!error) setQuotes(data || []);
+    setQuotesLoading(false);
+  };
 
   // Real-time new quote subscription
   useEffect(() => {
@@ -523,7 +537,13 @@ const ContractorDashboard = () => {
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Quote Requests</h2>
-              <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={loadQuotes} disabled={quotesLoading}>
+                  {quotesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Refresh
+                </Button>
+                <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
