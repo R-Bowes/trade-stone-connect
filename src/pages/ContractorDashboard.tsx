@@ -68,6 +68,8 @@ const contractorDashboardViews = [
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
   const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [issuedQuotesLoading, setIssuedQuotesLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -196,16 +198,18 @@ const ContractorDashboard = () => {
       }
 
       // Load enquiries (inbound quote requests)
-      const { data: quotesData, error: quotesError } = await supabase
-        .from('quotes')
-        .select('*')
-        .eq('contractor_id', currentUser.id)
-        .order('created_at', { ascending: false });
+      if (pid) {
+        const { data: enquiriesData, error: enquiriesError } = await supabase
+          .from('enquiries')
+          .select('*')
+          .eq('contractor_id', pid)
+          .order('created_at', { ascending: false });
 
-      if (quotesError) {
-        console.error('Error loading enquiries:', quotesError);
-      } else {
-        setQuotes(quotesData || []);
+        if (enquiriesError) {
+          console.error('Error loading enquiries:', enquiriesError);
+        } else {
+          setEnquiries(enquiriesData || []);
+        }
       }
 
       // Load issued quotes
@@ -290,15 +294,15 @@ const ContractorDashboard = () => {
   }, [navigate]);
 
   const loadEnquiries = async () => {
-    if (!user) return;
-    setQuotesLoading(true);
+    if (!profileId) return;
+    setEnquiriesLoading(true);
     const { data, error } = await supabase
-      .from('quotes')
+      .from('enquiries')
       .select('*')
-      .eq('contractor_id', user.id)
+      .eq('contractor_id', profileId)
       .order('created_at', { ascending: false });
-    if (!error) setQuotes(data || []);
-    setQuotesLoading(false);
+    if (!error) setEnquiries(data || []);
+    setEnquiriesLoading(false);
   };
 
   const loadIssuedQuotes = async () => {
@@ -342,28 +346,28 @@ const ContractorDashboard = () => {
     };
   }, [user, toast]);
 
-  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
+  const updateEnquiryStatus = async (enquiryId: string, newStatus: string) => {
     try {
       const { error } = await supabase
-        .from('quotes')
+        .from('enquiries')
         .update({ status: newStatus })
-        .eq('id', quoteId);
+        .eq('id', enquiryId);
 
       if (error) throw error;
 
-      setQuotes(prev => prev.map(quote =>
-        quote.id === quoteId ? { ...quote, status: newStatus } : quote
+      setEnquiries(prev => prev.map(e =>
+        e.id === enquiryId ? { ...e, status: newStatus } : e
       ));
 
       toast({
-        title: "Quote Updated",
-        description: `Quote status updated to ${newStatus}`,
+        title: "Enquiry Updated",
+        description: `Enquiry status updated to ${newStatus}`,
       });
     } catch (error) {
-      console.error('Error updating quote status:', error);
+      console.error('Error updating enquiry status:', error);
       toast({
         title: "Error",
-        description: "Failed to update quote status",
+        description: "Failed to update enquiry status",
         variant: "destructive",
       });
     }
@@ -567,8 +571,8 @@ const ContractorDashboard = () => {
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Enquiries</h2>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={loadEnquiries} disabled={quotesLoading}>
-                  {quotesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                <Button variant="outline" onClick={loadEnquiries} disabled={enquiriesLoading}>
+                  {enquiriesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Refresh
                 </Button>
                 <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
@@ -581,7 +585,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-blue-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'pending').length}</p>
                       <p className="text-sm text-muted-foreground">Pending</p>
                     </div>
                   </div>
@@ -592,7 +596,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Eye className="h-4 w-4 text-yellow-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'viewed').length}</p>
                       <p className="text-sm text-muted-foreground">Viewed</p>
                     </div>
                   </div>
@@ -603,7 +607,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Send className="h-4 w-4 text-green-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'responded').length}</p>
                       <p className="text-sm text-muted-foreground">Responded</p>
                     </div>
                   </div>
@@ -614,7 +618,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Star className="h-4 w-4 text-purple-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.length}</p>
+                      <p className="text-2xl font-bold">{enquiries.length}</p>
                       <p className="text-sm text-muted-foreground">Total</p>
                     </div>
                   </div>
@@ -622,7 +626,7 @@ const ContractorDashboard = () => {
               </Card>
             </div>
 
-            {quotes.length === 0 ? (
+            {enquiries.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -632,31 +636,31 @@ const ContractorDashboard = () => {
               </Card>
             ) : (
               <div className="space-y-4">
-                {quotes.map((quote) => (
-                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
+                {enquiries.map((enquiry) => (
+                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
-                            <Badge className={getStatusColor(quote.status || 'pending')}>{quote.status}</Badge>
+                            <h3 className="text-lg font-semibold">{enquiry.project_title}</h3>
+                            <Badge className={getStatusColor(enquiry.status || 'pending')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
+                          <p className="text-muted-foreground mb-2">{enquiry.project_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>From: {quote.customer_name}</span>
-                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
-                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
-                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
+                            <span>From: {enquiry.customer_name}</span>
+                            {enquiry.customer_phone && <span>Phone: {enquiry.customer_phone}</span>}
+                            {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
+                            {enquiry.timeline && <span>Timeline: {enquiry.timeline}</span>}
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 md:min-w-[140px]">
-                          {quote.status === 'pending' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
+                          {enquiry.status === 'pending' && (
+                            <Button size="sm" onClick={() => updateEnquiryStatus(enquiry.id, 'viewed')}>
                               Mark as Viewed
                             </Button>
                           )}
-                          {quote.status === 'viewed' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
+                          {enquiry.status === 'viewed' && (
+                            <Button size="sm" onClick={() => updateEnquiryStatus(enquiry.id, 'responded')}>
                               Mark as Responded
                             </Button>
                           )}
