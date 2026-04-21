@@ -72,8 +72,6 @@ export function ScheduleManagement() {
         .eq("recipient_response", "accepted")
         .order("responded_at", { ascending: false });
 
-      console.log("profileRow.id:", profileRow?.id);
-      console.log("fetchAcceptedQuotes data:", data, "error:", error);
       if (!error) {
         setAcceptedQuotes((data as AcceptedQuote[]) || []);
       }
