@@ -861,24 +861,30 @@ const ContractorDashboard = () => {
         />
       </main>
 
-      <SendQuoteDialog
-        open={!!sendQuoteEnquiry}
-        onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
-        enquiry={sendQuoteEnquiry}
-        onSuccess={() => loadEnquiries()}
-      />
-      <RespondDialog
-        open={!!respondEnquiry}
-        onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
-        enquiry={respondEnquiry}
-        onSuccess={() => loadEnquiries()}
-      />
-      <RejectDialog
-        open={!!rejectEnquiry}
-        onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
-        enquiry={rejectEnquiry}
-        onSuccess={() => loadEnquiries()}
-      />
+      {sendQuoteEnquiry && (
+        <SendQuoteDialog
+          open={!!sendQuoteEnquiry}
+          onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
+          enquiry={sendQuoteEnquiry}
+          onSuccess={() => loadEnquiries()}
+        />
+      )}
+      {respondEnquiry && (
+        <RespondDialog
+          open={!!respondEnquiry}
+          onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
+          enquiry={respondEnquiry}
+          onSuccess={() => loadEnquiries()}
+        />
+      )}
+      {rejectEnquiry && (
+        <RejectDialog
+          open={!!rejectEnquiry}
+          onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
+          enquiry={rejectEnquiry}
+          onSuccess={() => loadEnquiries()}
+        />
+      )}
     </div>
   );
 };
