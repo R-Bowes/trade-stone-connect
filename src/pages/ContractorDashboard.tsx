@@ -40,6 +40,9 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
+import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
+import { RespondDialog } from "@/components/management/RespondDialog";
+import { RejectDialog } from "@/components/management/RejectDialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -70,6 +73,9 @@ const ContractorDashboard = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
+  const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<any | null>(null);
+  const [respondEnquiry, setRespondEnquiry] = useState<any | null>(null);
+  const [rejectEnquiry, setRejectEnquiry] = useState<any | null>(null);
   const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [issuedQuotesLoading, setIssuedQuotesLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -645,26 +651,32 @@ const ContractorDashboard = () => {
                             <h3 className="text-lg font-semibold">{enquiry.project_title}</h3>
                             <Badge className={getStatusColor(enquiry.status || 'pending')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2">{enquiry.project_description}</p>
-                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                          {enquiry.project_description && (
+                            <p className="text-muted-foreground mb-2">{enquiry.project_description}</p>
+                          )}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                             <span>From: {enquiry.customer_name}</span>
-                            {enquiry.customer_phone && <span>Phone: {enquiry.customer_phone}</span>}
+                            {enquiry.ts_code && <span>TS: {enquiry.ts_code}</span>}
+                            {enquiry.location && <span>Location: {enquiry.location}</span>}
                             {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
                             {enquiry.timeline && <span>Timeline: {enquiry.timeline}</span>}
+                            <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 md:min-w-[140px]">
-                          {enquiry.status === 'pending' && (
-                            <Button size="sm" onClick={() => updateEnquiryStatus(enquiry.id, 'viewed')}>
-                              Mark as Viewed
+                        {enquiry.status !== 'rejected' && enquiry.status !== 'declined' && (
+                          <div className="flex flex-col gap-2 md:min-w-[140px]">
+                            <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
+                              Accept & Quote
                             </Button>
-                          )}
-                          {enquiry.status === 'viewed' && (
-                            <Button size="sm" onClick={() => updateEnquiryStatus(enquiry.id, 'responded')}>
-                              Mark as Responded
+                            <Button size="sm" variant="outline" onClick={() => setRespondEnquiry(enquiry)}>
+                              Respond
                             </Button>
-                          )}
-                        </div>
+                            <Button size="sm" variant="outline" onClick={() => setRejectEnquiry(enquiry)}
+                              className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
+                              Reject
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -848,6 +860,25 @@ const ContractorDashboard = () => {
           onSkip={() => endTour(true)}
         />
       </main>
+
+      <SendQuoteDialog
+        open={!!sendQuoteEnquiry}
+        onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
+        enquiry={sendQuoteEnquiry}
+        onSuccess={() => loadEnquiries()}
+      />
+      <RespondDialog
+        open={!!respondEnquiry}
+        onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
+        enquiry={respondEnquiry}
+        onSuccess={() => loadEnquiries()}
+      />
+      <RejectDialog
+        open={!!rejectEnquiry}
+        onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
+        enquiry={rejectEnquiry}
+        onSuccess={() => loadEnquiries()}
+      />
     </div>
   );
 };
