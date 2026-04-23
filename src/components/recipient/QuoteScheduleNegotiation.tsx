@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface QuoteScheduleNegotiationProps {
   quoteId: string;
@@ -59,6 +61,8 @@ export function QuoteScheduleNegotiation({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [confirmingJob, setConfirmingJob] = useState(false);
+  const { toast } = useToast();
 
   const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
 
@@ -82,6 +86,40 @@ export function QuoteScheduleNegotiation({
       return { label: "Within contractor availability", variant: "default" as const };
     }
     return { label: "Outside stated availability", variant: "secondary" as const };
+  };
+
+  const confirmJobDirectly = async () => {
+    setConfirmingJob(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error("Not authenticated");
+
+      const { data: quote, error: quoteError } = await supabase
+        .from("issued_quotes")
+        .select("contractor_id, recipient_id, title, client_address, total")
+        .eq("id", quoteId)
+        .single();
+      if (quoteError || !quote) throw quoteError ?? new Error("Quote not found");
+
+      const { error: jobError } = await supabase.from("jobs").insert({
+        contractor_id: quote.contractor_id,
+        customer_id: quote.recipient_id,
+        issued_quote_id: quoteId,
+        title: quote.title,
+        location: quote.client_address,
+        status: "scheduled",
+        contract_value: quote.total,
+      });
+      if (jobError) throw jobError;
+
+      toast({ title: "Job confirmed" });
+      onJobConfirmed?.();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to confirm job", variant: "destructive" });
+    } finally {
+      setConfirmingJob(false);
+    }
   };
 
   const submitProposal = async () => {
@@ -269,11 +307,12 @@ export function QuoteScheduleNegotiation({
                 <Button
                   className="w-full text-white font-semibold"
                   style={{ backgroundColor: "#f07820" }}
-                  onClick={() => setDepositOpen(true)}
+                  disabled={confirmingJob}
+                  onClick={hasDeposit ? () => setDepositOpen(true) : confirmJobDirectly}
                 >
                   {hasDeposit
                     ? `Approve & Pay £${quoteDepositAmount!.toFixed(2)} Deposit`
-                    : "Confirm Job"}
+                    : confirmingJob ? "Confirming…" : "Confirm Job"}
                 </Button>
               </div>
             </>
@@ -281,7 +320,7 @@ export function QuoteScheduleNegotiation({
         </CardContent>
       </Card>
 
-      {depositOpen && quoteTotal != null && (
+      {hasDeposit && depositOpen && quoteTotal != null && (
         <DepositPaymentDialog
           quoteId={quoteId}
           totalAmount={quoteTotal}
