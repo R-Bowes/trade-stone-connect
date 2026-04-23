@@ -239,7 +239,6 @@ export function JobManagement() {
       issued_quote_id: job.issued_quote_id ?? null,
     })) as JobCardData[];
 
-    console.log("Loaded jobs:", mapped.map(j => ({ id: j.id, title: j.title })));
     setJobs(mapped);
 
     const jobIds = mapped.map((j) => j.id);
