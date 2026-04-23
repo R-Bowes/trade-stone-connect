@@ -123,6 +123,26 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         throw error;
       }
 
+      // Notify the contractor
+      if (contractorId) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("id", contractorId)
+          .single();
+        if (profileData?.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: profileData.user_id,
+            title: "Schedule date accepted",
+            message: "A client has accepted your proposed date",
+            type: "schedule_accepted",
+            reference_type: "schedule_event",
+            reference_id: proposalId,
+            is_read: false,
+          }).catch(console.error);
+        }
+      }
+
       // Decline all other proposals for this quote
       await supabase
         .from("schedule_events")
@@ -141,7 +161,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       });
       await fetchData();
     },
-    [fetchData, quoteId, toast],
+    [contractorId, fetchData, quoteId, toast],
   );
 
   const hasConfirmedProposal = useMemo(
