@@ -19,10 +19,10 @@ import {
   Filter,
   MessageCircle,
   Star,
+  Mail,
   Loader2,
   Hammer,
-  HelpCircle,
-  RefreshCw,
+  HelpCircle
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -40,9 +40,6 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
-import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
-import { RespondDialog } from "@/components/management/RespondDialog";
-import { RejectDialog } from "@/components/management/RejectDialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -52,8 +49,7 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
-  { value: "enquiries", label: "Enquiries" },
-  { value: "issued-quotes", label: "Issued Quotes" },
+  { value: "quotes", label: "Quotes" },
   { value: "jobs", label: "Jobs" },
   { value: "invoices", label: "Invoices" },
   { value: "projects", label: "Projects" },
@@ -71,17 +67,8 @@ const contractorDashboardViews = [
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [enquiries, setEnquiries] = useState<any[]>([]);
-  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
-  const [sendQuoteEnquiry, setSendQuoteEnquiry] = useState<any | null>(null);
-  const [respondEnquiry, setRespondEnquiry] = useState<any | null>(null);
-  const [rejectEnquiry, setRejectEnquiry] = useState<any | null>(null);
-  const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
-  const [issuedQuotesLoading, setIssuedQuotesLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [quotesLoading, setQuotesLoading] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   // Real dashboard data
@@ -110,7 +97,7 @@ const ContractorDashboard = () => {
       title: "Quote Requests",
       description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
       placement: "bottom",
-      action: () => setActiveTab("enquiries"),
+      action: () => setActiveTab("quotes"),
     },
     {
       target: '[data-tour="tab-invoices"]',
@@ -189,12 +176,9 @@ const ContractorDashboard = () => {
       // Check profile completeness
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, trades, location, working_radius, logo_url')
+        .select('trades, location, working_radius, logo_url')
         .eq('user_id', currentUser.id)
         .single();
-
-      const pid = (profileData as any)?.id ?? null;
-      setProfileId(pid);
 
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
@@ -203,29 +187,17 @@ const ContractorDashboard = () => {
         setActiveTab("profile");
       }
 
-      // Load enquiries (inbound quote requests)
-      if (pid) {
-        const { data: enquiriesData, error: enquiriesError } = await supabase
-          .from('enquiries')
-          .select('*')
-          .eq('contractor_id', pid)
-          .order('created_at', { ascending: false });
+      // Load quotes
+      const { data: quotesData, error: quotesError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('contractor_id', currentUser.id)
+        .order('created_at', { ascending: false });
 
-        if (enquiriesError) {
-          console.error('Error loading enquiries:', enquiriesError);
-        } else {
-          setEnquiries(enquiriesData || []);
-        }
-      }
-
-      // Load issued quotes
-      if (pid) {
-        const { data: iqData } = await supabase
-          .from('issued_quotes')
-          .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-          .eq('contractor_id', pid)
-          .order('created_at', { ascending: false });
-        setIssuedQuotes(iqData || []);
+      if (quotesError) {
+        console.error('Error loading quotes:', quotesError);
+      } else {
+        setQuotes(quotesData || []);
       }
 
       // --- Real dashboard stats ---
@@ -299,30 +271,6 @@ const ContractorDashboard = () => {
     loadUserAndData();
   }, [navigate]);
 
-  const loadEnquiries = async () => {
-    if (!profileId) return;
-    setEnquiriesLoading(true);
-    const { data, error } = await supabase
-      .from('enquiries')
-      .select('*')
-      .eq('contractor_id', profileId)
-      .order('created_at', { ascending: false });
-    if (!error) setEnquiries(data || []);
-    setEnquiriesLoading(false);
-  };
-
-  const loadIssuedQuotes = async () => {
-    if (!profileId) return;
-    setIssuedQuotesLoading(true);
-    const { data } = await supabase
-      .from('issued_quotes')
-      .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-      .eq('contractor_id', profileId)
-      .order('created_at', { ascending: false });
-    setIssuedQuotes(data || []);
-    setIssuedQuotesLoading(false);
-  };
-
   // Real-time new quote subscription
   useEffect(() => {
     if (!user) return;
@@ -352,28 +300,28 @@ const ContractorDashboard = () => {
     };
   }, [user, toast]);
 
-  const updateEnquiryStatus = async (enquiryId: string, newStatus: string) => {
+  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
     try {
       const { error } = await supabase
-        .from('enquiries')
+        .from('quotes')
         .update({ status: newStatus })
-        .eq('id', enquiryId);
+        .eq('id', quoteId);
 
       if (error) throw error;
 
-      setEnquiries(prev => prev.map(e =>
-        e.id === enquiryId ? { ...e, status: newStatus } : e
+      setQuotes(prev => prev.map(quote =>
+        quote.id === quoteId ? { ...quote, status: newStatus } : quote
       ));
 
       toast({
-        title: "Enquiry Updated",
-        description: `Enquiry status updated to ${newStatus}`,
+        title: "Quote Updated",
+        description: `Quote status updated to ${newStatus}`,
       });
     } catch (error) {
-      console.error('Error updating enquiry status:', error);
+      console.error('Error updating quote status:', error);
       toast({
         title: "Error",
-        description: "Failed to update enquiry status",
+        description: "Failed to update quote status",
         variant: "destructive",
       });
     }
@@ -572,17 +520,11 @@ const ContractorDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Enquiries Tab */}
-          <TabsContent value="enquiries" className="space-y-6">
+          {/* Quotes Tab */}
+          <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Enquiries</h2>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={loadEnquiries} disabled={enquiriesLoading}>
-                  {enquiriesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Refresh
-                </Button>
-                <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
-              </div>
+              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -591,7 +533,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-blue-500" />
                     <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'pending').length}</p>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
                       <p className="text-sm text-muted-foreground">Pending</p>
                     </div>
                   </div>
@@ -602,7 +544,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Eye className="h-4 w-4 text-yellow-500" />
                     <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'viewed').length}</p>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
                       <p className="text-sm text-muted-foreground">Viewed</p>
                     </div>
                   </div>
@@ -613,7 +555,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Send className="h-4 w-4 text-green-500" />
                     <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'responded').length}</p>
+                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
                       <p className="text-sm text-muted-foreground">Responded</p>
                     </div>
                   </div>
@@ -624,7 +566,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Star className="h-4 w-4 text-purple-500" />
                     <div>
-                      <p className="text-2xl font-bold">{enquiries.length}</p>
+                      <p className="text-2xl font-bold">{quotes.length}</p>
                       <p className="text-sm text-muted-foreground">Total</p>
                     </div>
                   </div>
@@ -632,117 +574,60 @@ const ContractorDashboard = () => {
               </Card>
             </div>
 
-            {enquiries.length === 0 ? (
+            {quotes.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
-                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving enquiries!</p>
+                  <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
+                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving quotes!</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {enquiries.map((enquiry) => (
-                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
+                {quotes.map((quote) => (
+                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{enquiry.project_title}</h3>
-                            <Badge className={getStatusColor(enquiry.status || 'pending')}>{enquiry.status}</Badge>
+                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
+                            <Badge className={getStatusColor(quote.status || 'pending')}>{quote.status}</Badge>
                           </div>
-                          {enquiry.project_description && (
-                            <p className="text-muted-foreground mb-2">{enquiry.project_description}</p>
-                          )}
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                            <span>From: {enquiry.customer_name}</span>
-                            {enquiry.ts_code && <span>TS: {enquiry.ts_code}</span>}
-                            {enquiry.location && <span>Location: {enquiry.location}</span>}
-                            {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
-                            {enquiry.timeline && <span>Timeline: {enquiry.timeline}</span>}
-                            <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
+                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span>From: {quote.customer_name}</span>
+                            <span>Email: {quote.customer_email}</span>
+                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
+                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
+                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
                           </div>
                         </div>
-                        {enquiry.status !== 'rejected' && enquiry.status !== 'declined' && (
-                          <div className="flex flex-col gap-2 md:min-w-[140px]">
-                            <Button size="sm" onClick={() => setSendQuoteEnquiry(enquiry)}>
-                              Accept & Quote
+                        <div className="flex flex-col gap-2 md:min-w-[140px]">
+                          {quote.status === 'pending' && (
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
+                              Mark as Viewed
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setRespondEnquiry(enquiry)}>
-                              Respond
+                          )}
+                          {quote.status === 'viewed' && (
+                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
+                              Mark as Responded
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setRejectEnquiry(enquiry)}
-                              className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
-                              Reject
-                            </Button>
-                          </div>
-                        )}
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              window.location.href = `mailto:${quote.customer_email}?subject=Re: ${encodeURIComponent(quote.project_title)}&body=Hi ${encodeURIComponent(quote.customer_name)},%0D%0A%0D%0AThank you for your quote request regarding "${encodeURIComponent(quote.project_title)}".%0D%0A%0D%0A`
+                            }
+                          >
+                            <Mail className="h-3 w-3 mr-1" />Contact
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
-            )}
-          </TabsContent>
-
-          {/* Issued Quotes Tab */}
-          <TabsContent value="issued-quotes" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Issued Quotes</h2>
-              <Button variant="outline" onClick={loadIssuedQuotes} disabled={issuedQuotesLoading}>
-                {issuedQuotesLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Refresh
-              </Button>
-            </div>
-            {issuedQuotes.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
-                  <p className="text-muted-foreground">Quotes you send to customers will appear here.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          <th className="text-left p-4 text-sm font-medium">Quote #</th>
-                          <th className="text-left p-4 text-sm font-medium">Client</th>
-                          <th className="text-left p-4 text-sm font-medium">Total</th>
-                          <th className="text-left p-4 text-sm font-medium">Status</th>
-                          <th className="text-left p-4 text-sm font-medium">Response</th>
-                          <th className="text-left p-4 text-sm font-medium">Date Sent</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {issuedQuotes.map((iq) => (
-                          <tr key={iq.id} className="border-t">
-                            <td className="p-4 font-medium">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
-                            <td className="p-4">{iq.client_name || '—'}</td>
-                            <td className="p-4 font-medium">{iq.total != null ? `£${Number(iq.total).toLocaleString('en-GB')}` : '—'}</td>
-                            <td className="p-4"><Badge className={getStatusColor(iq.status || '')}>{iq.status || '—'}</Badge></td>
-                            <td className="p-4">
-                              <Badge className={
-                                iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' :
-                                iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }>
-                                {iq.recipient_response || 'awaiting'}
-                              </Badge>
-                            </td>
-                            <td className="p-4 text-sm text-muted-foreground">
-                              {new Date(iq.created_at).toLocaleDateString('en-GB')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
             )}
           </TabsContent>
 
@@ -860,31 +745,6 @@ const ContractorDashboard = () => {
           onSkip={() => endTour(true)}
         />
       </main>
-
-      {sendQuoteEnquiry && (
-        <SendQuoteDialog
-          open={!!sendQuoteEnquiry}
-          onOpenChange={(open) => { if (!open) setSendQuoteEnquiry(null); }}
-          enquiry={sendQuoteEnquiry}
-          onSuccess={() => loadEnquiries()}
-        />
-      )}
-      {respondEnquiry && (
-        <RespondDialog
-          open={!!respondEnquiry}
-          onOpenChange={(open) => { if (!open) setRespondEnquiry(null); }}
-          enquiry={respondEnquiry}
-          onSuccess={() => loadEnquiries()}
-        />
-      )}
-      {rejectEnquiry && (
-        <RejectDialog
-          open={!!rejectEnquiry}
-          onOpenChange={(open) => { if (!open) setRejectEnquiry(null); }}
-          enquiry={rejectEnquiry}
-          onSuccess={() => loadEnquiries()}
-        />
-      )}
     </div>
   );
 };
