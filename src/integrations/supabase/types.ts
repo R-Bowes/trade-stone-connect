@@ -1523,7 +1523,7 @@ export type Database = {
           {
             foreignKeyName: "jobs_issued_quote_id_fkey"
             columns: ["issued_quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "issued_quotes"
             referencedColumns: ["id"]
           },
