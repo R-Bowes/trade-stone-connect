@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -22,7 +23,10 @@ import {
   Mail,
   Loader2,
   Hammer,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -49,7 +53,8 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
-  { value: "quotes", label: "Quotes" },
+  { value: "enquiries", label: "Enquiries" },
+  { value: "issued-quotes", label: "Issued Quotes" },
   { value: "jobs", label: "Jobs" },
   { value: "invoices", label: "Invoices" },
   { value: "projects", label: "Projects" },
@@ -67,9 +72,12 @@ const contractorDashboardViews = [
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
 
   // Real dashboard data
   const [dashboardData, setDashboardData] = useState({
@@ -97,7 +105,7 @@ const ContractorDashboard = () => {
       title: "Quote Requests",
       description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
       placement: "bottom",
-      action: () => setActiveTab("quotes"),
+      action: () => setActiveTab("enquiries"),
     },
     {
       target: '[data-tour="tab-invoices"]',
@@ -173,6 +181,14 @@ const ContractorDashboard = () => {
 
       setUser(currentUser);
 
+      // Fetch profile id
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      setProfileId(profileRow?.id ?? null);
+
       // Check profile completeness
       const { data: profileData } = await supabase
         .from('profiles')
@@ -198,6 +214,16 @@ const ContractorDashboard = () => {
         console.error('Error loading quotes:', quotesError);
       } else {
         setQuotes(quotesData || []);
+      }
+
+      // Load issued quotes
+      if (profileRow?.id) {
+        const { data: issuedQuotesData } = await supabase
+          .from('issued_quotes')
+          .select('id, quote_number, client_name, total, status, recipient_response, created_at')
+          .eq('contractor_id', profileRow.id)
+          .order('created_at', { ascending: false });
+        setIssuedQuotes(issuedQuotesData || []);
       }
 
       // --- Real dashboard stats ---
@@ -520,8 +546,8 @@ const ContractorDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Quotes Tab */}
-          <TabsContent value="quotes" className="space-y-6">
+          {/* Enquiries Tab */}
+          <TabsContent value="enquiries" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Quote Requests</h2>
               <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
@@ -628,6 +654,103 @@ const ContractorDashboard = () => {
                   </Card>
                 ))}
               </div>
+            )}
+          </TabsContent>
+
+          {/* Issued Quotes Tab */}
+          <TabsContent value="issued-quotes" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Issued Quotes</h2>
+              <Button variant="outline" onClick={async () => {
+                if (!profileId) return;
+                const { data } = await supabase
+                  .from('issued_quotes')
+                  .select('id, quote_number, client_name, total, status, recipient_response, created_at')
+                  .eq('contractor_id', profileId)
+                  .order('created_at', { ascending: false });
+                setIssuedQuotes(data || []);
+              }}>
+                <RefreshCw className="h-4 w-4 mr-2" />Refresh
+              </Button>
+            </div>
+            {issuedQuotes.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
+                  <p className="text-muted-foreground">Quotes you send to clients will appear here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left p-3 font-medium">Quote #</th>
+                          <th className="text-left p-3 font-medium">Client</th>
+                          <th className="text-left p-3 font-medium">Total</th>
+                          <th className="text-left p-3 font-medium">Status</th>
+                          <th className="text-left p-3 font-medium">Response</th>
+                          <th className="text-left p-3 font-medium">Date Sent</th>
+                          <th className="text-left p-3 font-medium">Schedule</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {issuedQuotes.map((iq) => (
+                          <>
+                            <tr key={iq.id} className="border-b hover:bg-muted/30">
+                              <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
+                              <td className="p-3">{iq.client_name}</td>
+                              <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
+                              <td className="p-3">
+                                <Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge>
+                              </td>
+                              <td className="p-3">
+                                {iq.recipient_response ? (
+                                  <Badge className={iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' : iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
+                                    {iq.recipient_response}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="p-3">{new Date(iq.created_at).toLocaleDateString('en-GB')}</td>
+                              <td className="p-3">
+                                {iq.recipient_response === 'accepted' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}
+                                  >
+                                    {expandedQuoteId === iq.id ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                            {expandedQuoteId === iq.id && (
+                              <tr key={`${iq.id}-schedule`}>
+                                <td colSpan={7} className="p-4 bg-muted/20">
+                                  <QuoteScheduleNegotiation
+                                    quoteId={iq.id}
+                                    contractorId={profileId}
+                                    mode="contractor"
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
