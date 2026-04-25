@@ -53,7 +53,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [taxRate, setTaxRate] = useState(0);
+  const [taxRate, setTaxRate] = useState(20);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: "", quantity: 1, unit_price: 0, total: 0 },
@@ -222,7 +222,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
             </div>
             <div className="space-y-2">
               <Label>Tax Rate (%)</Label>
-              <Input type="number" min="0" max="100" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} />
+              <Input type="number" min="0" max="100" placeholder="20" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} />
             </div>
           </div>
 

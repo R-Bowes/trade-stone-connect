@@ -36,8 +36,6 @@ serve(async (req) => {
 
     const { action = "create_client_secret", invoiceId }: RequestBody = await req.json();
 
-    console.log("Received invoiceId:", invoiceId);
-
     if (!invoiceId) {
       return jsonResponse(400, { success: false, error: "invoiceId is required" });
     }
@@ -61,8 +59,6 @@ serve(async (req) => {
       `)
       .eq("id", invoiceId)
       .single();
-
-    console.log("Invoice fetch result:", { invoice, invoiceError });
 
     if (invoiceError || !invoice) {
       return jsonResponse(400, { success: false, error: "Invoice not found" });
