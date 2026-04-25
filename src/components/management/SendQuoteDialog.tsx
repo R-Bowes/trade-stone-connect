@@ -54,6 +54,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(25);
   const [submitting, setSubmitting] = useState(false);
+  const [customerTsCode, setCustomerTsCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -67,6 +68,17 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setTerms("");
     setDepositRequired(false);
     setDepositPercentage(25);
+
+    if (enquiry.customer_id) {
+      supabase
+        .from("profiles")
+        .select("ts_code")
+        .eq("id", enquiry.customer_id)
+        .maybeSingle()
+        .then(({ data }) => setCustomerTsCode(data?.ts_code ?? null));
+    } else {
+      setCustomerTsCode(null);
+    }
   }, [open, enquiry]);
 
   const updateItem = useCallback(
@@ -112,9 +124,9 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       let recipientId: string | null = null;
       if (enquiry.customer_id) {
         const { data: customerProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', enquiry.customer_id)
+          .from("profiles")
+          .select("id")
+          .eq("id", enquiry.customer_id)
           .maybeSingle();
         recipientId = customerProfile?.id ?? null;
       }
@@ -183,7 +195,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         <DialogHeader>
           <DialogTitle>Send Quote</DialogTitle>
           <DialogDescription>
-            Create a quote for {enquiry.customer_name ?? "customer"} ({enquiry.customer_email ?? "no email"}).
+            Create a quote for {enquiry.customer_name ?? "customer"}
+            {customerTsCode ? ` (${customerTsCode})` : ""}.
           </DialogDescription>
         </DialogHeader>
 
