@@ -45,7 +45,7 @@ export function RejectDialog({ open, onOpenChange, enquiry, onSuccess }: RejectD
 
       const { error: enquiryError } = await supabase
         .from("enquiries")
-        .update({ status: "declined" })
+        .update({ status: "archived" })
         .eq("id", enquiry.id);
       if (enquiryError) throw enquiryError;
 

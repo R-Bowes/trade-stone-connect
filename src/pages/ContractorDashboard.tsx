@@ -26,7 +26,9 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -44,11 +46,28 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
+import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
+import { RejectDialog } from "@/components/management/RejectDialog";
+import { RespondDialog } from "@/components/management/RespondDialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type QuoteStatus = NonNullable<Quote["status"]>;
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
+
+type EnquiryForDialog = {
+  id: string;
+  contractor_id: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  job_description: string;
+  location: string;
+  preferred_timeline: string | null;
+  budget_range: string | null;
+  status: string | null;
+};
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
 const contractorDashboardViews = [
@@ -73,6 +92,8 @@ const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
+  const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | null>(null);
   const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -220,7 +241,7 @@ const ContractorDashboard = () => {
       // Load enquiries (homeowner enquiries assigned to this contractor, or open new ones)
       const { data: enquiriesData, error: enquiriesError } = await supabase
         .from('enquiries')
-        .select('id, title, job_description, location, status, created_at, customer_id, customer_name, customer_email, photo_urls')
+        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
         .eq('contractor_id', currentUser.id)
         .order('created_at', { ascending: false });
 
@@ -339,6 +360,26 @@ const ContractorDashboard = () => {
       supabase.removeChannel(channel);
     };
   }, [user, toast]);
+
+  const reloadEnquiries = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('enquiries')
+      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
+      .eq('contractor_id', user.id)
+      .order('created_at', { ascending: false });
+    setEnquiries(data || []);
+  };
+
+  const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => {
+    setActiveEnquiry(enquiry as EnquiryForDialog);
+    setEnquiryDialog(dialog);
+  };
+
+  const closeEnquiryDialog = () => {
+    setEnquiryDialog(null);
+    setActiveEnquiry(null);
+  };
 
   const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
     try {
@@ -627,7 +668,7 @@ const ContractorDashboard = () => {
                 {enquiries.map((enquiry) => (
                   <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="text-lg font-semibold">{enquiry.title}</h3>
@@ -637,14 +678,68 @@ const ContractorDashboard = () => {
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                             {enquiry.customer_name && <span>From: {enquiry.customer_name}</span>}
                             {enquiry.location && <span>Location: {enquiry.location}</span>}
+                            {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
+                            {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
                             <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
+                        </div>
+                        <div className="flex flex-col gap-2 md:min-w-[160px]">
+                          {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
+                            <Button
+                              size="sm"
+                              onClick={() => openEnquiryDialog(enquiry, 'quote')}
+                            >
+                              <Send className="h-3 w-3 mr-1" />Send Quote
+                            </Button>
+                          )}
+                          {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEnquiryDialog(enquiry, 'respond')}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />Request Info
+                            </Button>
+                          )}
+                          {enquiry.status === 'new' || enquiry.status === 'replied' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => openEnquiryDialog(enquiry, 'reject')}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" />Decline
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            )}
+
+            {activeEnquiry && (
+              <>
+                <SendQuoteDialog
+                  open={enquiryDialog === 'quote'}
+                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
+                  enquiry={activeEnquiry}
+                  onSuccess={reloadEnquiries}
+                />
+                <RespondDialog
+                  open={enquiryDialog === 'respond'}
+                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
+                  enquiry={activeEnquiry}
+                  onSuccess={reloadEnquiries}
+                />
+                <RejectDialog
+                  open={enquiryDialog === 'reject'}
+                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
+                  enquiry={activeEnquiry}
+                  onSuccess={reloadEnquiries}
+                />
+              </>
             )}
           </TabsContent>
 
