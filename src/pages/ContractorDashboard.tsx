@@ -220,7 +220,7 @@ const ContractorDashboard = () => {
       // Load enquiries (homeowner enquiries assigned to this contractor, or open new ones)
       const { data: enquiriesData, error: enquiriesError } = await supabase
         .from('enquiries')
-        .select('id, title, description, location, status, created_at, homeowner_id, enquiry_photo_paths')
+        .select('id, title, job_description, location, status, created_at, customer_id, customer_name, customer_email, photo_urls')
         .eq('contractor_id', currentUser.id)
         .order('created_at', { ascending: false });
 
@@ -633,8 +633,9 @@ const ContractorDashboard = () => {
                             <h3 className="text-lg font-semibold">{enquiry.title}</h3>
                             <Badge className={getStatusColor(enquiry.status || 'new')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2">{enquiry.description}</p>
+                          <p className="text-muted-foreground mb-2">{enquiry.job_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            {enquiry.customer_name && <span>From: {enquiry.customer_name}</span>}
                             {enquiry.location && <span>Location: {enquiry.location}</span>}
                             <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
