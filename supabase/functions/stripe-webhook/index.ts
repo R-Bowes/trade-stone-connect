@@ -103,7 +103,7 @@ serve(async (req) => {
 
       if (resend && profile?.email) {
         await resend.emails.send({
-          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <invoices@tradestone.app>",
+          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
           to: [profile.email],
           subject: `Payment received for invoice ${invoice.invoice_number ?? invoice.id}`,
           html: `<p>Your client payment has been received successfully.</p>`,

@@ -45,7 +45,7 @@ serve(async () => {
       const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "http://localhost:5173";
       for (const invoice of overdueInvoices) {
         await resend.emails.send({
-          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <invoices@tradestone.app>",
+          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
           to: [invoice.client_email],
           subject: `Reminder: Invoice ${invoice.invoice_number ?? invoice.id} is overdue`,
           html: `

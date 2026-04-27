@@ -9,9 +9,11 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 
+// NEW
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://lovable.tradestone.app",
-  "https://tradestone.lovable.app",
+  "https://trade-stone-connect-abc123.vercel.app",
+  "https://tradesltd.co.uk",
+  "https://www.tradesltd.co.uk",
   "http://localhost:5173",
   "http://localhost:4173",
 ];
@@ -342,7 +344,7 @@ const handler = async (req: Request): Promise<Response> => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: "TradeStone <quotes@tradestone.lovable.app>",
+          from: "TradeStone <noreply@tradesltd.co.uk>",
           to: [customerEmail],
           subject: "Quote Request Confirmation - TradeStone",
           html: `

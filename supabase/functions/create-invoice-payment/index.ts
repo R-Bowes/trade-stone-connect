@@ -3,8 +3,9 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://tradestone.lovable.app",
-  "https://id-preview--044cecf7-f854-4f7f-a7bd-b9c1af6bc7e3.lovable.app",
+  "https://tradesltd.co.uk",
+  "https://www.tradesltd.co.uk",
+  "https://trade-stone-connect-abc123.vercel.app",
   "http://localhost:5173",
   "http://localhost:4173",
 ];

@@ -2,8 +2,9 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://tradestone.lovable.app",
-  "https://id-preview--044cecf7-f854-4f7f-a7bd-b9c1af6bc7e3.lovable.app",
+  "https://trade-stone-connect-abc123.vercel.app",
+  "https://tradesltd.co.uk",
+  "https://www.tradesltd.co.uk",
   "http://localhost:5173",
   "http://localhost:4173",
 ];
@@ -134,7 +135,7 @@ serve(async (req) => {
           Authorization: `Bearer ${RESEND_API_KEY}`,
         },
         body: JSON.stringify({
-          from: "TradeStone <onboarding@resend.dev>",
+          from: "TradeStone <noreply@tradesltd.co.uk>",
           to: [contractorEmail],
           subject: `${contextLabel} - ${actionLabel} by ${recipientName}`,
           html: `
@@ -156,7 +157,7 @@ serve(async (req) => {
             Authorization: `Bearer ${RESEND_API_KEY}`,
           },
           body: JSON.stringify({
-            from: "TradeStone <onboarding@resend.dev>",
+            from: "TradeStone <noreply@tradesltd.co.uk>",
             to: [recipientEmail],
             subject: `Your response to ${contextLabel} - ${actionLabel}`,
             html: `

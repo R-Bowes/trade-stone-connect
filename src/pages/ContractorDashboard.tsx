@@ -72,6 +72,7 @@ const contractorDashboardViews = [
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [enquiries, setEnquiries] = useState<any[]>([]);
   const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -214,6 +215,19 @@ const ContractorDashboard = () => {
         console.error('Error loading quotes:', quotesError);
       } else {
         setQuotes(quotesData || []);
+      }
+
+      // Load enquiries (homeowner enquiries assigned to this contractor, or open new ones)
+      const { data: enquiriesData, error: enquiriesError } = await supabase
+        .from('enquiries')
+        .select('id, title, description, location, status, created_at, homeowner_id, enquiry_photo_paths')
+        .eq('contractor_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      if (enquiriesError) {
+        console.error('Error loading enquiries:', enquiriesError);
+      } else {
+        setEnquiries(enquiriesData || []);
       }
 
       // Load issued quotes
@@ -549,7 +563,7 @@ const ContractorDashboard = () => {
           {/* Enquiries Tab */}
           <TabsContent value="enquiries" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <h2 className="text-2xl font-bold">Enquiries</h2>
               <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
 
@@ -559,8 +573,8 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-blue-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p>
-                      <p className="text-sm text-muted-foreground">Pending</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p>
+                      <p className="text-sm text-muted-foreground">New</p>
                     </div>
                   </div>
                 </CardContent>
@@ -570,8 +584,8 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Eye className="h-4 w-4 text-yellow-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p>
-                      <p className="text-sm text-muted-foreground">Viewed</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p>
+                      <p className="text-sm text-muted-foreground">Replied</p>
                     </div>
                   </div>
                 </CardContent>
@@ -581,8 +595,8 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Send className="h-4 w-4 text-green-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p>
-                      <p className="text-sm text-muted-foreground">Responded</p>
+                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p>
+                      <p className="text-sm text-muted-foreground">Converted</p>
                     </div>
                   </div>
                 </CardContent>
@@ -592,7 +606,7 @@ const ContractorDashboard = () => {
                   <div className="flex items-center gap-2">
                     <Star className="h-4 w-4 text-purple-500" />
                     <div>
-                      <p className="text-2xl font-bold">{quotes.length}</p>
+                      <p className="text-2xl font-bold">{enquiries.length}</p>
                       <p className="text-sm text-muted-foreground">Total</p>
                     </div>
                   </div>
@@ -600,54 +614,30 @@ const ContractorDashboard = () => {
               </Card>
             </div>
 
-            {quotes.length === 0 ? (
+            {enquiries.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
-                  <p className="text-muted-foreground">Share your TradeStone profile to start receiving quotes!</p>
+                  <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
+                  <p className="text-muted-foreground">Enquiries assigned to you will appear here.</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {quotes.map((quote) => (
-                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
+                {enquiries.map((enquiry) => (
+                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
-                            <Badge className={getStatusColor(quote.status || 'pending')}>{quote.status}</Badge>
+                            <h3 className="text-lg font-semibold">{enquiry.title}</h3>
+                            <Badge className={getStatusColor(enquiry.status || 'new')}>{enquiry.status}</Badge>
                           </div>
-                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
+                          <p className="text-muted-foreground mb-2">{enquiry.description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>From: {quote.customer_name}</span>
-                            <span>Email: {quote.customer_email}</span>
-                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
-                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
-                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
+                            {enquiry.location && <span>Location: {enquiry.location}</span>}
+                            <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
-                        </div>
-                        <div className="flex flex-col gap-2 md:min-w-[140px]">
-                          {quote.status === 'pending' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
-                              Mark as Viewed
-                            </Button>
-                          )}
-                          {quote.status === 'viewed' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
-                              Mark as Responded
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              window.location.href = `mailto:${quote.customer_email}?subject=Re: ${encodeURIComponent(quote.project_title)}&body=Hi ${encodeURIComponent(quote.customer_name)},%0D%0A%0D%0AThank you for your quote request regarding "${encodeURIComponent(quote.project_title)}".%0D%0A%0D%0A`
-                            }
-                          >
-                            <Mail className="h-3 w-3 mr-1" />Contact
-                          </Button>
                         </div>
                       </div>
                     </CardContent>
