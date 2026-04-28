@@ -49,6 +49,7 @@ export default function AdminLogin() {
         borderRadius: 16
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <img src="/logo.png" alt="TradeStone" style={{ width: 72, height: 72, marginBottom: 16, objectFit: 'contain' }} />
           <div style={{ fontSize: 22, fontWeight: 700, color: '#f07820', marginBottom: 4 }}>
             TradeStone
           </div>

@@ -77,6 +77,7 @@ export default function AdminDashboard() {
       <div style={{ background: '#0a1628', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img src="/logo.png" alt="TradeStone" style={{ width: 32, height: 32, objectFit: 'contain' }} />
             <span style={{ fontWeight: 700, fontSize: 18, color: '#f07820' }}>TradeStone</span>
             <span style={{ color: 'rgba(255,255,255,0.3)' }}>/</span>
             <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>Admin</span>
