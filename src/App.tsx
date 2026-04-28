@@ -25,6 +25,8 @@ import BusinessDashboard from "./pages/BusinessDashboard";
 import ContractorDashboard from "./pages/ContractorDashboard";
 import About from "./pages/About";
 import Notifications from "./pages/Notifications";
+import AdminDashboard from "@/pages/AdminDashboard";
+import AdminLogin from "@/pages/AdminLogin";
 import ContractorOnboarding from "./pages/ContractorOnboarding";
 import PayInvoicePage from "./pages/PayInvoicePage";
 
@@ -63,6 +65,10 @@ const App = () => (
           <Route path="/dashboard/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
           <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
+
+          {/* Admin */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminDashboard />} />
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
