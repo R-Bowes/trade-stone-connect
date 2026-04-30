@@ -2,6 +2,7 @@ import { CSSProperties, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { supabase } from '@/integrations/supabase/client';
+import { adminDb } from '@/integrations/supabase/adminClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,24 @@ type Invoice = {
   invoice_number: string | null;
 };
 
+type Conversation = {
+  id: string;
+  initiator_id: string;
+  recipient_id: string;
+  subject: string;
+  created_at: string;
+  last_message_at: string | null;
+  messages: { id: string; sender_id: string; content: string; created_at: string }[];
+};
+
+type Message = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+};
+
 type ActivityEntry = {
   id: string;
   admin_id: string | null;
@@ -73,7 +92,7 @@ type Stats = {
   totalInvoices: number;
 };
 
-type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'admins' | 'settings' | 'activity';
+type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'messages' | 'admins' | 'settings' | 'activity';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -89,6 +108,7 @@ export default function AdminDashboard() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [contractors, setContractors] = useState<Profile[]>([]);
@@ -133,6 +153,11 @@ export default function AdminDashboard() {
   const [markPaidInvoiceId, setMarkPaidInvoiceId] = useState<string | null>(null);
   const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
 
+  // UI state — messages
+  const [messagesSlideOver, setMessagesSlideOver] = useState<Conversation | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
+  const [convLoading, setConvLoading] = useState(false);
+
   useEffect(() => {
     if (!isAdmin) return;
     loadData();
@@ -140,6 +165,8 @@ export default function AdminDashboard() {
 
   async function loadData() {
     setLoading(true);
+    const db = adminDb as any;
+
     const [
       profilesRes,
       jobsCountRes,
@@ -148,33 +175,38 @@ export default function AdminDashboard() {
       enquiriesDataRes,
       jobsDataRes,
       invoicesDataRes,
+      conversationsRes,
       adminUsersRes,
       activityRes,
       settingsRes,
     ] = await Promise.all([
-      (supabase as any).from('profiles')
+      db.from('profiles')
         .select('id, ts_profile_code, full_name, user_type, email, trade, location, bio, stripe_account_id, is_verified, created_at')
         .order('created_at', { ascending: false }),
-      supabase.from('jobs').select('id', { count: 'exact', head: true }),
-      supabase.from('enquiries').select('id', { count: 'exact', head: true }),
-      supabase.from('invoices').select('id', { count: 'exact', head: true }),
-      (supabase as any).from('enquiries')
+      db.from('jobs').select('id', { count: 'exact', head: true }),
+      db.from('enquiries').select('id', { count: 'exact', head: true }),
+      db.from('invoices').select('id', { count: 'exact', head: true }),
+      db.from('enquiries')
         .select('id, status, job_description, location, created_at, customer_id, contractor_id')
         .order('created_at', { ascending: false }),
-      (supabase as any).from('jobs')
+      db.from('jobs')
         .select('id, status, created_at, contractor_id, customer_id')
         .order('created_at', { ascending: false }),
-      (supabase as any).from('invoices')
+      db.from('invoices')
         .select('id, status, total_amount, created_at, invoice_number')
         .order('created_at', { ascending: false }),
-      (supabase as any).from('admin_users')
+      db.from('conversations')
+        .select('id, initiator_id, recipient_id, subject, created_at, last_message_at, messages(id, sender_id, content, created_at)')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      db.from('admin_users')
         .select('id, user_id, email, role, created_at')
         .order('created_at', { ascending: true }),
-      (supabase as any).from('admin_activity_log')
+      db.from('admin_activity_log')
         .select('id, admin_id, action, target_type, target_id, details, created_at')
         .order('created_at', { ascending: false })
         .limit(200),
-      (supabase as any).from('platform_settings').select('key, value'),
+      db.from('platform_settings').select('key, value'),
     ]);
 
     const p: Profile[] = profilesRes.data || [];
@@ -183,6 +215,7 @@ export default function AdminDashboard() {
     setEnquiries(enquiriesDataRes.data || []);
     setJobs(jobsDataRes.data || []);
     setInvoices(invoicesDataRes.data || []);
+    setConversations(conversationsRes.data || []);
     setAdminUsers(adminUsersRes.data || []);
     setActivityLog(activityRes.data || []);
 
@@ -211,7 +244,7 @@ export default function AdminDashboard() {
 
   async function logActivity(action: string, targetType: string, targetId: string, details?: Record<string, unknown>) {
     if (!adminId) return;
-    await (supabase as any).from('admin_activity_log').insert({
+    await (adminDb as any).from('admin_activity_log').insert({
       admin_id: adminId,
       action,
       target_type: targetType,
@@ -228,26 +261,26 @@ export default function AdminDashboard() {
   // ── Users ────────────────────────────────────────────────────────────────
 
   async function handleSuspend(id: string) {
-    await (supabase as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
+    await (adminDb as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
     await logActivity('suspend_user', 'user', id);
     loadData();
   }
 
   async function handleReinstate(id: string) {
-    await (supabase as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
+    await (adminDb as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
     await logActivity('reinstate_user', 'user', id);
     loadData();
   }
 
   async function handleVerifyContractor(id: string, current: boolean | null) {
-    await (supabase as any).from('profiles').update({ is_verified: !current }).eq('id', id);
+    await (adminDb as any).from('profiles').update({ is_verified: !current }).eq('id', id);
     await logActivity(current ? 'unverify_contractor' : 'verify_contractor', 'user', id);
     loadData();
   }
 
   async function handleEditProfile() {
     if (!editingProfile) return;
-    await (supabase as any).from('profiles').update({
+    await (adminDb as any).from('profiles').update({
       full_name: editFields.full_name,
       trade: editFields.trade || null,
       location: editFields.location || null,
@@ -260,7 +293,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteAccount(id: string) {
-    await (supabase as any).from('profiles').update({
+    await (adminDb as any).from('profiles').update({
       email: `deleted_${id}@tradestone.com`,
       full_name: 'Deleted Account',
       is_active: false,
@@ -294,7 +327,7 @@ export default function AdminDashboard() {
       );
       return;
     }
-    const { error: insertError } = await (supabase as any).from('admin_users').insert({
+    const { error: insertError } = await (adminDb as any).from('admin_users').insert({
       user_id: authData.user.id,
       email: newAdminEmail,
       role: newAdminRole,
@@ -317,7 +350,7 @@ export default function AdminDashboard() {
       alert('Cannot remove the last super admin.');
       return;
     }
-    await (supabase as any).from('admin_users').delete().eq('id', id);
+    await (adminDb as any).from('admin_users').delete().eq('id', id);
     await logActivity('remove_admin', 'admin', id, { email: target.email });
     setRemoveAdminId(null);
     loadData();
@@ -326,7 +359,7 @@ export default function AdminDashboard() {
   // ── Enquiries ────────────────────────────────────────────────────────────
 
   async function handleCancelEnquiry(id: string) {
-    await (supabase as any).from('enquiries').update({ status: 'cancelled' }).eq('id', id);
+    await (adminDb as any).from('enquiries').update({ status: 'cancelled' }).eq('id', id);
     await logActivity('cancel_enquiry', 'enquiry', id);
     setCancelEnquiryId(null);
     loadData();
@@ -334,7 +367,7 @@ export default function AdminDashboard() {
 
   async function handleReassignEnquiry() {
     if (!reassignModal || !reassignContractorId) return;
-    await (supabase as any).from('enquiries').update({ contractor_id: reassignContractorId }).eq('id', reassignModal.id);
+    await (adminDb as any).from('enquiries').update({ contractor_id: reassignContractorId }).eq('id', reassignModal.id);
     await logActivity('reassign_enquiry', 'enquiry', reassignModal.id, { new_contractor_id: reassignContractorId });
     setReassignModal(null);
     setReassignContractorId('');
@@ -344,14 +377,14 @@ export default function AdminDashboard() {
   // ── Jobs ─────────────────────────────────────────────────────────────────
 
   async function handleMarkJobComplete(id: string) {
-    await (supabase as any).from('jobs').update({ status: 'completed' }).eq('id', id);
+    await (adminDb as any).from('jobs').update({ status: 'completed' }).eq('id', id);
     await logActivity('mark_job_complete', 'job', id);
     setMarkCompleteJobId(null);
     loadData();
   }
 
   async function handleRaiseDispute(id: string) {
-    await (supabase as any).from('disputes').insert({
+    await (adminDb as any).from('disputes').insert({
       job_id: id,
       raised_by: adminId || null,
       status: 'open',
@@ -366,17 +399,31 @@ export default function AdminDashboard() {
   // ── Invoices ─────────────────────────────────────────────────────────────
 
   async function handleMarkInvoicePaid(id: string) {
-    await (supabase as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
+    await (adminDb as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
     await logActivity('mark_invoice_paid', 'invoice', id);
     setMarkPaidInvoiceId(null);
     loadData();
   }
 
   async function handleVoidInvoice(id: string) {
-    await (supabase as any).from('invoices').update({ status: 'voided' }).eq('id', id);
+    await (adminDb as any).from('invoices').update({ status: 'voided' }).eq('id', id);
     await logActivity('void_invoice', 'invoice', id);
     setVoidInvoiceId(null);
     loadData();
+  }
+
+  // ── Messages ─────────────────────────────────────────────────────────────
+
+  async function handleViewConversation(conv: Conversation) {
+    setMessagesSlideOver(conv);
+    setConvLoading(true);
+    const { data } = await (adminDb as any)
+      .from('messages')
+      .select('id, conversation_id, sender_id, content, created_at')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: true });
+    setConversationMessages(data || []);
+    setConvLoading(false);
   }
 
   // ── Platform settings ────────────────────────────────────────────────────
@@ -393,7 +440,7 @@ export default function AdminDashboard() {
       { key: 'platform_email_address', value: platformEmailAddress },
     ];
     for (const u of updates) {
-      await (supabase as any).from('platform_settings').upsert({
+      await (adminDb as any).from('platform_settings').upsert({
         key: u.key,
         value: u.value,
         updated_at: new Date().toISOString(),
@@ -447,6 +494,9 @@ export default function AdminDashboard() {
     textAlign: 'left', padding: '10px 16px', color: 'rgba(255,255,255,0.4)',
     fontWeight: 500, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em',
   };
+  const countStyle: CSSProperties = {
+    color: 'rgba(255,255,255,0.35)', fontSize: 12, marginBottom: 12,
+  };
 
   const btn: CSSProperties = {
     background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
@@ -460,7 +510,6 @@ export default function AdminDashboard() {
     background: 'none', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6,
     color: '#4ade80', fontSize: 12, padding: '4px 10px', cursor: 'pointer', marginRight: 4,
   };
-
   const overlay: CSSProperties = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 50,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -474,7 +523,7 @@ export default function AdminDashboard() {
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
     color: '#e8eef4', fontSize: 14, outline: 'none', boxSizing: 'border-box',
   };
-  const label: CSSProperties = { fontSize: 12, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 5 };
+  const labelS: CSSProperties = { fontSize: 12, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 5 };
   const btnPrimary: CSSProperties = {
     background: '#f07820', border: 'none', borderRadius: 7, color: '#fff',
     fontSize: 13, fontWeight: 600, padding: '9px 20px', cursor: 'pointer',
@@ -489,17 +538,23 @@ export default function AdminDashboard() {
   );
 
   const allTabs: Tab[] = [
-    'overview', 'users', 'enquiries', 'jobs', 'invoices',
+    'overview', 'users', 'enquiries', 'jobs', 'invoices', 'messages',
     ...(isSuperAdmin ? ['admins', 'settings'] as Tab[] : []),
     'activity',
   ];
   const tabLabel: Record<Tab, string> = {
     overview: 'Overview', users: 'Users', enquiries: 'Enquiries',
-    jobs: 'Jobs', invoices: 'Invoices', admins: 'Admins',
-    settings: 'Settings', activity: 'Activity Log',
+    jobs: 'Jobs', invoices: 'Invoices', messages: 'Messages',
+    admins: 'Admins', settings: 'Settings', activity: 'Activity Log',
   };
 
   const adminEmailMap = Object.fromEntries(adminUsers.map(a => [a.id, a.email]));
+
+  // Client-side profile lookup — used for enquiry contractor/customer columns
+  // and message participant display
+  const profileMap = Object.fromEntries(
+    profiles.map(p => [p.id, p.full_name || p.email || p.id.slice(0, 8)])
+  );
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -572,168 +627,242 @@ export default function AdminDashboard() {
 
             {/* ── USERS ────────────────────────────────────────────────── */}
             {activeTab === 'users' && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    {['TS Code', 'Name', 'Type', 'Joined', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {profiles.map(p => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-                          {p.ts_profile_code}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: '#e8eef4' }}>{p.full_name || '—'}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, background: typeColor[p.user_type]?.bg || 'rgba(255,255,255,0.08)', color: typeColor[p.user_type]?.color || 'rgba(255,255,255,0.5)' }}>
-                          {p.user_type}
-                        </span>
-                        {p.is_verified && (
-                          <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, fontWeight: 500, background: 'rgba(34,197,94,0.15)', color: '#4ade80', marginLeft: 5 }}>✓</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                        {new Date(p.created_at).toLocaleDateString('en-GB')}
-                      </td>
-                      <td style={{ padding: '10px 16px' }}>
-                        <button style={btn} onClick={() => setProfileSlideOver(p)}>View</button>
-                        <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trade || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
-                        {p.user_type === 'contractor' && (
-                          <button style={p.is_verified ? btnDanger : btnSuccess} onClick={() => handleVerifyContractor(p.id, p.is_verified)}>
-                            {p.is_verified ? 'Unverify' : 'Verify'}
-                          </button>
-                        )}
-                        {p.user_type === 'suspended'
-                          ? <button style={btn} onClick={() => handleReinstate(p.id)}>Reinstate</button>
-                          : <button style={btn} onClick={() => handleSuspend(p.id)}>Suspend</button>
-                        }
-                        {isSuperAdmin && (
-                          <button style={btnDanger} onClick={() => setDeleteConfirmId(p.id)}>Delete</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {/* ── ENQUIRIES ────────────────────────────────────────────── */}
-            {activeTab === 'enquiries' && (
-              enquiries.length === 0 ? emptyState('No enquiries yet') : (
+              <>
+                <div style={countStyle}>{profiles.length} records</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                      {['Description', 'Location', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      {['TS Code', 'Name', 'Type', 'Joined', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {enquiries.map(e => (
-                      <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '12px 16px', color: '#e8eef4', maxWidth: 240 }}>
-                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {e.job_description || '—'}
+                    {profiles.map(p => (
+                      <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
+                            {p.ts_profile_code}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>{e.location || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}><span style={badge(e.status)}>{e.status || '—'}</span></td>
+                        <td style={{ padding: '12px 16px', color: '#e8eef4' }}>{p.full_name || '—'}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, background: typeColor[p.user_type]?.bg || 'rgba(255,255,255,0.08)', color: typeColor[p.user_type]?.color || 'rgba(255,255,255,0.5)' }}>
+                            {p.user_type}
+                          </span>
+                          {p.is_verified && (
+                            <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, fontWeight: 500, background: 'rgba(34,197,94,0.15)', color: '#4ade80', marginLeft: 5 }}>✓</span>
+                          )}
+                        </td>
                         <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                          {new Date(e.created_at).toLocaleDateString('en-GB')}
+                          {new Date(p.created_at).toLocaleDateString('en-GB')}
                         </td>
                         <td style={{ padding: '10px 16px' }}>
-                          {e.status !== 'cancelled' && (
-                            <>
-                              <button style={btn} onClick={() => { setReassignModal(e); setReassignContractorId(e.contractor_id || ''); }}>Reassign</button>
-                              <button style={btnDanger} onClick={() => setCancelEnquiryId(e.id)}>Cancel</button>
-                            </>
+                          <button style={btn} onClick={() => setProfileSlideOver(p)}>View</button>
+                          <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trade || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
+                          {p.user_type === 'contractor' && (
+                            <button style={p.is_verified ? btnDanger : btnSuccess} onClick={() => handleVerifyContractor(p.id, p.is_verified)}>
+                              {p.is_verified ? 'Unverify' : 'Verify'}
+                            </button>
+                          )}
+                          {p.user_type === 'suspended'
+                            ? <button style={btn} onClick={() => handleReinstate(p.id)}>Reinstate</button>
+                            : <button style={btn} onClick={() => handleSuspend(p.id)}>Suspend</button>
+                          }
+                          {isSuperAdmin && (
+                            <button style={btnDanger} onClick={() => setDeleteConfirmId(p.id)}>Delete</button>
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </>
+            )}
+
+            {/* ── ENQUIRIES ────────────────────────────────────────────── */}
+            {activeTab === 'enquiries' && (
+              enquiries.length === 0 ? emptyState('No enquiries yet') : (
+                <>
+                  <div style={countStyle}>Showing {enquiries.length} enquiries</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Description', 'Location', 'Contractor', 'Customer', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enquiries.map(e => (
+                        <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4', maxWidth: 200 }}>
+                            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {e.job_description || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>{e.location || '—'}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                            {e.contractor_id ? (profileMap[e.contractor_id] || e.contractor_id.slice(0, 8)) : <span style={{ color: 'rgba(255,255,255,0.25)' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                            {e.customer_id ? (profileMap[e.customer_id] || e.customer_id.slice(0, 8)) : <span style={{ color: 'rgba(255,255,255,0.25)' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge(e.status)}>{e.status || '—'}</span></td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                            {new Date(e.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '10px 16px' }}>
+                            {e.status !== 'cancelled' && (
+                              <>
+                                <button style={btn} onClick={() => { setReassignModal(e); setReassignContractorId(e.contractor_id || ''); }}>Reassign</button>
+                                <button style={btnDanger} onClick={() => setCancelEnquiryId(e.id)}>Cancel</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
               )
             )}
 
             {/* ── JOBS ─────────────────────────────────────────────────── */}
             {activeTab === 'jobs' && (
               jobs.length === 0 ? emptyState('No jobs yet') : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                      {['Job ID', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map(j => (
-                      <tr key={j.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, fontFamily: 'monospace' }}>
-                            {j.id.slice(0, 8)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}><span style={badge(j.status)}>{j.status || '—'}</span></td>
-                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                          {new Date(j.created_at).toLocaleDateString('en-GB')}
-                        </td>
-                        <td style={{ padding: '10px 16px' }}>
-                          {isSuperAdmin && j.status !== 'completed' && (
-                            <button style={btnSuccess} onClick={() => setMarkCompleteJobId(j.id)}>Mark Complete</button>
-                          )}
-                          <button style={btn} onClick={() => setRaiseDisputeJobId(j.id)}>Raise Dispute</button>
-                        </td>
+                <>
+                  <div style={countStyle}>{jobs.length} records</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Job ID', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {jobs.map(j => (
+                        <tr key={j.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, fontFamily: 'monospace' }}>
+                              {j.id.slice(0, 8)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge(j.status)}>{j.status || '—'}</span></td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                            {new Date(j.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '10px 16px' }}>
+                            {isSuperAdmin && j.status !== 'completed' && (
+                              <button style={btnSuccess} onClick={() => setMarkCompleteJobId(j.id)}>Mark Complete</button>
+                            )}
+                            <button style={btn} onClick={() => setRaiseDisputeJobId(j.id)}>Raise Dispute</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
               )
             )}
 
             {/* ── INVOICES ─────────────────────────────────────────────── */}
             {activeTab === 'invoices' && (
               invoices.length === 0 ? emptyState('No invoices yet') : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                      {['Invoice No.', 'Status', 'Amount', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map(inv => (
-                      <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-                            {inv.invoice_number || '—'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}><span style={badge(inv.status)}>{inv.status || '—'}</span></td>
-                        <td style={{ padding: '12px 16px', color: '#e8eef4' }}>
-                          {inv.total_amount != null ? `£${Number(inv.total_amount).toFixed(2)}` : '—'}
-                        </td>
-                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                          {new Date(inv.created_at).toLocaleDateString('en-GB')}
-                        </td>
-                        <td style={{ padding: '10px 16px' }}>
-                          {isSuperAdmin && inv.status !== 'paid' && inv.status !== 'voided' && (
-                            <button style={btnSuccess} onClick={() => setMarkPaidInvoiceId(inv.id)}>Mark Paid</button>
-                          )}
-                          {isSuperAdmin && inv.status !== 'voided' && inv.status !== 'paid' && (
-                            <button style={btnDanger} onClick={() => setVoidInvoiceId(inv.id)}>Void</button>
-                          )}
-                        </td>
+                <>
+                  <div style={countStyle}>{invoices.length} records</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Invoice No.', 'Status', 'Amount', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {invoices.map(inv => (
+                        <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
+                              {inv.invoice_number || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge(inv.status)}>{inv.status || '—'}</span></td>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4' }}>
+                            {inv.total_amount != null ? `£${Number(inv.total_amount).toFixed(2)}` : '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                            {new Date(inv.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '10px 16px' }}>
+                            {isSuperAdmin && inv.status !== 'paid' && inv.status !== 'voided' && (
+                              <button style={btnSuccess} onClick={() => setMarkPaidInvoiceId(inv.id)}>Mark Paid</button>
+                            )}
+                            {isSuperAdmin && inv.status !== 'voided' && inv.status !== 'paid' && (
+                              <button style={btnDanger} onClick={() => setVoidInvoiceId(inv.id)}>Void</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )
+            )}
+
+            {/* ── MESSAGES ─────────────────────────────────────────────── */}
+            {activeTab === 'messages' && (
+              conversations.length === 0 ? emptyState('No conversations yet') : (
+                <>
+                  <div style={countStyle}>{conversations.length} conversations</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Participants', 'Subject', 'Last Message', 'Created', 'Action'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {conversations.map(conv => {
+                        const msgs = conv.messages || [];
+                        const lastMsg = msgs.length > 0
+                          ? [...msgs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+                          : null;
+                        return (
+                          <tr key={conv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontSize: 13, color: '#e8eef4' }}>
+                                {profileMap[conv.initiator_id] || conv.initiator_id.slice(0, 8)}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                                + {profileMap[conv.recipient_id] || conv.recipient_id.slice(0, 8)}
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', maxWidth: 180 }}>
+                              <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {conv.subject || '—'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.5)', maxWidth: 240, fontSize: 13 }}>
+                              {lastMsg
+                                ? lastMsg.content.length > 80
+                                  ? lastMsg.content.slice(0, 80) + '…'
+                                  : lastMsg.content
+                                : <span style={{ color: 'rgba(255,255,255,0.25)' }}>—</span>
+                              }
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13, whiteSpace: 'nowrap' }}>
+                              {new Date(conv.created_at).toLocaleDateString('en-GB')}
+                            </td>
+                            <td style={{ padding: '10px 16px' }}>
+                              <button style={btn} onClick={() => handleViewConversation(conv)}>View</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
               )
             )}
 
             {/* ── ADMINS ───────────────────────────────────────────────── */}
             {activeTab === 'admins' && isSuperAdmin && (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <div style={countStyle}>{adminUsers.length} records</div>
                   <button style={btnPrimary} onClick={() => setCreateAdminOpen(true)}>+ Create Admin</button>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -783,7 +912,7 @@ export default function AdminDashboard() {
                       { label: '£2,000+',        val: commTier3, set: setCommTier3 },
                     ].map(t => (
                       <div key={t.label}>
-                        <label style={label}>{t.label}</label>
+                        <label style={labelS}>{t.label}</label>
                         <div style={{ position: 'relative' }}>
                           <input
                             value={t.val}
@@ -802,11 +931,11 @@ export default function AdminDashboard() {
                   <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>Platform Email</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div>
-                      <label style={label}>Sender Name</label>
+                      <label style={labelS}>Sender Name</label>
                       <input value={platformEmailName} onChange={e => setPlatformEmailName(e.target.value)} style={inputS} />
                     </div>
                     <div>
-                      <label style={label}>Sender Address</label>
+                      <label style={labelS}>Sender Address</label>
                       <input value={platformEmailAddress} onChange={e => setPlatformEmailAddress(e.target.value)} style={inputS} type="email" />
                     </div>
                   </div>
@@ -842,30 +971,33 @@ export default function AdminDashboard() {
             {/* ── ACTIVITY LOG ─────────────────────────────────────────── */}
             {activeTab === 'activity' && (
               activityLog.length === 0 ? emptyState('No activity recorded yet') : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                      {['Time', 'Admin', 'Action', 'Target', 'ID'].map(h => <th key={h} style={thStyle}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activityLog.map(entry => (
-                      <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontSize: 12 }}>
-                          {new Date(entry.created_at).toLocaleString('en-GB')}
-                        </td>
-                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.55)' }}>
-                          {entry.admin_id ? (adminEmailMap[entry.admin_id] || entry.admin_id.slice(0, 8)) : '—'}
-                        </td>
-                        <td style={{ padding: '9px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 12 }}>{entry.action}</td>
-                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.45)' }}>{entry.target_type || '—'}</td>
-                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11 }}>
-                          {entry.target_id ? entry.target_id.slice(0, 14) : '—'}
-                        </td>
+                <>
+                  <div style={countStyle}>{activityLog.length} records</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Time', 'Admin', 'Action', 'Target', 'ID'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {activityLog.map(entry => (
+                        <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontSize: 12 }}>
+                            {new Date(entry.created_at).toLocaleString('en-GB')}
+                          </td>
+                          <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.55)' }}>
+                            {entry.admin_id ? (adminEmailMap[entry.admin_id] || entry.admin_id.slice(0, 8)) : '—'}
+                          </td>
+                          <td style={{ padding: '9px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 12 }}>{entry.action}</td>
+                          <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.45)' }}>{entry.target_type || '—'}</td>
+                          <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11 }}>
+                            {entry.target_id ? entry.target_id.slice(0, 14) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
               )
             )}
           </>
@@ -912,16 +1044,16 @@ export default function AdminDashboard() {
           <div style={modal} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Edit Profile</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label style={label}>Full Name</label><input value={editFields.full_name} onChange={e => setEditFields(f => ({ ...f, full_name: e.target.value }))} style={inputS} /></div>
+              <div><label style={labelS}>Full Name</label><input value={editFields.full_name} onChange={e => setEditFields(f => ({ ...f, full_name: e.target.value }))} style={inputS} /></div>
               <div>
-                <label style={label}>Account Type</label>
+                <label style={labelS}>Account Type</label>
                 <select value={editFields.user_type} onChange={e => setEditFields(f => ({ ...f, user_type: e.target.value }))} style={{ ...inputS, cursor: 'pointer' }}>
                   {['contractor', 'business', 'personal', 'suspended'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div><label style={label}>Trade</label><input value={editFields.trade} onChange={e => setEditFields(f => ({ ...f, trade: e.target.value }))} style={inputS} /></div>
-              <div><label style={label}>Location</label><input value={editFields.location} onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} style={inputS} /></div>
-              <div><label style={label}>Bio</label><textarea value={editFields.bio} onChange={e => setEditFields(f => ({ ...f, bio: e.target.value }))} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} /></div>
+              <div><label style={labelS}>Trade</label><input value={editFields.trade} onChange={e => setEditFields(f => ({ ...f, trade: e.target.value }))} style={inputS} /></div>
+              <div><label style={labelS}>Location</label><input value={editFields.location} onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} style={inputS} /></div>
+              <div><label style={labelS}>Bio</label><textarea value={editFields.bio} onChange={e => setEditFields(f => ({ ...f, bio: e.target.value }))} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} /></div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
               <button onClick={() => setEditingProfile(null)} style={btnSecondary}>Cancel</button>
@@ -953,10 +1085,10 @@ export default function AdminDashboard() {
           <div style={modal} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Create Admin Account</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label style={label}>Email</label><input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} style={inputS} type="email" /></div>
-              <div><label style={label}>Password</label><input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} style={inputS} type="password" /></div>
+              <div><label style={labelS}>Email</label><input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} style={inputS} type="email" /></div>
+              <div><label style={labelS}>Password</label><input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} style={inputS} type="password" /></div>
               <div>
-                <label style={label}>Role</label>
+                <label style={labelS}>Role</label>
                 <select value={newAdminRole} onChange={e => setNewAdminRole(e.target.value as 'admin' | 'super_admin')} style={{ ...inputS, cursor: 'pointer' }}>
                   <option value="admin">Admin</option>
                   <option value="super_admin">Super Admin</option>
@@ -1001,7 +1133,7 @@ export default function AdminDashboard() {
               {reassignModal.job_description?.slice(0, 80) || 'Enquiry'}
             </p>
             <div>
-              <label style={label}>Assign to Contractor</label>
+              <label style={labelS}>Assign to Contractor</label>
               <select value={reassignContractorId} onChange={e => setReassignContractorId(e.target.value)} style={{ ...inputS, cursor: 'pointer' }}>
                 <option value="">— Select contractor —</option>
                 {contractors.map(c => (
@@ -1057,7 +1189,7 @@ export default function AdminDashboard() {
           <div style={modal} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Raise Dispute</h2>
             <div>
-              <label style={label}>Notes (optional)</label>
+              <label style={labelS}>Notes (optional)</label>
               <textarea value={disputeNote} onChange={e => setDisputeNote(e.target.value)} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} placeholder="Describe the reason for the dispute…" />
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
@@ -1095,6 +1227,54 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setVoidInvoiceId(null)} style={btnSecondary}>Cancel</button>
               <button onClick={() => handleVoidInvoice(voidInvoiceId)} style={{ ...btnPrimary, background: '#ef4444' }}>Void Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conversation thread slide-over */}
+      {messagesSlideOver && (
+        <div style={overlay} onClick={() => { setMessagesSlideOver(null); setConversationMessages([]); }}>
+          <div
+            style={{ ...modal, position: 'fixed', right: 0, top: 0, bottom: 0, borderRadius: '12px 0 0 12px', maxHeight: '100vh', minWidth: 440, maxWidth: 560, display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, flexShrink: 0 }}>
+              <div>
+                <h2 style={{ color: '#e8eef4', fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>
+                  {messagesSlideOver.subject || 'Conversation'}
+                </h2>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                  {profileMap[messagesSlideOver.initiator_id] || messagesSlideOver.initiator_id.slice(0, 8)}
+                  <span style={{ margin: '0 6px', color: 'rgba(255,255,255,0.2)' }}>↔</span>
+                  {profileMap[messagesSlideOver.recipient_id] || messagesSlideOver.recipient_id.slice(0, 8)}
+                </div>
+              </div>
+              <button onClick={() => { setMessagesSlideOver(null); setConversationMessages([]); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 20, cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}>✕</button>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 16, paddingTop: 16, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {convLoading ? (
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Loading messages…</div>
+              ) : conversationMessages.length === 0 ? (
+                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>No messages in this conversation.</div>
+              ) : (
+                conversationMessages.map(msg => (
+                  <div key={msg.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#e8eef4' }}>
+                        {profileMap[msg.sender_id] || msg.sender_id.slice(0, 8)}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 12 }}>
+                        {new Date(msg.created_at).toLocaleString('en-GB')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55 }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
