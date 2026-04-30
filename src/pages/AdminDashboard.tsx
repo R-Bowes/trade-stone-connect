@@ -1,13 +1,65 @@
-import { useEffect, useState } from 'react';
+import { CSSProperties, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { supabase } from '@/integrations/supabase/client';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Profile = {
   id: string;
   ts_profile_code: string;
   full_name: string;
   user_type: string;
+  email: string | null;
+  trade: string | null;
+  location: string | null;
+  bio: string | null;
+  stripe_account_id: string | null;
+  is_verified: boolean | null;
+  created_at: string;
+};
+
+type AdminUser = {
+  id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  created_at: string;
+};
+
+type Enquiry = {
+  id: string;
+  status: string;
+  job_description: string | null;
+  location: string | null;
+  created_at: string;
+  customer_id: string | null;
+  contractor_id: string | null;
+};
+
+type Job = {
+  id: string;
+  status: string;
+  created_at: string;
+  contractor_id: string | null;
+  customer_id: string | null;
+};
+
+type Invoice = {
+  id: string;
+  status: string;
+  total_amount: number | null;
+  created_at: string;
+  invoice_number: string | null;
+};
+
+type ActivityEntry = {
+  id: string;
+  admin_id: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -21,16 +73,65 @@ type Stats = {
   totalInvoices: number;
 };
 
+type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'admins' | 'settings' | 'activity';
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function AdminDashboard() {
-  const isAdmin = useAdminGuard();
+  const { isAdmin, role: adminRole, adminId, adminEmail } = useAdminGuard();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices'>('overview');
+  const isSuperAdmin = adminRole === 'super_admin';
+
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  // Data
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [enquiries, setEnquiries] = useState<any[]>([]);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [contractors, setContractors] = useState<Profile[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Platform settings form state
+  const [commTier1, setCommTier1] = useState('6');
+  const [commTier2, setCommTier2] = useState('4');
+  const [commTier3, setCommTier3] = useState('2.5');
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [platformEmailName, setPlatformEmailName] = useState('TradeStone');
+  const [platformEmailAddress, setPlatformEmailAddress] = useState('noreply@tradestone.com');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState('');
+
+  // UI state — profile actions
+  const [profileSlideOver, setProfileSlideOver] = useState<Profile | null>(null);
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
+  const [editFields, setEditFields] = useState({ full_name: '', trade: '', location: '', bio: '', user_type: '' });
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // UI state — admin management
+  const [createAdminOpen, setCreateAdminOpen] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState<'admin' | 'super_admin'>('admin');
+  const [adminActionError, setAdminActionError] = useState('');
+  const [removeAdminId, setRemoveAdminId] = useState<string | null>(null);
+
+  // UI state — enquiry actions
+  const [reassignModal, setReassignModal] = useState<Enquiry | null>(null);
+  const [reassignContractorId, setReassignContractorId] = useState('');
+  const [cancelEnquiryId, setCancelEnquiryId] = useState<string | null>(null);
+
+  // UI state — job actions
+  const [markCompleteJobId, setMarkCompleteJobId] = useState<string | null>(null);
+  const [raiseDisputeJobId, setRaiseDisputeJobId] = useState<string | null>(null);
+  const [disputeNote, setDisputeNote] = useState('');
+
+  // UI state — invoice actions
+  const [markPaidInvoiceId, setMarkPaidInvoiceId] = useState<string | null>(null);
+  const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -39,31 +140,84 @@ export default function AdminDashboard() {
 
   async function loadData() {
     setLoading(true);
-    const [profilesRes, jobsRes, enquiriesRes, invoicesRes, enquiriesDataRes, jobsDataRes, invoicesDataRes] = await Promise.all([
-      supabase.from('profiles').select('id, ts_profile_code, full_name, user_type, created_at').order('created_at', { ascending: false }),
+    const [
+      profilesRes,
+      jobsCountRes,
+      enquiriesCountRes,
+      invoicesCountRes,
+      enquiriesDataRes,
+      jobsDataRes,
+      invoicesDataRes,
+      adminUsersRes,
+      activityRes,
+      settingsRes,
+    ] = await Promise.all([
+      (supabase as any).from('profiles')
+        .select('id, ts_profile_code, full_name, user_type, email, trade, location, bio, stripe_account_id, is_verified, created_at')
+        .order('created_at', { ascending: false }),
       supabase.from('jobs').select('id', { count: 'exact', head: true }),
       supabase.from('enquiries').select('id', { count: 'exact', head: true }),
       supabase.from('invoices').select('id', { count: 'exact', head: true }),
-      (supabase as any).from('enquiries').select('id, status, job_description, location, created_at, customer_id, contractor_id').order('created_at', { ascending: false }),
-      (supabase as any).from('jobs').select('id, status, created_at, contractor_id, customer_id').order('created_at', { ascending: false }),
-      (supabase as any).from('invoices').select('id, status, total_amount, created_at, invoice_number').order('created_at', { ascending: false }),
+      (supabase as any).from('enquiries')
+        .select('id, status, job_description, location, created_at, customer_id, contractor_id')
+        .order('created_at', { ascending: false }),
+      (supabase as any).from('jobs')
+        .select('id, status, created_at, contractor_id, customer_id')
+        .order('created_at', { ascending: false }),
+      (supabase as any).from('invoices')
+        .select('id, status, total_amount, created_at, invoice_number')
+        .order('created_at', { ascending: false }),
+      (supabase as any).from('admin_users')
+        .select('id, user_id, email, role, created_at')
+        .order('created_at', { ascending: true }),
+      (supabase as any).from('admin_activity_log')
+        .select('id, admin_id, action, target_type, target_id, details, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      (supabase as any).from('platform_settings').select('key, value'),
     ]);
 
-    const p = profilesRes.data || [];
+    const p: Profile[] = profilesRes.data || [];
     setProfiles(p);
+    setContractors(p.filter((x: Profile) => x.user_type === 'contractor'));
     setEnquiries(enquiriesDataRes.data || []);
     setJobs(jobsDataRes.data || []);
     setInvoices(invoicesDataRes.data || []);
+    setAdminUsers(adminUsersRes.data || []);
+    setActivityLog(activityRes.data || []);
+
+    const settings: Record<string, string> = {};
+    for (const row of (settingsRes.data || [])) {
+      settings[row.key] = row.value;
+    }
+    setCommTier1(settings['commission_tier_1'] || '6');
+    setCommTier2(settings['commission_tier_2'] || '4');
+    setCommTier3(settings['commission_tier_3'] || '2.5');
+    setMaintenanceMode(settings['maintenance_mode'] === 'true');
+    setPlatformEmailName(settings['platform_email_name'] || 'TradeStone');
+    setPlatformEmailAddress(settings['platform_email_address'] || 'noreply@tradestone.com');
+
     setStats({
       totalProfiles: p.length,
-      contractors: p.filter(x => x.user_type === 'contractor').length,
-      businesses: p.filter(x => x.user_type === 'business').length,
-      personal: p.filter(x => x.user_type === 'personal').length,
-      totalJobs: jobsRes.count || 0,
-      totalEnquiries: enquiriesRes.count || 0,
-      totalInvoices: invoicesRes.count || 0,
+      contractors: p.filter((x: Profile) => x.user_type === 'contractor').length,
+      businesses: p.filter((x: Profile) => x.user_type === 'business').length,
+      personal: p.filter((x: Profile) => x.user_type === 'personal').length,
+      totalJobs: jobsCountRes.count || 0,
+      totalEnquiries: enquiriesCountRes.count || 0,
+      totalInvoices: invoicesCountRes.count || 0,
     });
     setLoading(false);
+  }
+
+  async function logActivity(action: string, targetType: string, targetId: string, details?: Record<string, unknown>) {
+    if (!adminId) return;
+    await (supabase as any).from('admin_activity_log').insert({
+      admin_id: adminId,
+      action,
+      target_type: targetType,
+      target_id: targetId,
+      details: details || null,
+    });
   }
 
   async function handleSignOut() {
@@ -71,47 +225,287 @@ export default function AdminDashboard() {
     navigate('/admin/login');
   }
 
+  // ── Users ────────────────────────────────────────────────────────────────
+
   async function handleSuspend(id: string) {
     await (supabase as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
+    await logActivity('suspend_user', 'user', id);
     loadData();
   }
 
   async function handleReinstate(id: string) {
     await (supabase as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
+    await logActivity('reinstate_user', 'user', id);
     loadData();
+  }
+
+  async function handleVerifyContractor(id: string, current: boolean | null) {
+    await (supabase as any).from('profiles').update({ is_verified: !current }).eq('id', id);
+    await logActivity(current ? 'unverify_contractor' : 'verify_contractor', 'user', id);
+    loadData();
+  }
+
+  async function handleEditProfile() {
+    if (!editingProfile) return;
+    await (supabase as any).from('profiles').update({
+      full_name: editFields.full_name,
+      trade: editFields.trade || null,
+      location: editFields.location || null,
+      bio: editFields.bio || null,
+      user_type: editFields.user_type,
+    }).eq('id', editingProfile.id);
+    await logActivity('edit_profile', 'user', editingProfile.id, editFields as unknown as Record<string, unknown>);
+    setEditingProfile(null);
+    loadData();
+  }
+
+  async function handleDeleteAccount(id: string) {
+    await (supabase as any).from('profiles').update({
+      email: `deleted_${id}@tradestone.com`,
+      full_name: 'Deleted Account',
+      is_active: false,
+    }).eq('id', id);
+    await logActivity('delete_account', 'user', id);
+    setDeleteConfirmId(null);
+    loadData();
+  }
+
+  // ── Admins ───────────────────────────────────────────────────────────────
+
+  async function handleCreateAdmin() {
+    setAdminActionError('');
+    if (!newAdminEmail || !newAdminPassword) {
+      setAdminActionError('Email and password are required.');
+      return;
+    }
+    // auth.admin.createUser requires service_role key. With the anon key this
+    // call will fail — create the auth user in the Supabase dashboard first,
+    // then it will be inserted into admin_users here.
+    const { data: authData, error: createError } = await (supabase as any).auth.admin.createUser({
+      email: newAdminEmail,
+      password: newAdminPassword,
+      email_confirm: true,
+    });
+    if (createError || !authData?.user) {
+      setAdminActionError(
+        createError?.message?.includes('not allowed') || createError?.status === 403
+          ? 'Admin user creation requires service role access. Create the auth user in the Supabase dashboard, then add their user_id to admin_users manually.'
+          : (createError?.message || 'Failed to create user.')
+      );
+      return;
+    }
+    const { error: insertError } = await (supabase as any).from('admin_users').insert({
+      user_id: authData.user.id,
+      email: newAdminEmail,
+      role: newAdminRole,
+    });
+    if (insertError) { setAdminActionError(insertError.message); return; }
+    await logActivity('create_admin', 'admin', authData.user.id, { email: newAdminEmail, role: newAdminRole });
+    setCreateAdminOpen(false);
+    setNewAdminEmail('');
+    setNewAdminPassword('');
+    setNewAdminRole('admin');
+    loadData();
+  }
+
+  async function handleRemoveAdmin(id: string) {
+    const target = adminUsers.find(a => a.id === id);
+    if (!target) return;
+    if (target.user_id === adminId) { alert('You cannot remove yourself.'); return; }
+    const superAdmins = adminUsers.filter(a => a.role === 'super_admin');
+    if (target.role === 'super_admin' && superAdmins.length <= 1) {
+      alert('Cannot remove the last super admin.');
+      return;
+    }
+    await (supabase as any).from('admin_users').delete().eq('id', id);
+    await logActivity('remove_admin', 'admin', id, { email: target.email });
+    setRemoveAdminId(null);
+    loadData();
+  }
+
+  // ── Enquiries ────────────────────────────────────────────────────────────
+
+  async function handleCancelEnquiry(id: string) {
+    await (supabase as any).from('enquiries').update({ status: 'cancelled' }).eq('id', id);
+    await logActivity('cancel_enquiry', 'enquiry', id);
+    setCancelEnquiryId(null);
+    loadData();
+  }
+
+  async function handleReassignEnquiry() {
+    if (!reassignModal || !reassignContractorId) return;
+    await (supabase as any).from('enquiries').update({ contractor_id: reassignContractorId }).eq('id', reassignModal.id);
+    await logActivity('reassign_enquiry', 'enquiry', reassignModal.id, { new_contractor_id: reassignContractorId });
+    setReassignModal(null);
+    setReassignContractorId('');
+    loadData();
+  }
+
+  // ── Jobs ─────────────────────────────────────────────────────────────────
+
+  async function handleMarkJobComplete(id: string) {
+    await (supabase as any).from('jobs').update({ status: 'completed' }).eq('id', id);
+    await logActivity('mark_job_complete', 'job', id);
+    setMarkCompleteJobId(null);
+    loadData();
+  }
+
+  async function handleRaiseDispute(id: string) {
+    await (supabase as any).from('disputes').insert({
+      job_id: id,
+      raised_by: adminId || null,
+      status: 'open',
+      notes: disputeNote || null,
+    });
+    await logActivity('raise_dispute', 'job', id, { notes: disputeNote });
+    setRaiseDisputeJobId(null);
+    setDisputeNote('');
+    loadData();
+  }
+
+  // ── Invoices ─────────────────────────────────────────────────────────────
+
+  async function handleMarkInvoicePaid(id: string) {
+    await (supabase as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
+    await logActivity('mark_invoice_paid', 'invoice', id);
+    setMarkPaidInvoiceId(null);
+    loadData();
+  }
+
+  async function handleVoidInvoice(id: string) {
+    await (supabase as any).from('invoices').update({ status: 'voided' }).eq('id', id);
+    await logActivity('void_invoice', 'invoice', id);
+    setVoidInvoiceId(null);
+    loadData();
+  }
+
+  // ── Platform settings ────────────────────────────────────────────────────
+
+  async function handleSavePlatformSettings() {
+    setSettingsSaving(true);
+    setSettingsMsg('');
+    const updates = [
+      { key: 'commission_tier_1', value: commTier1 },
+      { key: 'commission_tier_2', value: commTier2 },
+      { key: 'commission_tier_3', value: commTier3 },
+      { key: 'maintenance_mode', value: maintenanceMode ? 'true' : 'false' },
+      { key: 'platform_email_name', value: platformEmailName },
+      { key: 'platform_email_address', value: platformEmailAddress },
+    ];
+    for (const u of updates) {
+      await (supabase as any).from('platform_settings').upsert({
+        key: u.key,
+        value: u.value,
+        updated_at: new Date().toISOString(),
+        updated_by: adminId || null,
+      }, { onConflict: 'key' });
+    }
+    await logActivity('update_platform_settings', 'settings', 'platform_settings', {
+      commission_tier_1: commTier1,
+      commission_tier_2: commTier2,
+      commission_tier_3: commTier3,
+      maintenance_mode: String(maintenanceMode),
+    });
+    setSettingsMsg('Settings saved.');
+    setSettingsSaving(false);
   }
 
   if (!isAdmin) return null;
 
+  // ─── Style constants ─────────────────────────────────────────────────────
+
   const typeColor: Record<string, { bg: string; color: string }> = {
     contractor: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80' },
-    business: { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
-    personal: { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
-    suspended: { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
+    business:   { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+    personal:   { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
+    suspended:  { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
   };
 
   const statusColor: Record<string, { bg: string; color: string }> = {
-    open: { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
-    pending: { bg: 'rgba(234,179,8,0.15)', color: '#facc15' },
-    active: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80' },
-    completed: { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
-    cancelled: { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
-    paid: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80' },
-    unpaid: { bg: 'rgba(234,179,8,0.15)', color: '#facc15' },
-    overdue: { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
-    accepted: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80' },
-    declined: { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
+    new:       { bg: 'rgba(168,85,247,0.15)',   color: '#c084fc' },
+    open:      { bg: 'rgba(59,130,246,0.15)',    color: '#60a5fa' },
+    pending:   { bg: 'rgba(234,179,8,0.15)',     color: '#facc15' },
+    quoted:    { bg: 'rgba(59,130,246,0.15)',    color: '#60a5fa' },
+    active:    { bg: 'rgba(34,197,94,0.15)',     color: '#4ade80' },
+    accepted:  { bg: 'rgba(34,197,94,0.15)',     color: '#4ade80' },
+    completed: { bg: 'rgba(255,255,255,0.08)',   color: 'rgba(255,255,255,0.5)' },
+    declined:  { bg: 'rgba(248,113,113,0.15)',   color: '#f87171' },
+    cancelled: { bg: 'rgba(248,113,113,0.15)',   color: '#f87171' },
+    paid:      { bg: 'rgba(34,197,94,0.15)',     color: '#4ade80' },
+    unpaid:    { bg: 'rgba(234,179,8,0.15)',     color: '#facc15' },
+    overdue:   { bg: 'rgba(248,113,113,0.15)',   color: '#f87171' },
+    voided:    { bg: 'rgba(255,255,255,0.06)',   color: 'rgba(255,255,255,0.3)' },
   };
 
-  const thStyle = { textAlign: 'left' as const, padding: '10px 16px', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: '0.06em' };
+  const badge = (s: string): CSSProperties => ({
+    fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
+    background: statusColor[s]?.bg || 'rgba(255,255,255,0.08)',
+    color: statusColor[s]?.color || 'rgba(255,255,255,0.5)',
+  });
+
+  const thStyle: CSSProperties = {
+    textAlign: 'left', padding: '10px 16px', color: 'rgba(255,255,255,0.4)',
+    fontWeight: 500, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em',
+  };
+
+  const btn: CSSProperties = {
+    background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+    color: 'rgba(255,255,255,0.5)', fontSize: 12, padding: '4px 10px', cursor: 'pointer', marginRight: 4,
+  };
+  const btnDanger: CSSProperties = {
+    background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 6,
+    color: '#f87171', fontSize: 12, padding: '4px 10px', cursor: 'pointer', marginRight: 4,
+  };
+  const btnSuccess: CSSProperties = {
+    background: 'none', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6,
+    color: '#4ade80', fontSize: 12, padding: '4px 10px', cursor: 'pointer', marginRight: 4,
+  };
+
+  const overlay: CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 50,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
+  const modal: CSSProperties = {
+    background: '#0f1f3d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12,
+    padding: 32, minWidth: 400, maxWidth: 520, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+  };
+  const inputS: CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 7,
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+    color: '#e8eef4', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+  };
+  const label: CSSProperties = { fontSize: 12, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 5 };
+  const btnPrimary: CSSProperties = {
+    background: '#f07820', border: 'none', borderRadius: 7, color: '#fff',
+    fontSize: 13, fontWeight: 600, padding: '9px 20px', cursor: 'pointer',
+  };
+  const btnSecondary: CSSProperties = {
+    background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7,
+    color: 'rgba(255,255,255,0.5)', fontSize: 13, padding: '9px 20px', cursor: 'pointer',
+  };
+
   const emptyState = (msg: string) => (
     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, padding: '32px 16px' }}>{msg}</div>
   );
 
-  const actionBtnStyle = { background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: 'rgba(255,255,255,0.5)', fontSize: 12, padding: '4px 12px', cursor: 'pointer' };
+  const allTabs: Tab[] = [
+    'overview', 'users', 'enquiries', 'jobs', 'invoices',
+    ...(isSuperAdmin ? ['admins', 'settings'] as Tab[] : []),
+    'activity',
+  ];
+  const tabLabel: Record<Tab, string> = {
+    overview: 'Overview', users: 'Users', enquiries: 'Enquiries',
+    jobs: 'Jobs', invoices: 'Invoices', admins: 'Admins',
+    settings: 'Settings', activity: 'Activity Log',
+  };
+
+  const adminEmailMap = Object.fromEntries(adminUsers.map(a => [a.id, a.email]));
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f1f3d', color: '#e8eef4', fontFamily: 'system-ui, sans-serif' }}>
+
       {/* Header */}
       <div style={{ background: '#0a1628', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56 }}>
@@ -120,209 +514,591 @@ export default function AdminDashboard() {
             <span style={{ fontWeight: 700, fontSize: 18, color: '#f07820' }}>TradeStone</span>
             <span style={{ color: 'rgba(255,255,255,0.3)' }}>/</span>
             <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>Admin</span>
+            <span style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, marginLeft: 4,
+              background: isSuperAdmin ? 'rgba(240,120,32,0.2)' : 'rgba(59,130,246,0.15)',
+              color: isSuperAdmin ? '#f07820' : '#60a5fa',
+              border: `1px solid ${isSuperAdmin ? 'rgba(240,120,32,0.35)' : 'rgba(59,130,246,0.3)'}`,
+            }}>
+              {isSuperAdmin ? 'Super Admin' : 'Admin'}
+            </span>
           </div>
-          <button
-            onClick={handleSignOut}
-            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: 'rgba(255,255,255,0.5)', fontSize: 12, padding: '6px 14px', cursor: 'pointer' }}
-          >
-            Sign out
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>{adminEmail}</span>
+            <button onClick={handleSignOut} style={btnSecondary}>Sign out</button>
+          </div>
         </div>
       </div>
 
       <div style={{ padding: 32 }}>
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 32, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          {(['overview', 'users', 'enquiries', 'jobs', 'invoices'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: '10px 20px', fontSize: 14, fontWeight: 500,
-                color: activeTab === tab ? '#f07820' : 'rgba(255,255,255,0.45)',
-                borderBottom: activeTab === tab ? '2px solid #f07820' : '2px solid transparent',
-                marginBottom: -1, textTransform: 'capitalize'
-              }}
-            >
-              {tab}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 32, borderBottom: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
+          {allTabs.map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '10px 20px', fontSize: 14, fontWeight: 500,
+              color: activeTab === tab ? '#f07820' : 'rgba(255,255,255,0.45)',
+              borderBottom: activeTab === tab ? '2px solid #f07820' : '2px solid transparent',
+              marginBottom: -1,
+            }}>
+              {tabLabel[tab]}
             </button>
           ))}
         </div>
 
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Loading...</div>
-        ) : activeTab === 'overview' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
-            {[
-              { label: 'Total accounts', value: stats?.totalProfiles },
-              { label: 'Contractors', value: stats?.contractors },
-              { label: 'Businesses', value: stats?.businesses },
-              { label: 'Personal', value: stats?.personal },
-              { label: 'Jobs', value: stats?.totalJobs },
-              { label: 'Enquiries', value: stats?.totalEnquiries },
-              { label: 'Invoices', value: stats?.totalInvoices },
-            ].map(s => (
-              <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '20px 24px' }}>
-                <div style={{ fontSize: 28, fontWeight: 600, color: '#fff', marginBottom: 4 }}>{s.value ?? 0}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+        ) : (
+          <>
+            {/* ── OVERVIEW ─────────────────────────────────────────────── */}
+            {activeTab === 'overview' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+                {[
+                  { label: 'Total accounts', value: stats?.totalProfiles },
+                  { label: 'Contractors',    value: stats?.contractors },
+                  { label: 'Businesses',     value: stats?.businesses },
+                  { label: 'Personal',       value: stats?.personal },
+                  { label: 'Jobs',           value: stats?.totalJobs },
+                  { label: 'Enquiries',      value: stats?.totalEnquiries },
+                  { label: 'Invoices',       value: stats?.totalInvoices },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '20px 24px' }}>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: '#fff', marginBottom: 4 }}>{s.value ?? 0}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── USERS ────────────────────────────────────────────────── */}
+            {activeTab === 'users' && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    {['TS Code', 'Name', 'Type', 'Joined', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {profiles.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
+                          {p.ts_profile_code}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#e8eef4' }}>{p.full_name || '—'}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, background: typeColor[p.user_type]?.bg || 'rgba(255,255,255,0.08)', color: typeColor[p.user_type]?.color || 'rgba(255,255,255,0.5)' }}>
+                          {p.user_type}
+                        </span>
+                        {p.is_verified && (
+                          <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, fontWeight: 500, background: 'rgba(34,197,94,0.15)', color: '#4ade80', marginLeft: 5 }}>✓</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                        {new Date(p.created_at).toLocaleDateString('en-GB')}
+                      </td>
+                      <td style={{ padding: '10px 16px' }}>
+                        <button style={btn} onClick={() => setProfileSlideOver(p)}>View</button>
+                        <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trade || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
+                        {p.user_type === 'contractor' && (
+                          <button style={p.is_verified ? btnDanger : btnSuccess} onClick={() => handleVerifyContractor(p.id, p.is_verified)}>
+                            {p.is_verified ? 'Unverify' : 'Verify'}
+                          </button>
+                        )}
+                        {p.user_type === 'suspended'
+                          ? <button style={btn} onClick={() => handleReinstate(p.id)}>Reinstate</button>
+                          : <button style={btn} onClick={() => handleSuspend(p.id)}>Suspend</button>
+                        }
+                        {isSuperAdmin && (
+                          <button style={btnDanger} onClick={() => setDeleteConfirmId(p.id)}>Delete</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* ── ENQUIRIES ────────────────────────────────────────────── */}
+            {activeTab === 'enquiries' && (
+              enquiries.length === 0 ? emptyState('No enquiries yet') : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {['Description', 'Location', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enquiries.map(e => (
+                      <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 16px', color: '#e8eef4', maxWidth: 240 }}>
+                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {e.job_description || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>{e.location || '—'}</td>
+                        <td style={{ padding: '12px 16px' }}><span style={badge(e.status)}>{e.status || '—'}</span></td>
+                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                          {new Date(e.created_at).toLocaleDateString('en-GB')}
+                        </td>
+                        <td style={{ padding: '10px 16px' }}>
+                          {e.status !== 'cancelled' && (
+                            <>
+                              <button style={btn} onClick={() => { setReassignModal(e); setReassignContractorId(e.contractor_id || ''); }}>Reassign</button>
+                              <button style={btnDanger} onClick={() => setCancelEnquiryId(e.id)}>Cancel</button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+
+            {/* ── JOBS ─────────────────────────────────────────────────── */}
+            {activeTab === 'jobs' && (
+              jobs.length === 0 ? emptyState('No jobs yet') : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {['Job ID', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.map(j => (
+                      <tr key={j.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, fontFamily: 'monospace' }}>
+                            {j.id.slice(0, 8)}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}><span style={badge(j.status)}>{j.status || '—'}</span></td>
+                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                          {new Date(j.created_at).toLocaleDateString('en-GB')}
+                        </td>
+                        <td style={{ padding: '10px 16px' }}>
+                          {isSuperAdmin && j.status !== 'completed' && (
+                            <button style={btnSuccess} onClick={() => setMarkCompleteJobId(j.id)}>Mark Complete</button>
+                          )}
+                          <button style={btn} onClick={() => setRaiseDisputeJobId(j.id)}>Raise Dispute</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+
+            {/* ── INVOICES ─────────────────────────────────────────────── */}
+            {activeTab === 'invoices' && (
+              invoices.length === 0 ? emptyState('No invoices yet') : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {['Invoice No.', 'Status', 'Amount', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.map(inv => (
+                      <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
+                            {inv.invoice_number || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}><span style={badge(inv.status)}>{inv.status || '—'}</span></td>
+                        <td style={{ padding: '12px 16px', color: '#e8eef4' }}>
+                          {inv.total_amount != null ? `£${Number(inv.total_amount).toFixed(2)}` : '—'}
+                        </td>
+                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                          {new Date(inv.created_at).toLocaleDateString('en-GB')}
+                        </td>
+                        <td style={{ padding: '10px 16px' }}>
+                          {isSuperAdmin && inv.status !== 'paid' && inv.status !== 'voided' && (
+                            <button style={btnSuccess} onClick={() => setMarkPaidInvoiceId(inv.id)}>Mark Paid</button>
+                          )}
+                          {isSuperAdmin && inv.status !== 'voided' && inv.status !== 'paid' && (
+                            <button style={btnDanger} onClick={() => setVoidInvoiceId(inv.id)}>Void</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+
+            {/* ── ADMINS ───────────────────────────────────────────────── */}
+            {activeTab === 'admins' && isSuperAdmin && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                  <button style={btnPrimary} onClick={() => setCreateAdminOpen(true)}>+ Create Admin</button>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {['Email', 'Role', 'Created', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminUsers.map(a => (
+                      <tr key={a.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 16px', color: '#e8eef4' }}>{a.email}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
+                            background: a.role === 'super_admin' ? 'rgba(240,120,32,0.15)' : 'rgba(59,130,246,0.15)',
+                            color: a.role === 'super_admin' ? '#f07820' : '#60a5fa',
+                          }}>
+                            {a.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                          {new Date(a.created_at).toLocaleDateString('en-GB')}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          {a.user_id === adminId
+                            ? <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>You</span>
+                            : <button style={btnDanger} onClick={() => setRemoveAdminId(a.id)}>Remove</button>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── PLATFORM SETTINGS ────────────────────────────────────── */}
+            {activeTab === 'settings' && isSuperAdmin && (
+              <div style={{ maxWidth: 580 }}>
+                <div style={{ marginBottom: 32 }}>
+                  <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>Commission Rates</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                    {[
+                      { label: '£0 – £500',     val: commTier1, set: setCommTier1 },
+                      { label: '£500 – £2,000', val: commTier2, set: setCommTier2 },
+                      { label: '£2,000+',        val: commTier3, set: setCommTier3 },
+                    ].map(t => (
+                      <div key={t.label}>
+                        <label style={label}>{t.label}</label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            value={t.val}
+                            onChange={e => t.set(e.target.value)}
+                            style={{ ...inputS, paddingRight: 28 }}
+                            type="number" step="0.1" min="0" max="100"
+                          />
+                          <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 32 }}>
+                  <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>Platform Email</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div>
+                      <label style={label}>Sender Name</label>
+                      <input value={platformEmailName} onChange={e => setPlatformEmailName(e.target.value)} style={inputS} />
+                    </div>
+                    <div>
+                      <label style={label}>Sender Address</label>
+                      <input value={platformEmailAddress} onChange={e => setPlatformEmailAddress(e.target.value)} style={inputS} type="email" />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 32 }}>
+                  <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 16px' }}>Maintenance Mode</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }} onClick={() => setMaintenanceMode(!maintenanceMode)}>
+                    <div style={{
+                      width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                      background: maintenanceMode ? '#f07820' : 'rgba(255,255,255,0.15)',
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: 2, left: maintenanceMode ? 22 : 2,
+                        width: 20, height: 20, borderRadius: 10, background: '#fff', transition: 'left 0.2s',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 14, color: maintenanceMode ? '#f07820' : 'rgba(255,255,255,0.5)' }}>
+                      {maintenanceMode ? 'ON — non-admins see a maintenance banner' : 'Off'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button onClick={handleSavePlatformSettings} disabled={settingsSaving} style={{ ...btnPrimary, opacity: settingsSaving ? 0.6 : 1 }}>
+                    {settingsSaving ? 'Saving…' : 'Save Settings'}
+                  </button>
+                  {settingsMsg && <span style={{ fontSize: 13, color: '#4ade80' }}>{settingsMsg}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* ── ACTIVITY LOG ─────────────────────────────────────────── */}
+            {activeTab === 'activity' && (
+              activityLog.length === 0 ? emptyState('No activity recorded yet') : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {['Time', 'Admin', 'Action', 'Target', 'ID'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLog.map(entry => (
+                      <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', fontSize: 12 }}>
+                          {new Date(entry.created_at).toLocaleString('en-GB')}
+                        </td>
+                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.55)' }}>
+                          {entry.admin_id ? (adminEmailMap[entry.admin_id] || entry.admin_id.slice(0, 8)) : '—'}
+                        </td>
+                        <td style={{ padding: '9px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 12 }}>{entry.action}</td>
+                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.45)' }}>{entry.target_type || '—'}</td>
+                        <td style={{ padding: '9px 16px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11 }}>
+                          {entry.target_id ? entry.target_id.slice(0, 14) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ═══ MODALS ═══════════════════════════════════════════════════════════ */}
+
+      {/* Profile slide-over */}
+      {profileSlideOver && (
+        <div style={overlay} onClick={() => setProfileSlideOver(null)}>
+          <div
+            style={{ ...modal, position: 'fixed', right: 0, top: 0, bottom: 0, borderRadius: '12px 0 0 12px', maxHeight: '100vh', minWidth: 380 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: 0 }}>User Profile</h2>
+              <button onClick={() => setProfileSlideOver(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            {([
+              ['TS Code',         profileSlideOver.ts_profile_code],
+              ['Full Name',       profileSlideOver.full_name],
+              ['Email',           profileSlideOver.email],
+              ['Account Type',    profileSlideOver.user_type],
+              ['Trade',           profileSlideOver.trade],
+              ['Location',        profileSlideOver.location],
+              ['Bio',             profileSlideOver.bio],
+              ['Stripe Account',  profileSlideOver.stripe_account_id],
+              ['Verified',        profileSlideOver.is_verified ? 'Yes' : 'No'],
+              ['Created',         new Date(profileSlideOver.created_at).toLocaleString('en-GB')],
+            ] as [string, string | null | undefined][]).map(([lbl, val]) => (
+              <div key={lbl} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
+                <div style={{ fontSize: 14, color: val ? '#e8eef4' : 'rgba(255,255,255,0.2)' }}>{val || '—'}</div>
               </div>
             ))}
           </div>
-        ) : activeTab === 'users' ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['TS Code', 'Name', 'Type', 'Joined', 'Actions'].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
+        </div>
+      )}
+
+      {/* Edit profile */}
+      {editingProfile && (
+        <div style={overlay} onClick={() => setEditingProfile(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Edit Profile</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={label}>Full Name</label><input value={editFields.full_name} onChange={e => setEditFields(f => ({ ...f, full_name: e.target.value }))} style={inputS} /></div>
+              <div>
+                <label style={label}>Account Type</label>
+                <select value={editFields.user_type} onChange={e => setEditFields(f => ({ ...f, user_type: e.target.value }))} style={{ ...inputS, cursor: 'pointer' }}>
+                  {['contractor', 'business', 'personal', 'suspended'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><label style={label}>Trade</label><input value={editFields.trade} onChange={e => setEditFields(f => ({ ...f, trade: e.target.value }))} style={inputS} /></div>
+              <div><label style={label}>Location</label><input value={editFields.location} onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} style={inputS} /></div>
+              <div><label style={label}>Bio</label><textarea value={editFields.bio} onChange={e => setEditFields(f => ({ ...f, bio: e.target.value }))} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditingProfile(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={handleEditProfile} style={btnPrimary}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete account confirm */}
+      {deleteConfirmId && (
+        <div style={overlay} onClick={() => setDeleteConfirmId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Delete Account</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              This will anonymise the email to <code style={{ color: '#f07820' }}>deleted_[id]@tradestone.com</code> and set <code style={{ color: '#f07820' }}>is_active = false</code>. This cannot be undone from the dashboard.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setDeleteConfirmId(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleDeleteAccount(deleteConfirmId)} style={{ ...btnPrimary, background: '#ef4444' }}>Delete Account</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create admin */}
+      {createAdminOpen && (
+        <div style={overlay} onClick={() => { setCreateAdminOpen(false); setAdminActionError(''); }}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Create Admin Account</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={label}>Email</label><input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} style={inputS} type="email" /></div>
+              <div><label style={label}>Password</label><input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} style={inputS} type="password" /></div>
+              <div>
+                <label style={label}>Role</label>
+                <select value={newAdminRole} onChange={e => setNewAdminRole(e.target.value as 'admin' | 'super_admin')} style={{ ...inputS, cursor: 'pointer' }}>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
+            </div>
+            {adminActionError && (
+              <div style={{ fontSize: 13, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '10px 14px', borderRadius: 8, marginTop: 14 }}>
+                {adminActionError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setCreateAdminOpen(false); setAdminActionError(''); }} style={btnSecondary}>Cancel</button>
+              <button onClick={handleCreateAdmin} style={btnPrimary}>Create Admin</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove admin confirm */}
+      {removeAdminId && (
+        <div style={overlay} onClick={() => setRemoveAdminId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Remove Admin</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              Remove <strong style={{ color: '#e8eef4' }}>{adminUsers.find(a => a.id === removeAdminId)?.email}</strong> from admin access? They will no longer be able to log in to the admin panel.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setRemoveAdminId(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleRemoveAdmin(removeAdminId)} style={{ ...btnPrimary, background: '#ef4444' }}>Remove Admin</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign enquiry */}
+      {reassignModal && (
+        <div style={overlay} onClick={() => setReassignModal(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Reassign Enquiry</h2>
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, margin: '0 0 20px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {reassignModal.job_description?.slice(0, 80) || 'Enquiry'}
+            </p>
+            <div>
+              <label style={label}>Assign to Contractor</label>
+              <select value={reassignContractorId} onChange={e => setReassignContractorId(e.target.value)} style={{ ...inputS, cursor: 'pointer' }}>
+                <option value="">— Select contractor —</option>
+                {contractors.map(c => (
+                  <option key={c.id} value={c.id}>{c.full_name || c.email || c.id.slice(0, 8)}</option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-                      {p.ts_profile_code}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#e8eef4' }}>{p.full_name || '—'}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
-                      background: typeColor[p.user_type]?.bg || 'rgba(255,255,255,0.08)',
-                      color: typeColor[p.user_type]?.color || 'rgba(255,255,255,0.5)',
-                    }}>
-                      {p.user_type}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                    {new Date(p.created_at).toLocaleDateString('en-GB')}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {p.user_type !== 'admin' && (
-                      p.user_type === 'suspended' ? (
-                        <button style={actionBtnStyle} onClick={() => handleReinstate(p.id)}>Reinstate</button>
-                      ) : (
-                        <button style={actionBtnStyle} onClick={() => handleSuspend(p.id)}>Suspend</button>
-                      )
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : activeTab === 'enquiries' ? (
-          enquiries.length === 0 ? emptyState('No enquiries yet') : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  {['Description', 'Location', 'Status', 'Created'].map(h => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {enquiries.map(e => (
-                  <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '12px 16px', color: '#e8eef4', maxWidth: 300 }}>
-                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {e.job_description || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>{e.location || '—'}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{
-                        fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
-                        background: statusColor[e.status]?.bg || 'rgba(255,255,255,0.08)',
-                        color: statusColor[e.status]?.color || 'rgba(255,255,255,0.5)',
-                      }}>
-                        {e.status || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                      {new Date(e.created_at).toLocaleDateString('en-GB')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        ) : activeTab === 'jobs' ? (
-          jobs.length === 0 ? emptyState('No jobs yet') : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  {['Job ID', 'Status', 'Created'].map(h => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map(j => (
-                  <tr key={j.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, fontFamily: 'monospace' }}>
-                        {j.id.slice(0, 8)}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{
-                        fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
-                        background: statusColor[j.status]?.bg || 'rgba(255,255,255,0.08)',
-                        color: statusColor[j.status]?.color || 'rgba(255,255,255,0.5)',
-                      }}>
-                        {j.status || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                      {new Date(j.created_at).toLocaleDateString('en-GB')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        ) : (
-          invoices.length === 0 ? emptyState('No invoices yet') : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  {['Invoice Number', 'Status', 'Amount', 'Created'].map(h => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map(inv => (
-                  <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-                        {inv.invoice_number || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{
-                        fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500,
-                        background: statusColor[inv.status]?.bg || 'rgba(255,255,255,0.08)',
-                        color: statusColor[inv.status]?.color || 'rgba(255,255,255,0.5)',
-                      }}>
-                        {inv.status || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: '#e8eef4' }}>
-                      {inv.total_amount != null ? `£${Number(inv.total_amount).toFixed(2)}` : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                      {new Date(inv.created_at).toLocaleDateString('en-GB')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        )}
-      </div>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={() => setReassignModal(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={handleReassignEnquiry} disabled={!reassignContractorId} style={{ ...btnPrimary, opacity: reassignContractorId ? 1 : 0.5, cursor: reassignContractorId ? 'pointer' : 'not-allowed' }}>
+                Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel enquiry confirm */}
+      {cancelEnquiryId && (
+        <div style={overlay} onClick={() => setCancelEnquiryId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Cancel Enquiry</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              Set this enquiry status to <strong>cancelled</strong>. Notify both parties separately as needed.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setCancelEnquiryId(null)} style={btnSecondary}>Go Back</button>
+              <button onClick={() => handleCancelEnquiry(cancelEnquiryId)} style={{ ...btnPrimary, background: '#ef4444' }}>Confirm Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark job complete confirm */}
+      {markCompleteJobId && (
+        <div style={overlay} onClick={() => setMarkCompleteJobId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Job Complete</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              Force this job to <strong>completed</strong> status. This action is logged.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setMarkCompleteJobId(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleMarkJobComplete(markCompleteJobId)} style={btnPrimary}>Mark Complete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Raise dispute */}
+      {raiseDisputeJobId && (
+        <div style={overlay} onClick={() => { setRaiseDisputeJobId(null); setDisputeNote(''); }}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Raise Dispute</h2>
+            <div>
+              <label style={label}>Notes (optional)</label>
+              <textarea value={disputeNote} onChange={e => setDisputeNote(e.target.value)} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} placeholder="Describe the reason for the dispute…" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setRaiseDisputeJobId(null); setDisputeNote(''); }} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleRaiseDispute(raiseDisputeJobId)} style={btnPrimary}>Raise Dispute</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark invoice paid confirm */}
+      {markPaidInvoiceId && (
+        <div style={overlay} onClick={() => setMarkPaidInvoiceId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Invoice as Paid</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              Manually mark this invoice as <strong>paid</strong>. Use only when payment was received outside of Stripe.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setMarkPaidInvoiceId(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleMarkInvoicePaid(markPaidInvoiceId)} style={btnPrimary}>Mark Paid</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Void invoice confirm */}
+      {voidInvoiceId && (
+        <div style={overlay} onClick={() => setVoidInvoiceId(null)}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Void Invoice</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
+              Set this invoice to <strong>voided</strong>. This cannot be undone from the dashboard.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setVoidInvoiceId(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={() => handleVoidInvoice(voidInvoiceId)} style={{ ...btnPrimary, background: '#ef4444' }}>Void Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
