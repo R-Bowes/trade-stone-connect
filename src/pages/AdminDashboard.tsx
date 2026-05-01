@@ -209,7 +209,16 @@ export default function AdminDashboard() {
       db.from('platform_settings').select('key, value'),
     ]);
 
+    if (profilesRes.error) console.error('[Admin] profiles query failed:', profilesRes.error);
+    if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:', enquiriesDataRes.error);
+    if (jobsDataRes.error) console.error('[Admin] jobs query failed:', jobsDataRes.error);
+    if (invoicesDataRes.error) console.error('[Admin] invoices query failed:', invoicesDataRes.error);
+    if (conversationsRes.error) console.error('[Admin] conversations query failed:', conversationsRes.error);
+
     const p: Profile[] = profilesRes.data || [];
+    if (!profilesRes.error && p.length === 0) {
+      console.warn('[Admin] profiles query returned 0 rows with no error — RLS may be blocking results. Ensure is_platform_admin() returns true for this user or set VITE_SUPABASE_SERVICE_ROLE_KEY.');
+    }
     setProfiles(p);
     setContractors(p.filter((x: Profile) => x.user_type === 'contractor'));
     setEnquiries(enquiriesDataRes.data || []);

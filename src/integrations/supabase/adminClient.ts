@@ -9,6 +9,10 @@ import { supabase } from './client';
 const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string | undefined;
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 
+if (!serviceRoleKey) {
+  console.warn('[adminClient] VITE_SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon client, RLS will block admin queries');
+}
+
 export const adminDb: ReturnType<typeof createClient> = serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
