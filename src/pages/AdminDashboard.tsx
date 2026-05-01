@@ -12,7 +12,7 @@ type Profile = {
   full_name: string;
   user_type: string;
   email: string | null;
-  trade: string | null;
+  trades: string[] | null;
   location: string | null;
   bio: string | null;
   stripe_account_id: string | null;
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
       settingsRes,
     ] = await Promise.all([
       db.from('profiles')
-        .select('id, ts_profile_code, full_name, user_type, email, trade, location, bio, stripe_account_id, is_verified, created_at')
+        .select('id, ts_profile_code, full_name, user_type, email, trades, location, bio, stripe_account_id, is_verified, created_at')
         .order('created_at', { ascending: false }),
       db.from('jobs').select('id', { count: 'exact', head: true }),
       db.from('enquiries').select('id', { count: 'exact', head: true }),
@@ -209,11 +209,11 @@ export default function AdminDashboard() {
       db.from('platform_settings').select('key, value'),
     ]);
 
-    if (profilesRes.error) console.error('[Admin] profiles query failed:', profilesRes.error);
-    if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:', enquiriesDataRes.error);
-    if (jobsDataRes.error) console.error('[Admin] jobs query failed:', jobsDataRes.error);
-    if (invoicesDataRes.error) console.error('[Admin] invoices query failed:', invoicesDataRes.error);
-    if (conversationsRes.error) console.error('[Admin] conversations query failed:', conversationsRes.error);
+    if (profilesRes.error) console.error('[Admin] profiles query failed:', profilesRes.error.message, profilesRes.error.code, profilesRes.error.details);
+    if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:', enquiriesDataRes.error.message, enquiriesDataRes.error.code, enquiriesDataRes.error.details);
+    if (jobsDataRes.error) console.error('[Admin] jobs query failed:', jobsDataRes.error.message, jobsDataRes.error.code, jobsDataRes.error.details);
+    if (invoicesDataRes.error) console.error('[Admin] invoices query failed:', invoicesDataRes.error.message, invoicesDataRes.error.code, invoicesDataRes.error.details);
+    if (conversationsRes.error) console.error('[Admin] conversations query failed:', conversationsRes.error.message, conversationsRes.error.code, conversationsRes.error.details);
 
     const p: Profile[] = profilesRes.data || [];
     if (!profilesRes.error && p.length === 0) {
@@ -291,7 +291,7 @@ export default function AdminDashboard() {
     if (!editingProfile) return;
     await (adminDb as any).from('profiles').update({
       full_name: editFields.full_name,
-      trade: editFields.trade || null,
+      trades: editFields.trade ? [editFields.trade] : null,
       location: editFields.location || null,
       bio: editFields.bio || null,
       user_type: editFields.user_type,
@@ -666,7 +666,7 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ padding: '10px 16px' }}>
                           <button style={btn} onClick={() => setProfileSlideOver(p)}>View</button>
-                          <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trade || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
+                          <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trades?.[0] || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
                           {p.user_type === 'contractor' && (
                             <button style={p.is_verified ? btnDanger : btnSuccess} onClick={() => handleVerifyContractor(p.id, p.is_verified)}>
                               {p.is_verified ? 'Unverify' : 'Verify'}
@@ -1031,7 +1031,7 @@ export default function AdminDashboard() {
               ['Full Name',       profileSlideOver.full_name],
               ['Email',           profileSlideOver.email],
               ['Account Type',    profileSlideOver.user_type],
-              ['Trade',           profileSlideOver.trade],
+              ['Trade',           profileSlideOver.trades?.join(', ')],
               ['Location',        profileSlideOver.location],
               ['Bio',             profileSlideOver.bio],
               ['Stripe Account',  profileSlideOver.stripe_account_id],

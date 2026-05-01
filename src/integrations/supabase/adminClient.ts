@@ -6,7 +6,9 @@ import { supabase } from './client';
 // anon client — in that case the Supabase SQL migration
 // 20260430130000_admin_rls_bypass_policies.sql must have been applied so that
 // authenticated admin users can read all rows via RLS policies.
-const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string | undefined;
+// Strip surrounding quotes that .env parsers sometimes leave on the value.
+const rawKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string | undefined;
+const serviceRoleKey = rawKey?.replace(/^["']|["']$/g, '') || undefined;
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 
 if (!serviceRoleKey) {
@@ -15,6 +17,10 @@ if (!serviceRoleKey) {
 
 export const adminDb: ReturnType<typeof createClient> = serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
     })
   : supabase;
