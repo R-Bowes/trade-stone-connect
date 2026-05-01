@@ -169,9 +169,6 @@ export default function AdminDashboard() {
 
     const [
       profilesRes,
-      jobsCountRes,
-      enquiriesCountRes,
-      invoicesCountRes,
       enquiriesDataRes,
       jobsDataRes,
       invoicesDataRes,
@@ -183,9 +180,6 @@ export default function AdminDashboard() {
       db.from('profiles')
         .select('id, ts_profile_code, full_name, user_type, email, trades, location, bio, stripe_account_id, is_verified, created_at')
         .order('created_at', { ascending: false }),
-      db.from('jobs').select('id', { count: 'exact', head: true }),
-      db.from('enquiries').select('id', { count: 'exact', head: true }),
-      db.from('invoices').select('id', { count: 'exact', head: true }),
       db.from('enquiries')
         .select('id, status, job_description, location, created_at, customer_id, contractor_id')
         .order('created_at', { ascending: false }),
@@ -210,9 +204,6 @@ export default function AdminDashboard() {
     ]);
 
     if (profilesRes.error)      console.error('[Admin] profiles query failed:',      profilesRes.error.message,      profilesRes.error.code, profilesRes.error.details);
-    if (jobsCountRes.error)     console.error('[Admin] jobs count failed:',           jobsCountRes.error.message,     jobsCountRes.error.code, jobsCountRes.error.details);
-    if (enquiriesCountRes.error) console.error('[Admin] enquiries count failed:',     enquiriesCountRes.error.message, enquiriesCountRes.error.code, enquiriesCountRes.error.details);
-    if (invoicesCountRes.error) console.error('[Admin] invoices count failed:',       invoicesCountRes.error.message,  invoicesCountRes.error.code, invoicesCountRes.error.details);
     if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:',      enquiriesDataRes.error.message,  enquiriesDataRes.error.code, enquiriesDataRes.error.details);
     if (jobsDataRes.error)      console.error('[Admin] jobs query failed:',           jobsDataRes.error.message,       jobsDataRes.error.code, jobsDataRes.error.details);
     if (invoicesDataRes.error)  console.error('[Admin] invoices query failed:',       invoicesDataRes.error.message,   invoicesDataRes.error.code, invoicesDataRes.error.details);
@@ -250,9 +241,9 @@ export default function AdminDashboard() {
       contractors: p.filter((x: Profile) => x.user_type === 'contractor').length,
       businesses: p.filter((x: Profile) => x.user_type === 'business').length,
       personal: p.filter((x: Profile) => x.user_type === 'personal').length,
-      totalJobs: jobsCountRes.count || 0,
-      totalEnquiries: enquiriesCountRes.count || 0,
-      totalInvoices: invoicesCountRes.count || 0,
+      totalJobs: (jobsDataRes.data || []).length,
+      totalEnquiries: (enquiriesDataRes.data || []).length,
+      totalInvoices: (invoicesDataRes.data || []).length,
     });
     setLoading(false);
   }
