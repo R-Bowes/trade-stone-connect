@@ -209,11 +209,17 @@ export default function AdminDashboard() {
       db.from('platform_settings').select('key, value'),
     ]);
 
-    if (profilesRes.error) console.error('[Admin] profiles query failed:', profilesRes.error.message, profilesRes.error.code, profilesRes.error.details);
-    if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:', enquiriesDataRes.error.message, enquiriesDataRes.error.code, enquiriesDataRes.error.details);
-    if (jobsDataRes.error) console.error('[Admin] jobs query failed:', jobsDataRes.error.message, jobsDataRes.error.code, jobsDataRes.error.details);
-    if (invoicesDataRes.error) console.error('[Admin] invoices query failed:', invoicesDataRes.error.message, invoicesDataRes.error.code, invoicesDataRes.error.details);
-    if (conversationsRes.error) console.error('[Admin] conversations query failed:', conversationsRes.error.message, conversationsRes.error.code, conversationsRes.error.details);
+    if (profilesRes.error)      console.error('[Admin] profiles query failed:',      profilesRes.error.message,      profilesRes.error.code, profilesRes.error.details);
+    if (jobsCountRes.error)     console.error('[Admin] jobs count failed:',           jobsCountRes.error.message,     jobsCountRes.error.code, jobsCountRes.error.details);
+    if (enquiriesCountRes.error) console.error('[Admin] enquiries count failed:',     enquiriesCountRes.error.message, enquiriesCountRes.error.code, enquiriesCountRes.error.details);
+    if (invoicesCountRes.error) console.error('[Admin] invoices count failed:',       invoicesCountRes.error.message,  invoicesCountRes.error.code, invoicesCountRes.error.details);
+    if (enquiriesDataRes.error) console.error('[Admin] enquiries query failed:',      enquiriesDataRes.error.message,  enquiriesDataRes.error.code, enquiriesDataRes.error.details);
+    if (jobsDataRes.error)      console.error('[Admin] jobs query failed:',           jobsDataRes.error.message,       jobsDataRes.error.code, jobsDataRes.error.details);
+    if (invoicesDataRes.error)  console.error('[Admin] invoices query failed:',       invoicesDataRes.error.message,   invoicesDataRes.error.code, invoicesDataRes.error.details);
+    if (conversationsRes.error) console.error('[Admin] conversations query failed:',  conversationsRes.error.message,  conversationsRes.error.code, conversationsRes.error.details);
+    if (adminUsersRes.error)    console.error('[Admin] admin_users query failed:',    adminUsersRes.error.message,     adminUsersRes.error.code, adminUsersRes.error.details);
+    if (activityRes.error)      console.error('[Admin] activity log query failed:',   activityRes.error.message,       activityRes.error.code, activityRes.error.details);
+    if (settingsRes.error)      console.error('[Admin] platform_settings failed:',    settingsRes.error.message,       settingsRes.error.code, settingsRes.error.details);
 
     const p: Profile[] = profilesRes.data || [];
     if (!profilesRes.error && p.length === 0) {
