@@ -1,8 +1,11 @@
-// TODO: Deploy this function and set the required secret:
+// TODO: Deploy this function:
 //   supabase functions deploy notify-contractor
-//   supabase secrets set RESEND_API_KEY=your_resend_api_key_here
 //
-// Call from the frontend immediately after a new enquiry is created:
+// RESEND_API_KEY is shared with send-quote-notification — verify it is set under
+// Supabase Project Settings → Edge Functions → Secrets before deploying.
+// If not yet set: supabase secrets set RESEND_API_KEY=your_resend_api_key_here
+//
+// Called from QuoteRequestDialog and ContractorMessageDialog after enquiry insert:
 //   supabase.functions.invoke('notify-contractor', { body: { enquiry_id } })
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";

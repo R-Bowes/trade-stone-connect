@@ -84,7 +84,7 @@ export function ContractorMessageDialog({
 
       if (errTypes) throw errTypes;
 
-      // Notify the contractor via in-app notification.
+      // Notify the contractor via in-app notification and email.
       if (contractorProfile.user_id && enquiryRow?.id) {
         await supabase.from("notifications").insert({
           user_id: contractorProfile.user_id,
@@ -95,6 +95,10 @@ export function ContractorMessageDialog({
           reference_type: "enquiry",
           is_read: false,
         }).catch(console.error);
+
+        supabase.functions
+          .invoke("notify-contractor", { body: { enquiry_id: enquiryRow.id } })
+          .catch(console.error);
       }
       return;
     }

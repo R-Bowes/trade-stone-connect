@@ -293,8 +293,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Insert an enquiry row so the contractor sees this request in their management
     // dashboard (which queries the enquiries table). customer_id and customer_email
     // are derived from the JWT, not the request body.
+    let createdEnquiryId: string | null = null;
     if (contractorProfileId) {
-      const { error: enquiryError } = await supabase
+      const { data: enquiryRow, error: enquiryError } = await supabase
         .from('enquiries')
         .insert({
           customer_id: customerProfile?.id ?? null,
@@ -307,12 +308,15 @@ const handler = async (req: Request): Promise<Response> => {
           preferred_timeline: requestData.timeline || null,
           budget_range: requestData.budget_range || null,
           status: 'new',
-        });
+        })
+        .select('id')
+        .single();
       if (enquiryError) {
         console.error('[send-quote-notification] Failed to insert enquiry:', enquiryError);
         // Non-fatal — quote was saved; contractor notification will still fire
       } else {
-        console.log('[send-quote-notification] Enquiry inserted for contractor profile:', contractorProfileId);
+        createdEnquiryId = enquiryRow?.id ?? null;
+        console.log('[send-quote-notification] Enquiry inserted for contractor profile:', contractorProfileId, 'id:', createdEnquiryId);
       }
     } else {
       console.warn('[send-quote-notification] contractor profiles.id not found — enquiry row skipped');
@@ -407,9 +411,10 @@ const handler = async (req: Request): Promise<Response> => {
       // Don't fail - quote was already saved
     }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: true,
-      rateLimitRemaining: remainingRequests - 1
+      rateLimitRemaining: remainingRequests - 1,
+      enquiry_id: createdEnquiryId,
     }), {
       status: 200,
       headers: {

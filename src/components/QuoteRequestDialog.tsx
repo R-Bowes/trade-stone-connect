@@ -152,6 +152,12 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
         throw new Error(result.error || "Failed to submit quote");
       }
 
+      if (result?.enquiry_id) {
+        supabase.functions
+          .invoke("notify-contractor", { body: { enquiry_id: result.enquiry_id } })
+          .catch(console.error);
+      }
+
       toast({
         title: "Quote Request Sent!",
         description: `Your quote request has been sent. ${contractorName} will respond shortly.`,
