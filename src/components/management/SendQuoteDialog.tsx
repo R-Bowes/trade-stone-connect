@@ -72,10 +72,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     if (enquiry.customer_id) {
       supabase
         .from("profiles")
-        .select("ts_code")
+        .select("ts_profile_code")
         .eq("id", enquiry.customer_id)
         .maybeSingle()
-        .then(({ data }) => setCustomerTsCode(data?.ts_code ?? null));
+        .then(({ data }) => setCustomerTsCode(data?.ts_profile_code ?? null));
     } else {
       setCustomerTsCode(null);
     }
@@ -195,8 +195,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         <DialogHeader>
           <DialogTitle>Send Quote</DialogTitle>
           <DialogDescription>
-            Create a quote for {enquiry.customer_name ?? "customer"}
-            {customerTsCode ? ` (${customerTsCode})` : ""}.
+            Create a quote for {customerTsCode ?? enquiry.customer_name ?? "customer"}.
           </DialogDescription>
         </DialogHeader>
 
