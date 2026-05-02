@@ -21,11 +21,12 @@ interface AcceptedQuote {
 }
 
 export function ScheduleManagement() {
-  const { events, availability, loading, addEvent, updateEvent, deleteEvent, saveAvailability } = useSchedule();
+  const { events, loading, addEvent, updateEvent, deleteEvent } = useSchedule();
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [defaultDate, setDefaultDate] = useState<Date | undefined>();
   const [acceptedQuotes, setAcceptedQuotes] = useState<AcceptedQuote[]>([]);
+  const [contractorProfileId, setContractorProfileId] = useState("");
 
   const handleSlotClick = (date: Date) => {
     setEditingEvent(null);
@@ -72,6 +73,7 @@ export function ScheduleManagement() {
         .eq("recipient_response", "accepted")
         .order("responded_at", { ascending: false });
 
+      setContractorProfileId(profileRow?.id ?? "");
       if (!error) {
         setAcceptedQuotes((data as AcceptedQuote[]) || []);
       }
@@ -120,7 +122,7 @@ export function ScheduleManagement() {
         </TabsContent>
 
         <TabsContent value="availability" className="mt-4">
-          <AvailabilityManager availability={availability} onSave={saveAvailability} />
+          <AvailabilityManager contractorId={contractorProfileId} />
         </TabsContent>
 
         <TabsContent value="quote-scheduling" className="mt-4 space-y-3">

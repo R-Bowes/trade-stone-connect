@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_activity_log_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_users: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       availability_slots: {
         Row: {
           contractor_id: string
@@ -145,6 +210,51 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      contractor_availability_overrides: {
+        Row: {
+          am_available: boolean
+          contractor_id: string
+          created_at: string | null
+          date: string
+          id: string
+          pm_available: boolean
+          reason: string | null
+        }
+        Insert: {
+          am_available?: boolean
+          contractor_id: string
+          created_at?: string | null
+          date: string
+          id?: string
+          pm_available?: boolean
+          reason?: string | null
+        }
+        Update: {
+          am_available?: boolean
+          contractor_id?: string
+          created_at?: string | null
+          date?: string
+          id?: string
+          pm_available?: boolean
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_availability_overrides_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_availability_overrides_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contractor_documents: {
         Row: {
@@ -525,6 +635,58 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      disputes: {
+        Row: {
+          created_at: string | null
+          id: string
+          job_id: string | null
+          notes: string | null
+          raised_by: string | null
+          resolved_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          raised_by?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          raised_by?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enquiries: {
         Row: {
@@ -1776,6 +1938,35 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -1788,6 +1979,7 @@ export type Database = {
           full_name: string | null
           hourly_rate: number | null
           id: string
+          is_active: boolean | null
           is_available: boolean | null
           is_verified: boolean | null
           location: string | null
@@ -1817,6 +2009,7 @@ export type Database = {
           full_name?: string | null
           hourly_rate?: number | null
           id?: string
+          is_active?: boolean | null
           is_available?: boolean | null
           is_verified?: boolean | null
           location?: string | null
@@ -1846,6 +2039,7 @@ export type Database = {
           full_name?: string | null
           hourly_rate?: number | null
           id?: string
+          is_active?: boolean | null
           is_available?: boolean | null
           is_verified?: boolean | null
           location?: string | null
@@ -2806,6 +3000,7 @@ export type Database = {
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
+      is_platform_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       user_type: "personal" | "business" | "contractor"
