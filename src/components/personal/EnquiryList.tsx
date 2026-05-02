@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronLeft, MapPin, Calendar, MessageCircle, Clock } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays, startOfToday } from "date-fns";
+import { useAvailability } from "@/hooks/useAvailability";
 
 type Enquiry = {
   id: string;
@@ -53,6 +54,92 @@ function statusBadge(status: string | null) {
 function formatDate(iso: string | null) {
   if (!iso) return "";
   try { return format(parseISO(iso), "d MMM yyyy"); } catch { return ""; }
+}
+
+// Availability panel — only rendered when contractor_id is known
+function ContractorAvailabilityPanel({ contractorId }: { contractorId: string }) {
+  const { getSlotForDate, getAvailabilityForRange, loading } = useAvailability(contractorId);
+
+  const today = startOfToday();
+  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1));
+  const rangeData = getAvailabilityForRange(days[0], days[days.length - 1]);
+
+  const slotClass = (available: boolean, isJob: boolean) => {
+    if (isJob) return "bg-amber-50 text-amber-800 border border-amber-200";
+    if (available) return "bg-green-50 text-green-800 border border-green-200";
+    return "bg-muted text-muted-foreground border border-border";
+  };
+
+  const slotLabel = (available: boolean) => available ? "free" : "blocked";
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading availability...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calendar className="h-4 w-4" /> Contractor availability
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Next two weeks</p>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {days.map((day) => {
+          const key = format(day, "yyyy-MM-dd");
+          const slot = rangeData[key] ?? { amAvailable: false, pmAvailable: false };
+          const dayLabel = format(day, "EEE d MMM");
+
+          // Check if blocked by a confirmed job by checking the override reason
+          // We treat amber (job) as both blocked — visually distinct
+          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-3 py-1.5 border-b border-border/50 last:border-0"
+            >
+              <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
+              <div className="flex gap-2">
+                <span className={`text-xs px-2 py-0.5 rounded font-medium ${slotClass(slot.amAvailable, false)}`}>
+                  AM {slotLabel(slot.amAvailable)}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded font-medium ${slotClass(slot.pmAvailable, false)}`}>
+                  PM {slotLabel(slot.pmAvailable)}
+                </span>
+              </div>
+              {isWeekend && !slot.amAvailable && !slot.pmAvailable && (
+                <span className="text-xs text-muted-foreground italic">Weekend</span>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex gap-4 pt-3 flex-wrap">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block px-2 py-0.5 rounded bg-green-50 text-green-800 border border-green-200 text-xs font-medium">free</span>
+            Available
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border text-xs font-medium">blocked</span>
+            Unavailable
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-xs font-medium">blocked</span>
+            Confirmed job
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 interface EnquiryListProps {
@@ -170,6 +257,10 @@ export function EnquiryList({ profileId, myUserId, refreshKey = 0 }: EnquiryList
             )}
           </CardContent>
         </Card>
+
+        {selected.contractor_id && (
+          <ContractorAvailabilityPanel contractorId={selected.contractor_id} />
+        )}
 
         <Card>
           <CardHeader className="pb-3">
