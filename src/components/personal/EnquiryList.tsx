@@ -37,12 +37,12 @@ type ConversationWithMessages = {
 };
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  new:        { label: "Sent",       variant: "secondary" },
-  viewed:     { label: "Viewed",     variant: "default" },
-  responded:  { label: "Responded",  variant: "default" },
-  accepted:   { label: "Accepted",   variant: "default" },
-  declined:   { label: "Declined",   variant: "destructive" },
-  closed:     { label: "Closed",     variant: "outline" },
+  new:       { label: "Sent",      variant: "secondary" },
+  viewed:    { label: "Viewed",    variant: "default" },
+  responded: { label: "Responded", variant: "default" },
+  accepted:  { label: "Accepted",  variant: "default" },
+  declined:  { label: "Declined",  variant: "destructive" },
+  closed:    { label: "Closed",    variant: "outline" },
 };
 
 function statusBadge(status: string | null) {
@@ -58,9 +58,10 @@ function formatDate(iso: string | null) {
 interface EnquiryListProps {
   profileId: string;
   myUserId: string;
+  refreshKey?: number;
 }
 
-export function EnquiryList({ profileId, myUserId }: EnquiryListProps) {
+export function EnquiryList({ profileId, myUserId, refreshKey = 0 }: EnquiryListProps) {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +88,9 @@ export function EnquiryList({ profileId, myUserId }: EnquiryListProps) {
     setLoading(false);
   }, [profileId]);
 
-  useEffect(() => { fetchEnquiries(); }, [fetchEnquiries]);
+  useEffect(() => {
+    fetchEnquiries();
+  }, [fetchEnquiries, refreshKey]);
 
   const openDetail = useCallback(async (enquiry: Enquiry) => {
     setSelected(enquiry);
@@ -235,7 +238,11 @@ export function EnquiryList({ profileId, myUserId }: EnquiryListProps) {
   return (
     <div className="space-y-3">
       {enquiries.map((enq) => (
-        <Card key={enq.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openDetail(enq)}>
+        <Card
+          key={enq.id}
+          className="cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => openDetail(enq)}
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1 min-w-0">

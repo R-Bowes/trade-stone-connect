@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ const PersonalDashboard = () => {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [enquiryRefreshKey, setEnquiryRefreshKey] = useState(0);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -196,6 +197,7 @@ const PersonalDashboard = () => {
 
       setFormSuccess("Your enquiry has been submitted successfully.");
       resetForm();
+      setEnquiryRefreshKey((k) => k + 1);
 
       toast({
         title: "Enquiry submitted",
@@ -424,7 +426,11 @@ const PersonalDashboard = () => {
             </div>
 
             {profileId && user && (
-              <EnquiryList profileId={profileId} myUserId={user.id} />
+              <EnquiryList
+                profileId={profileId}
+                myUserId={user.id}
+                refreshKey={enquiryRefreshKey}
+              />
             )}
 
             <Card>
