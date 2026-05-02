@@ -10,14 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { useAvailability } from "@/hooks/useAvailability";
+import { format, addDays, isToday, isTomorrow } from "date-fns";
 import {
   ArrowLeft,
-  Star, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Calendar, 
-  Award, 
+  Star,
+  MapPin,
+  Phone,
+  Mail,
+  Calendar,
+  Award,
   Wrench,
   Clock,
   CheckCircle,
@@ -28,9 +30,9 @@ import {
   ThumbsUp,
   FileText,
   ExternalLink,
-  Download
+  Download,
 } from "lucide-react";
-// Local type for contractor profile (only public fields we select)
+
 type ContractorProfileData = {
   id: string;
   user_id: string;
@@ -48,6 +50,13 @@ type ContractorProfileData = {
   updated_at: string;
 };
 
+function formatNextAvailable(date: Date | null): string {
+  if (!date) return "Contact for availability";
+  if (isToday(date)) return "Available today";
+  if (isTomorrow(date)) return "Available tomorrow";
+  return `Available from ${format(date, "EEE d MMM")}`;
+}
+
 const ContractorProfile = () => {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -55,36 +64,46 @@ const ContractorProfile = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
-  const [contractorDocuments, setContractorDocuments] = useState<Array<{ id: string; title: string; description: string | null; document_url: string; file_name: string; file_size: number | null }>>([]);
+  const [contractorDocuments, setContractorDocuments] = useState
+    Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      document_url: string;
+      file_name: string;
+      file_size: number | null;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   // Load contractor profile by TS code
   useEffect(() => {
     const loadContractorProfile = async () => {
       if (!code) return;
-      
+
       try {
         const { data, error } = await supabase
-          .from('public_pro_profiles')
-          .select('id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at')
-          .eq('ts_profile_code', code)
+          .from("public_pro_profiles")
+          .select(
+            "id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at"
+          )
+          .eq("ts_profile_code", code)
           .maybeSingle();
 
         if (error || !data) {
-          console.error('Contractor not found:', error);
+          console.error("Contractor not found:", error);
           setContractorProfile(null);
         } else {
           setContractorProfile(data);
-          // Load documents for this contractor
           const { data: docs } = await supabase
-            .from('contractor_documents')
-            .select('id, title, description, document_url, file_name, file_size')
-            .eq('contractor_id', data.id)
-            .order('display_order', { ascending: true });
+            .from("contractor_documents")
+            .select("id, title, description, document_url, file_name, file_size")
+            .eq("contractor_id", data.id)
+            .order("display_order", { ascending: true });
           setContractorDocuments(docs || []);
         }
       } catch (error) {
-        console.error('Error loading contractor profile:', error);
+        console.error("Error loading contractor profile:", error);
         setContractorProfile(null);
       } finally {
         setLoading(false);
@@ -93,6 +112,14 @@ const ContractorProfile = () => {
 
     loadContractorProfile();
   }, [code]);
+
+  // Real availability data — only runs once contractorProfile.id is known
+  const { getNextAvailable, loading: availabilityLoading } = useAvailability(
+    contractorProfile?.id ?? ""
+  );
+  const nextAvailableDate = contractorProfile?.id ? getNextAvailable() : null;
+  const nextAvailableLabel = formatNextAvailable(nextAvailableDate);
+  const isAvailable = nextAvailableDate !== null;
 
   const openMessageFlow = async () => {
     const {
@@ -106,55 +133,52 @@ const ContractorProfile = () => {
     setIsMessageDialogOpen(true);
   };
 
-  // Contractor data - use real profile data with fallback for display fields
   const contractor = {
     name: contractorProfile?.full_name || "",
     company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
     code: contractorProfile?.ts_profile_code || code || "A7K9M2",
     user_id: contractorProfile?.id || "mock-user-id",
-    specialties: contractorProfile?.trades && contractorProfile.trades.length > 0
-      ? contractorProfile.trades
-      : contractorProfile?.trades?.[0]
-        ? contractorProfile?.trades
+    specialties:
+      contractorProfile?.trades && contractorProfile.trades.length > 0
+        ? contractorProfile.trades
         : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
     rating: 4.8,
     reviewCount: 127,
     location: contractorProfile?.location || "Central London",
     workingRadius: contractorProfile?.working_radius || "25 miles",
-    phone: null,
-    email: null,
     image: contractorProfile?.logo_url || "",
     verified: contractorProfile?.is_verified ?? false,
     yearsExperience: 12,
     projectsCompleted: 340,
     responseTime: "Within 2 hours",
-    availability: "Available this week",
-    bio: contractorProfile?.bio || "Professional contractor with years of experience. Contact through TradeStone for more details.",
+    bio:
+      contractorProfile?.bio ||
+      "Professional contractor with years of experience. Contact through TradeStone for more details.",
     certifications: [
       "Gas Safe Registered",
       "City & Guilds Plumbing",
       "Worcester Bosch Accredited",
-      "Vaillant Advance Installer"
+      "Vaillant Advance Installer",
     ],
     portfolio: [
       {
         id: 1,
         title: "Bathroom Renovation",
         image: "/placeholder.svg",
-        description: "Complete bathroom refurbishment including new suite and tiling"
+        description: "Complete bathroom refurbishment including new suite and tiling",
       },
       {
         id: 2,
         title: "Boiler Installation",
-        image: "/placeholder.svg", 
-        description: "New Worcester Bosch boiler installation with 10-year warranty"
+        image: "/placeholder.svg",
+        description: "New Worcester Bosch boiler installation with 10-year warranty",
       },
       {
         id: 3,
         title: "Kitchen Plumbing",
         image: "/placeholder.svg",
-        description: "Full kitchen plumbing installation for new build property"
-      }
+        description: "Full kitchen plumbing installation for new build property",
+      },
     ],
     reviews: [
       {
@@ -162,38 +186,36 @@ const ContractorProfile = () => {
         name: "Sarah Mitchell",
         rating: 5,
         date: "2 days ago",
-        comment: "Excellent service! Mike arrived on time, diagnosed the issue quickly, and fixed our leaking boiler. Very professional and reasonably priced."
+        comment:
+          "Excellent service! Mike arrived on time, diagnosed the issue quickly, and fixed our leaking boiler. Very professional and reasonably priced.",
       },
       {
         id: 2,
-        name: "David Thompson", 
+        name: "David Thompson",
         rating: 5,
         date: "1 week ago",
-        comment: "Outstanding work on our bathroom renovation. Mike's attention to detail is impressive and he kept everything clean and tidy."
+        comment:
+          "Outstanding work on our bathroom renovation. Mike's attention to detail is impressive and he kept everything clean and tidy.",
       },
       {
         id: 3,
         name: "Emma Wilson",
         rating: 4,
         date: "2 weeks ago",
-        comment: "Good work on the kitchen plumbing. Professional and efficient. Would recommend to others."
-      }
-    ]
+        comment: "Good work on the kitchen plumbing. Professional and efficient. Would recommend to others.",
+      },
+    ],
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="pt-20">
         {/* Back Navigation */}
         <div className="border-b bg-card/50">
           <div className="container mx-auto max-w-6xl px-4 py-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate(-1)}
-              className="mb-2"
-            >
+            <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Directory
             </Button>
@@ -212,7 +234,7 @@ const ContractorProfile = () => {
                     <Wrench className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
-                
+
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary" className="font-mono">
                     {contractor.code}
@@ -235,12 +257,8 @@ const ContractorProfile = () => {
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Message
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setIsLiked(!isLiked)}
-                  >
-                    <Heart className={`h-4 w-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+                  <Button size="sm" variant="outline" onClick={() => setIsLiked(!isLiked)}>
+                    <Heart className={`h-4 w-4 ${isLiked ? "fill-red-500 text-red-500" : ""}`} />
                   </Button>
                   <Button size="sm" variant="outline">
                     <Share2 className="h-4 w-4" />
@@ -298,8 +316,19 @@ const ContractorProfile = () => {
                     <div className="text-sm text-muted-foreground">Average Rating</div>
                   </Card>
                   <Card className="p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">Available</div>
-                    <div className="text-sm text-muted-foreground">This Week</div>
+                    {availabilityLoading ? (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground animate-pulse">Checking...</div>
+                        <div className="text-sm text-muted-foreground">Availability</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`text-sm font-bold ${isAvailable ? "text-green-600" : "text-muted-foreground"}`}>
+                          {nextAvailableLabel}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Availability</div>
+                      </>
+                    )}
                   </Card>
                 </div>
 
@@ -314,11 +343,7 @@ const ContractorProfile = () => {
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Send Message
                   </Button>
-                  <Button 
-                    size="lg" 
-                    variant="outline"
-                    onClick={() => setIsQuoteDialogOpen(true)}
-                  >
+                  <Button size="lg" variant="outline" onClick={() => setIsQuoteDialogOpen(true)}>
                     <Calendar className="h-4 w-4 mr-2" />
                     Request Quote
                   </Button>
@@ -343,11 +368,9 @@ const ContractorProfile = () => {
               <TabsContent value="overview" className="space-y-6">
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">About</h3>
-                  <p className="text-muted-foreground leading-relaxed mb-6">
-                    {contractor.bio}
-                  </p>
-                  
-                  <h4 className="font-semibold mb-3">Certifications & Accreditations</h4>
+                  <p className="text-muted-foreground leading-relaxed mb-6">{contractor.bio}</p>
+
+                  <h4 className="font-semibold mb-3">Certifications and accreditations</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {contractor.certifications.map((cert, index) => (
                       <div key={index} className="flex items-center gap-2">
@@ -437,19 +460,19 @@ const ContractorProfile = () => {
               <TabsContent value="contact" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="p-6">
-                    <h3 className="text-xl font-semibold mb-4">Get in Touch</h3>
+                    <h3 className="text-xl font-semibold mb-4">Get in touch</h3>
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
                         <MessageSquare className="h-5 w-5 text-primary" />
                         <div>
-                          <div className="font-medium">Send Message</div>
+                          <div className="font-medium">Send message</div>
                           <div className="text-sm text-muted-foreground">Secure messaging via TradeStone</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <Calendar className="h-5 w-5 text-primary" />
                         <div>
-                          <div className="font-medium">Request Quote</div>
+                          <div className="font-medium">Request quote</div>
                           <div className="text-sm text-muted-foreground">Get detailed project estimates</div>
                         </div>
                       </div>
@@ -463,7 +486,8 @@ const ContractorProfile = () => {
                     </div>
                     <div className="mt-6 p-4 bg-muted/50 rounded-lg">
                       <p className="text-sm text-muted-foreground">
-                        All communications are handled securely through TradeStone to protect both parties and maintain quality standards.
+                        All communications are handled securely through TradeStone to protect both parties and maintain
+                        quality standards.
                       </p>
                     </div>
                   </Card>
@@ -472,12 +496,20 @@ const ContractorProfile = () => {
                     <h3 className="text-xl font-semibold mb-4">Availability</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span>Response Time</span>
+                        <span>Response time</span>
                         <Badge variant="secondary">{contractor.responseTime}</Badge>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Current Status</span>
-                        <Badge className="bg-green-500">{contractor.availability}</Badge>
+                        <span>Next available</span>
+                        {availabilityLoading ? (
+                          <Badge variant="outline" className="animate-pulse">
+                            Checking...
+                          </Badge>
+                        ) : (
+                          <Badge className={isAvailable ? "bg-green-500" : ""} variant={isAvailable ? "default" : "outline"}>
+                            {nextAvailableLabel}
+                          </Badge>
+                        )}
                       </div>
                       <Separator />
                       <Button
@@ -497,7 +529,6 @@ const ContractorProfile = () => {
         </section>
       </main>
 
-      {/* Quote Request Dialog */}
       <QuoteRequestDialog
         isOpen={isQuoteDialogOpen}
         onClose={() => setIsQuoteDialogOpen(false)}

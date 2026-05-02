@@ -11,7 +11,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
-  FileText,
   Heart,
   Clock,
   Search,
@@ -20,7 +19,6 @@ import {
   Building,
   Loader2,
   ExternalLink,
-  Plus,
   CheckCircle2,
   AlertCircle,
   Image as ImageIcon,
@@ -31,7 +29,8 @@ import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
-import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
+import { ErrorState, LoadingState } from "@/components/AsyncState";
+import { EnquiryList } from "@/components/personal/EnquiryList";
 
 const MAX_PHOTOS = 3;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
@@ -39,6 +38,7 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/hei
 const PersonalDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -53,7 +53,6 @@ const PersonalDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // useMemo must be called unconditionally — before any early returns
   const stats = useMemo(
     () => [
       {
@@ -142,23 +141,24 @@ const PersonalDashboard = () => {
 
     try {
       const { data: profileRow } = await supabase
-  .from("profiles")
-  .select("id")
-  .eq("user_id", user.id)
-  .maybeSingle();
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-const { data: insertedEnquiry, error: insertError } = await supabase
-  .from("enquiries")
-  .insert({
-    customer_id: profileRow?.id ?? null,
-    customer_name: user.user_metadata?.full_name ?? user.email ?? "Customer",
-    customer_email: user.email ?? "",
-    job_description: trimmedDescription,
-    location: trimmedLocation,
-    status: "new",
-  })
-  .select("id")
-  .single();
+      const { data: insertedEnquiry, error: insertError } = await supabase
+        .from("enquiries")
+        .insert({
+          customer_id: profileRow?.id ?? null,
+          customer_name: user.user_metadata?.full_name ?? user.email ?? "Customer",
+          customer_email: user.email ?? "",
+          job_description: trimmedDescription,
+          location: trimmedLocation,
+          title: trimmedTitle,
+          status: "new",
+        })
+        .select("id")
+        .single();
 
       if (insertError || !insertedEnquiry?.id) {
         throw new Error(insertError?.message ?? "Failed to create enquiry.");
@@ -185,9 +185,9 @@ const { data: insertedEnquiry, error: insertError } = await supabase
       if (uploadedPaths.length > 0) {
         const { error: updateError } = await supabase
           .from("enquiries")
-          .update({ enquiry_photo_paths: uploadedPaths })
+          .update({ photo_urls: uploadedPaths })
           .eq("id", enquiryId)
-          .eq("homeowner_id", profileRow?.id);
+          .eq("customer_id", profileRow?.id);
 
         if (updateError) {
           throw new Error(`Enquiry was created, but photo links could not be saved: ${updateError.message}`);
@@ -218,6 +218,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
   useEffect(() => {
     const loadData = async () => {
       setLoadError(null);
+
       const {
         data: { user: currentUser },
         error: userError,
@@ -236,7 +237,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("user_type")
+        .select("id, user_type")
         .eq("user_id", currentUser.id)
         .maybeSingle();
 
@@ -251,6 +252,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
         return;
       }
 
+      setProfileId(profile?.id ?? null);
       setUser(currentUser);
       setLoading(false);
     };
@@ -297,6 +299,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
             <TabsTrigger value="messages">Messages</TabsTrigger>
           </TabsList>
 
+          {/* Overview */}
           <TabsContent value="overview" className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {stats.map((stat, index) => (
@@ -379,7 +382,9 @@ const { data: insertedEnquiry, error: insertError } = await supabase
                       <p className="font-medium">Create an Enquiry</p>
                       <p className="text-sm text-muted-foreground">Describe your project and share photos with contractors</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab("requests")}>Start</Button>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("requests")}>
+                      Start
+                    </Button>
                   </div>
 
                   <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
@@ -397,22 +402,30 @@ const { data: insertedEnquiry, error: insertError } = await supabase
             </Card>
           </TabsContent>
 
+          {/* My Jobs */}
           <TabsContent value="jobs" className="space-y-6">
             <ClientJobsView />
           </TabsContent>
 
+          {/* Invoices */}
           <TabsContent value="invoices" className="space-y-6">
             <ReceivedInvoices />
           </TabsContent>
 
+          {/* Quotes */}
           <TabsContent value="quotes" className="space-y-6">
             <ReceivedQuotes />
           </TabsContent>
 
+          {/* My Requests */}
           <TabsContent value="requests" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">My Enquiries</h2>
             </div>
+
+            {profileId && user && (
+              <EnquiryList profileId={profileId} myUserId={user.id} />
+            )}
 
             <Card>
               <CardHeader>
@@ -484,7 +497,9 @@ const { data: insertedEnquiry, error: insertError } = await supabase
                       multiple
                       onChange={handlePhotoSelection}
                     />
-                    <p className="text-sm text-muted-foreground">Allowed: JPG, PNG, WEBP, HEIC. Maximum 8MB per photo.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Allowed: JPG, PNG, WEBP, HEIC. Maximum 8MB per photo.
+                    </p>
                     {photos.length > 0 && (
                       <ul className="space-y-1 text-sm text-muted-foreground">
                         {photos.map((photo) => (
@@ -506,6 +521,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
             </Card>
           </TabsContent>
 
+          {/* Saved */}
           <TabsContent value="saved" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Saved Contractors</h2>
@@ -526,6 +542,7 @@ const { data: insertedEnquiry, error: insertError } = await supabase
             </Card>
           </TabsContent>
 
+          {/* Messages */}
           <TabsContent value="messages" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Messages</h2>
