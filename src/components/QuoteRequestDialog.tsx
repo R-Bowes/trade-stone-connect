@@ -262,7 +262,15 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => setPhotos(e.target.files)}
+                onChange={(e) => {
+  const files = e.target.files;
+  if (files && files.length > 5) {
+    toast({ title: "Too many photos", description: "You can upload up to 5 photos.", variant: "destructive" });
+    e.target.value = "";
+    return;
+  }
+  setPhotos(files);
+}}
                 className="cursor-pointer"
               />
               {photos && photos.length > 0 && (

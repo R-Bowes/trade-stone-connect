@@ -11,15 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAvailability } from "@/hooks/useAvailability";
-import { format, addDays, isToday, isTomorrow } from "date-fns";
+import { format, isToday, isTomorrow } from "date-fns";
 import {
   ArrowLeft,
   Star,
   MapPin,
-  Phone,
-  Mail,
   Calendar,
-  Award,
   Wrench,
   Clock,
   CheckCircle,
@@ -27,10 +24,8 @@ import {
   Share2,
   Heart,
   Camera,
-  ThumbsUp,
   FileText,
   ExternalLink,
-  Download,
 } from "lucide-react";
 
 type ContractorProfileData = {
@@ -46,6 +41,10 @@ type ContractorProfileData = {
   bio: string | null;
   logo_url: string | null;
   is_verified: boolean | null;
+  rating: number | null;
+  review_count: number | null;
+  years_experience: number | null;
+  completed_jobs: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -64,7 +63,7 @@ const ContractorProfile = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
-  const [contractorDocuments, setContractorDocuments] = useState<
+  const [contractorDocuments, setContractorDocuments] = useState
     Array<{
       id: string;
       title: string;
@@ -76,22 +75,19 @@ const ContractorProfile = () => {
   >([]);
   const [loading, setLoading] = useState(true);
 
-  // Load contractor profile by TS code
   useEffect(() => {
     const loadContractorProfile = async () => {
       if (!code) return;
-
       try {
         const { data, error } = await supabase
           .from("public_pro_profiles")
           .select(
-            "id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, created_at, updated_at"
+            "id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, rating, review_count, years_experience, completed_jobs, created_at, updated_at"
           )
           .eq("ts_profile_code", code)
           .maybeSingle();
 
         if (error || !data) {
-          console.error("Contractor not found:", error);
           setContractorProfile(null);
         } else {
           setContractorProfile(data);
@@ -102,8 +98,7 @@ const ContractorProfile = () => {
             .order("display_order", { ascending: true });
           setContractorDocuments(docs || []);
         }
-      } catch (error) {
-        console.error("Error loading contractor profile:", error);
+      } catch {
         setContractorProfile(null);
       } finally {
         setLoading(false);
@@ -113,7 +108,6 @@ const ContractorProfile = () => {
     loadContractorProfile();
   }, [code]);
 
-  // Real availability data — only runs once contractorProfile.id is known
   const { getNextAvailable, loading: availabilityLoading } = useAvailability(
     contractorProfile?.id ?? ""
   );
@@ -122,97 +116,52 @@ const ContractorProfile = () => {
   const isAvailable = nextAvailableDate !== null;
 
   const openMessageFlow = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { navigate("/auth"); return; }
     if (!contractorProfile?.user_id) return;
     setIsMessageDialogOpen(true);
   };
 
-  const contractor = {
-    name: contractorProfile?.full_name || "",
-    company: contractorProfile?.company_name || "Johnson Plumbing Ltd",
-    code: contractorProfile?.ts_profile_code || code || "A7K9M2",
-    user_id: contractorProfile?.id || "mock-user-id",
-    specialties:
-      contractorProfile?.trades && contractorProfile.trades.length > 0
-        ? contractorProfile.trades
-        : ["Plumbing", "Heating", "Boiler Repair", "Emergency Services"],
-    rating: 4.8,
-    reviewCount: 127,
-    location: contractorProfile?.location || "Central London",
-    workingRadius: contractorProfile?.working_radius || "25 miles",
-    image: contractorProfile?.logo_url || "",
-    verified: contractorProfile?.is_verified ?? false,
-    yearsExperience: 12,
-    projectsCompleted: 340,
-    responseTime: "Within 2 hours",
-    bio:
-      contractorProfile?.bio ||
-      "Professional contractor with years of experience. Contact through TradeStone for more details.",
-    certifications: [
-      "Gas Safe Registered",
-      "City & Guilds Plumbing",
-      "Worcester Bosch Accredited",
-      "Vaillant Advance Installer",
-    ],
-    portfolio: [
-      {
-        id: 1,
-        title: "Bathroom Renovation",
-        image: "/placeholder.svg",
-        description: "Complete bathroom refurbishment including new suite and tiling",
-      },
-      {
-        id: 2,
-        title: "Boiler Installation",
-        image: "/placeholder.svg",
-        description: "New Worcester Bosch boiler installation with 10-year warranty",
-      },
-      {
-        id: 3,
-        title: "Kitchen Plumbing",
-        image: "/placeholder.svg",
-        description: "Full kitchen plumbing installation for new build property",
-      },
-    ],
-    reviews: [
-      {
-        id: 1,
-        name: "Sarah Mitchell",
-        rating: 5,
-        date: "2 days ago",
-        comment:
-          "Excellent service! Mike arrived on time, diagnosed the issue quickly, and fixed our leaking boiler. Very professional and reasonably priced.",
-      },
-      {
-        id: 2,
-        name: "David Thompson",
-        rating: 5,
-        date: "1 week ago",
-        comment:
-          "Outstanding work on our bathroom renovation. Mike's attention to detail is impressive and he kept everything clean and tidy.",
-      },
-      {
-        id: 3,
-        name: "Emma Wilson",
-        rating: 4,
-        date: "2 weeks ago",
-        comment: "Good work on the kitchen plumbing. Professional and efficient. Would recommend to others.",
-      },
-    ],
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-20 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!contractorProfile) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-20 flex items-center justify-center">
+          <p className="text-muted-foreground">Contractor not found.</p>
+        </main>
+      </div>
+    );
+  }
+
+  const displayName = contractorProfile.full_name || "Unknown";
+  const displayCompany = contractorProfile.company_name || "";
+  const displayCode = contractorProfile.ts_profile_code || code || "";
+  const displayTrades = contractorProfile.trades && contractorProfile.trades.length > 0
+    ? contractorProfile.trades : [];
+  const displayBio = contractorProfile.bio || "";
+  const displayLocation = contractorProfile.location || "";
+  const displayRadius = contractorProfile.working_radius || "";
+  const displayRating = contractorProfile.rating;
+  const displayReviewCount = contractorProfile.review_count;
+  const displayYearsExp = contractorProfile.years_experience;
+  const displayCompletedJobs = contractorProfile.completed_jobs;
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="pt-20">
-        {/* Back Navigation */}
         <div className="border-b bg-card/50">
           <div className="container mx-auto max-w-6xl px-4 py-4">
             <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
@@ -222,24 +171,21 @@ const ContractorProfile = () => {
           </div>
         </div>
 
-        {/* Profile Header */}
         <section className="py-8 px-4 bg-gradient-to-br from-card/50 to-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="flex flex-col lg:flex-row gap-8">
-              {/* Avatar and Basic Info */}
+              {/* Avatar */}
               <div className="flex flex-col items-center lg:items-start">
                 <Avatar className="w-32 h-32 mb-4">
-                  <AvatarImage src={contractor.image} alt={contractor.name} />
+                  <AvatarImage src={contractorProfile.logo_url || ""} alt={displayName} />
                   <AvatarFallback className="text-2xl">
                     <Wrench className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary" className="font-mono">
-                    {contractor.code}
-                  </Badge>
-                  {contractor.verified && (
+                  <Badge variant="secondary" className="font-mono">{displayCode}</Badge>
+                  {contractorProfile.is_verified && (
                     <Badge variant="default" className="bg-green-500">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Verified
@@ -252,7 +198,7 @@ const ContractorProfile = () => {
                     size="sm"
                     className="hero-gradient"
                     onClick={() => void openMessageFlow()}
-                    disabled={!contractorProfile?.user_id}
+                    disabled={!contractorProfile.user_id}
                   >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Message
@@ -268,52 +214,81 @@ const ContractorProfile = () => {
 
               {/* Main Info */}
               <div className="flex-1">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h1 className="text-3xl font-bold mb-2">{contractor.name}</h1>
-                    <p className="text-xl text-muted-foreground mb-4">{contractor.company}</p>
-                  </div>
-                </div>
+                <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
+                {displayCompany && (
+                  <p className="text-xl text-muted-foreground mb-4">{displayCompany}</p>
+                )}
 
-                {/* Rating and Location */}
                 <div className="flex flex-wrap items-center gap-6 mb-6">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-5 w-5 fill-primary text-primary" />
-                    <span className="font-semibold text-lg">{contractor.rating}</span>
-                    <span className="text-muted-foreground">({contractor.reviewCount} reviews)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="h-5 w-5" />
-                    <span>{contractor.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="h-5 w-5" />
-                    <span>{contractor.responseTime}</span>
-                  </div>
+                  {displayRating !== null ? (
+                    <div className="flex items-center gap-2">
+                      <Star className="h-5 w-5 fill-primary text-primary" />
+                      <span className="font-semibold text-lg">{displayRating.toFixed(1)}</span>
+                      {displayReviewCount !== null && (
+                        <span className="text-muted-foreground">
+                          ({displayReviewCount} review{displayReviewCount !== 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No reviews yet</span>
+                  )}
+                  {displayLocation && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="h-5 w-5" />
+                      <span>{displayLocation}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Specialties */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {contractor.specialties.map((specialty, index) => (
-                    <Badge key={index} variant="outline">
-                      {specialty}
-                    </Badge>
-                  ))}
-                </div>
+                {displayTrades.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {displayTrades.map((trade, i) => (
+                      <Badge key={i} variant="outline">{trade}</Badge>
+                    ))}
+                  </div>
+                )}
 
-                {/* Quick Stats */}
+                {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <Card className="p-4 text-center">
-                    <div className="text-2xl font-bold text-primary">{contractor.yearsExperience}</div>
-                    <div className="text-sm text-muted-foreground">Years Experience</div>
+                    {displayYearsExp !== null ? (
+                      <>
+                        <div className="text-2xl font-bold text-primary">{displayYearsExp}</div>
+                        <div className="text-sm text-muted-foreground">Years Experience</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground">Not set</div>
+                        <div className="text-sm text-muted-foreground">Years Experience</div>
+                      </>
+                    )}
                   </Card>
                   <Card className="p-4 text-center">
-                    <div className="text-2xl font-bold text-primary">{contractor.projectsCompleted}</div>
-                    <div className="text-sm text-muted-foreground">Projects Completed</div>
+                    {displayCompletedJobs !== null ? (
+                      <>
+                        <div className="text-2xl font-bold text-primary">{displayCompletedJobs}</div>
+                        <div className="text-sm text-muted-foreground">Jobs Completed</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground">Not set</div>
+                        <div className="text-sm text-muted-foreground">Jobs Completed</div>
+                      </>
+                    )}
                   </Card>
                   <Card className="p-4 text-center">
-                    <div className="text-2xl font-bold text-primary">{contractor.rating}</div>
-                    <div className="text-sm text-muted-foreground">Average Rating</div>
+                    {displayRating !== null ? (
+                      <>
+                        <div className="text-2xl font-bold text-primary">{displayRating.toFixed(1)}</div>
+                        <div className="text-sm text-muted-foreground">Average Rating</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground">No reviews</div>
+                        <div className="text-sm text-muted-foreground">Average Rating</div>
+                      </>
+                    )}
                   </Card>
                   <Card className="p-4 text-center">
                     {availabilityLoading ? (
@@ -332,13 +307,12 @@ const ContractorProfile = () => {
                   </Card>
                 </div>
 
-                {/* Contact Actions */}
                 <div className="flex flex-wrap gap-3">
                   <Button
                     size="lg"
                     className="hero-gradient"
                     onClick={() => void openMessageFlow()}
-                    disabled={!contractorProfile?.user_id}
+                    disabled={!contractorProfile.user_id}
                   >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Send Message
@@ -353,49 +327,67 @@ const ContractorProfile = () => {
           </div>
         </section>
 
-        {/* Profile Content Tabs */}
+        {/* Tabs */}
         <section className="py-8 px-4">
           <div className="container mx-auto max-w-6xl">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="reviews">Reviews</TabsTrigger>
-                <TabsTrigger value="contact">Contact</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">About</h3>
-                  <p className="text-muted-foreground leading-relaxed mb-6">{contractor.bio}</p>
+                  {displayBio ? (
+                    <p className="text-muted-foreground leading-relaxed">{displayBio}</p>
+                  ) : (
+                    <p className="text-muted-foreground italic">No bio added yet.</p>
+                  )}
+                  {displayRadius && (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>Works within {displayRadius} of {displayLocation || "base location"}</span>
+                    </div>
+                  )}
+                </Card>
 
-                  <h4 className="font-semibold mb-3">Certifications and accreditations</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {contractor.certifications.map((cert, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <Award className="h-4 w-4 text-primary" />
-                        <span>{cert}</span>
-                      </div>
-                    ))}
+                <Card className="p-6">
+                  <h3 className="text-xl font-semibold mb-4">Availability</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span>Next available</span>
+                      {availabilityLoading ? (
+                        <Badge variant="outline" className="animate-pulse">Checking...</Badge>
+                      ) : (
+                        <Badge
+                          className={isAvailable ? "bg-green-500" : ""}
+                          variant={isAvailable ? "default" : "outline"}
+                        >
+                          {nextAvailableLabel}
+                        </Badge>
+                      )}
+                    </div>
+                    <Separator />
+                    <Button
+                      className="w-full hero-gradient"
+                      onClick={() => void openMessageFlow()}
+                      disabled={!contractorProfile.user_id}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Send Message
+                    </Button>
                   </div>
                 </Card>
               </TabsContent>
 
               <TabsContent value="portfolio" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {contractor.portfolio.map((project) => (
-                    <Card key={project.id} className="overflow-hidden hover:shadow-lg transition-tradestone">
-                      <div className="aspect-video bg-muted flex items-center justify-center">
-                        <Camera className="h-12 w-12 text-muted-foreground" />
-                      </div>
-                      <div className="p-4">
-                        <h4 className="font-semibold mb-2">{project.title}</h4>
-                        <p className="text-sm text-muted-foreground">{project.description}</p>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                <Card className="p-6 text-center text-muted-foreground">
+                  <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No portfolio images uploaded yet.</p>
+                </Card>
               </TabsContent>
 
               <TabsContent value="documents" className="space-y-6">
@@ -432,97 +424,10 @@ const ContractorProfile = () => {
               </TabsContent>
 
               <TabsContent value="reviews" className="space-y-6">
-                <div className="space-y-4">
-                  {contractor.reviews.map((review) => (
-                    <Card key={review.id} className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="font-semibold">{review.name}</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex">
-                              {Array.from({ length: review.rating }).map((_, i) => (
-                                <Star key={i} className="h-4 w-4 fill-primary text-primary" />
-                              ))}
-                            </div>
-                            <span className="text-sm text-muted-foreground">{review.date}</span>
-                          </div>
-                        </div>
-                        <Button size="sm" variant="ghost">
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-muted-foreground">{review.comment}</p>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="contact" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="p-6">
-                    <h3 className="text-xl font-semibold mb-4">Get in touch</h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <MessageSquare className="h-5 w-5 text-primary" />
-                        <div>
-                          <div className="font-medium">Send message</div>
-                          <div className="text-sm text-muted-foreground">Secure messaging via TradeStone</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Calendar className="h-5 w-5 text-primary" />
-                        <div>
-                          <div className="font-medium">Request quote</div>
-                          <div className="text-sm text-muted-foreground">Get detailed project estimates</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <MapPin className="h-5 w-5 text-primary" />
-                        <div>
-                          <div className="font-medium">{contractor.location}</div>
-                          <div className="text-sm text-muted-foreground">Service area</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                      <p className="text-sm text-muted-foreground">
-                        All communications are handled securely through TradeStone to protect both parties and maintain
-                        quality standards.
-                      </p>
-                    </div>
-                  </Card>
-
-                  <Card className="p-6">
-                    <h3 className="text-xl font-semibold mb-4">Availability</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span>Response time</span>
-                        <Badge variant="secondary">{contractor.responseTime}</Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Next available</span>
-                        {availabilityLoading ? (
-                          <Badge variant="outline" className="animate-pulse">
-                            Checking...
-                          </Badge>
-                        ) : (
-                          <Badge className={isAvailable ? "bg-green-500" : ""} variant={isAvailable ? "default" : "outline"}>
-                            {nextAvailableLabel}
-                          </Badge>
-                        )}
-                      </div>
-                      <Separator />
-                      <Button
-                        className="w-full hero-gradient"
-                        onClick={() => void openMessageFlow()}
-                        disabled={!contractorProfile?.user_id}
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Send Message
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
+                <Card className="p-6 text-center text-muted-foreground">
+                  <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No reviews yet.</p>
+                </Card>
               </TabsContent>
             </Tabs>
           </div>
@@ -532,17 +437,17 @@ const ContractorProfile = () => {
       <QuoteRequestDialog
         isOpen={isQuoteDialogOpen}
         onClose={() => setIsQuoteDialogOpen(false)}
-        contractorId={contractor.user_id}
-        contractorName={contractor.name}
+        contractorId={contractorProfile.id}
+        contractorName={displayName}
       />
 
-      {contractorProfile?.user_id && (
+      {contractorProfile.user_id && (
         <ContractorMessageDialog
           open={isMessageDialogOpen}
           onOpenChange={setIsMessageDialogOpen}
           recipientUserId={contractorProfile.user_id}
-          contractorName={contractor.name}
-          contractorLocation={contractor.location}
+          contractorName={displayName}
+          contractorLocation={displayLocation}
         />
       )}
     </div>
