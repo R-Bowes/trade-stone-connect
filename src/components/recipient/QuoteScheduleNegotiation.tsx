@@ -1,16 +1,17 @@
+$content = @'
 import { useMemo, useState } from "react";
-import { addMinutes, format } from "date-fns";
-import { CalendarCheck2, CalendarClock, CheckCircle2 } from "lucide-react";
+import { addDays, format, startOfToday } from "date-fns";
+import { CalendarClock, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
+import { useAvailability } from "@/hooks/useAvailability";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface QuoteScheduleNegotiationProps {
   quoteId: string;
@@ -22,18 +23,7 @@ interface QuoteScheduleNegotiationProps {
   onJobConfirmed?: () => void;
 }
 
-const timeToMinutes = (time: string) => {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-};
-
-const isWithinSlot = (startIso: string, endIso: string, daySlotStart: string, daySlotEnd: string) => {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  const startMinutes = start.getHours() * 60 + start.getMinutes();
-  const endMinutes = end.getHours() * 60 + end.getMinutes();
-  return startMinutes >= timeToMinutes(daySlotStart) && endMinutes <= timeToMinutes(daySlotEnd);
-};
+type SlotKey = string; // "yyyy-MM-dd-AM" | "yyyy-MM-dd-PM"
 
 export function QuoteScheduleNegotiation({
   quoteId,
@@ -46,54 +36,70 @@ export function QuoteScheduleNegotiation({
 }: QuoteScheduleNegotiationProps) {
   const {
     proposals,
-    availability,
     userId,
     hasConfirmedProposal,
-    loading,
+    loading: proposalsLoading,
     proposeDate,
     acceptProposal,
   } = useQuoteScheduling(quoteId, contractorId);
 
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
-  const [ampm, setAmpm] = useState<"AM" | "PM" | null>(null);
-  const [note, setNote] = useState("");
+  const { getAvailabilityForRange, loading: availabilityLoading } = useAvailability(contractorId);
+
+  const [selectedSlots, setSelectedSlots] = useState<Set<SlotKey>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
   const [confirmingJob, setConfirmingJob] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
   const { toast } = useToast();
 
   const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
 
-  const availabilityByDay = useMemo(
-    () =>
-      availability.reduce<Record<number, { start_time: string; end_time: string; is_available: boolean }[]>>((acc, slot) => {
-        if (!acc[slot.day_of_week]) acc[slot.day_of_week] = [];
-        acc[slot.day_of_week].push(slot);
-        return acc;
-      }, {}),
-    [availability],
+  // Build 14-day availability grid
+  const today = startOfToday();
+  const days = useMemo(
+    () => Array.from({ length: 14 }, (_, i) => addDays(today, i + 1)),
+    [today.toISOString()],
   );
+  const rangeData = getAvailabilityForRange(days[0], days[days.length - 1]);
 
-  const getAvailabilityStatus = (proposalStart: string, proposalEnd: string) => {
-    const proposalDate = new Date(proposalStart);
-    const daySlots = availabilityByDay[proposalDate.getDay()] || [];
-    const hasAvailableSlot = daySlots.some(
-      (slot) => slot.is_available && isWithinSlot(proposalStart, proposalEnd, slot.start_time, slot.end_time),
-    );
-    if (hasAvailableSlot) {
-      return { label: "Within contractor availability", variant: "default" as const };
+  const toggleSlot = (key: SlotKey) => {
+    setSelectedSlots((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        if (next.size >= 3) {
+          toast({ title: "Maximum 3 slots", description: "Deselect one before adding another." });
+          return prev;
+        }
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const submitSlots = async () => {
+    if (selectedSlots.size === 0) return;
+    setSaving(true);
+    try {
+      for (const key of Array.from(selectedSlots)) {
+        const [date, ampm] = key.split("-").slice(0, 2).concat(key.split("-")[2] ?? "AM") as [string, string, string];
+        const dateStr = key.slice(0, 10);
+        const startHour = key.endsWith("AM") ? "09:00" : "13:00";
+        const endHour = key.endsWith("AM") ? "12:00" : "17:00";
+        const start = new Date(`${dateStr}T${startHour}`).toISOString();
+        const end = new Date(`${dateStr}T${endHour}`).toISOString();
+        await proposeDate({ startTime: start, endTime: end });
+      }
+      setSelectedSlots(new Set());
+      toast({ title: "Preferences sent", description: "The contractor will confirm one of your selected slots." });
+    } finally {
+      setSaving(false);
     }
-    return { label: "Outside stated availability", variant: "secondary" as const };
   };
 
   const confirmJobDirectly = async () => {
     setConfirmingJob(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) throw new Error("Not authenticated");
-
       const { data: quote, error: quoteError } = await supabase
         .from("issued_quotes")
         .select("contractor_id, recipient_id, title, client_address, total")
@@ -122,40 +128,77 @@ export function QuoteScheduleNegotiation({
     }
   };
 
-  const submitProposal = async () => {
-    setSaving(true);
-    try {
-      let start: string;
-      let end: string;
-      if (mode === "recipient") {
-        if (!selectedDate || !ampm) return;
-        const startHour = ampm === "AM" ? "09:00" : "13:00";
-        const endHour = ampm === "AM" ? "12:00" : "17:00";
-        start = new Date(`${selectedDate}T${startHour}`).toISOString();
-        end = new Date(`${selectedDate}T${endHour}`).toISOString();
-      } else {
-        if (!startTime) return;
-        const calculatedEnd = endTime || format(addMinutes(new Date(startTime), 120), "yyyy-MM-dd'T'HH:mm");
-        start = new Date(startTime).toISOString();
-        end = new Date(calculatedEnd).toISOString();
-      }
-      await proposeDate({ startTime: start, endTime: end, note });
-      setStartTime("");
-      setEndTime("");
-      setSelectedDate("");
-      setAmpm(null);
-      setNote("");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const getAmPmLabel = (startIso: string) => {
     const h = new Date(startIso).getHours();
     if (h === 9) return "Morning (AM)";
     if (h === 13) return "Afternoon (PM)";
-    return null;
+    return format(new Date(startIso), "p");
   };
+
+  const loading = proposalsLoading || availabilityLoading;
+
+  // ── Contractor view ───────────────────────────────────────────────────────
+  if (mode === "contractor") {
+    const pending = proposals.filter((p) => p.status === "proposed" && !p.is_confirmed);
+    const confirmed = proposals.find((p) => p.is_confirmed || p.status === "accepted");
+
+    return (
+      <Card className="border-dashed">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarClock className="h-4 w-4" />
+            Schedule preferences from customer
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+            </div>
+          )}
+
+          {confirmed && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1">
+              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Confirmed date
+              </p>
+              <p className="text-sm text-green-900 font-medium">
+                {format(new Date(confirmed.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(confirmed.start_time)}
+              </p>
+            </div>
+          )}
+
+          {!confirmed && pending.length === 0 && !loading && (
+            <p className="text-sm text-muted-foreground">
+              No date preferences received yet. The customer will select from your available slots.
+            </p>
+          )}
+
+          {!confirmed && pending.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Customer&apos;s preferred slots — confirm one:</p>
+              {pending.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <p className="text-sm font-medium">
+                    {format(new Date(p.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(p.start_time)}
+                  </p>
+                  <Button size="sm" onClick={() => acceptProposal(p.id)}>
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Confirm this date
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Customer / recipient view ─────────────────────────────────────────────
+  const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
+  const pendingProposals = proposals.filter((p) => p.status === "proposed" && !p.is_confirmed);
+  const alreadySubmitted = pendingProposals.length > 0;
 
   return (
     <>
@@ -163,135 +206,127 @@ export function QuoteScheduleNegotiation({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarClock className="h-4 w-4" />
-            Schedule negotiation
+            Choose preferred dates
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading && <p className="text-sm text-muted-foreground">Loading schedule discussion…</p>}
-
-          {proposals.length === 0 && !loading && (
-            <p className="text-sm text-muted-foreground">
-              {mode === "contractor"
-                ? "No dates proposed yet. Suggest a few options for your client."
-                : "Waiting for contractor to suggest dates. You can still send alternatives below."}
-            </p>
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading availability...
+            </div>
           )}
 
-          <div className="space-y-2">
-            {proposals.map((proposal) => {
-              const availabilityStatus = getAvailabilityStatus(proposal.start_time, proposal.end_time);
-              const isMine = proposal.proposed_by === userId;
-              const isConfirmed = proposal.is_confirmed || proposal.status === "accepted";
-
-              return (
-                <div key={proposal.id} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={isConfirmed ? "default" : "outline"}>
-                      {isConfirmed ? "Confirmed" : proposal.status}
-                    </Badge>
-                    <Badge variant={availabilityStatus.variant}>{availabilityStatus.label}</Badge>
-                    <Badge variant="secondary">{isMine ? "Proposed by you" : "Proposed by counterparty"}</Badge>
-                  </div>
-                  <p className="font-medium text-sm">
-                    {format(new Date(proposal.start_time), "EEE d MMM yyyy")}
-                    {getAmPmLabel(proposal.start_time)
-                      ? ` · ${getAmPmLabel(proposal.start_time)}`
-                      : `, ${format(new Date(proposal.start_time), "p")} – ${format(new Date(proposal.end_time), "p")}`}
-                  </p>
-                  {proposal.description && (
-                    <p className="text-sm text-muted-foreground">{proposal.description}</p>
-                  )}
-                  {!hasConfirmedProposal && !isMine && proposal.status === "proposed" && (
-                    <Button size="sm" onClick={() => acceptProposal(proposal.id)}>
-                      <CheckCircle2 className="h-4 w-4 mr-1" />
-                      Accept this date
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {!hasConfirmedProposal && (
-            <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
-              <p className="text-sm font-medium flex items-center gap-1">
-                <CalendarCheck2 className="h-4 w-4" />
-                {mode === "contractor" ? "Propose available dates" : "Propose an alternative"}
+          {/* Confirmed state */}
+          {confirmedProposal && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1">
+              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Date confirmed by contractor
               </p>
-              {mode === "recipient" ? (
-                <>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={ampm === "AM" ? "default" : "outline"}
-                      onClick={() => setAmpm("AM")}
-                      className="flex-1"
-                    >
-                      AM
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={ampm === "PM" ? "default" : "outline"}
-                      onClick={() => setAmpm("PM")}
-                      className="flex-1"
-                    >
-                      PM
-                    </Button>
+              <p className="text-sm text-green-900 font-medium">
+                {format(new Date(confirmedProposal.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(confirmedProposal.start_time)}
+              </p>
+            </div>
+          )}
+
+          {/* Already submitted, waiting */}
+          {!confirmedProposal && alreadySubmitted && (
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+              <p className="text-sm font-medium">Preferences sent — waiting for contractor to confirm</p>
+              <div className="space-y-1">
+                {pendingProposals.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="font-normal">
+                      {format(new Date(p.start_time), "EEE d MMM")} · {getAmPmLabel(p.start_time)}
+                    </Badge>
                   </div>
-                </>
-              ) : (
-                <>
-                  {(() => {
-                    const recipientHint = proposals.find(
-                      (p) => p.proposed_by !== userId && p.status === "proposed" && getAmPmLabel(p.start_time),
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Slot picker — shown when no confirmed date and nothing submitted yet */}
+          {!confirmedProposal && !alreadySubmitted && !loading && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Select up to 3 available slots. The contractor will confirm one.
+              </p>
+              <div className="space-y-1">
+                {days.map((day) => {
+                  const dateStr = format(day, "yyyy-MM-dd");
+                  const dayData = rangeData[dateStr] ?? { amAvailable: false, pmAvailable: false };
+                  const amKey = `${dateStr}-AM`;
+                  const pmKey = `${dateStr}-PM`;
+                  const dayLabel = format(day, "EEE d MMM");
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+
+                  if (!dayData.amAvailable && !dayData.pmAvailable) {
+                    return (
+                      <div key={dateStr} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
+                        <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
+                        <span className="text-xs text-muted-foreground italic">
+                          {isWeekend ? "Weekend" : "Unavailable"}
+                        </span>
+                      </div>
                     );
-                    return recipientHint ? (
-                      <p className="text-xs text-muted-foreground">
-                        Customer preference: {format(new Date(recipientHint.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(recipientHint.start_time)}
-                      </p>
-                    ) : null;
-                  })()}
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      type="datetime-local"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                    />
-                    <Input
-                      type="datetime-local"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      placeholder="End time (optional)"
-                    />
-                  </div>
-                </>
+                  }
+
+                  return (
+                    <div key={dateStr} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
+                      <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
+                      <div className="flex gap-2">
+                        {dayData.amAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSlot(amKey)}
+                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                              selectedSlots.has(amKey)
+                                ? "bg-[#f07820] text-white border-[#f07820]"
+                                : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
+                            }`}
+                          >
+                            AM
+                          </button>
+                        )}
+                        {dayData.pmAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSlot(pmKey)}
+                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                              selectedSlots.has(pmKey)
+                                ? "bg-[#f07820] text-white border-[#f07820]"
+                                : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
+                            }`}
+                          >
+                            PM
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedSlots.size > 0 && (
+                <div className="pt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedSlots.size} of 3 slots selected
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={saving}
+                    onClick={submitSlots}
+                    className="w-full"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Send {selectedSlots.size} preference{selectedSlots.size !== 1 ? "s" : ""} to contractor
+                  </Button>
+                </div>
               )}
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Add context (e.g. access windows, parking constraints, etc.)"
-                rows={2}
-              />
-              <Button
-                size="sm"
-                className="w-fit"
-                disabled={saving || (mode === "recipient" ? !selectedDate || !ampm : !startTime)}
-                onClick={submitProposal}
-              >
-                {saving ? "Saving…" : mode === "contractor" ? "Send proposed date" : "Send alternative"}
-              </Button>
             </div>
           )}
 
           {/* Confirm / pay deposit — shown to customer only once schedule agreed */}
-          {hasConfirmedProposal && mode === "recipient" && quoteTotal != null && (
+          {hasConfirmedProposal && quoteTotal != null && (
             <>
               <Separator />
               <div className="rounded-lg bg-muted/40 p-4 space-y-3">
@@ -324,7 +359,7 @@ export function QuoteScheduleNegotiation({
         <DepositPaymentDialog
           quoteId={quoteId}
           totalAmount={quoteTotal}
-          depositAmount={hasDeposit ? quoteDepositAmount! : undefined}
+          depositAmount={quoteDepositAmount!}
           contractorName={contractorName ?? "Contractor"}
           open={depositOpen}
           onClose={() => setDepositOpen(false)}
@@ -337,3 +372,5 @@ export function QuoteScheduleNegotiation({
     </>
   );
 }
+'@
+$content | Set-Content "src/components/recipient/QuoteScheduleNegotiation.tsx" -Encoding UTF8
