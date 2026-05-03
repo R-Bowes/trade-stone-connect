@@ -64,7 +64,7 @@ const ContractorProfile = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
-  const [contractorDocuments, setContractorDocuments] = useState
+  const [contractorDocuments, setContractorDocuments] = useState<
     Array<{
       id: string;
       title: string;

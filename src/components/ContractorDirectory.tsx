@@ -9,19 +9,6 @@ import { CONTRACTOR_TRADES } from "@/constants/trades";
 
 type AvailabilityFilter = "all" | "available" | "unavailable";
 
-const fallbackTrades = [...CONTRACTOR_TRADES];
-const fallbackLocations = ["Birmingham", "Leeds", "Bristol", "Manchester", "Liverpool", "Nottingham"];
-const fallbackBios = [
-  "Experienced in residential and light commercial projects with a strong focus on quality finishes.",
-  "Reliable contractor delivering clean, on-time work and clear communication from start to finish.",
-  "Specialises in renovation, maintenance, and quick-response repair work for homeowners.",
-  "Detail-oriented professional known for efficient scheduling and transparent project updates.",
-];
-
-const hashValue = (value: string) => {
-  return [...value].reduce((total, char) => total + char.charCodeAt(0), 0);
-};
-
 const ContractorDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTrade, setSelectedTrade] = useState<string | undefined>(undefined);
@@ -29,7 +16,7 @@ const ContractorDirectory = () => {
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
 
   const { data: contractorQuery, isLoading } = useContractors(searchTerm, selectedTrade, location);
-  const contractors = contractorQuery?.contractors;
+  const contractors = contractorQuery?.contractors ?? [];
 
   const trades = [...CONTRACTOR_TRADES];
 
@@ -47,50 +34,16 @@ const ContractorDirectory = () => {
   };
 
   const handleTradeChange = (value: string) => {
-    if (value === "all") {
-      setSelectedTrade(undefined);
-      return;
-    }
-    setSelectedTrade(value);
+    setSelectedTrade(value === "all" ? undefined : value);
   };
 
-  const contractorsWithMeta = useMemo(() => {
-    return (contractors ?? []).map((contractor) => {
-      const seed = hashValue(contractor.user_id ?? contractor.ts_profile_code ?? contractor.full_name ?? "contractor");
-
-      // Use real trades array when present, else fallbacks
-      const realTrades = contractor.trades && contractor.trades.length > 0
-        ? contractor.trades
-        : null;
-
-      const specialties = realTrades
-        ? realTrades
-        : [
-            selectedTrade ?? fallbackTrades[seed % fallbackTrades.length],
-            fallbackTrades[(seed + 2) % fallbackTrades.length],
-            fallbackTrades[(seed + 4) % fallbackTrades.length],
-          ];
-
-      return {
-        ...contractor,
-        specialties,
-        bioSnippet: contractor.bio || fallbackBios[seed % fallbackBios.length],
-        locationLabel: contractor.location || fallbackLocations[seed % fallbackLocations.length],
-        isAvailable: contractor.is_available ?? true,
-      };
-    });
-  }, [contractors, selectedTrade]);
-
   const filteredContractors = useMemo(() => {
-    return contractorsWithMeta.filter((contractor) => {
-      const availabilityMatch =
-        availability === "all" ||
-        (availability === "available" && contractor.isAvailable) ||
-        (availability === "unavailable" && !contractor.isAvailable);
-
-      return availabilityMatch;
+    return contractors.filter((contractor) => {
+      if (availability === "available") return contractor.is_available === true;
+      if (availability === "unavailable") return contractor.is_available === false;
+      return true;
     });
-  }, [availability, contractorsWithMeta]);
+  }, [availability, contractors]);
 
   return (
     <section id="directory" className="py-16 px-4">
@@ -108,7 +61,6 @@ const ContractorDirectory = () => {
         {/* Search and Filters */}
         <div className="bg-card rounded-lg border p-6 shadow-tradestone mb-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            {/* Search Input */}
             <div className="relative lg:flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -120,22 +72,18 @@ const ContractorDirectory = () => {
             </div>
 
             <div className="flex items-center justify-end gap-4 min-w-0 lg:min-w-[460px]">
-              {/* Trade Filter */}
               <Select value={selectedTrade ?? "all"} onValueChange={handleTradeChange}>
                 <SelectTrigger className="w-[220px]">
                   <SelectValue placeholder="Select trade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Trades</SelectItem>
+                  <SelectItem value="all">All trades</SelectItem>
                   {trades.map((trade) => (
-                    <SelectItem key={trade} value={trade}>
-                      {trade}
-                    </SelectItem>
+                    <SelectItem key={trade} value={trade}>{trade}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              {/* Location */}
               <div className="relative w-[220px]">
                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -167,16 +115,18 @@ const ContractorDirectory = () => {
               {showClearFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="h-4 w-4 mr-1" />
-                  Clear Filters
+                  Clear filters
                 </Button>
               )}
             </div>
 
-            <div className="text-sm text-muted-foreground">{filteredContractors.length} contractors found</div>
+            <div className="text-sm text-muted-foreground">
+              {filteredContractors.length} contractor{filteredContractors.length !== 1 ? "s" : ""} found
+            </div>
           </div>
         </div>
 
-        {/* Results Grid */}
+        {/* Results */}
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -189,25 +139,26 @@ const ContractorDirectory = () => {
                 name={contractor.full_name || "Unknown"}
                 company={contractor.company_name || "Independent Contractor"}
                 code={contractor.ts_profile_code || ""}
-                specialties={contractor.specialties}
-                bioSnippet={contractor.bioSnippet}
-                location={contractor.locationLabel}
+                profileId={contractor.id}
+                specialties={contractor.trades && contractor.trades.length > 0 ? contractor.trades : []}
+                bioSnippet={contractor.bio || undefined}
+                rating={contractor.rating ?? null}
+                reviewCount={contractor.review_count ?? null}
+                location={contractor.location || ""}
                 image={contractor.logo_url || undefined}
+                isVerified={contractor.is_verified ?? false}
               />
             ))}
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">No contractors found. Be the first to register as a Pro!</p>
+            <p className="text-muted-foreground">No contractors found matching your search.</p>
           </div>
         )}
 
-        {/* Load More */}
         {filteredContractors.length > 0 && (
           <div className="text-center mt-12">
-            <Button variant="outline" size="lg">
-              Load More Contractors
-            </Button>
+            <Button variant="outline" size="lg">Load more</Button>
           </div>
         )}
       </div>
