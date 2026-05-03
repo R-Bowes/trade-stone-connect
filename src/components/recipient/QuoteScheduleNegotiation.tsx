@@ -1,4 +1,3 @@
-$content = @'
 import { useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
 import { CalendarClock, CheckCircle2 } from "lucide-react";
