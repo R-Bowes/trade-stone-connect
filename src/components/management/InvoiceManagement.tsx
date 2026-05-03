@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -205,8 +206,17 @@ export function InvoiceManagement() {
                         <Button variant="ghost" size="sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => generateInvoicePdf(inv)} title="Download PDF">
-                          <Download className="h-4 w-4" />
+                        
+                          <Download className="h-4 w-4" /><Button variant="ghost" size="sm" onClick={async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, company_name, email, phone, address, ts_profile_code")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  generateInvoicePdf(inv, profile ?? undefined);
+}} title="Download PDF">
                         </Button>
                         {inv.status === "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
