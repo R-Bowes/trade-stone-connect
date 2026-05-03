@@ -134,7 +134,7 @@ const Terms = () => {
               7.3. Fees are non-refundable unless (a) required by applicable law, (b) we have materially failed to provide the Service, or (c) otherwise stated in writing.
             </p>
             <p className="mb-4">
-              7.4. For transactions facilitated through the Platform, TradeStone charges a <strong>2% transaction fee</strong> on each invoice payment processed via the Platform. This fee is automatically deducted from the payment amount before settlement to the Contractor. The transaction fee is earned at the point of transaction and is non-refundable.
+              7.4. For transactions facilitated through the Platform, TradeStone charges a <strong>3.5% transaction fee</strong> on each invoice payment processed via the Platform. This fee is automatically deducted from the payment amount before settlement to the Contractor. The transaction fee is earned at the point of transaction and is non-refundable.
             </p>
             <p className="mb-4">
               7.5. <strong>Payment disputes between Users:</strong> TradeStone is not liable for payment disputes between Contractors and Clients. Users are encouraged to resolve disputes directly. TradeStone may, at its sole discretion, mediate disputes but is under no obligation to do so.
@@ -358,3 +358,4 @@ const Terms = () => {
 };
 
 export default Terms;
+

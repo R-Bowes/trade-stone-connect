@@ -10,10 +10,11 @@ export function TransactionFeeNotice({ className = "" }: TransactionFeeNoticePro
       <div className="flex items-start gap-2">
         <Percent className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="text-sm">
-          <span className="font-semibold">2% Transaction Notice:</span> A 2% platform fee applies to all
+          <span className="font-semibold">3.5% Transaction Notice:</span> A 3.5% platform fee applies to all
           invoicing and transaction activity.
         </p>
       </div>
     </div>
   );
 }
+
