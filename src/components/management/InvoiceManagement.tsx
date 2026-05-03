@@ -211,11 +211,27 @@ export function InvoiceManagement() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, company_name, email, phone, address, ts_profile_code")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  generateInvoicePdf(inv, profile ?? undefined);
+  .from("profiles")
+  .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
+  .eq("user_id", user.id)
+  .maybeSingle();
+
+let enrichedProfile: any = profile ?? undefined;
+if (profile?.logo_url) {
+  try {
+    const res = await fetch(profile.logo_url);
+    const blob = await res.blob();
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+    enrichedProfile = { ...profile, _logoBase64: base64 };
+  } catch {
+    // logo fetch failed — proceed without it
+  }
+}
+generateInvoicePdf(inv, enrichedProfile);
 }} title="Download PDF">
                         </Button>
                         {inv.status === "draft" && (

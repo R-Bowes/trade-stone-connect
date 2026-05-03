@@ -10,6 +10,7 @@ export interface ContractorProfile {
   phone: string | null;
   address: string | null;
   ts_profile_code: string | null;
+  logo_url: string | null;
 }
 
 export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile) {
@@ -23,8 +24,17 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   const margin = 20;
 
   // ── Contractor header (left) ──────────────────────────────────────────────
+  // ── Contractor header (left) ──────────────────────────────────────────────
   let yLeft = 20;
   if (contractor) {
+    if ((contractor as any)._logoBase64) {
+      try {
+        doc.addImage((contractor as any)._logoBase64, "PNG", margin, yLeft, 24, 24);
+        yLeft += 28;
+      } catch {
+        // logo failed to render — skip silently
+      }
+    }
     const contractorName = contractor.company_name || contractor.full_name || "Contractor";
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
