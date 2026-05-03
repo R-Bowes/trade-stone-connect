@@ -372,5 +372,3 @@ export function QuoteScheduleNegotiation({
     </>
   );
 }
-'@
-$content | Set-Content "src/components/recipient/QuoteScheduleNegotiation.tsx" -Encoding UTF8
