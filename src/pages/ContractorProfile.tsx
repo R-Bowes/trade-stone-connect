@@ -63,15 +63,14 @@ const ContractorProfile = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
-  const [contractorDocuments, setContractorDocuments] = useState<`n    Array<{
-      id: string;
-      title: string;
-      description: string | null;
-      document_url: string;
-      file_name: string;
-      file_size: number | null;
-    }>
-  >([]);
+  const [contractorDocuments, setContractorDocuments] = useState<Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    document_url: string;
+    file_name: string;
+    file_size: number | null;
+  }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -80,12 +79,9 @@ const ContractorProfile = () => {
       try {
         const { data, error } = await supabase
           .from("public_pro_profiles")
-          .select(
-            "id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, rating, review_count, years_experience, completed_jobs, created_at, updated_at"
-          )
+          .select("id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, rating, review_count, years_experience, completed_jobs, created_at, updated_at")
           .eq("ts_profile_code", code)
           .maybeSingle();
-
         if (error || !data) {
           setContractorProfile(null);
         } else {
@@ -103,13 +99,10 @@ const ContractorProfile = () => {
         setLoading(false);
       }
     };
-
     loadContractorProfile();
   }, [code]);
 
-  const { getNextAvailable, loading: availabilityLoading } = useAvailability(
-    contractorProfile?.id ?? ""
-  );
+  const { getNextAvailable, loading: availabilityLoading } = useAvailability(contractorProfile?.id ?? "");
   const nextAvailableDate = contractorProfile?.id ? getNextAvailable() : null;
   const nextAvailableLabel = formatNextAvailable(nextAvailableDate);
   const isAvailable = nextAvailableDate !== null;
@@ -146,8 +139,7 @@ const ContractorProfile = () => {
   const displayName = contractorProfile.full_name || "Unknown";
   const displayCompany = contractorProfile.company_name || "";
   const displayCode = contractorProfile.ts_profile_code || code || "";
-  const displayTrades = contractorProfile.trades && contractorProfile.trades.length > 0
-    ? contractorProfile.trades : [];
+  const displayTrades = contractorProfile.trades && contractorProfile.trades.length > 0 ? contractorProfile.trades : [];
   const displayBio = contractorProfile.bio || "";
   const displayLocation = contractorProfile.location || "";
   const displayRadius = contractorProfile.working_radius || "";
@@ -159,7 +151,6 @@ const ContractorProfile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
       <main className="pt-20">
         <div className="border-b bg-card/50">
           <div className="container mx-auto max-w-6xl px-4 py-4">
@@ -173,7 +164,6 @@ const ContractorProfile = () => {
         <section className="py-8 px-4 bg-gradient-to-br from-card/50 to-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="flex flex-col lg:flex-row gap-8">
-              {/* Avatar */}
               <div className="flex flex-col items-center lg:items-start">
                 <Avatar className="w-32 h-32 mb-4">
                   <AvatarImage src={contractorProfile.logo_url || ""} alt={displayName} />
@@ -181,7 +171,6 @@ const ContractorProfile = () => {
                     <Wrench className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
-
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary" className="font-mono">{displayCode}</Badge>
                   {contractorProfile.is_verified && (
@@ -191,14 +180,8 @@ const ContractorProfile = () => {
                     </Badge>
                   )}
                 </div>
-
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="hero-gradient"
-                    onClick={() => void openMessageFlow()}
-                    disabled={!contractorProfile.user_id}
-                  >
+                  <Button size="sm" className="hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Message
                   </Button>
@@ -211,12 +194,9 @@ const ContractorProfile = () => {
                 </div>
               </div>
 
-              {/* Main Info */}
               <div className="flex-1">
                 <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
-                {displayCompany && (
-                  <p className="text-xl text-muted-foreground mb-4">{displayCompany}</p>
-                )}
+                {displayCompany && <p className="text-xl text-muted-foreground mb-4">{displayCompany}</p>}
 
                 <div className="flex flex-wrap items-center gap-6 mb-6">
                   {displayRating !== null ? (
@@ -224,9 +204,7 @@ const ContractorProfile = () => {
                       <Star className="h-5 w-5 fill-primary text-primary" />
                       <span className="font-semibold text-lg">{displayRating.toFixed(1)}</span>
                       {displayReviewCount !== null && (
-                        <span className="text-muted-foreground">
-                          ({displayReviewCount} review{displayReviewCount !== 1 ? "s" : ""})
-                        </span>
+                        <span className="text-muted-foreground">({displayReviewCount} review{displayReviewCount !== 1 ? "s" : ""})</span>
                       )}
                     </div>
                   ) : (
@@ -248,71 +226,39 @@ const ContractorProfile = () => {
                   </div>
                 )}
 
-                {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <Card className="p-4 text-center">
                     {displayYearsExp !== null ? (
-                      <>
-                        <div className="text-2xl font-bold text-primary">{displayYearsExp}</div>
-                        <div className="text-sm text-muted-foreground">Years Experience</div>
-                      </>
+                      <><div className="text-2xl font-bold text-primary">{displayYearsExp}</div><div className="text-sm text-muted-foreground">Years Experience</div></>
                     ) : (
-                      <>
-                        <div className="text-sm font-medium text-muted-foreground">Not set</div>
-                        <div className="text-sm text-muted-foreground">Years Experience</div>
-                      </>
+                      <><div className="text-sm font-medium text-muted-foreground">Not set</div><div className="text-sm text-muted-foreground">Years Experience</div></>
                     )}
                   </Card>
                   <Card className="p-4 text-center">
                     {displayCompletedJobs !== null ? (
-                      <>
-                        <div className="text-2xl font-bold text-primary">{displayCompletedJobs}</div>
-                        <div className="text-sm text-muted-foreground">Jobs Completed</div>
-                      </>
+                      <><div className="text-2xl font-bold text-primary">{displayCompletedJobs}</div><div className="text-sm text-muted-foreground">Jobs Completed</div></>
                     ) : (
-                      <>
-                        <div className="text-sm font-medium text-muted-foreground">Not set</div>
-                        <div className="text-sm text-muted-foreground">Jobs Completed</div>
-                      </>
+                      <><div className="text-sm font-medium text-muted-foreground">Not set</div><div className="text-sm text-muted-foreground">Jobs Completed</div></>
                     )}
                   </Card>
                   <Card className="p-4 text-center">
                     {displayRating !== null ? (
-                      <>
-                        <div className="text-2xl font-bold text-primary">{displayRating.toFixed(1)}</div>
-                        <div className="text-sm text-muted-foreground">Average Rating</div>
-                      </>
+                      <><div className="text-2xl font-bold text-primary">{displayRating.toFixed(1)}</div><div className="text-sm text-muted-foreground">Average Rating</div></>
                     ) : (
-                      <>
-                        <div className="text-sm font-medium text-muted-foreground">No reviews</div>
-                        <div className="text-sm text-muted-foreground">Average Rating</div>
-                      </>
+                      <><div className="text-sm font-medium text-muted-foreground">No reviews</div><div className="text-sm text-muted-foreground">Average Rating</div></>
                     )}
                   </Card>
                   <Card className="p-4 text-center">
                     {availabilityLoading ? (
-                      <>
-                        <div className="text-sm font-medium text-muted-foreground animate-pulse">Checking...</div>
-                        <div className="text-sm text-muted-foreground">Availability</div>
-                      </>
+                      <><div className="text-sm font-medium text-muted-foreground animate-pulse">Checking...</div><div className="text-sm text-muted-foreground">Availability</div></>
                     ) : (
-                      <>
-                        <div className={`text-sm font-bold ${isAvailable ? "text-green-600" : "text-muted-foreground"}`}>
-                          {nextAvailableLabel}
-                        </div>
-                        <div className="text-sm text-muted-foreground">Availability</div>
-                      </>
+                      <><div className={`text-sm font-bold ${isAvailable ? "text-green-600" : "text-muted-foreground"}`}>{nextAvailableLabel}</div><div className="text-sm text-muted-foreground">Availability</div></>
                     )}
                   </Card>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <Button
-                    size="lg"
-                    className="hero-gradient"
-                    onClick={() => void openMessageFlow()}
-                    disabled={!contractorProfile.user_id}
-                  >
+                  <Button size="lg" className="hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Send Message
                   </Button>
@@ -326,7 +272,6 @@ const ContractorProfile = () => {
           </div>
         </section>
 
-        {/* Tabs */}
         <section className="py-8 px-4">
           <div className="container mx-auto max-w-6xl">
             <Tabs defaultValue="overview" className="w-full">
@@ -352,7 +297,6 @@ const ContractorProfile = () => {
                     </div>
                   )}
                 </Card>
-
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Availability</h3>
                   <div className="space-y-3">
@@ -361,20 +305,13 @@ const ContractorProfile = () => {
                       {availabilityLoading ? (
                         <Badge variant="outline" className="animate-pulse">Checking...</Badge>
                       ) : (
-                        <Badge
-                          className={isAvailable ? "bg-green-500" : ""}
-                          variant={isAvailable ? "default" : "outline"}
-                        >
+                        <Badge className={isAvailable ? "bg-green-500" : ""} variant={isAvailable ? "default" : "outline"}>
                           {nextAvailableLabel}
                         </Badge>
                       )}
                     </div>
                     <Separator />
-                    <Button
-                      className="w-full hero-gradient"
-                      onClick={() => void openMessageFlow()}
-                      disabled={!contractorProfile.user_id}
-                    >
+                    <Button className="w-full hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
                       <MessageSquare className="h-4 w-4 mr-2" />
                       Send Message
                     </Button>
