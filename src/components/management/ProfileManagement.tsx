@@ -24,6 +24,8 @@ interface Profile {
   working_radius: string;
   bio: string;
   logo_url: string;
+  vat_registered: boolean;
+  vat_number: string;
 }
 
 const allTrades = [...CONTRACTOR_TRADES];
@@ -43,6 +45,8 @@ export function ProfileManagement() {
     working_radius: "",
     bio: "",
     logo_url: "",
+    vat_registered: false,
+    vat_number: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,6 +99,8 @@ export function ProfileManagement() {
           working_radius: (data as any).working_radius || "",
           bio: (data as any).bio || "",
           logo_url: (data as any).logo_url || "",
+          vat_registered: (data as any).vat_registered || false,
+          vat_number: (data as any).vat_number || "",
         });
       }
     } catch (error) {
@@ -180,6 +186,8 @@ export function ProfileManagement() {
         updateData.location = profile.location;
         updateData.working_radius = profile.working_radius;
         updateData.bio = profile.bio;
+        updateData.vat_registered = profile.vat_registered;
+        updateData.vat_number = profile.vat_registered ? profile.vat_number.trim() : null;
       }
 
       const { error } = await supabase
@@ -189,17 +197,10 @@ export function ProfileManagement() {
 
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
+      toast({ title: "Success", description: "Profile updated successfully" });
     } catch (error) {
       console.error("Error saving profile:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save profile",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save profile", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -210,9 +211,7 @@ export function ProfileManagement() {
       const exists = prev.trades.includes(trade);
       return {
         ...prev,
-        trades: exists
-          ? prev.trades.filter((t) => t !== trade)
-          : [...prev.trades, trade],
+        trades: exists ? prev.trades.filter((t) => t !== trade) : [...prev.trades, trade],
       };
     });
   };
@@ -384,6 +383,51 @@ export function ProfileManagement() {
                 rows={4}
               />
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isContractor && (
+        <Card>
+          <CardHeader>
+            <CardTitle>VAT Registration</CardTitle>
+            <CardDescription>
+              If your taxable turnover exceeds £90,000 you must register for VAT. Once registered, your invoices will default to 20% VAT.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="vat_registered"
+                checked={profile.vat_registered}
+                onChange={(e) => setProfile({
+                  ...profile,
+                  vat_registered: e.target.checked,
+                  vat_number: e.target.checked ? profile.vat_number : "",
+                })}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="vat_registered" className="cursor-pointer">I am VAT registered</Label>
+            </div>
+            {profile.vat_registered && (
+              <div className="space-y-2">
+                <Label htmlFor="vat_number">VAT Number</Label>
+                <Input
+                  id="vat_number"
+                  placeholder="GB123456789"
+                  value={profile.vat_number}
+                  onChange={(e) => setProfile({ ...profile, vat_number: e.target.value.toUpperCase() })}
+                  className="max-w-xs font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Format: GB followed by 9 digits (e.g. GB123456789). This will appear on all invoices.
+                </p>
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                  Your invoices will automatically default to 20% VAT. You remain responsible for tracking your total turnover across all income sources.
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
