@@ -275,7 +275,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
               />
               {photos && photos.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {photos.length} photo{photos.length !== 1 ? "s" : ""} selected
+                  {photos.length} of 5 photo{photos.length !== 1 ? "s" : ""} selected
                 </p>
               )}
             </div>

@@ -26,14 +26,6 @@ import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/man
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
 
-const STATUS_PRIORITY: Record<string, number> = {
-  scheduled: 0,
-  in_progress: 1,
-  snagging: 2,
-  complete: 3,
-  cancelled: 4,
-};
-
 const statusLabel: Record<JobStatus, string> = {
   scheduled: "Scheduled",
   in_progress: "In progress",
@@ -294,6 +286,7 @@ export function JobManagement() {
     setJobs(mapped);
 
     const jobIds = mapped.map((j) => j.id);
+
     if (jobIds.length > 0) {
       const { data: snagData, error: snagError } = await supabase
         .from("job_snag_items")
@@ -327,7 +320,7 @@ export function JobManagement() {
     }
 
     if (jobIds.length > 0) {
-      const { data: tsData } = await (supabase as any)
+      const { data: tsData } = await supabase
         .from("timesheets")
         .select("id, job_id, date, hours, worker_id, description")
         .in("job_id", jobIds);
@@ -349,9 +342,12 @@ export function JobManagement() {
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => {
-      const priorityDiff = (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
-      if (priorityDiff !== 0) return priorityDiff;
+      const aCancelled = a.status === "cancelled" ? 1 : 0;
+      const bCancelled = b.status === "cancelled" ? 1 : 0;
+      if (aCancelled !== bCancelled) return aCancelled - bCancelled;
       if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
+      if (a.start_date) return -1;
+      if (b.start_date) return 1;
       return a.id.localeCompare(b.id);
     }),
     [jobs],
@@ -488,10 +484,11 @@ export function JobManagement() {
       total: Number(expense.amount ?? 0),
     }));
 
-    const { data: contractorProfile } = await (supabase as any)
+    // Use profiles.id (not user_id) — critical platform rule
+    const { data: contractorProfile } = await supabase
       .from("profiles")
       .select("vat_registered, hourly_rate")
-      .eq("user_id", (fullJob as any).contractor_id)
+      .eq("id", fullJob.contractor_id)
       .maybeSingle() as { data: { vat_registered?: boolean; hourly_rate?: number } | null };
 
     const jobTimesheets = timesheetsByJob[fullJob.id] || [];
@@ -666,7 +663,7 @@ export function JobManagement() {
                               onChange={(e) => toggleSnagResolved(job.id, item, e.target.checked)}
                             />
                             <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>
-                              {item.title}
+              {item.title}
                             </span>
                           </label>
                         ))}

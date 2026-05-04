@@ -112,6 +112,20 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     async (proposalId: string) => {
       if (!quoteId) return;
 
+      // Fetch the proposal so we can extract the confirmed date
+      const { data: proposalData, error: proposalFetchError } = await supabase
+        .from("schedule_events")
+        .select("start_time")
+        .eq("id", proposalId)
+        .single();
+
+      if (proposalFetchError || !proposalData) {
+        toast({ title: "Error", description: "Failed to load proposal details", variant: "destructive" });
+        return;
+      }
+
+      const confirmedDate = proposalData.start_time.slice(0, 10); // "YYYY-MM-DD"
+
       // Mark this proposal as confirmed
       const { error } = await supabase
         .from("schedule_events")
@@ -123,7 +137,33 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         throw error;
       }
 
-      // Notify the contractor
+      // Block the confirmed date immediately in contractor_availability_overrides.
+// Don't wait for the job to exist — the customer hasn't clicked "Confirm Job" yet.
+await supabase
+  .from("contractor_availability_overrides")
+  .upsert({
+    contractor_id: contractorId,
+    date: confirmedDate,
+    am_available: false,
+    pm_available: false,
+    reason: "Auto-blocked: confirmed job",
+  }, { onConflict: "contractor_id,date" });
+
+// Also update start_date on the job if it already exists
+const { data: jobRow } = await supabase
+  .from("jobs")
+  .select("id")
+  .eq("issued_quote_id", quoteId)
+  .maybeSingle();
+
+if (jobRow?.id) {
+  await supabase
+    .from("jobs")
+    .update({ start_date: confirmedDate })
+    .eq("id", jobRow.id);
+}
+
+      // Notify the customer
       if (contractorId) {
         const { data: profileData } = await supabase
           .from("profiles")
@@ -154,10 +194,6 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         .eq("quote_id", quoteId)
         .neq("id", proposalId)
         .eq("status", "proposed");
-
-      // NOTE: Job creation intentionally not here.
-      // It happens after the customer clicks "Approve & Pay Deposit" or "Confirm Job"
-      // in the QuoteScheduleNegotiation component, via the accept-quote Edge Function.
 
       toast({
         title: "Date agreed",

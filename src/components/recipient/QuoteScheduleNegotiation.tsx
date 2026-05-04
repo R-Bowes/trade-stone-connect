@@ -81,7 +81,6 @@ export function QuoteScheduleNegotiation({
     setSaving(true);
     try {
       for (const key of Array.from(selectedSlots)) {
-        const [date, ampm] = key.split("-").slice(0, 2).concat(key.split("-")[2] ?? "AM") as [string, string, string];
         const dateStr = key.slice(0, 10);
         const startHour = key.endsWith("AM") ? "09:00" : "13:00";
         const endHour = key.endsWith("AM") ? "12:00" : "17:00";
@@ -106,6 +105,10 @@ export function QuoteScheduleNegotiation({
         .single();
       if (quoteError || !quote) throw quoteError ?? new Error("Quote not found");
 
+      // Extract start_date from the confirmed proposal if one exists
+      const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
+      const startDate = confirmedProposal ? confirmedProposal.start_time.slice(0, 10) : null;
+
       const { error: jobError } = await supabase.from("jobs").insert({
         contractor_id: quote.contractor_id,
         customer_id: quote.recipient_id,
@@ -114,6 +117,7 @@ export function QuoteScheduleNegotiation({
         location: quote.client_address,
         status: "scheduled",
         contract_value: quote.total,
+        start_date: startDate,
       });
       if (jobError) throw jobError;
 
