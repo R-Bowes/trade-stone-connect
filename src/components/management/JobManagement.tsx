@@ -19,6 +19,7 @@ import {
   Check,
   CheckCircle,
   MapPin,
+  ChevronLeft,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 
@@ -48,11 +49,24 @@ const STEPS = [
   { status: "complete" as const, label: "Job Complete", Icon: CheckCircle },
 ];
 
+const COMPLETION_TIME_HOURS: Record<string, number> = {
+  half_day: 4,
+  full_day: 8,
+  "2_days": 16,
+  "3_days": 24,
+  "1_week": 40,
+  "2_weeks": 80,
+  "1_month": 160,
+};
+
 type JobCardData = {
   id: string;
   title: string;
   status: JobStatus;
   start_date: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  estimated_completion: string | null;
   location: string | null;
   customer_id: string;
   client_name: string;
@@ -76,6 +90,81 @@ type SnagItem = {
   title: string;
   is_resolved: boolean;
 };
+
+function formatHours(hours: number): string {
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 8);
+  const rem = hours % 8;
+  return rem > 0 ? `${days}d ${rem.toFixed(0)}h` : `${days}d`;
+}
+
+function JobTimer({ actualStart, actualEnd, estimatedCompletion, status }: {
+  actualStart: string | null;
+  actualEnd: string | null;
+  estimatedCompletion: string | null;
+  status: JobStatus;
+}) {
+  const [elapsed, setElapsed] = useState<number>(0);
+
+  useEffect(() => {
+    if (!actualStart) return;
+    const end = actualEnd ? new Date(actualEnd) : null;
+
+    const compute = () => {
+      const endTime = end ?? new Date();
+      const diffMs = endTime.getTime() - new Date(actualStart).getTime();
+      setElapsed(Math.max(0, diffMs / 3_600_000));
+    };
+
+    compute();
+    if (!actualEnd) {
+      const id = setInterval(compute, 60_000);
+      return () => clearInterval(id);
+    }
+  }, [actualStart, actualEnd]);
+
+  if (!actualStart) return null;
+
+  const estimatedHours = estimatedCompletion ? COMPLETION_TIME_HOURS[estimatedCompletion] ?? null : null;
+  const isComplete = !!actualEnd;
+  const isOver = estimatedHours !== null && elapsed > estimatedHours;
+  const color = isComplete && isOver ? "#dc2626" : isComplete ? "#16a34a" : "#f07820";
+
+  return (
+    <div className="rounded-md border p-3 space-y-2 text-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 font-medium" style={{ color }}>
+          <Clock className="h-4 w-4" />
+          {isComplete ? "Completed in" : "In progress for"} {formatHours(elapsed)}
+        </div>
+        {estimatedHours && (
+          <span className="text-xs text-muted-foreground">
+            Estimated: {formatHours(estimatedHours)}
+          </span>
+        )}
+      </div>
+      {estimatedHours && (
+        <div className="w-full bg-muted rounded-full h-1.5">
+          <div
+            className="h-1.5 rounded-full transition-all"
+            style={{
+              width: `${Math.min(100, (elapsed / estimatedHours) * 100)}%`,
+              backgroundColor: isOver ? "#dc2626" : "#f07820",
+            }}
+          />
+        </div>
+      )}
+      {isComplete && estimatedHours && (
+        <p className={`text-xs font-medium ${isOver ? "text-red-600" : "text-green-600"}`}>
+          {isOver
+            ? `${formatHours(elapsed - estimatedHours)} over estimate`
+            : `${formatHours(estimatedHours - elapsed)} under estimate`}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function StepTracker({ currentStatus }: { currentStatus: JobStatus }) {
   const isCancelled = currentStatus === "cancelled";
@@ -137,40 +226,6 @@ function StepTracker({ currentStatus }: { currentStatus: JobStatus }) {
   );
 }
 
-function LiveTimer({ startDate }: { startDate: string | null }) {
-  const [elapsed, setElapsed] = useState("");
-
-  useEffect(() => {
-    if (!startDate) return;
-
-    const compute = () => {
-      const diffMs = Date.now() - new Date(startDate).getTime();
-      if (diffMs < 0) { setElapsed("0m"); return; }
-      const days = Math.floor(diffMs / 86_400_000);
-      const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
-      const minutes = Math.floor((diffMs % 3_600_000) / 60_000);
-      setElapsed(
-        days > 0 ? `${days}d ${hours}h ${minutes}m` :
-        hours > 0 ? `${hours}h ${minutes}m` :
-        `${minutes}m`,
-      );
-    };
-
-    compute();
-    const id = setInterval(compute, 60_000);
-    return () => clearInterval(id);
-  }, [startDate]);
-
-  if (!startDate || !elapsed) return null;
-
-  return (
-    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "#f07820" }}>
-      <Clock className="h-4 w-4 animate-pulse" />
-      In progress for {elapsed}
-    </div>
-  );
-}
-
 export function JobManagement() {
   const [jobs, setJobs] = useState<JobCardData[]>([]);
   const [snagItemsByJob, setSnagItemsByJob] = useState<Record<string, SnagItem[]>>({});
@@ -203,11 +258,13 @@ export function JobManagement() {
         title,
         status,
         start_date,
+        actual_start,
+        actual_end,
         location,
         customer_id,
         issued_quote_id,
         client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
-        quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number)
+        quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, completion_time)
       `)
       .eq("contractor_id", profileRow?.id)
       .order("start_date", { ascending: true, nullsFirst: false });
@@ -223,6 +280,9 @@ export function JobManagement() {
       title: job.title,
       status: job.status,
       start_date: job.start_date,
+      actual_start: job.actual_start ?? null,
+      actual_end: job.actual_end ?? null,
+      estimated_completion: job.quote?.completion_time ?? null,
       location: job.location ?? null,
       customer_id: job.customer_id,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
@@ -324,6 +384,23 @@ export function JobManagement() {
     setSavingJobId(null);
   };
 
+  const moveToPrevStatus = async (job: JobCardData) => {
+    const statusIdx = STATUS_ORDER.indexOf(job.status as (typeof STATUS_ORDER)[number]);
+    if (statusIdx <= 0) return;
+    const prevStatus = STATUS_ORDER[statusIdx - 1];
+
+    setSavingJobId(job.id);
+    const { error } = await supabase.from("jobs").update({ status: prevStatus }).eq("id", job.id);
+
+    if (error) {
+      toast({ title: "Status update failed", description: error.message, variant: "destructive" });
+    } else {
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: prevStatus } : j)));
+      toast({ title: "Job moved back", description: `${job.title} moved to ${statusLabel[prevStatus]}.` });
+    }
+    setSavingJobId(null);
+  };
+
   const addSnagItem = async (jobId: string) => {
     const title = (newSnagByJob[jobId] || "").trim();
     if (!title) return;
@@ -421,7 +498,6 @@ export function JobManagement() {
     let labourItems: InvoiceItem[] = [];
     if (jobTimesheets.length > 0 && contractorProfile?.hourly_rate) {
       const hourlyRate = Number(contractorProfile.hourly_rate);
-
       const workerIds = [...new Set(jobTimesheets.map((t) => t.worker_id).filter(Boolean))] as string[];
       let workerNames: Record<string, string> = {};
       if (workerIds.length > 0) {
@@ -433,7 +509,6 @@ export function JobManagement() {
           workerNames[(tm as any).id] = (tm as any).name || "Team member";
         }
       }
-
       labourItems = jobTimesheets.map((ts) => {
         const workerLabel = ts.worker_id ? (workerNames[ts.worker_id] || "Team member") : "Contractor";
         const hours = Number(ts.hours ?? 0);
@@ -495,7 +570,9 @@ export function JobManagement() {
           const nextStatus = statusIdx >= 0 && statusIdx < STATUS_ORDER.length - 1
             ? STATUS_ORDER[statusIdx + 1]
             : null;
+          const prevStatus = statusIdx > 0 ? STATUS_ORDER[statusIdx - 1] : null;
           const canProgress = !!nextStatus;
+          const canGoBack = !!prevStatus;
           const isSaving = savingJobId === job.id;
 
           return (
@@ -536,8 +613,13 @@ export function JobManagement() {
                   )}
                 </div>
 
-                {job.status === "in_progress" && (
-                  <LiveTimer startDate={job.start_date} />
+                {(job.status === "in_progress" || job.status === "snagging" || job.status === "complete") && (
+                  <JobTimer
+                    actualStart={job.actual_start}
+                    actualEnd={job.actual_end}
+                    estimatedCompletion={job.estimated_completion}
+                    status={job.status}
+                  />
                 )}
 
                 {job.status === "snagging" && (
@@ -608,6 +690,17 @@ export function JobManagement() {
                 })()}
 
                 <div className="flex flex-wrap gap-2">
+                  {canGoBack && job.status !== "cancelled" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => moveToPrevStatus(job)}
+                      disabled={isSaving}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Move back
+                    </Button>
+                  )}
                   {canProgress && (
                     <Button
                       onClick={() => changeStatus(job, nextStatus!)}
