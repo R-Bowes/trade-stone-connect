@@ -16,7 +16,8 @@ import {
   Plus,
   ExternalLink,
   Package,
-  Hammer
+  Hammer,
+  UserCheck,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
@@ -25,9 +26,11 @@ import Header from "@/components/Header";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
+import { PanelManagement } from "@/components/business/PanelManagement";
 
 const businessDashboardViews = [
   { value: "overview", label: "Overview" },
+  { value: "panel", label: "Contractor Panel" },
   { value: "jobs", label: "My Jobs" },
   { value: "invoices", label: "Invoices" },
   { value: "quotes", label: "Quotes" },
@@ -41,6 +44,7 @@ const businessDashboardViews = [
 const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -71,9 +75,10 @@ const BusinessDashboard = () => {
 
       setUser(currentUser);
 
+      // Two-step profile lookup: user_id → profiles.id
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("user_type")
+        .select("id, user_type")
         .eq("user_id", currentUser.id)
         .maybeSingle();
 
@@ -88,41 +93,34 @@ const BusinessDashboard = () => {
         return;
       }
 
-      const { data: activeJobs, error: activeJobsError } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('customer_id', currentUser.id)
-        .in('status', ['active', 'in_progress', 'in-progress']);
+      const pid = profile?.id ?? null;
+      setProfileId(pid);
 
-      const { data: completedJobs, error: completedJobsError } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('client_id', currentUser.id)
-        .eq('status', 'completed');
+      if (!pid) {
+        setLoading(false);
+        return;
+      }
 
-      const { data: receivedQuotes, error: receivedQuotesError } = await supabase
-        .from('issued_quotes')
-        .select('id')
-        .eq('recipient_id', currentUser.id);
+      // Fix: use profiles.id (pid) not currentUser.id for FK lookups
+      const [activeJobsRes, completedJobsRes, receivedQuotesRes, pendingInvoicesRes] = await Promise.all([
+        supabase.from("jobs").select("id").eq("customer_id", pid).in("status", ["active", "in_progress", "in-progress"]),
+        supabase.from("jobs").select("id").eq("customer_id", pid).eq("status", "completed"),
+        supabase.from("issued_quotes").select("id").eq("recipient_id", pid),
+        supabase.from("invoices").select("id").eq("recipient_id", pid).eq("status", "pending"),
+      ]);
 
-      const { data: pendingInvoices, error: pendingInvoicesError } = await supabase
-        .from('invoices')
-        .select('id')
-        .eq('recipient_id', currentUser.id)
-        .eq('status', 'pending');
-
-      if (activeJobsError || completedJobsError || receivedQuotesError || pendingInvoicesError) {
-        console.error("Dashboard query error", { activeJobsError, completedJobsError, receivedQuotesError, pendingInvoicesError });
+      if (activeJobsRes.error || completedJobsRes.error || receivedQuotesRes.error || pendingInvoicesRes.error) {
+        console.error("Dashboard query error", { activeJobsRes, completedJobsRes, receivedQuotesRes, pendingInvoicesRes });
         setLoadError("Unable to load dashboard data. Please try again.");
         setLoading(false);
         return;
       }
 
       setDashboardData({
-        activeJobs: activeJobs?.length ?? 0,
-        receivedQuotes: receivedQuotes?.length ?? 0,
-        pendingInvoices: pendingInvoices?.length ?? 0,
-        completedJobs: completedJobs?.length ?? 0,
+        activeJobs: activeJobsRes.data?.length ?? 0,
+        receivedQuotes: receivedQuotesRes.data?.length ?? 0,
+        pendingInvoices: pendingInvoicesRes.data?.length ?? 0,
+        completedJobs: completedJobsRes.data?.length ?? 0,
       });
 
       setLoading(false);
@@ -130,8 +128,6 @@ const BusinessDashboard = () => {
 
     loadData();
   }, [navigate]);
-
-
 
   const hasNoActivity =
     dashboardData.activeJobs === 0 &&
@@ -251,6 +247,25 @@ const BusinessDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Panel shortcut card */}
+              <Card
+                className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
+                onClick={() => setActiveTab("panel")}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-primary" />
+                    Contractor Panel
+                  </CardTitle>
+                  <CardDescription>Manage your approved contractor network</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="default">
+                    Manage Panel
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -260,7 +275,7 @@ const BusinessDashboard = () => {
                   <CardDescription>Create a new contract opportunity for bidding</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild className="w-full">
+                  <Button asChild className="w-full" variant="outline">
                     <Link to="/contracts">
                       Post Opportunity
                       <ExternalLink className="ml-2 h-4 w-4" />
@@ -286,24 +301,6 @@ const BusinessDashboard = () => {
                   </Button>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    Bulk Materials
-                  </CardTitle>
-                  <CardDescription>Source materials at competitive prices</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="outline" asChild className="w-full">
-                    <Link to="/marketplace">
-                      View Marketplace
-                      <ExternalLink className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
             </div>
 
             <Card>
@@ -313,6 +310,17 @@ const BusinessDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div
+                    className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setActiveTab("panel")}
+                  >
+                    <UserCheck className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="font-medium">Contractor Panel</p>
+                      <p className="text-sm text-muted-foreground">Invite and manage approved contractors</p>
+                    </div>
+                    <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
+                  </div>
                   <div className="flex items-center gap-4 p-4 rounded-lg border">
                     <FileText className="h-8 w-8 text-primary" />
                     <div>
@@ -330,14 +338,6 @@ const BusinessDashboard = () => {
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
                   <div className="flex items-center gap-4 p-4 rounded-lg border">
-                    <Users className="h-8 w-8 text-primary" />
-                    <div>
-                      <p className="font-medium">Supplier Network</p>
-                      <p className="text-sm text-muted-foreground">Build your preferred supplier list</p>
-                    </div>
-                    <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
-                  </div>
-                  <div className="flex items-center gap-4 p-4 rounded-lg border">
                     <TrendingUp className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Spend Analytics</p>
@@ -348,6 +348,19 @@ const BusinessDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Panel Tab */}
+          <TabsContent value="panel">
+            {user && profileId ? (
+              <PanelManagement profileId={profileId} userId={user.id} />
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">Unable to load panel — profile not found.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="jobs"><ClientJobsView /></TabsContent>
