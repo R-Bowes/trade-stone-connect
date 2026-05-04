@@ -296,9 +296,14 @@ export function JobManagement() {
   useEffect(() => { loadJobs(); }, []);
 
   const sortedJobs = useMemo(
-    () => [...jobs].sort((a, b) => (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99)),
-    [jobs],
-  );
+  () => [...jobs].sort((a, b) => {
+    const priorityDiff = (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
+    if (priorityDiff !== 0) return priorityDiff;
+    if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
+    return a.id.localeCompare(b.id);
+  }),
+  [jobs],
+);
 
   const changeStatus = async (job: JobCardData, nextStatus: JobStatus) => {
     if (job.status === "snagging" && nextStatus === "complete") {
