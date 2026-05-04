@@ -12,8 +12,6 @@ import { Badge } from "@/components/ui/badge";
 interface TeamMember {
   id: string;
   full_name: string;
-  email: string;
-  phone: string;
   role: string;
   hourly_rate: number;
   is_active: boolean;
@@ -26,8 +24,6 @@ export function TeamManagement() {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
-    email: "",
-    phone: "",
     role: "",
     hourly_rate: "",
     is_active: true,
@@ -51,7 +47,7 @@ export function TeamManagement() {
 
       const { data, error } = await supabase
         .from("team_members")
-        .select("*")
+        .select("id, full_name, role, hourly_rate, is_active")
         .eq("contractor_id", profileRow?.id)
         .order("created_at", { ascending: false });
 
@@ -69,7 +65,17 @@ export function TeamManagement() {
     }
   };
 
+  const resetForm = () => {
+    setEditingMember(null);
+    setFormData({ full_name: "", role: "", hourly_rate: "", is_active: true });
+  };
+
   const handleSubmit = async () => {
+    if (!formData.full_name.trim()) {
+      toast({ title: "Name required", description: "Please enter a full name.", variant: "destructive" });
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -82,10 +88,8 @@ export function TeamManagement() {
 
       const memberData = {
         contractor_id: profileRow?.id,
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone,
-        role: formData.role,
+        full_name: formData.full_name.trim(),
+        role: formData.role.trim(),
         hourly_rate: parseFloat(formData.hourly_rate) || null,
         is_active: formData.is_active,
       };
@@ -95,28 +99,18 @@ export function TeamManagement() {
           .from("team_members")
           .update(memberData)
           .eq("id", editingMember.id);
-
         if (error) throw error;
-        toast({ title: "Success", description: "Team member updated" });
+        toast({ title: "Team member updated" });
       } else {
         const { error } = await supabase
           .from("team_members")
           .insert(memberData);
-
         if (error) throw error;
-        toast({ title: "Success", description: "Team member added" });
+        toast({ title: "Team member added" });
       }
 
       setDialogOpen(false);
-      setEditingMember(null);
-      setFormData({
-        full_name: "",
-        email: "",
-        phone: "",
-        role: "",
-        hourly_rate: "",
-        is_active: true,
-      });
+      resetForm();
       loadTeamMembers();
     } catch (error) {
       console.error("Error saving team member:", error);
@@ -132,9 +126,7 @@ export function TeamManagement() {
     setEditingMember(member);
     setFormData({
       full_name: member.full_name,
-      email: member.email,
-      phone: member.phone || "",
-      role: member.role,
+      role: member.role || "",
       hourly_rate: member.hourly_rate?.toString() || "",
       is_active: member.is_active,
     });
@@ -147,15 +139,14 @@ export function TeamManagement() {
         .from("team_members")
         .delete()
         .eq("id", id);
-
       if (error) throw error;
-      toast({ title: "Success", description: "Team member deleted" });
+      toast({ title: "Team member removed" });
       loadTeamMembers();
     } catch (error) {
       console.error("Error deleting team member:", error);
       toast({
         title: "Error",
-        description: "Failed to delete team member",
+        description: "Failed to remove team member",
         variant: "destructive",
       });
     }
@@ -178,17 +169,7 @@ export function TeamManagement() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) {
-            setEditingMember(null);
-            setFormData({
-              full_name: "",
-              email: "",
-              phone: "",
-              role: "",
-              hourly_rate: "",
-              is_active: true,
-            });
-          }
+          if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
             <Button>
@@ -199,7 +180,7 @@ export function TeamManagement() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingMember ? "Edit Team Member" : "Add New Team Member"}
+                {editingMember ? "Edit Team Member" : "Add Team Member"}
               </DialogTitle>
               <DialogDescription>
                 {editingMember ? "Update team member details" : "Add a new member to your team"}
@@ -212,23 +193,7 @@ export function TeamManagement() {
                   id="full_name"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="e.g., James Carter"
                 />
               </div>
               <div className="space-y-2">
@@ -237,7 +202,7 @@ export function TeamManagement() {
                   id="role"
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  placeholder="e.g., Electrician, Plumber"
+                  placeholder="e.g., Electrician, Labourer"
                 />
               </div>
               <div className="space-y-2">
@@ -246,75 +211,72 @@ export function TeamManagement() {
                   id="hourly_rate"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.hourly_rate}
                   onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
+                  placeholder="e.g., 18.00"
                 />
               </div>
               <Button onClick={handleSubmit} className="w-full">
-                {editingMember ? "Update" : "Add"} Team Member
+                {editingMember ? "Update Team Member" : "Add Team Member"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4">
-        {teamMembers.map((member) => (
-          <Card key={member.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {member.full_name}
-                    {member.is_active ? (
-                      <Badge>Active</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription>{member.role}</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(member)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(member.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Email</p>
-                  <p>{member.email}</p>
-                </div>
-                {member.phone && (
+      {teamMembers.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No team members yet. Add your first team member to start assigning them to jobs.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {teamMembers.map((member) => (
+            <Card key={member.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-muted-foreground">Phone</p>
-                    <p>{member.phone}</p>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      {member.full_name}
+                      {member.is_active ? (
+                        <Badge>Active</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>{member.role || "No role set"}</CardDescription>
                   </div>
-                )}
-                {member.hourly_rate && (
-                  <div>
-                    <p className="text-muted-foreground">Hourly Rate</p>
-                    <p>£{member.hourly_rate}/hr</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(member)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(member.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </div>
+              </CardHeader>
+              {member.hourly_rate && (
+                <CardContent className="pt-0">
+                  <p className="text-sm text-muted-foreground">
+                    £{member.hourly_rate}/hr
+                  </p>
+                </CardContent>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
