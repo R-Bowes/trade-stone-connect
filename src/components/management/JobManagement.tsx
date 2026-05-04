@@ -20,6 +20,8 @@ import {
   CheckCircle,
   MapPin,
   ChevronLeft,
+  Users,
+  UserPlus,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 
@@ -81,6 +83,20 @@ type SnagItem = {
   job_id: string;
   title: string;
   is_resolved: boolean;
+};
+
+type TeamMember = {
+  id: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+};
+
+type JobAssignment = {
+  id: string;
+  job_id: string;
+  team_member_id: string | null;
+  is_contractor: boolean;
 };
 
 function formatHours(hours: number): string {
@@ -223,8 +239,11 @@ export function JobManagement() {
   const [snagItemsByJob, setSnagItemsByJob] = useState<Record<string, SnagItem[]>>({});
   const [newSnagByJob, setNewSnagByJob] = useState<Record<string, string>>({});
   const [timesheetsByJob, setTimesheetsByJob] = useState<Record<string, TimesheetEntry[]>>({});
+  const [assignmentsByJob, setAssignmentsByJob] = useState<Record<string, JobAssignment[]>>({});
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingJobId, setSavingJobId] = useState<string | null>(null);
+  const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
@@ -243,6 +262,17 @@ export function JobManagement() {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    if (!profileRow?.id) { setLoading(false); return; }
+
+    // Load team members for this contractor
+    const { data: teamData } = await supabase
+      .from("team_members")
+      .select("id, full_name, role, is_active")
+      .eq("contractor_id", profileRow.id)
+      .eq("is_active", true)
+      .order("full_name");
+    setTeamMembers(teamData || []);
+
     const { data, error } = await supabase
       .from("jobs")
       .select(`
@@ -258,7 +288,7 @@ export function JobManagement() {
         client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
         quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, completion_time)
       `)
-      .eq("contractor_id", profileRow?.id)
+      .eq("contractor_id", profileRow.id)
       .order("start_date", { ascending: true, nullsFirst: false });
 
     if (error) {
@@ -288,6 +318,7 @@ export function JobManagement() {
     const jobIds = mapped.map((j) => j.id);
 
     if (jobIds.length > 0) {
+      // Load snag items
       const { data: snagData, error: snagError } = await supabase
         .from("job_snag_items")
         .select("id, job_id, title, is_resolved")
@@ -304,22 +335,21 @@ export function JobManagement() {
         }, {});
         setSnagItemsByJob(grouped);
       }
-    } else {
-      setSnagItemsByJob({});
-    }
 
-    const quoteIds = mapped.map((j) => j.issued_quote_id).filter(Boolean) as string[];
-    if (quoteIds.length > 0) {
-      const { data: existingInvoices } = await supabase
-        .from("invoices")
-        .select("quote_id")
-        .in("quote_id", quoteIds);
-      setInvoicedQuoteIds(new Set((existingInvoices || []).map((i: any) => i.quote_id).filter(Boolean)));
-    } else {
-      setInvoicedQuoteIds(new Set());
-    }
+      // Load assignments
+      const { data: assignData } = await supabase
+        .from("job_assignments")
+        .select("id, job_id, team_member_id, is_contractor")
+        .in("job_id", jobIds);
 
-    if (jobIds.length > 0) {
+      const groupedAssign = ((assignData || []) as JobAssignment[]).reduce<Record<string, JobAssignment[]>>((acc, row) => {
+        if (!acc[row.job_id]) acc[row.job_id] = [];
+        acc[row.job_id].push(row);
+        return acc;
+      }, {});
+      setAssignmentsByJob(groupedAssign);
+
+      // Load timesheets
       const { data: tsData } = await supabase
         .from("timesheets")
         .select("id, job_id, date, hours, worker_id, description")
@@ -332,7 +362,20 @@ export function JobManagement() {
       }, {});
       setTimesheetsByJob(groupedTs);
     } else {
+      setSnagItemsByJob({});
+      setAssignmentsByJob({});
       setTimesheetsByJob({});
+    }
+
+    const quoteIds = mapped.map((j) => j.issued_quote_id).filter(Boolean) as string[];
+    if (quoteIds.length > 0) {
+      const { data: existingInvoices } = await supabase
+        .from("invoices")
+        .select("quote_id")
+        .in("quote_id", quoteIds);
+      setInvoicedQuoteIds(new Set((existingInvoices || []).map((i: any) => i.quote_id).filter(Boolean)));
+    } else {
+      setInvoicedQuoteIds(new Set());
     }
 
     setLoading(false);
@@ -353,6 +396,43 @@ export function JobManagement() {
     [jobs],
   );
 
+  const toggleAssignment = async (jobId: string, memberId: string) => {
+    setAssigningJobId(jobId);
+    const existing = (assignmentsByJob[jobId] || []).find((a) => a.team_member_id === memberId);
+
+    if (existing) {
+      const { error } = await supabase
+        .from("job_assignments")
+        .delete()
+        .eq("id", existing.id);
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to remove assignment", variant: "destructive" });
+      } else {
+        setAssignmentsByJob((cur) => ({
+          ...cur,
+          [jobId]: (cur[jobId] || []).filter((a) => a.id !== existing.id),
+        }));
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("job_assignments")
+        .insert({ job_id: jobId, team_member_id: memberId, is_contractor: false })
+        .select("id, job_id, team_member_id, is_contractor")
+        .single();
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to assign worker", variant: "destructive" });
+      } else {
+        setAssignmentsByJob((cur) => ({
+          ...cur,
+          [jobId]: [...(cur[jobId] || []), data as JobAssignment],
+        }));
+      }
+    }
+    setAssigningJobId(null);
+  };
+
   const changeStatus = async (job: JobCardData, nextStatus: JobStatus) => {
     if (job.status === "snagging" && nextStatus === "complete") {
       const openCount = (snagItemsByJob[job.id] || []).filter((i) => !i.is_resolved).length;
@@ -367,7 +447,6 @@ export function JobManagement() {
     }
 
     setSavingJobId(job.id);
-
     const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
 
     if (error) {
@@ -376,7 +455,6 @@ export function JobManagement() {
       setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
       toast({ title: "Job updated", description: `${job.title} moved to ${statusLabel[nextStatus]}.` });
     }
-
     setSavingJobId(null);
   };
 
@@ -484,7 +562,6 @@ export function JobManagement() {
       total: Number(expense.amount ?? 0),
     }));
 
-    // Use profiles.id (not user_id) — critical platform rule
     const { data: contractorProfile } = await supabase
       .from("profiles")
       .select("vat_registered, hourly_rate")
@@ -498,12 +575,12 @@ export function JobManagement() {
       const workerIds = [...new Set(jobTimesheets.map((t) => t.worker_id).filter(Boolean))] as string[];
       let workerNames: Record<string, string> = {};
       if (workerIds.length > 0) {
-        const { data: teamMembers } = await supabase
+        const { data: members } = await supabase
           .from("team_members" as any)
-          .select("id, name")
+          .select("id, full_name")
           .in("id", workerIds);
-        for (const tm of teamMembers || []) {
-          workerNames[(tm as any).id] = (tm as any).name || "Team member";
+        for (const tm of members || []) {
+          workerNames[(tm as any).id] = (tm as any).full_name || "Team member";
         }
       }
       labourItems = jobTimesheets.map((ts) => {
@@ -563,6 +640,8 @@ export function JobManagement() {
         {sortedJobs.map((job) => {
           const snagItems = snagItemsByJob[job.id] || [];
           const openSnags = snagItems.filter((i) => !i.is_resolved).length;
+          const assignments = assignmentsByJob[job.id] || [];
+          const assignedIds = new Set(assignments.map((a) => a.team_member_id).filter(Boolean));
           const statusIdx = STATUS_ORDER.indexOf(job.status as (typeof STATUS_ORDER)[number]);
           const nextStatus = statusIdx >= 0 && statusIdx < STATUS_ORDER.length - 1
             ? STATUS_ORDER[statusIdx + 1]
@@ -571,6 +650,7 @@ export function JobManagement() {
           const canProgress = !!nextStatus;
           const canGoBack = !!prevStatus;
           const isSaving = savingJobId === job.id;
+          const isAssigning = assigningJobId === job.id;
 
           return (
             <Card
@@ -619,6 +699,61 @@ export function JobManagement() {
                   />
                 )}
 
+                {/* Worker assignments */}
+                {job.status !== "cancelled" && (
+                  <div className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Users className="h-4 w-4" />
+                      Workers assigned
+                    </div>
+                    {assignments.length === 0 && teamMembers.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No team members added yet. Add team members in Team Management.</p>
+                    )}
+                    {assignments.length === 0 && teamMembers.length > 0 && (
+                      <p className="text-xs text-muted-foreground">No workers assigned. Select from your team below.</p>
+                    )}
+                    {assignments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {assignments.map((a) => {
+                          const member = teamMembers.find((m) => m.id === a.team_member_id);
+                          if (!member) return null;
+                          return (
+                            <Badge key={a.id} variant="secondary" className="gap-1 pr-1">
+                              {member.full_name}
+                              <button
+                                type="button"
+                                className="ml-1 hover:text-destructive transition-colors"
+                                onClick={() => toggleAssignment(job.id, member.id)}
+                                disabled={isAssigning}
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {teamMembers.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {teamMembers
+                          .filter((m) => !assignedIds.has(m.id))
+                          .map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => toggleAssignment(job.id, m.id)}
+                              disabled={isAssigning}
+                              className="text-xs px-2 py-0.5 rounded border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-[#f07820] hover:text-[#f07820] transition-colors flex items-center gap-1"
+                            >
+                              <UserPlus className="h-3 w-3" />
+                              {m.full_name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {job.status === "snagging" && (
                   <div className="rounded-md border p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -663,7 +798,7 @@ export function JobManagement() {
                               onChange={(e) => toggleSnagResolved(job.id, item, e.target.checked)}
                             />
                             <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>
-              {item.title}
+                              {item.title}
                             </span>
                           </label>
                         ))}
