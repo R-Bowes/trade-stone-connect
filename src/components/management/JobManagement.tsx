@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 
-// ─── Types & constants ────────────────────────────────────────────────────────
-
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
 
@@ -78,8 +76,6 @@ type SnagItem = {
   title: string;
   is_resolved: boolean;
 };
-
-// ─── Step Tracker ─────────────────────────────────────────────────────────────
 
 function StepTracker({ currentStatus }: { currentStatus: JobStatus }) {
   const isCancelled = currentStatus === "cancelled";
@@ -141,8 +137,6 @@ function StepTracker({ currentStatus }: { currentStatus: JobStatus }) {
   );
 }
 
-// ─── Live Timer ───────────────────────────────────────────────────────────────
-
 function LiveTimer({ startDate }: { startDate: string | null }) {
   const [elapsed, setElapsed] = useState("");
 
@@ -176,8 +170,6 @@ function LiveTimer({ startDate }: { startDate: string | null }) {
     </div>
   );
 }
-
-// ─── JobManagement ────────────────────────────────────────────────────────────
 
 export function JobManagement() {
   const [jobs, setJobs] = useState<JobCardData[]>([]);
@@ -296,14 +288,14 @@ export function JobManagement() {
   useEffect(() => { loadJobs(); }, []);
 
   const sortedJobs = useMemo(
-  () => [...jobs].sort((a, b) => {
-    const priorityDiff = (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
-    if (priorityDiff !== 0) return priorityDiff;
-    if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
-    return a.id.localeCompare(b.id);
-  }),
-  [jobs],
-);
+    () => [...jobs].sort((a, b) => {
+      const priorityDiff = (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
+      if (priorityDiff !== 0) return priorityDiff;
+      if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
+      return a.id.localeCompare(b.id);
+    }),
+    [jobs],
+  );
 
   const changeStatus = async (job: JobCardData, nextStatus: JobStatus) => {
     if (job.status === "snagging" && nextStatus === "complete") {
@@ -318,16 +310,14 @@ export function JobManagement() {
       }
     }
 
-    const prev = job.status;
     setSavingJobId(job.id);
-    setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
 
     const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
 
     if (error) {
-      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: prev } : j)));
       toast({ title: "Status update failed", description: error.message, variant: "destructive" });
     } else {
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
       toast({ title: "Job updated", description: `${job.title} moved to ${statusLabel[nextStatus]}.` });
     }
 
@@ -519,13 +509,13 @@ export function JobManagement() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-  <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
-  {(job as any).quote_number && (
-    <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-      {(job as any).quote_number}
-    </span>
-  )}
-</div>
+                      <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
+                      {job.quote_number && (
+                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                          {job.quote_number}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       <span>{job.client_name}</span>
                       {job.client_ts_code && (
