@@ -20,7 +20,6 @@ import {
   Filter,
   MessageCircle,
   Star,
-  Mail,
   Loader2,
   Hammer,
   HelpCircle,
@@ -49,6 +48,7 @@ import { JobManagement } from "@/components/management/JobManagement";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
+import { PanelInvites } from "@/components/business/PanelInvites";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -72,6 +72,7 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
+  { value: "panel-invites", label: "Panel Invites" },
   { value: "enquiries", label: "Enquiries" },
   { value: "issued-quotes", label: "Issued Quotes" },
   { value: "jobs", label: "Jobs" },
@@ -101,7 +102,6 @@ const ContractorDashboard = () => {
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
 
-  // Real dashboard data
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
     activeJobs: 0,
@@ -191,7 +191,6 @@ const ContractorDashboard = () => {
     prevStep,
   } = useOnboardingTour(tourSteps);
 
-  // Load current user, quotes, and real dashboard stats
   useEffect(() => {
     const loadUserAndData = async () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -203,7 +202,6 @@ const ContractorDashboard = () => {
 
       setUser(currentUser);
 
-      // Fetch profile id
       const { data: profileRow } = await supabase
         .from('profiles')
         .select('id')
@@ -211,7 +209,6 @@ const ContractorDashboard = () => {
         .maybeSingle();
       setProfileId(profileRow?.id ?? null);
 
-      // Check profile completeness
       const { data: profileData } = await supabase
         .from('profiles')
         .select('trades, location, working_radius, logo_url')
@@ -225,7 +222,6 @@ const ContractorDashboard = () => {
         setActiveTab("profile");
       }
 
-      // Load quotes
       const { data: quotesData, error: quotesError } = await supabase
         .from('quotes')
         .select('*')
@@ -238,7 +234,6 @@ const ContractorDashboard = () => {
         setQuotes(quotesData || []);
       }
 
-      // Load enquiries (homeowner enquiries assigned to this contractor, or open new ones)
       const { data: enquiriesData, error: enquiriesError } = await supabase
         .from('enquiries')
         .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
@@ -251,7 +246,6 @@ const ContractorDashboard = () => {
         setEnquiries(enquiriesData || []);
       }
 
-      // Load issued quotes
       if (profileRow?.id) {
         const { data: issuedQuotesData } = await supabase
           .from('issued_quotes')
@@ -261,12 +255,9 @@ const ContractorDashboard = () => {
         setIssuedQuotes(issuedQuotesData || []);
       }
 
-      // --- Real dashboard stats ---
-
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      // Monthly revenue: paid invoices with a paid_date this month
       const { data: paidInvoices } = await supabase
         .from('invoices')
         .select('total')
@@ -274,21 +265,18 @@ const ContractorDashboard = () => {
         .eq('status', 'paid')
         .gte('paid_date', startOfMonth);
 
-      // Pending invoices
       const { data: pendingInvoices } = await supabase
         .from('invoices')
         .select('total')
         .eq('contractor_id', currentUser.id)
         .eq('status', 'pending');
 
-      // Active jobs
       const { data: activeJobsCount } = await supabase
         .from('jobs')
         .select('id')
         .eq('contractor_id', currentUser.id)
         .in('status', ['active', 'in_progress', 'in-progress']);
 
-      // CRM clients
       const { data: crmClients } = await supabase
         .from('crm_clients')
         .select('id')
@@ -305,7 +293,6 @@ const ContractorDashboard = () => {
         clientCount: crmClients?.length ?? 0,
       });
 
-      // Recent invoices (last 3)
       const { data: recentInvoicesData } = await supabase
         .from('invoices')
         .select('id, invoice_number, client_name, total, status, due_date, issued_date')
@@ -315,7 +302,6 @@ const ContractorDashboard = () => {
 
       setRecentInvoices(recentInvoicesData || []);
 
-      // Active jobs for projects card (last 3)
       const { data: activeJobsData } = await supabase
         .from('jobs')
         .select('id, title, status, contract_value, start_date, end_date')
@@ -325,14 +311,12 @@ const ContractorDashboard = () => {
         .limit(3);
 
       setActiveJobs(activeJobsData || []);
-
       setLoading(false);
     };
 
     loadUserAndData();
   }, [navigate]);
 
-  // Real-time new quote subscription
   useEffect(() => {
     if (!user) return;
 
@@ -394,21 +378,13 @@ const ContractorDashboard = () => {
         quote.id === quoteId ? { ...quote, status: newStatus } : quote
       ));
 
-      toast({
-        title: "Quote Updated",
-        description: `Quote status updated to ${newStatus}`,
-      });
+      toast({ title: "Quote Updated", description: `Quote status updated to ${newStatus}` });
     } catch (error) {
       console.error('Error updating quote status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update quote status",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to update quote status", variant: "destructive" });
     }
   };
 
-  // Real dashboard stats cards
   const dashboardStats = [
     {
       title: "Monthly Revenue",
@@ -507,6 +483,8 @@ const ContractorDashboard = () => {
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
+            {profileId && <PanelInvites profileId={profileId} />}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {dashboardStats.map((stat, index) => (
                 <Card key={index}>
@@ -525,14 +503,12 @@ const ContractorDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Invoices */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Recent Invoices
                     <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Invoice
+                      <Plus className="h-4 w-4 mr-2" />New Invoice
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -558,14 +534,12 @@ const ContractorDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Active Jobs */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Active Jobs
                     <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Job
+                      <Plus className="h-4 w-4 mr-2" />New Job
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -580,9 +554,7 @@ const ContractorDashboard = () => {
                             <div>
                               <p className="font-medium">{job.title}</p>
                               <p className="text-sm text-muted-foreground">
-                                {job.contract_value
-                                  ? `£${Number(job.contract_value).toLocaleString('en-GB')}`
-                                  : 'Value TBC'}
+                                {job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}
                               </p>
                             </div>
                             <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
@@ -601,6 +573,20 @@ const ContractorDashboard = () => {
             </div>
           </TabsContent>
 
+          {/* Panel Invites Tab */}
+          <TabsContent value="panel-invites" className="space-y-6">
+            <h2 className="text-2xl font-bold">Panel Invitations</h2>
+            {profileId ? (
+              <PanelInvites profileId={profileId} />
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">Unable to load invites — profile not found.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
           {/* Enquiries Tab */}
           <TabsContent value="enquiries" className="space-y-6">
             <div className="flex justify-between items-center">
@@ -609,50 +595,10 @@ const ContractorDashboard = () => {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p>
-                      <p className="text-sm text-muted-foreground">New</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-yellow-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p>
-                      <p className="text-sm text-muted-foreground">Replied</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Send className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p>
-                      <p className="text-sm text-muted-foreground">Converted</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{enquiries.length}</p>
-                      <p className="text-sm text-muted-foreground">Total</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p><p className="text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p><p className="text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p><p className="text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{enquiries.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
             </div>
 
             {enquiries.length === 0 ? (
@@ -685,32 +631,21 @@ const ContractorDashboard = () => {
                         </div>
                         <div className="flex flex-col gap-2 md:min-w-[160px]">
                           {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
-                            <Button
-                              size="sm"
-                              onClick={() => openEnquiryDialog(enquiry, 'quote')}
-                            >
+                            <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}>
                               <Send className="h-3 w-3 mr-1" />Send Quote
                             </Button>
                           )}
                           {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEnquiryDialog(enquiry, 'respond')}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}>
                               <MessageSquare className="h-3 w-3 mr-1" />Request Info
                             </Button>
                           )}
-                          {enquiry.status === 'new' || enquiry.status === 'replied' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => openEnquiryDialog(enquiry, 'reject')}
-                            >
+                          {(enquiry.status === 'new' || enquiry.status === 'replied') && (
+                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
+                              onClick={() => openEnquiryDialog(enquiry, 'reject')}>
                               <XCircle className="h-3 w-3 mr-1" />Decline
                             </Button>
-                          ) : null}
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -790,31 +725,20 @@ const ContractorDashboard = () => {
                               <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
                               <td className="p-3">{iq.client_name}</td>
                               <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
-                              <td className="p-3">
-                                <Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge>
-                              </td>
+                              <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
                               <td className="p-3">
                                 {iq.recipient_response ? (
                                   <Badge className={iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' : iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
                                     {iq.recipient_response}
                                   </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
+                                ) : <span className="text-muted-foreground">—</span>}
                               </td>
                               <td className="p-3">{new Date(iq.created_at).toLocaleDateString('en-GB')}</td>
                               <td className="p-3">
                                 {iq.recipient_response === 'accepted' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}
-                                  >
-                                    {expandedQuoteId === iq.id ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
+                                  <Button variant="ghost" size="sm"
+                                    onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}>
+                                    {expandedQuoteId === iq.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                   </Button>
                                 )}
                               </td>
@@ -822,11 +746,7 @@ const ContractorDashboard = () => {
                             {expandedQuoteId === iq.id && (
                               <tr key={`${iq.id}-schedule`}>
                                 <td colSpan={7} className="p-4 bg-muted/20">
-                                  <QuoteScheduleNegotiation
-                                    quoteId={iq.id}
-                                    contractorId={profileId}
-                                    mode="contractor"
-                                  />
+                                  <QuoteScheduleNegotiation quoteId={iq.id} contractorId={profileId} mode="contractor" />
                                 </td>
                               </tr>
                             )}
@@ -840,10 +760,7 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
-          {/* Invoices Tab */}
-          <TabsContent value="invoices">
-            <InvoiceManagement />
-          </TabsContent>
+          <TabsContent value="invoices"><InvoiceManagement /></TabsContent>
 
           {/* Projects Tab */}
           <TabsContent value="projects" className="space-y-6">
@@ -868,34 +785,18 @@ const ContractorDashboard = () => {
                         <div>
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                           <CardDescription>
-                            {job.contract_value
-                              ? `£${Number(job.contract_value).toLocaleString('en-GB')}`
-                              : 'Value TBC'}
+                            {job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}
                           </CardDescription>
                         </div>
                         <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {job.start_date && (
-                        <div className="flex justify-between text-sm">
-                          <span>Start:</span>
-                          <span>{new Date(job.start_date).toLocaleDateString('en-GB')}</span>
-                        </div>
-                      )}
-                      {job.end_date && (
-                        <div className="flex justify-between text-sm">
-                          <span>Deadline:</span>
-                          <span>{new Date(job.end_date).toLocaleDateString('en-GB')}</span>
-                        </div>
-                      )}
+                      {job.start_date && <div className="flex justify-between text-sm"><span>Start:</span><span>{new Date(job.start_date).toLocaleDateString('en-GB')}</span></div>}
+                      {job.end_date && <div className="flex justify-between text-sm"><span>Deadline:</span><span>{new Date(job.end_date).toLocaleDateString('en-GB')}</span></div>}
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}>
-                          <Eye className="h-4 w-4 mr-2" />View
-                        </Button>
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}>
-                          <Edit className="h-4 w-4 mr-2" />Edit
-                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Eye className="h-4 w-4 mr-2" />View</Button>
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Edit className="h-4 w-4 mr-2" />Edit</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -904,46 +805,18 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
-          {/* Jobs Tab */}
           <TabsContent value="jobs"><JobManagement /></TabsContent>
-
-          {/* Contracts Tab */}
           <TabsContent value="contracts"><ContractManagement /></TabsContent>
-
-          {/* Team Tab */}
           <TabsContent value="team"><TeamManagement /></TabsContent>
-
-          {/* Timesheets Tab */}
           <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>
-
-          {/* Photos Tab */}
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
-
-          {/* Documents Tab */}
-          <TabsContent value="documents">
-            <DocumentManagement />
-          </TabsContent>
-
-          {/* Financials Tab */}
-          <TabsContent value="financials">
-            <FinancialsManagement />
-          </TabsContent>
-
-          {/* Schedule Tab */}
-          <TabsContent value="schedule">
-            <ScheduleManagement />
-          </TabsContent>
-
-          {/* CRM Tab */}
-          <TabsContent value="clients">
-            <CRMManagement />
-          </TabsContent>
-
-          {/* Profile Tab */}
+          <TabsContent value="documents"><DocumentManagement /></TabsContent>
+          <TabsContent value="financials"><FinancialsManagement /></TabsContent>
+          <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
+          <TabsContent value="clients"><CRMManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
         </Tabs>
 
-        {/* Onboarding Tour */}
         <OnboardingTour
           isActive={isTourActive}
           step={currentTourStep}
