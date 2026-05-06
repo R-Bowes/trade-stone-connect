@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 
 // --- Types ---
-type PanelStatus = "invited" | "active" | "suspended" | "declined";
+// DB constraint: status = ANY ('pending','approved','suspended','removed')
+type PanelStatus = "pending" | "approved" | "suspended" | "removed";
 type PanelTier = "preferred" | "approved" | "under_review";
 
 interface PanelMember {
@@ -37,7 +38,6 @@ interface PanelMember {
   notes: string | null;
   approved_at: string | null;
   created_at: string | null;
-  // Joined from profiles
   contractor_name: string | null;
   contractor_ts_code: string | null;
   contractor_trades: string[] | null;
@@ -48,16 +48,16 @@ interface PanelMember {
 }
 
 interface PanelManagementProps {
-  profileId: string;   // profiles.id (not user_id)
-  userId: string;      // auth user_id
+  profileId: string;
+  userId: string;
 }
 
 // --- Status helpers ---
 const statusConfig: Record<string, { label: string; colour: string; icon: React.ElementType }> = {
-  invited:     { label: "Invited",      colour: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: Clock },
-  active:      { label: "Active",       colour: "bg-green-100 text-green-800 border-green-200",  icon: CheckCircle2 },
-  suspended:   { label: "Suspended",    colour: "bg-red-100 text-red-800 border-red-200",        icon: XCircle },
-  declined:    { label: "Declined",     colour: "bg-gray-100 text-gray-700 border-gray-200",     icon: XCircle },
+  pending:   { label: "Pending",   colour: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: Clock },
+  approved:  { label: "Approved",  colour: "bg-green-100 text-green-800 border-green-200",   icon: CheckCircle2 },
+  suspended: { label: "Suspended", colour: "bg-red-100 text-red-800 border-red-200",         icon: XCircle },
+  removed:   { label: "Removed",   colour: "bg-gray-100 text-gray-700 border-gray-200",      icon: XCircle },
 };
 
 const tierConfig: Record<string, { label: string; colour: string; icon: React.ElementType }> = {
@@ -74,7 +74,6 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  // Invite dialog state
   const [inviteOpen, setInviteOpen] = useState(false);
   const [tsCodeInput, setTsCodeInput] = useState("");
   const [tierInput, setTierInput] = useState<PanelTier>("approved");
@@ -84,17 +83,14 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  // Member detail dialog
   const [selectedMember, setSelectedMember] = useState<PanelMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Filter
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   // --- Ensure company row exists ---
   const ensureCompany = useCallback(async (): Promise<string | null> => {
-    // Check for existing company
     const { data: existing } = await supabase
       .from("companies")
       .select("id")
@@ -103,7 +99,6 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
     if (existing?.id) return existing.id;
 
-    // Create one from profile data
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, company_name, email, phone, location")
@@ -142,16 +137,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
     const { data, error } = await supabase
       .from("contractor_panel")
-      .select(`
-        id,
-        contractor_id,
-        company_id,
-        status,
-        tier,
-        notes,
-        approved_at,
-        created_at
-      `)
+      .select("id, contractor_id, company_id, status, tier, notes, approved_at, created_at")
       .eq("company_id", cId)
       .order("created_at", { ascending: false });
 
@@ -161,10 +147,13 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       return;
     }
 
-    // Hydrate with profile data
     const hydrated: PanelMember[] = await Promise.all(
       (data || []).map(async (row) => {
-        if (!row.contractor_id) return { ...row, contractor_name: null, contractor_ts_code: null, contractor_trades: null, contractor_location: null, contractor_rating: null, contractor_avatar: null, contractor_company: null };
+        if (!row.contractor_id) return {
+          ...row,
+          contractor_name: null, contractor_ts_code: null, contractor_trades: null,
+          contractor_location: null, contractor_rating: null, contractor_avatar: null, contractor_company: null,
+        };
 
         const { data: prof } = await supabase
           .from("profiles")
@@ -218,10 +207,9 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       return;
     }
 
-    // Check if already on panel
     const already = panel.find((m) => m.contractor_id === data.id);
     if (already) {
-      setLookupError(`This contractor is already on your panel (${statusConfig[already.status ?? "invited"]?.label ?? already.status}).`);
+      setLookupError(`This contractor is already on your panel (${statusConfig[already.status ?? "pending"]?.label ?? already.status}).`);
       return;
     }
 
@@ -230,29 +218,42 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
   // --- Send invite ---
   const handleInvite = async () => {
-    if (!lookupResult || !companyId) return;
+    if (!lookupResult) return;
     setInviteLoading(true);
 
+    // Always resolve companyId fresh — don't rely on state
+    let cId = companyId;
+    if (!cId) {
+      cId = await ensureCompany();
+      if (cId) setCompanyId(cId);
+    }
+
+    if (!cId) {
+      toast({ title: "Error", description: "Could not resolve your company. Please refresh and try again.", variant: "destructive" });
+      setInviteLoading(false);
+      return;
+    }
+
     const { error } = await supabase.from("contractor_panel").insert({
-      company_id: companyId,
+      company_id: cId,
       contractor_id: lookupResult.id,
       added_by: profileId,
-      status: "invited",
+      status: "pending",  // DB constraint: pending | approved | suspended | removed
       tier: tierInput,
       notes: notesInput || null,
     });
 
     if (error) {
+      console.error("Panel insert error:", error);
       toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" });
       setInviteLoading(false);
       return;
     }
 
-    // Create notification for contractor
-    // Get contractor's user_id from profiles
+    // Notify contractor
     const { data: contractorProfile } = await supabase
       .from("profiles")
-      .select("user_id, full_name")
+      .select("user_id")
       .eq("id", lookupResult.id)
       .maybeSingle();
 
@@ -261,28 +262,28 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
         user_id: contractorProfile.user_id,
         type: "panel_invite",
         title: "Panel Invitation",
-        message: `You have been invited to join a contractor panel.`,
+        message: "You have been invited to join a contractor panel.",
         is_read: false,
       });
     }
 
-    toast({ title: "Invite sent", description: `${lookupResult.name} has been invited to your panel.` });
+    toast({ title: "Invite sent", description: `${lookupResult.name ?? "Contractor"} has been added to your panel.` });
     setInviteOpen(false);
     setTsCodeInput("");
     setLookupResult(null);
     setNotesInput("");
     setTierInput("approved");
-    loadPanel();
     setInviteLoading(false);
+    loadPanel();
   };
 
-  // --- Update member status/tier ---
+  // --- Update member ---
   const updateMember = async (memberId: string, updates: { status?: string; tier?: string }) => {
     const { error } = await supabase
       .from("contractor_panel")
       .update({
         ...updates,
-        ...(updates.status === "active" ? { approved_at: new Date().toISOString() } : {}),
+        ...(updates.status === "approved" ? { approved_at: new Date().toISOString() } : {}),
       })
       .eq("id", memberId);
 
@@ -326,12 +327,11 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
   });
 
   const counts = {
-    active: panel.filter((m) => m.status === "active").length,
-    invited: panel.filter((m) => m.status === "invited").length,
+    approved:  panel.filter((m) => m.status === "approved").length,
+    pending:   panel.filter((m) => m.status === "pending").length,
     preferred: panel.filter((m) => m.tier === "preferred").length,
   };
 
-  // --- Render ---
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -356,8 +356,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               <UserCheck className="h-5 w-5 text-green-700" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{counts.active}</p>
-              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-2xl font-bold">{counts.approved}</p>
+              <p className="text-xs text-muted-foreground">Approved</p>
             </div>
           </CardContent>
         </Card>
@@ -367,7 +367,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               <Clock className="h-5 w-5 text-yellow-700" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{counts.invited}</p>
+              <p className="text-2xl font-bold">{counts.pending}</p>
               <p className="text-xs text-muted-foreground">Pending</p>
             </div>
           </CardContent>
@@ -402,10 +402,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="invited">Invited</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="suspended">Suspended</SelectItem>
-            <SelectItem value="declined">Declined</SelectItem>
+            <SelectItem value="removed">Removed</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -441,7 +441,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       ) : (
         <div className="space-y-3">
           {filtered.map((member) => {
-            const status = statusConfig[member.status ?? "invited"] ?? statusConfig.invited;
+            const status = statusConfig[member.status ?? "pending"] ?? statusConfig.pending;
             const tier = member.tier ? tierConfig[member.tier] : null;
             const StatusIcon = status.icon;
 
@@ -454,7 +454,6 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                      {/* Avatar placeholder */}
                       <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
                         <Building2 className="h-5 w-5 text-muted-foreground" />
                       </div>
@@ -504,7 +503,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       )}
 
       {/* --- Invite Dialog --- */}
-      <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) { setLookupResult(null); setLookupError(null); setTsCodeInput(""); } }}>
+      <Dialog open={inviteOpen} onOpenChange={(o) => {
+        setInviteOpen(o);
+        if (!o) { setLookupResult(null); setLookupError(null); setTsCodeInput(""); }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Invite a Contractor</DialogTitle>
@@ -517,7 +519,11 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                 <Input
                   placeholder="TS-C-XXXXXX"
                   value={tsCodeInput}
-                  onChange={(e) => { setTsCodeInput(e.target.value.toUpperCase()); setLookupResult(null); setLookupError(null); }}
+                  onChange={(e) => {
+                    setTsCodeInput(e.target.value.toUpperCase());
+                    setLookupResult(null);
+                    setLookupError(null);
+                  }}
                   className="font-mono"
                 />
                 <Button
@@ -528,12 +534,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                   {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
-              {lookupError && (
-                <p className="text-sm text-destructive">{lookupError}</p>
-              )}
+              {lookupError && <p className="text-sm text-destructive">{lookupError}</p>}
               {lookupResult && (
                 <div className="p-3 rounded-lg border bg-green-50 border-green-200 text-sm space-y-1">
-                  <p className="font-semibold text-green-800">{lookupResult.name}</p>
+                  <p className="font-semibold text-green-800">{lookupResult.name ?? "Contractor found"}</p>
                   <p className="text-green-700 font-mono text-xs">{lookupResult.ts_code}</p>
                   {lookupResult.trades?.length ? (
                     <p className="text-green-700">{lookupResult.trades.slice(0, 3).join(", ")}</p>
@@ -547,9 +551,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Panel Tier</label>
                   <Select value={tierInput} onValueChange={(v) => setTierInput(v as PanelTier)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="preferred">Preferred — first in line for jobs</SelectItem>
                       <SelectItem value="approved">Approved — standard panel member</SelectItem>
@@ -557,7 +559,6 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Notes (optional)</label>
                   <Textarea
@@ -573,10 +574,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleInvite}
-              disabled={!lookupResult || inviteLoading}
-            >
+            <Button onClick={handleInvite} disabled={!lookupResult || inviteLoading}>
               {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Send Invite
             </Button>
@@ -588,7 +586,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-md">
           {selectedMember && (() => {
-            const status = statusConfig[selectedMember.status ?? "invited"] ?? statusConfig.invited;
+            const status = statusConfig[selectedMember.status ?? "pending"] ?? statusConfig.pending;
             const tier = selectedMember.tier ? tierConfig[selectedMember.tier] : null;
             return (
               <>
@@ -637,14 +635,16 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                   <div className="border-t pt-4 space-y-2">
                     <p className="text-sm font-medium mb-3">Update status</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedMember.status !== "active" && (
-                        <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50"
-                          onClick={() => updateMember(selectedMember.id, { status: "active" })}>
+                      {selectedMember.status !== "approved" && (
+                        <Button size="sm" variant="outline"
+                          className="border-green-300 text-green-700 hover:bg-green-50"
+                          onClick={() => updateMember(selectedMember.id, { status: "approved" })}>
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
                         </Button>
                       )}
                       {selectedMember.status !== "suspended" && (
-                        <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
+                        <Button size="sm" variant="outline"
+                          className="border-red-300 text-red-700 hover:bg-red-50"
                           onClick={() => updateMember(selectedMember.id, { status: "suspended" })}>
                           <XCircle className="h-3 w-3 mr-1" /> Suspend
                         </Button>
@@ -654,7 +654,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                     <p className="text-sm font-medium mt-4 mb-3">Change tier</p>
                     <div className="flex flex-wrap gap-2">
                       {(["preferred", "approved", "under_review"] as PanelTier[]).map((t) => (
-                        <Button key={t} size="sm" variant={selectedMember.tier === t ? "default" : "outline"}
+                        <Button key={t} size="sm"
+                          variant={selectedMember.tier === t ? "default" : "outline"}
                           onClick={() => updateMember(selectedMember.id, { tier: t })}>
                           {tierConfig[t].label}
                         </Button>
@@ -664,11 +665,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                 </div>
 
                 <DialogFooter>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => removeMember(selectedMember.id)}
-                  >
+                  <Button variant="destructive" size="sm"
+                    onClick={() => removeMember(selectedMember.id)}>
                     Remove from panel
                   </Button>
                   <Button variant="outline" onClick={() => setDetailOpen(false)}>Close</Button>
