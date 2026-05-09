@@ -18,6 +18,7 @@ import {
   Package,
   Hammer,
   UserCheck,
+  Wrench,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
@@ -27,10 +28,12 @@ import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { PanelManagement } from "@/components/business/PanelManagement";
+import { MaintenanceManagement } from "@/components/business/MaintenanceManagement";
 
 const businessDashboardViews = [
   { value: "overview", label: "Overview" },
   { value: "panel", label: "Contractor Panel" },
+  { value: "maintenance", label: "Maintenance" },
   { value: "jobs", label: "My Jobs" },
   { value: "invoices", label: "Invoices" },
   { value: "quotes", label: "Quotes" },
@@ -45,6 +48,7 @@ const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -101,7 +105,15 @@ const BusinessDashboard = () => {
         return;
       }
 
-      // Fix: use profiles.id (pid) not currentUser.id for FK lookups
+      // Load companyId
+      const { data: companyRow } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("owner_id", pid)
+        .maybeSingle();
+      setCompanyId(companyRow?.id ?? null);
+
+      // Use profiles.id (pid) for FK lookups
       const [activeJobsRes, completedJobsRes, receivedQuotesRes, pendingInvoicesRes] = await Promise.all([
         supabase.from("jobs").select("id").eq("customer_id", pid).in("status", ["active", "in_progress", "in-progress"]),
         supabase.from("jobs").select("id").eq("customer_id", pid).eq("status", "completed"),
@@ -136,34 +148,10 @@ const BusinessDashboard = () => {
     dashboardData.completedJobs === 0;
 
   const stats = [
-    {
-      title: "Active Jobs",
-      value: `${dashboardData.activeJobs}`,
-      icon: FileText,
-      description: "Currently in progress",
-      tab: "jobs",
-    },
-    {
-      title: "Quotes Received",
-      value: `${dashboardData.receivedQuotes}`,
-      icon: Briefcase,
-      description: "From contractors",
-      tab: "quotes",
-    },
-    {
-      title: "Pending Invoices",
-      value: `${dashboardData.pendingInvoices}`,
-      icon: Users,
-      description: "Awaiting payment",
-      tab: "invoices",
-    },
-    {
-      title: "Projects Completed",
-      value: `${dashboardData.completedJobs}`,
-      icon: TrendingUp,
-      description: "Total finished",
-      tab: "jobs",
-    },
+    { title: "Active Jobs", value: `${dashboardData.activeJobs}`, icon: FileText, description: "Currently in progress", tab: "jobs" },
+    { title: "Quotes Received", value: `${dashboardData.receivedQuotes}`, icon: Briefcase, description: "From contractors", tab: "quotes" },
+    { title: "Pending Invoices", value: `${dashboardData.pendingInvoices}`, icon: Users, description: "Awaiting payment", tab: "invoices" },
+    { title: "Projects Completed", value: `${dashboardData.completedJobs}`, icon: TrendingUp, description: "Total finished", tab: "jobs" },
   ];
 
   if (loading) {
@@ -227,13 +215,11 @@ const BusinessDashboard = () => {
                 onCta={() => navigate("/contracts")}
               />
             ) : null}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
-                <Card
-                  key={index}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setActiveTab(stat.tab)}
-                >
+                <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setActiveTab(stat.tab)}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
                     <stat.icon className="h-4 w-4 text-muted-foreground" />
@@ -247,11 +233,8 @@ const BusinessDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Panel shortcut card */}
-              <Card
-                className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
-                onClick={() => setActiveTab("panel")}
-              >
+              <Card className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
+                onClick={() => setActiveTab("panel")}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <UserCheck className="h-5 w-5 text-primary" />
@@ -260,27 +243,21 @@ const BusinessDashboard = () => {
                   <CardDescription>Manage your approved contractor network</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="default">
-                    Manage Panel
-                  </Button>
+                  <Button className="w-full" variant="default">Manage Panel</Button>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
+                onClick={() => setActiveTab("maintenance")}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Post a Contract
+                    <Wrench className="h-5 w-5 text-primary" />
+                    Maintenance
                   </CardTitle>
-                  <CardDescription>Create a new contract opportunity for bidding</CardDescription>
+                  <CardDescription>PPM schedules, assets and compliance</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild className="w-full" variant="outline">
-                    <Link to="/contracts">
-                      Post Opportunity
-                      <ExternalLink className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
+                  <Button className="w-full" variant="default">Manage Maintenance</Button>
                 </CardContent>
               </Card>
 
@@ -294,10 +271,7 @@ const BusinessDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" asChild className="w-full">
-                    <Link to="/contractors">
-                      Browse Directory
-                      <ExternalLink className="ml-2 h-4 w-4" />
-                    </Link>
+                    <Link to="/contractors">Browse Directory<ExternalLink className="ml-2 h-4 w-4" /></Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -310,14 +284,21 @@ const BusinessDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div
-                    className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => setActiveTab("panel")}
-                  >
+                  <div className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setActiveTab("panel")}>
                     <UserCheck className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Contractor Panel</p>
                       <p className="text-sm text-muted-foreground">Invite and manage approved contractors</p>
+                    </div>
+                    <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
+                  </div>
+                  <div className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setActiveTab("maintenance")}>
+                    <Wrench className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="font-medium">Maintenance & Compliance</p>
+                      <p className="text-sm text-muted-foreground">PPM, assets, service contracts</p>
                     </div>
                     <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
                   </div>
@@ -326,14 +307,6 @@ const BusinessDashboard = () => {
                     <div>
                       <p className="font-medium">Contract Management</p>
                       <p className="text-sm text-muted-foreground">Post and manage contract opportunities</p>
-                    </div>
-                    <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
-                  </div>
-                  <div className="flex items-center gap-4 p-4 rounded-lg border">
-                    <Briefcase className="h-8 w-8 text-primary" />
-                    <div>
-                      <p className="font-medium">Bid Evaluation</p>
-                      <p className="text-sm text-muted-foreground">Compare and evaluate contractor bids</p>
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
@@ -355,11 +328,20 @@ const BusinessDashboard = () => {
             {user && profileId ? (
               <PanelManagement profileId={profileId} userId={user.id} />
             ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">Unable to load panel — profile not found.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-8 text-center">
+                <p className="text-muted-foreground">Unable to load panel — profile not found.</p>
+              </CardContent></Card>
+            )}
+          </TabsContent>
+
+          {/* Maintenance Tab */}
+          <TabsContent value="maintenance">
+            {companyId && profileId ? (
+              <MaintenanceManagement companyId={companyId} profileId={profileId} />
+            ) : (
+              <Card><CardContent className="p-8 text-center">
+                <p className="text-muted-foreground">Company profile required. Please complete your profile first.</p>
+              </CardContent></Card>
             )}
           </TabsContent>
 
@@ -372,26 +354,22 @@ const BusinessDashboard = () => {
               <h2 className="text-2xl font-bold">Contract Opportunities</h2>
               <Button><Plus className="mr-2 h-4 w-4" />Post New Contract</Button>
             </div>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Contracts Posted</h3>
-                <p className="text-muted-foreground mb-4">Post your first contract opportunity to receive bids from qualified contractors.</p>
-                <Badge variant="outline">Contract Posting Coming Soon</Badge>
-              </CardContent>
-            </Card>
+            <Card><CardContent className="p-8 text-center">
+              <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Contracts Posted</h3>
+              <p className="text-muted-foreground mb-4">Post your first contract opportunity to receive bids from qualified contractors.</p>
+              <Badge variant="outline">Contract Posting Coming Soon</Badge>
+            </CardContent></Card>
           </TabsContent>
 
           <TabsContent value="bids" className="space-y-6">
             <h2 className="text-2xl font-bold">Received Bids</h2>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Bids Yet</h3>
-                <p className="text-muted-foreground mb-4">When contractors bid on your contracts, they'll appear here for review.</p>
-                <Button variant="outline" asChild><Link to="/contracts">View Contract Opportunities</Link></Button>
-              </CardContent>
-            </Card>
+            <Card><CardContent className="p-8 text-center">
+              <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Bids Yet</h3>
+              <p className="text-muted-foreground mb-4">When contractors bid on your contracts, they'll appear here for review.</p>
+              <Button variant="outline" asChild><Link to="/contracts">View Contract Opportunities</Link></Button>
+            </CardContent></Card>
           </TabsContent>
 
           <TabsContent value="suppliers" className="space-y-6">
@@ -401,38 +379,32 @@ const BusinessDashboard = () => {
                 <Link to="/contractors"><Search className="mr-2 h-4 w-4" />Find Contractors</Link>
               </Button>
             </div>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Preferred Suppliers</h3>
-                <p className="text-muted-foreground mb-4">Build your network of trusted contractors for future projects.</p>
-                <Button asChild><Link to="/contractors"><Plus className="mr-2 h-4 w-4" />Add Suppliers</Link></Button>
-              </CardContent>
-            </Card>
+            <Card><CardContent className="p-8 text-center">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Preferred Suppliers</h3>
+              <p className="text-muted-foreground mb-4">Build your network of trusted contractors for future projects.</p>
+              <Button asChild><Link to="/contractors"><Plus className="mr-2 h-4 w-4" />Add Suppliers</Link></Button>
+            </CardContent></Card>
           </TabsContent>
 
           <TabsContent value="procurement" className="space-y-6">
             <h2 className="text-2xl font-bold">Procurement</h2>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Procurement Management</h3>
-                <p className="text-muted-foreground mb-4">Track material orders and supplier relationships in one place.</p>
-                <Badge variant="outline">Coming Soon</Badge>
-              </CardContent>
-            </Card>
+            <Card><CardContent className="p-8 text-center">
+              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Procurement Management</h3>
+              <p className="text-muted-foreground mb-4">Track material orders and supplier relationships in one place.</p>
+              <Badge variant="outline">Coming Soon</Badge>
+            </CardContent></Card>
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
             <h2 className="text-2xl font-bold">Messages</h2>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Messages</h3>
-                <p className="text-muted-foreground mb-4">Your communications with contractors will appear here.</p>
-                <Badge variant="outline">Messaging Coming Soon</Badge>
-              </CardContent>
-            </Card>
+            <Card><CardContent className="p-8 text-center">
+              <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Messages</h3>
+              <p className="text-muted-foreground mb-4">Your communications with contractors will appear here.</p>
+              <Badge variant="outline">Messaging Coming Soon</Badge>
+            </CardContent></Card>
           </TabsContent>
         </Tabs>
       </main>
