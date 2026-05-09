@@ -7,27 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import {
-  DollarSign,
-  Users,
-  FileText,
-  Clock,
-  Plus,
-  Eye,
-  Edit,
-  Send,
-  Filter,
-  MessageCircle,
-  Star,
-  Loader2,
-  Hammer,
-  HelpCircle,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-  XCircle,
-  MessageSquare,
+  DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
+  Filter, MessageCircle, Star, Loader2, Hammer, HelpCircle,
+  ChevronDown, ChevronUp, RefreshCw, XCircle, MessageSquare,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -49,6 +32,7 @@ import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
+import { ContractorServiceVisits } from "@/components/business/ContractorServiceVisits";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -73,6 +57,7 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
   { value: "panel-invites", label: "Panel Invites" },
+  { value: "service-visits", label: "Service Visits" },
   { value: "enquiries", label: "Enquiries" },
   { value: "issued-quotes", label: "Issued Quotes" },
   { value: "jobs", label: "Jobs" },
@@ -116,105 +101,29 @@ const ContractorDashboard = () => {
   const navigate = useNavigate();
 
   const tourSteps: TourStep[] = useMemo(() => [
-    {
-      target: '[data-tour="dashboard-header"]',
-      title: "Welcome to Your Dashboard!",
-      description: "This is your command centre. Get an overview of your revenue, projects, invoices, and clients all in one place.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="tab-quotes"]',
-      title: "Quote Requests",
-      description: "Receive and manage quote requests from potential clients. Track their status and respond quickly to win more work.",
-      placement: "bottom",
-      action: () => setActiveTab("enquiries"),
-    },
-    {
-      target: '[data-tour="tab-invoices"]',
-      title: "Invoice Management",
-      description: "Create professional invoices, track payments, and manage your cash flow. Send invoices directly to clients.",
-      placement: "bottom",
-      action: () => setActiveTab("invoices"),
-    },
-    {
-      target: '[data-tour="tab-contracts"]',
-      title: "Contracts",
-      description: "Manage your active contracts, track milestones, and keep all your agreements organised in one place.",
-      placement: "bottom",
-      action: () => setActiveTab("contracts"),
-    },
-    {
-      target: '[data-tour="tab-team"]',
-      title: "Team Management",
-      description: "Add team members, manage roles, and set hourly rates. Keep your crew organised and track their assignments.",
-      placement: "bottom",
-      action: () => setActiveTab("team"),
-    },
-    {
-      target: '[data-tour="tab-schedule"]',
-      title: "Schedule & Calendar",
-      description: "Plan your jobs, set availability, and manage appointments. Never double-book again with the built-in calendar.",
-      placement: "bottom",
-      action: () => setActiveTab("schedule"),
-    },
-    {
-      target: '[data-tour="tab-clients"]',
-      title: "Client CRM",
-      description: "Build your client database, track interactions, and nurture relationships. Your clients are your business — keep them close.",
-      placement: "bottom",
-      action: () => setActiveTab("clients"),
-    },
-    {
-      target: '[data-tour="tab-financials"]',
-      title: "Financial Tracking",
-      description: "Track income and expenses, categorise spending, and get a clear picture of your business finances.",
-      placement: "bottom",
-      action: () => setActiveTab("financials"),
-    },
-    {
-      target: '[data-tour="tab-profile"]',
-      title: "Your Profile",
-      description: "Complete your profile to appear in the contractor directory. Add your skills, portfolio, and contact details to attract clients.",
-      placement: "bottom",
-      action: () => setActiveTab("profile"),
-    },
+    { target: '[data-tour="dashboard-header"]', title: "Welcome to Your Dashboard!", description: "This is your command centre. Get an overview of your revenue, projects, invoices, and clients all in one place.", placement: "bottom" },
+    { target: '[data-tour="tab-quotes"]', title: "Quote Requests", description: "Receive and manage quote requests from potential clients.", placement: "bottom", action: () => setActiveTab("enquiries") },
+    { target: '[data-tour="tab-invoices"]', title: "Invoice Management", description: "Create professional invoices, track payments, and manage your cash flow.", placement: "bottom", action: () => setActiveTab("invoices") },
+    { target: '[data-tour="tab-contracts"]', title: "Contracts", description: "Manage your active contracts and keep all your agreements organised.", placement: "bottom", action: () => setActiveTab("contracts") },
+    { target: '[data-tour="tab-team"]', title: "Team Management", description: "Add team members, manage roles, and set hourly rates.", placement: "bottom", action: () => setActiveTab("team") },
+    { target: '[data-tour="tab-schedule"]', title: "Schedule & Calendar", description: "Plan your jobs, set availability, and manage appointments.", placement: "bottom", action: () => setActiveTab("schedule") },
+    { target: '[data-tour="tab-clients"]', title: "Client CRM", description: "Build your client database and nurture relationships.", placement: "bottom", action: () => setActiveTab("clients") },
+    { target: '[data-tour="tab-financials"]', title: "Financial Tracking", description: "Track income and expenses and get a clear picture of your finances.", placement: "bottom", action: () => setActiveTab("financials") },
+    { target: '[data-tour="tab-profile"]', title: "Your Profile", description: "Complete your profile to appear in the contractor directory.", placement: "bottom", action: () => setActiveTab("profile") },
   ], []);
 
-  const {
-    isActive: isTourActive,
-    currentStep,
-    totalSteps,
-    step: currentTourStep,
-    startTour,
-    endTour,
-    nextStep,
-    prevStep,
-  } = useOnboardingTour(tourSteps);
+  const { isActive: isTourActive, currentStep, totalSteps, step: currentTourStep, startTour, endTour, nextStep, prevStep } = useOnboardingTour(tourSteps);
 
   useEffect(() => {
     const loadUserAndData = async () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-      if (!currentUser) {
-        navigate("/auth");
-        return;
-      }
-
+      if (!currentUser) { navigate("/auth"); return; }
       setUser(currentUser);
 
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
+      const { data: profileRow } = await supabase.from('profiles').select('id').eq('user_id', currentUser.id).maybeSingle();
       setProfileId(profileRow?.id ?? null);
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('trades, location, working_radius, logo_url')
-        .eq('user_id', currentUser.id)
-        .single();
-
+      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url').eq('user_id', currentUser.id).single();
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
       if (profileData && (hasNoTrades || !(profileData as any).location || !(profileData as any).working_radius || !(profileData as any).logo_url)) {
@@ -222,198 +131,91 @@ const ContractorDashboard = () => {
         setActiveTab("profile");
       }
 
-      const { data: quotesData, error: quotesError } = await supabase
-        .from('quotes')
-        .select('*')
-        .eq('contractor_id', currentUser.id)
-        .order('created_at', { ascending: false });
+      const { data: quotesData, error: quotesError } = await supabase.from('quotes').select('*').eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
+      if (quotesError) console.error('Error loading quotes:', quotesError);
+      else setQuotes(quotesData || []);
 
-      if (quotesError) {
-        console.error('Error loading quotes:', quotesError);
-      } else {
-        setQuotes(quotesData || []);
-      }
-
-      const { data: enquiriesData, error: enquiriesError } = await supabase
-        .from('enquiries')
+      const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
         .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
-        .eq('contractor_id', currentUser.id)
-        .order('created_at', { ascending: false });
-
-      if (enquiriesError) {
-        console.error('Error loading enquiries:', enquiriesError);
-      } else {
-        setEnquiries(enquiriesData || []);
-      }
+        .eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
+      if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
+      else setEnquiries(enquiriesData || []);
 
       if (profileRow?.id) {
-        const { data: issuedQuotesData } = await supabase
-          .from('issued_quotes')
+        const { data: issuedQuotesData } = await supabase.from('issued_quotes')
           .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-          .eq('contractor_id', profileRow.id)
-          .order('created_at', { ascending: false });
+          .eq('contractor_id', profileRow.id).order('created_at', { ascending: false });
         setIssuedQuotes(issuedQuotesData || []);
       }
 
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      const { data: paidInvoices } = await supabase
-        .from('invoices')
-        .select('total')
-        .eq('contractor_id', currentUser.id)
-        .eq('status', 'paid')
-        .gte('paid_date', startOfMonth);
-
-      const { data: pendingInvoices } = await supabase
-        .from('invoices')
-        .select('total')
-        .eq('contractor_id', currentUser.id)
-        .eq('status', 'pending');
-
-      const { data: activeJobsCount } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('contractor_id', currentUser.id)
-        .in('status', ['active', 'in_progress', 'in-progress']);
-
-      const { data: crmClients } = await supabase
-        .from('crm_clients')
-        .select('id')
-        .eq('contractor_id', currentUser.id);
-
-      const monthlyRevenue = paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0;
-      const pendingTotal = pendingInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0;
+      const { data: paidInvoices } = await supabase.from('invoices').select('total').eq('contractor_id', currentUser.id).eq('status', 'paid').gte('paid_date', startOfMonth);
+      const { data: pendingInvoices } = await supabase.from('invoices').select('total').eq('contractor_id', currentUser.id).eq('status', 'pending');
+      const { data: activeJobsCount } = await supabase.from('jobs').select('id').eq('contractor_id', currentUser.id).in('status', ['active', 'in_progress', 'in-progress']);
+      const { data: crmClients } = await supabase.from('crm_clients').select('id').eq('contractor_id', currentUser.id);
 
       setDashboardData({
-        monthlyRevenue,
+        monthlyRevenue: paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
         activeJobs: activeJobsCount?.length ?? 0,
-        pendingInvoicesTotal: pendingTotal,
+        pendingInvoicesTotal: pendingInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
         pendingInvoicesCount: pendingInvoices?.length ?? 0,
         clientCount: crmClients?.length ?? 0,
       });
 
-      const { data: recentInvoicesData } = await supabase
-        .from('invoices')
+      const { data: recentInvoicesData } = await supabase.from('invoices')
         .select('id, invoice_number, client_name, total, status, due_date, issued_date')
-        .eq('contractor_id', currentUser.id)
-        .order('created_at', { ascending: false })
-        .limit(3);
-
+        .eq('contractor_id', currentUser.id).order('created_at', { ascending: false }).limit(3);
       setRecentInvoices(recentInvoicesData || []);
 
-      const { data: activeJobsData } = await supabase
-        .from('jobs')
+      const { data: activeJobsData } = await supabase.from('jobs')
         .select('id, title, status, contract_value, start_date, end_date')
-        .eq('contractor_id', currentUser.id)
-        .in('status', ['active', 'in_progress', 'in-progress'])
-        .order('created_at', { ascending: false })
-        .limit(3);
-
+        .eq('contractor_id', currentUser.id).in('status', ['active', 'in_progress', 'in-progress'])
+        .order('created_at', { ascending: false }).limit(3);
       setActiveJobs(activeJobsData || []);
       setLoading(false);
     };
-
     loadUserAndData();
   }, [navigate]);
 
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel('new-quotes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'quotes',
-          filter: `contractor_id=eq.${user.id}`,
-        },
+    const channel = supabase.channel('new-quotes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quotes', filter: `contractor_id=eq.${user.id}` },
         (payload) => {
           setQuotes((prev) => [payload.new as Quote, ...prev]);
-          toast({
-            title: "New Quote Request!",
-            description: `${(payload.new as Quote).customer_name} has sent a quote request.`,
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+          toast({ title: "New Quote Request!", description: `${(payload.new as Quote).customer_name} has sent a quote request.` });
+        }).subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user, toast]);
 
   const reloadEnquiries = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('enquiries')
+    const { data } = await supabase.from('enquiries')
       .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
-      .eq('contractor_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('contractor_id', user.id).order('created_at', { ascending: false });
     setEnquiries(data || []);
   };
 
-  const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => {
-    setActiveEnquiry(enquiry as EnquiryForDialog);
-    setEnquiryDialog(dialog);
-  };
-
-  const closeEnquiryDialog = () => {
-    setEnquiryDialog(null);
-    setActiveEnquiry(null);
-  };
+  const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => { setActiveEnquiry(enquiry as EnquiryForDialog); setEnquiryDialog(dialog); };
+  const closeEnquiryDialog = () => { setEnquiryDialog(null); setActiveEnquiry(null); };
 
   const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
     try {
-      const { error } = await supabase
-        .from('quotes')
-        .update({ status: newStatus })
-        .eq('id', quoteId);
-
+      const { error } = await supabase.from('quotes').update({ status: newStatus }).eq('id', quoteId);
       if (error) throw error;
-
-      setQuotes(prev => prev.map(quote =>
-        quote.id === quoteId ? { ...quote, status: newStatus } : quote
-      ));
-
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus } : q));
       toast({ title: "Quote Updated", description: `Quote status updated to ${newStatus}` });
     } catch (error) {
-      console.error('Error updating quote status:', error);
       toast({ title: "Error", description: "Failed to update quote status", variant: "destructive" });
     }
   };
 
   const dashboardStats = [
-    {
-      title: "Monthly Revenue",
-      value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
-      change: "Paid invoices this month",
-      icon: DollarSign,
-      trend: "up",
-    },
-    {
-      title: "Active Jobs",
-      value: `${dashboardData.activeJobs}`,
-      change: "Currently in progress",
-      icon: FileText,
-      trend: "up",
-    },
-    {
-      title: "Pending Invoices",
-      value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
-      change: `${dashboardData.pendingInvoicesCount} invoice${dashboardData.pendingInvoicesCount !== 1 ? 's' : ''} outstanding`,
-      icon: Clock,
-      trend: "warning",
-    },
-    {
-      title: "Clients",
-      value: `${dashboardData.clientCount}`,
-      change: "In your CRM",
-      icon: Users,
-      trend: "up",
-    },
+    { title: "Monthly Revenue", value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`, change: "Paid invoices this month", icon: DollarSign, trend: "up" },
+    { title: "Active Jobs", value: `${dashboardData.activeJobs}`, change: "Currently in progress", icon: FileText, trend: "up" },
+    { title: "Pending Invoices", value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`, change: `${dashboardData.pendingInvoicesCount} invoice${dashboardData.pendingInvoicesCount !== 1 ? 's' : ''} outstanding`, icon: Clock, trend: "warning" },
+    { title: "Clients", value: `${dashboardData.clientCount}`, change: "In your CRM", icon: Users, trend: "up" },
   ];
 
   const getStatusColor = (status: string) => {
@@ -421,9 +223,7 @@ const ContractorDashboard = () => {
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "overdue": return "bg-red-100 text-red-800";
-      case "active": return "bg-blue-100 text-blue-800";
-      case "in_progress":
-      case "in-progress": return "bg-blue-100 text-blue-800";
+      case "active": case "in_progress": case "in-progress": return "bg-blue-100 text-blue-800";
       case "completed": return "bg-green-100 text-green-800";
       case "cancelled": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
@@ -434,9 +234,7 @@ const ContractorDashboard = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+        <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
       </div>
     );
   }
@@ -444,7 +242,6 @@ const ContractorDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -453,29 +250,20 @@ const ContractorDashboard = () => {
               <h1 className="text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
             </div>
             <Button variant="outline" size="sm" onClick={() => { setActiveTab("dashboard"); startTour(); }}>
-              <HelpCircle className="h-4 w-4 mr-2" />
-              Take Tour
+              <HelpCircle className="h-4 w-4 mr-2" />Take Tour
             </Button>
           </div>
-          <p className="text-muted-foreground">
-            Manage your contracting business with powerful tools designed for professionals.
-          </p>
+          <p className="text-muted-foreground">Manage your contracting business with powerful tools designed for professionals.</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="max-w-sm" data-tour={`tab-${activeTab}`}>
-            <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
-              View
-            </label>
+            <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">View</label>
             <Select value={activeTab} onValueChange={setActiveTab}>
-              <SelectTrigger id="contractor-dashboard-view" className="w-full">
-                <SelectValue placeholder="Select a view" />
-              </SelectTrigger>
+              <SelectTrigger id="contractor-dashboard-view" className="w-full"><SelectValue placeholder="Select a view" /></SelectTrigger>
               <SelectContent>
                 {contractorDashboardViews.map((view) => (
-                  <SelectItem key={view.value} value={view.value}>
-                    {view.label}
-                  </SelectItem>
+                  <SelectItem key={view.value} value={view.value}>{view.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -484,7 +272,6 @@ const ContractorDashboard = () => {
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
             {profileId && <PanelInvites profileId={profileId} />}
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {dashboardStats.map((stat, index) => (
                 <Card key={index}>
@@ -494,79 +281,61 @@ const ContractorDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stat.value}</div>
-                    <p className={`text-xs ${stat.trend === 'up' ? 'text-green-600' : stat.trend === 'warning' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                      {stat.change}
-                    </p>
+                    <p className={`text-xs ${stat.trend === 'up' ? 'text-green-600' : stat.trend === 'warning' ? 'text-yellow-600' : 'text-muted-foreground'}`}>{stat.change}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Recent Invoices
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}>
-                      <Plus className="h-4 w-4 mr-2" />New Invoice
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}><Plus className="h-4 w-4 mr-2" />New Invoice</Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {recentInvoices.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">No invoices yet</p>
-                    ) : (
-                      recentInvoices.map((invoice) => (
-                        <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{invoice.invoice_number || `#${invoice.id?.slice(0, 8)}`}</p>
-                            <p className="text-sm text-muted-foreground">{invoice.client_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">£{Number(invoice.total ?? 0).toLocaleString('en-GB')}</p>
-                            <Badge className={getStatusColor(invoice.status || '')}>{invoice.status}</Badge>
-                          </div>
+                    ) : recentInvoices.map((invoice) => (
+                      <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{invoice.invoice_number || `#${invoice.id?.slice(0, 8)}`}</p>
+                          <p className="text-sm text-muted-foreground">{invoice.client_name}</p>
                         </div>
-                      ))
-                    )}
+                        <div className="text-right">
+                          <p className="font-medium">£{Number(invoice.total ?? 0).toLocaleString('en-GB')}</p>
+                          <Badge className={getStatusColor(invoice.status || '')}>{invoice.status}</Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     Active Jobs
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}>
-                      <Plus className="h-4 w-4 mr-2" />New Job
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {activeJobs.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">No active jobs yet</p>
-                    ) : (
-                      activeJobs.map((job) => (
-                        <div key={job.id} className="p-3 border rounded-lg">
-                          <div className="flex justify-between items-start mb-1">
-                            <div>
-                              <p className="font-medium">{job.title}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}
-                              </p>
-                            </div>
-                            <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
+                    ) : activeJobs.map((job) => (
+                      <div key={job.id} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-start mb-1">
+                          <div>
+                            <p className="font-medium">{job.title}</p>
+                            <p className="text-sm text-muted-foreground">{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</p>
                           </div>
-                          {job.end_date && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Due: {new Date(job.end_date).toLocaleDateString('en-GB')}
-                            </p>
-                          )}
+                          <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
                         </div>
-                      ))
-                    )}
+                        {job.end_date && <p className="text-xs text-muted-foreground mt-1">Due: {new Date(job.end_date).toLocaleDateString('en-GB')}</p>}
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -576,14 +345,15 @@ const ContractorDashboard = () => {
           {/* Panel Invites Tab */}
           <TabsContent value="panel-invites" className="space-y-6">
             <h2 className="text-2xl font-bold">Panel Invitations</h2>
-            {profileId ? (
-              <PanelInvites profileId={profileId} />
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">Unable to load invites — profile not found.</p>
-                </CardContent>
-              </Card>
+            {profileId ? <PanelInvites profileId={profileId} /> : (
+              <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load invites — profile not found.</p></CardContent></Card>
+            )}
+          </TabsContent>
+
+          {/* Service Visits Tab */}
+          <TabsContent value="service-visits" className="space-y-6">
+            {profileId ? <ContractorServiceVisits profileId={profileId} /> : (
+              <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load service visits — profile not found.</p></CardContent></Card>
             )}
           </TabsContent>
 
@@ -593,22 +363,18 @@ const ContractorDashboard = () => {
               <h2 className="text-2xl font-bold">Enquiries</h2>
               <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p><p className="text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
               <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p><p className="text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
               <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p><p className="text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
               <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{enquiries.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
             </div>
-
             {enquiries.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
-                  <p className="text-muted-foreground">Enquiries assigned to you will appear here.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-8 text-center">
+                <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Enquiries Yet</h3>
+                <p className="text-muted-foreground">Enquiries assigned to you will appear here.</p>
+              </CardContent></Card>
             ) : (
               <div className="space-y-4">
                 {enquiries.map((enquiry) => (
@@ -631,20 +397,13 @@ const ContractorDashboard = () => {
                         </div>
                         <div className="flex flex-col gap-2 md:min-w-[160px]">
                           {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
-                            <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}>
-                              <Send className="h-3 w-3 mr-1" />Send Quote
-                            </Button>
+                            <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}><Send className="h-3 w-3 mr-1" />Send Quote</Button>
                           )}
                           {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
-                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}>
-                              <MessageSquare className="h-3 w-3 mr-1" />Request Info
-                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}><MessageSquare className="h-3 w-3 mr-1" />Request Info</Button>
                           )}
                           {(enquiry.status === 'new' || enquiry.status === 'replied') && (
-                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
-                              onClick={() => openEnquiryDialog(enquiry, 'reject')}>
-                              <XCircle className="h-3 w-3 mr-1" />Decline
-                            </Button>
+                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => openEnquiryDialog(enquiry, 'reject')}><XCircle className="h-3 w-3 mr-1" />Decline</Button>
                           )}
                         </div>
                       </div>
@@ -653,27 +412,11 @@ const ContractorDashboard = () => {
                 ))}
               </div>
             )}
-
             {activeEnquiry && (
               <>
-                <SendQuoteDialog
-                  open={enquiryDialog === 'quote'}
-                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
-                  enquiry={activeEnquiry}
-                  onSuccess={reloadEnquiries}
-                />
-                <RespondDialog
-                  open={enquiryDialog === 'respond'}
-                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
-                  enquiry={activeEnquiry}
-                  onSuccess={reloadEnquiries}
-                />
-                <RejectDialog
-                  open={enquiryDialog === 'reject'}
-                  onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }}
-                  enquiry={activeEnquiry}
-                  onSuccess={reloadEnquiries}
-                />
+                <SendQuoteDialog open={enquiryDialog === 'quote'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
+                <RespondDialog open={enquiryDialog === 'respond'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
+                <RejectDialog open={enquiryDialog === 'reject'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
               </>
             )}
           </TabsContent>
@@ -684,79 +427,60 @@ const ContractorDashboard = () => {
               <h2 className="text-2xl font-bold">Issued Quotes</h2>
               <Button variant="outline" onClick={async () => {
                 if (!profileId) return;
-                const { data } = await supabase
-                  .from('issued_quotes')
-                  .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-                  .eq('contractor_id', profileId)
-                  .order('created_at', { ascending: false });
+                const { data } = await supabase.from('issued_quotes').select('id, quote_number, client_name, total, status, recipient_response, created_at').eq('contractor_id', profileId).order('created_at', { ascending: false });
                 setIssuedQuotes(data || []);
-              }}>
-                <RefreshCw className="h-4 w-4 mr-2" />Refresh
-              </Button>
+              }}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
             </div>
             {issuedQuotes.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
-                  <p className="text-muted-foreground">Quotes you send to clients will appear here.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-8 text-center">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
+                <p className="text-muted-foreground">Quotes you send to clients will appear here.</p>
+              </CardContent></Card>
             ) : (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left p-3 font-medium">Quote #</th>
-                          <th className="text-left p-3 font-medium">Client</th>
-                          <th className="text-left p-3 font-medium">Total</th>
-                          <th className="text-left p-3 font-medium">Status</th>
-                          <th className="text-left p-3 font-medium">Response</th>
-                          <th className="text-left p-3 font-medium">Date Sent</th>
-                          <th className="text-left p-3 font-medium">Schedule</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {issuedQuotes.map((iq) => (
-                          <>
-                            <tr key={iq.id} className="border-b hover:bg-muted/30">
-                              <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
-                              <td className="p-3">{iq.client_name}</td>
-                              <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
-                              <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
-                              <td className="p-3">
-                                {iq.recipient_response ? (
-                                  <Badge className={iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' : iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
-                                    {iq.recipient_response}
-                                  </Badge>
-                                ) : <span className="text-muted-foreground">—</span>}
-                              </td>
-                              <td className="p-3">{new Date(iq.created_at).toLocaleDateString('en-GB')}</td>
-                              <td className="p-3">
-                                {iq.recipient_response === 'accepted' && (
-                                  <Button variant="ghost" size="sm"
-                                    onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}>
-                                    {expandedQuoteId === iq.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                  </Button>
-                                )}
+              <Card><CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-medium">Quote #</th>
+                      <th className="text-left p-3 font-medium">Client</th>
+                      <th className="text-left p-3 font-medium">Total</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-left p-3 font-medium">Response</th>
+                      <th className="text-left p-3 font-medium">Date Sent</th>
+                      <th className="text-left p-3 font-medium">Schedule</th>
+                    </tr></thead>
+                    <tbody>
+                      {issuedQuotes.map((iq) => (
+                        <>
+                          <tr key={iq.id} className="border-b hover:bg-muted/30">
+                            <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
+                            <td className="p-3">{iq.client_name}</td>
+                            <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
+                            <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
+                            <td className="p-3">{iq.recipient_response ? (
+                              <Badge className={iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' : iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>{iq.recipient_response}</Badge>
+                            ) : <span className="text-muted-foreground">—</span>}</td>
+                            <td className="p-3">{new Date(iq.created_at).toLocaleDateString('en-GB')}</td>
+                            <td className="p-3">{iq.recipient_response === 'accepted' && (
+                              <Button variant="ghost" size="sm" onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}>
+                                {expandedQuoteId === iq.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </Button>
+                            )}</td>
+                          </tr>
+                          {expandedQuoteId === iq.id && (
+                            <tr key={`${iq.id}-schedule`}>
+                              <td colSpan={7} className="p-4 bg-muted/20">
+                                <QuoteScheduleNegotiation quoteId={iq.id} contractorId={profileId} mode="contractor" />
                               </td>
                             </tr>
-                            {expandedQuoteId === iq.id && (
-                              <tr key={`${iq.id}-schedule`}>
-                                <td colSpan={7} className="p-4 bg-muted/20">
-                                  <QuoteScheduleNegotiation quoteId={iq.id} contractorId={profileId} mode="contractor" />
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                          )}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent></Card>
             )}
           </TabsContent>
 
@@ -769,13 +493,11 @@ const ContractorDashboard = () => {
               <Button onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
             </div>
             {activeJobs.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Active Projects</h3>
-                  <p className="text-muted-foreground">Create a job to get started.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-8 text-center">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Active Projects</h3>
+                <p className="text-muted-foreground">Create a job to get started.</p>
+              </CardContent></Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {activeJobs.map((job) => (
@@ -784,9 +506,7 @@ const ContractorDashboard = () => {
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg">{job.title}</CardTitle>
-                          <CardDescription>
-                            {job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}
-                          </CardDescription>
+                          <CardDescription>{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</CardDescription>
                         </div>
                         <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
                       </div>
@@ -817,15 +537,7 @@ const ContractorDashboard = () => {
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
         </Tabs>
 
-        <OnboardingTour
-          isActive={isTourActive}
-          step={currentTourStep}
-          currentStep={currentStep}
-          totalSteps={totalSteps}
-          onNext={nextStep}
-          onPrev={prevStep}
-          onSkip={() => endTour(true)}
-        />
+        <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />
       </main>
     </div>
   );

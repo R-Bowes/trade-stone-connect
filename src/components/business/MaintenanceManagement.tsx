@@ -17,11 +17,11 @@ import {
 import type {
   Site, Asset, ServiceContract, ServiceSchedule, ServiceVisit, ServiceDocument,
   AssetCategory, ServiceFrequency, ServiceContractStatus,
-} from "@/components/business/maintenance-types.ts";
+} from "@/components/business/maintenance-types";
 import {
   ASSET_CATEGORY_LABELS, ASSET_CATEGORY_GROUPS, FREQUENCY_LABELS,
   FREQUENCY_DAYS, VISIT_STATUS_CONFIG, CONTRACT_STATUS_CONFIG,
-} from "@/components/business/maintenance-types.ts";
+} from "@/components/business/maintenance-types";
 
 interface MaintenanceManagementProps {
   companyId: string;
@@ -478,14 +478,45 @@ const SchedulesTab = ({
       toast({ title: 'Required', description: 'All fields are required.', variant: 'destructive' }); return;
     }
     setSaving(true);
-    const { error } = await supabase.from('service_schedules').insert({
+
+    const noticeDays = parseInt(form.notice_days) || 14;
+    const nextDueAt = new Date(form.next_due_at);
+    const windowStart = new Date(nextDueAt);
+    windowStart.setDate(windowStart.getDate() - noticeDays);
+
+    // Get contract to find contractor_id and company_id
+    const { data: contractData } = await supabase
+      .from('service_contracts')
+      .select('contractor_id, company_id')
+      .eq('id', form.contract_id)
+      .maybeSingle();
+
+    const { data: scheduleData, error } = await supabase.from('service_schedules').insert({
       contract_id: form.contract_id, asset_id: form.asset_id,
       frequency: form.frequency as ServiceFrequency,
-      next_due_at: new Date(form.next_due_at).toISOString(),
-      notice_days: parseInt(form.notice_days) || 14,
-    });
-    if (error) { toast({ title: 'Error', description: 'Failed to create schedule.', variant: 'destructive' }); setSaving(false); return; }
-    toast({ title: 'Schedule created' });
+      next_due_at: nextDueAt.toISOString(),
+      notice_days: noticeDays,
+    }).select('id').single();
+
+    if (error || !scheduleData) {
+      toast({ title: 'Error', description: 'Failed to create schedule.', variant: 'destructive' });
+      setSaving(false); return;
+    }
+
+    // Auto-generate first visit
+    if (contractData) {
+      await supabase.from('service_visits').insert({
+        schedule_id: scheduleData.id,
+        asset_id: form.asset_id,
+        contractor_id: contractData.contractor_id,
+        company_id: contractData.company_id,
+        scheduled_window_start: windowStart.toISOString(),
+        scheduled_window_end: nextDueAt.toISOString(),
+        status: 'scheduled',
+      });
+    }
+
+    toast({ title: 'Schedule created', description: 'First service visit has been generated.' });
     setSaving(false); setOpen(false); onRefresh();
   };
 
@@ -579,6 +610,13 @@ const SchedulesTab = ({
 };
 
 // ─── Visits Tab ──────────────────────────────────────────────────────────────
+const FREQUENCY_DAYS_MAP: Record<string, number> = {
+  weekly: 7, bi_weekly: 14, monthly: 30, bi_monthly: 61, quarterly: 91,
+  six_monthly: 183, annual: 365, '2_yearly': 730, '3_yearly': 1095,
+  '4_yearly': 1460, '5_yearly': 1825, '6_yearly': 2190, '7_yearly': 2555,
+  '8_yearly': 2920, '9_yearly': 3285, '10_yearly': 3650,
+};
+
 const VisitsTab = ({
   visits, documents, loading, onRefresh,
 }: {
@@ -591,9 +629,62 @@ const VisitsTab = ({
   const [selectedVisit, setSelectedVisit] = useState<typeof visits[0] | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [completing, setCompleting] = useState(false);
 
   const filtered = filterStatus === 'all' ? visits : visits.filter(v => v.status === filterStatus);
   const visitDocs = selectedVisit ? documents.filter(d => d.visit_id === selectedVisit.id) : [];
+
+  const handleMarkComplete = async (visit: typeof visits[0]) => {
+    setCompleting(true);
+    const completedAt = new Date().toISOString();
+
+    await supabase.from('service_visits').update({
+      status: 'completed',
+      completed_at: completedAt,
+    }).eq('id', visit.id);
+
+    const { data: schedule } = await supabase
+      .from('service_schedules')
+      .select('*')
+      .eq('id', visit.schedule_id)
+      .maybeSingle();
+
+    if (schedule) {
+      const days = FREQUENCY_DAYS_MAP[schedule.frequency] ?? 365;
+      const nextDue = new Date(completedAt);
+      nextDue.setDate(nextDue.getDate() + days);
+      const windowStart = new Date(nextDue);
+      windowStart.setDate(windowStart.getDate() - (schedule.notice_days ?? 14));
+
+      await supabase.from('service_schedules').update({
+        last_completed_at: completedAt,
+        next_due_at: nextDue.toISOString(),
+      }).eq('id', schedule.id);
+
+      const { data: contract } = await supabase
+        .from('service_contracts')
+        .select('contractor_id, company_id')
+        .eq('id', schedule.contract_id)
+        .maybeSingle();
+
+      if (contract) {
+        await supabase.from('service_visits').insert({
+          schedule_id: schedule.id,
+          asset_id: visit.asset_id,
+          contractor_id: contract.contractor_id,
+          company_id: contract.company_id,
+          scheduled_window_start: windowStart.toISOString(),
+          scheduled_window_end: nextDue.toISOString(),
+          status: 'scheduled',
+        });
+      }
+    }
+
+    toast({ title: 'Visit completed', description: 'Next visit has been automatically scheduled.' });
+    setCompleting(false);
+    setDetailOpen(false);
+    onRefresh();
+  };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
@@ -677,6 +768,22 @@ const VisitsTab = ({
                   {selectedVisit.completed_at && <div><p className="text-xs text-muted-foreground">Completed</p><p>{fmtDate(selectedVisit.completed_at)}</p></div>}
                   {selectedVisit.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p>{selectedVisit.notes}</p></div>}
                 </div>
+
+                {/* Business can mark complete if contractor hasn't */}
+                {(selectedVisit.status === 'confirmed' || selectedVisit.status === 'scheduled') && (
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm font-medium mb-2">Mark as Complete</p>
+                    <p className="text-xs text-muted-foreground mb-3">This will automatically schedule the next visit based on the service frequency.</p>
+                    <Button
+                      onClick={() => handleMarkComplete(selectedVisit)}
+                      disabled={completing}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {completing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      Mark Complete & Schedule Next Visit
+                    </Button>
+                  </div>
+                )}
 
                 <div className="border-t pt-4">
                   <p className="text-sm font-medium mb-3">Compliance Documents</p>
