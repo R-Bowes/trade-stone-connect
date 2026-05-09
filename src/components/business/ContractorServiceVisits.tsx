@@ -89,32 +89,47 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
   const load = useCallback(async () => {
     setLoading(true);
 
-    const { data: visitsData } = await supabase
+    const { data: visitsData, error: visitsError } = await supabase
       .from('service_visits')
       .select('*')
       .eq('contractor_id', profileId)
       .order('scheduled_window_end', { ascending: true });
 
+    if (visitsError) {
+      console.error('Service visits error:', visitsError);
+      setVisits([]); setLoading(false); return;
+    }
     if (!visitsData?.length) { setVisits([]); setLoading(false); return; }
 
-    // Hydrate
+    // Hydrate — fetch all supporting data, default to empty on error
     const assetIds = [...new Set(visitsData.map(v => v.asset_id))];
     const companyIds = [...new Set(visitsData.map(v => v.company_id))];
     const scheduleIds = [...new Set(visitsData.map(v => v.schedule_id))];
 
-    const [{ data: assetsData }, { data: companiesData }, { data: schedulesData }] = await Promise.all([
+    const [assetsRes, companiesRes, schedulesRes] = await Promise.all([
       supabase.from('assets').select('id, name, category, site_id').in('id', assetIds),
       supabase.from('companies').select('id, name').in('id', companyIds),
       supabase.from('service_schedules').select('id, contract_id').in('id', scheduleIds),
     ]);
 
-    const siteIds = [...new Set((assetsData ?? []).map(a => a.site_id).filter(Boolean))] as string[];
-    const contractIds = [...new Set((schedulesData ?? []).map(s => s.contract_id).filter(Boolean))] as string[];
+    const assetsData = assetsRes.data ?? [];
+    const companiesData = companiesRes.data ?? [];
+    const schedulesData = schedulesRes.data ?? [];
 
-    const [{ data: sitesData }, { data: contractsData }] = await Promise.all([
-      siteIds.length ? supabase.from('sites').select('id, name').in('id', siteIds) : Promise.resolve({ data: [] }),
-      contractIds.length ? supabase.from('service_contracts').select('id, title').in('id', contractIds) : Promise.resolve({ data: [] }),
+    if (assetsRes.error) console.warn('Assets hydration:', assetsRes.error.message);
+    if (companiesRes.error) console.warn('Companies hydration:', companiesRes.error.message);
+    if (schedulesRes.error) console.warn('Schedules hydration:', schedulesRes.error.message);
+
+    const siteIds = [...new Set(assetsData.map(a => a.site_id).filter(Boolean))] as string[];
+    const contractIds = [...new Set(schedulesData.map(s => s.contract_id).filter(Boolean))] as string[];
+
+    const [sitesRes, contractsRes] = await Promise.all([
+      siteIds.length ? supabase.from('sites').select('id, name').in('id', siteIds) : Promise.resolve({ data: [] as {id:string;name:string}[], error: null }),
+      contractIds.length ? supabase.from('service_contracts').select('id, title').in('id', contractIds) : Promise.resolve({ data: [] as {id:string;title:string}[], error: null }),
     ]);
+
+    const sitesData = sitesRes.data ?? [];
+    const contractsData = contractsRes.data ?? [];
 
     const hydrated: Visit[] = visitsData.map(v => {
       const asset = assetsData?.find(a => a.id === v.asset_id);
