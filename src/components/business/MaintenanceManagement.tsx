@@ -325,7 +325,7 @@ const ContractsTab = ({
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ contractor_id: '', site_id: '', title: '', description: '', start_date: '', end_date: '', annual_value: '', status: 'draft' as ServiceContractStatus });
 
-  const openCreate = () => { setForm({ contractor_id: '', site_id: '', title: '', description: '', start_date: '', end_date: '', annual_value: '', status: 'draft' }); setOpen(true); };
+  const openCreate = () => { setForm({ contractor_id: '', site_id: 'all-sites', title: '', description: '', start_date: '', end_date: '', annual_value: '', status: 'draft' }); setOpen(true); };
 
   const save = async () => {
     if (!form.contractor_id || !form.title || !form.start_date || !form.end_date) {
@@ -334,7 +334,7 @@ const ContractsTab = ({
     setSaving(true);
     const { error } = await supabase.from('service_contracts').insert({
       company_id: companyId, contractor_id: form.contractor_id,
-      site_id: form.site_id || null, title: form.title,
+      site_id: form.site_id && form.site_id !== 'all-sites' ? form.site_id : null, title: form.title,
       description: form.description || null, start_date: form.start_date,
       end_date: form.end_date, annual_value: form.annual_value ? parseFloat(form.annual_value) : null,
       status: form.status,
@@ -430,7 +430,7 @@ const ContractsTab = ({
               <Select value={form.site_id} onValueChange={v => setForm(f => ({ ...f, site_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="All sites" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All sites</SelectItem>
+                  <SelectItem value="all-sites">All sites</SelectItem>
                   {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select></div>
