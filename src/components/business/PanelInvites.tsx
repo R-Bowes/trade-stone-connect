@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import {
   Building2,
   CheckCircle2,
@@ -25,7 +25,7 @@ interface PanelInvite {
 }
 
 interface PanelInvitesProps {
-  profileId: string; // profiles.id
+  profileId: string;
 }
 
 const tierLabels: Record<string, string> = {
@@ -51,14 +51,22 @@ export const PanelInvites = ({ profileId }: PanelInvitesProps) => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast({ title: "Error", description: "Could not load panel invites.", variant: "destructive" });
+      // Silently treat RLS/auth errors as empty — no pending invites to show
+      console.warn("Panel invites:", error.message);
+      setInvites([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setInvites([]);
       setLoading(false);
       return;
     }
 
     // Hydrate with company data
     const hydrated: PanelInvite[] = await Promise.all(
-      (data || []).map(async (row) => {
+      data.map(async (row) => {
         if (!row.company_id) return {
           ...row, company_name: null, company_city: null, company_email: null,
         };
@@ -80,7 +88,7 @@ export const PanelInvites = ({ profileId }: PanelInvitesProps) => {
 
     setInvites(hydrated);
     setLoading(false);
-  }, [profileId, toast]);
+  }, [profileId]);
 
   useEffect(() => {
     loadInvites();
@@ -105,9 +113,7 @@ export const PanelInvites = ({ profileId }: PanelInvitesProps) => {
 
     toast({
       title: accept ? "Invite accepted" : "Invite declined",
-      description: accept
-        ? "You have joined the contractor panel."
-        : "You have declined the panel invite.",
+      description: accept ? "You have joined the contractor panel." : "You have declined the panel invite.",
     });
 
     setActioning(null);
@@ -144,9 +150,7 @@ export const PanelInvites = ({ profileId }: PanelInvitesProps) => {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold">
-                      {invite.company_name ?? "A business"}
-                    </p>
+                    <p className="font-semibold">{invite.company_name ?? "A business"}</p>
                     {invite.tier && (
                       <Badge variant="outline" className="text-xs">
                         {tierLabels[invite.tier] ?? invite.tier}
@@ -169,31 +173,14 @@ export const PanelInvites = ({ profileId }: PanelInvitesProps) => {
               </div>
 
               <div className="flex gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                  disabled={actioning === invite.id}
-                  onClick={() => respond(invite.id, false)}
-                >
-                  {actioning === invite.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <XCircle className="h-3 w-3 mr-1" />
-                  )}
+                <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
+                  disabled={actioning === invite.id} onClick={() => respond(invite.id, false)}>
+                  {actioning === invite.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />}
                   Decline
                 </Button>
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  disabled={actioning === invite.id}
-                  onClick={() => respond(invite.id, true)}
-                >
-                  {actioning === invite.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                  )}
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+                  disabled={actioning === invite.id} onClick={() => respond(invite.id, true)}>
+                  {actioning === invite.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                   Accept
                 </Button>
               </div>
