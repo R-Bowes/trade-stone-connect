@@ -207,7 +207,7 @@ export function InvoiceManagement() {
                           <Eye className="h-4 w-4" />
                         </Button>
                         
-                          <Download className="h-4 w-4" /><Button variant="ghost" size="sm" onClick={async () => {
+                          <Button variant="ghost" size="sm" onClick={async () => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { data: profile } = await supabase
@@ -233,6 +233,7 @@ if (profile?.logo_url) {
 }
 generateInvoicePdf(inv, enrichedProfile);
 }} title="Download PDF">
+                          <Download className="h-4 w-4" />
                         </Button>
                         {inv.status === "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
