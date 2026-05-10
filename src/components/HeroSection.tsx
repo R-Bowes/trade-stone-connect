@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ShoppingCart, UserRound, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const quickActions = [
   {
@@ -25,6 +27,20 @@ const quickActions = [
 ];
 
 const HeroSection = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session?.user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <section className="bg-[#efefef] pb-12 md:pb-20">
       <div className="relative overflow-hidden bg-[#2f4358] px-4 py-32 md:py-44">
@@ -57,12 +73,14 @@ const HeroSection = () => {
           <p className="max-w-2xl text-xl leading-relaxed text-slate-100 md:text-[1.4rem]">
             Connect with professionals, buy surplus materials, and win contracts with ease.
           </p>
-          <Button
-            asChild
-            className="mt-10 rounded-xl bg-orange-500 px-8 py-6 text-lg font-semibold text-white hover:bg-orange-400"
-          >
-            <Link to="/auth">Sign up free</Link>
-          </Button>
+          {!isLoggedIn && (
+            <Button
+              asChild
+              className="mt-10 rounded-xl bg-orange-500 px-8 py-6 text-lg font-semibold text-white hover:bg-orange-400"
+            >
+              <Link to="/auth">Sign up free</Link>
+            </Button>
+          )}
         </div>
       </div>
 

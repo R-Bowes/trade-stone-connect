@@ -350,10 +350,7 @@ const BusinessDashboard = () => {
           <TabsContent value="quotes"><ReceivedQuotes /></TabsContent>
 
           <TabsContent value="contracts" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Contract Opportunities</h2>
-              <Button><Plus className="mr-2 h-4 w-4" />Post New Contract</Button>
-            </div>
+            <h2 className="text-2xl font-bold">Contract Opportunities</h2>
             <Card><CardContent className="p-8 text-center">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No Contracts Posted</h3>
@@ -413,3 +410,4 @@ const BusinessDashboard = () => {
 };
 
 export default BusinessDashboard;
+
