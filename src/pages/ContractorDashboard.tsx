@@ -11,6 +11,7 @@ import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
   Filter, MessageCircle, Star, Loader2, Hammer, HelpCircle,
   ChevronDown, ChevronUp, RefreshCw, XCircle, MessageSquare,
+  AlertTriangle, Calendar, Wrench, ChevronRight, UserCheck,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -54,6 +55,16 @@ type EnquiryForDialog = {
 };
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 
+interface UpcomingEvent {
+  id: string;
+  type: 'schedule' | 'service_visit' | 'job';
+  title: string;
+  subtitle: string | null;
+  date: string;
+  status: string;
+  tab: string;
+}
+
 const contractorDashboardViews = [
   { value: "dashboard", label: "Dashboard" },
   { value: "panel-invites", label: "Panel Invites" },
@@ -74,6 +85,16 @@ const contractorDashboardViews = [
   { value: "profile", label: "Profile" },
 ] as const;
 
+const fmtDate = (iso: string) => {
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+};
+
 const ContractorDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -86,13 +107,17 @@ const ContractorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
     activeJobs: 0,
     pendingInvoicesTotal: 0,
     pendingInvoicesCount: 0,
+    overdueInvoicesCount: 0,
     clientCount: 0,
+    panelCount: 0,
+    upcomingVisits: 0,
   });
   const [recentInvoices, setRecentInvoices] = useState<Partial<Invoice>[]>([]);
   const [activeJobs, setActiveJobs] = useState<Partial<Job>[]>([]);
@@ -121,7 +146,8 @@ const ContractorDashboard = () => {
       setUser(currentUser);
 
       const { data: profileRow } = await supabase.from('profiles').select('id').eq('user_id', currentUser.id).maybeSingle();
-      setProfileId(profileRow?.id ?? null);
+      const pid = profileRow?.id ?? null;
+      setProfileId(pid);
 
       const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url').eq('user_id', currentUser.id).single();
       const trades = (profileData as any)?.trades;
@@ -141,38 +167,100 @@ const ContractorDashboard = () => {
       if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
       else setEnquiries(enquiriesData || []);
 
-      if (profileRow?.id) {
+      if (pid) {
         const { data: issuedQuotesData } = await supabase.from('issued_quotes')
           .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-          .eq('contractor_id', profileRow.id).order('created_at', { ascending: false });
+          .eq('contractor_id', pid).order('created_at', { ascending: false });
         setIssuedQuotes(issuedQuotesData || []);
       }
 
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const { data: paidInvoices } = await supabase.from('invoices').select('total').eq('contractor_id', currentUser.id).eq('status', 'paid').gte('paid_date', startOfMonth);
-      const { data: pendingInvoices } = await supabase.from('invoices').select('total').eq('contractor_id', currentUser.id).eq('status', 'pending');
-      const { data: activeJobsCount } = await supabase.from('jobs').select('id').eq('contractor_id', currentUser.id).in('status', ['active', 'in_progress', 'in-progress']);
-      const { data: crmClients } = await supabase.from('crm_clients').select('id').eq('contractor_id', currentUser.id);
+
+      // Use profileId (pid) for all FK lookups
+      const contractorId = pid ?? currentUser.id;
+
+      const [
+        paidInvoicesRes, pendingInvoicesRes, overdueInvoicesRes,
+        activeJobsCountRes, crmClientsRes, panelRes, serviceVisitsRes,
+        scheduleEventsRes, activeJobsDataRes, recentInvoicesDataRes,
+      ] = await Promise.all([
+        supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'paid').gte('paid_date', startOfMonth),
+        supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'pending'),
+        supabase.from('invoices').select('id').eq('contractor_id', contractorId).eq('status', 'overdue'),
+        supabase.from('jobs').select('id').eq('contractor_id', contractorId).in('status', ['active', 'in_progress', 'in-progress']),
+        supabase.from('crm_clients').select('id').eq('contractor_id', contractorId),
+        supabase.from('contractor_panel').select('id').eq('contractor_id', contractorId).eq('status', 'approved'),
+        supabase.from('service_visits').select('id, asset_id, scheduled_window_end, status, company_id')
+          .eq('contractor_id', contractorId)
+          .in('status', ['scheduled', 'confirmed'])
+          .gte('scheduled_window_end', now.toISOString())
+          .order('scheduled_window_end', { ascending: true })
+          .limit(5),
+        supabase.from('schedule_events').select('id, title, start_time, event_type, client_name, status')
+          .eq('contractor_id', contractorId)
+          .gte('start_time', now.toISOString())
+          .order('start_time', { ascending: true })
+          .limit(5),
+        supabase.from('jobs').select('id, title, status, contract_value, start_date, end_date')
+          .eq('contractor_id', contractorId).in('status', ['active', 'in_progress', 'in-progress'])
+          .order('created_at', { ascending: false }).limit(3),
+        supabase.from('invoices').select('id, invoice_number, client_name, total, status, due_date, issued_date')
+          .eq('contractor_id', contractorId).order('created_at', { ascending: false }).limit(3),
+      ]);
 
       setDashboardData({
-        monthlyRevenue: paidInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
-        activeJobs: activeJobsCount?.length ?? 0,
-        pendingInvoicesTotal: pendingInvoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
-        pendingInvoicesCount: pendingInvoices?.length ?? 0,
-        clientCount: crmClients?.length ?? 0,
+        monthlyRevenue: paidInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
+        activeJobs: activeJobsCountRes.data?.length ?? 0,
+        pendingInvoicesTotal: pendingInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
+        pendingInvoicesCount: pendingInvoicesRes.data?.length ?? 0,
+        overdueInvoicesCount: overdueInvoicesRes.data?.length ?? 0,
+        clientCount: crmClientsRes.data?.length ?? 0,
+        panelCount: panelRes.data?.length ?? 0,
+        upcomingVisits: serviceVisitsRes.data?.length ?? 0,
       });
 
-      const { data: recentInvoicesData } = await supabase.from('invoices')
-        .select('id, invoice_number, client_name, total, status, due_date, issued_date')
-        .eq('contractor_id', currentUser.id).order('created_at', { ascending: false }).limit(3);
-      setRecentInvoices(recentInvoicesData || []);
+      setActiveJobs(activeJobsDataRes.data || []);
+      setRecentInvoices(recentInvoicesDataRes.data || []);
 
-      const { data: activeJobsData } = await supabase.from('jobs')
-        .select('id, title, status, contract_value, start_date, end_date')
-        .eq('contractor_id', currentUser.id).in('status', ['active', 'in_progress', 'in-progress'])
-        .order('created_at', { ascending: false }).limit(3);
-      setActiveJobs(activeJobsData || []);
+      // Build upcoming events list — merge schedule events + service visits
+      const events: UpcomingEvent[] = [];
+
+      // Schedule events
+      for (const ev of scheduleEventsRes.data ?? []) {
+        events.push({
+          id: ev.id,
+          type: 'schedule',
+          title: ev.title,
+          subtitle: ev.client_name,
+          date: ev.start_time,
+          status: ev.status,
+          tab: 'schedule',
+        });
+      }
+
+      // Service visits — hydrate asset names
+      if (serviceVisitsRes.data?.length) {
+        const assetIds = [...new Set(serviceVisitsRes.data.map(v => v.asset_id))];
+        const { data: assetsData } = await supabase.from('assets').select('id, name').in('id', assetIds);
+        for (const v of serviceVisitsRes.data) {
+          const assetName = assetsData?.find(a => a.id === v.asset_id)?.name ?? 'Service Visit';
+          events.push({
+            id: v.id,
+            type: 'service_visit',
+            title: assetName,
+            subtitle: `Due by ${new Date(v.scheduled_window_end).toLocaleDateString('en-GB')}`,
+            date: v.scheduled_window_end,
+            status: v.status,
+            tab: 'service-visits',
+          });
+        }
+      }
+
+      // Sort chronologically and take top 7
+      events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setUpcomingEvents(events.slice(0, 7));
+
       setLoading(false);
     };
     loadUserAndData();
@@ -212,10 +300,54 @@ const ContractorDashboard = () => {
   };
 
   const dashboardStats = [
-    { title: "Monthly Revenue", value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`, change: "Paid invoices this month", icon: DollarSign, trend: "up" },
-    { title: "Active Jobs", value: `${dashboardData.activeJobs}`, change: "Currently in progress", icon: FileText, trend: "up" },
-    { title: "Pending Invoices", value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`, change: `${dashboardData.pendingInvoicesCount} invoice${dashboardData.pendingInvoicesCount !== 1 ? 's' : ''} outstanding`, icon: Clock, trend: "warning" },
-    { title: "Clients", value: `${dashboardData.clientCount}`, change: "In your CRM", icon: Users, trend: "up" },
+    {
+      title: "Monthly Revenue",
+      value: `£${dashboardData.monthlyRevenue.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
+      change: "Paid invoices this month",
+      icon: DollarSign,
+      trend: "up",
+      onClick: () => setActiveTab("invoices"),
+    },
+    {
+      title: "Active Jobs",
+      value: `${dashboardData.activeJobs}`,
+      change: "Currently in progress",
+      icon: FileText,
+      trend: "up",
+      onClick: () => setActiveTab("jobs"),
+    },
+    {
+      title: "Invoices",
+      value: `£${dashboardData.pendingInvoicesTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
+      change: `${dashboardData.pendingInvoicesCount} pending${dashboardData.overdueInvoicesCount > 0 ? ` · ${dashboardData.overdueInvoicesCount} overdue` : ''}`,
+      icon: dashboardData.overdueInvoicesCount > 0 ? AlertTriangle : Clock,
+      trend: dashboardData.overdueInvoicesCount > 0 ? "danger" : "warning",
+      onClick: () => setActiveTab("invoices"),
+    },
+    {
+      title: "Clients",
+      value: `${dashboardData.clientCount}`,
+      change: "In your CRM",
+      icon: Users,
+      trend: "up",
+      onClick: () => setActiveTab("clients"),
+    },
+    {
+      title: "Service Visits",
+      value: `${dashboardData.upcomingVisits}`,
+      change: "Upcoming visits",
+      icon: Wrench,
+      trend: "up",
+      onClick: () => setActiveTab("service-visits"),
+    },
+    {
+      title: "Panels",
+      value: `${dashboardData.panelCount}`,
+      change: "Active memberships",
+      icon: UserCheck,
+      trend: "up",
+      onClick: () => setActiveTab("panel-invites"),
+    },
   ];
 
   const getStatusColor = (status: string) => {
@@ -226,7 +358,17 @@ const ContractorDashboard = () => {
       case "active": case "in_progress": case "in-progress": return "bg-blue-100 text-blue-800";
       case "completed": return "bg-green-100 text-green-800";
       case "cancelled": return "bg-red-100 text-red-800";
+      case "scheduled": return "bg-blue-100 text-blue-800";
+      case "confirmed": return "bg-yellow-100 text-yellow-800";
       default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getEventTypeConfig = (type: UpcomingEvent['type']) => {
+    switch (type) {
+      case 'service_visit': return { label: 'Service Visit', colour: 'bg-orange-100 text-orange-800', icon: Wrench };
+      case 'schedule': return { label: 'Scheduled', colour: 'bg-blue-100 text-blue-800', icon: Calendar };
+      case 'job': return { label: 'Job', colour: 'bg-green-100 text-green-800', icon: FileText };
     }
   };
 
@@ -272,73 +414,117 @@ const ContractorDashboard = () => {
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
             {profileId && <PanelInvites profileId={profileId} />}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+            {/* Stats grid — 3 cols on md, 6 on lg */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {dashboardStats.map((stat, index) => (
-                <Card key={index}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                    <stat.icon className="h-4 w-4 text-muted-foreground" />
+                <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow" onClick={stat.onClick}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                    <CardTitle className="text-xs font-medium text-muted-foreground">{stat.title}</CardTitle>
+                    <stat.icon className={`h-4 w-4 ${stat.trend === 'danger' ? 'text-red-500' : stat.trend === 'warning' ? 'text-yellow-500' : 'text-muted-foreground'}`} />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
-                    <p className={`text-xs ${stat.trend === 'up' ? 'text-green-600' : stat.trend === 'warning' ? 'text-yellow-600' : 'text-muted-foreground'}`}>{stat.change}</p>
+                  <CardContent className="p-4 pt-0">
+                    <div className={`text-xl font-bold ${stat.trend === 'danger' ? 'text-red-600' : ''}`}>{stat.value}</div>
+                    <p className={`text-xs mt-1 ${stat.trend === 'danger' ? 'text-red-600' : stat.trend === 'warning' ? 'text-yellow-600' : 'text-green-600'}`}>{stat.change}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    Recent Invoices
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}><Plus className="h-4 w-4 mr-2" />New Invoice</Button>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Upcoming events */}
+              <Card className="lg:col-span-1">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span className="flex items-center gap-2"><Calendar className="h-4 w-4" />Upcoming</span>
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("schedule")}>View all</Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recentInvoices.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">No invoices yet</p>
-                    ) : recentInvoices.map((invoice) => (
-                      <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{invoice.invoice_number || `#${invoice.id?.slice(0, 8)}`}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.client_name}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">£{Number(invoice.total ?? 0).toLocaleString('en-GB')}</p>
-                          <Badge className={getStatusColor(invoice.status || '')}>{invoice.status}</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    Active Jobs
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {activeJobs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">No active jobs yet</p>
-                    ) : activeJobs.map((job) => (
-                      <div key={job.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start mb-1">
-                          <div>
-                            <p className="font-medium">{job.title}</p>
-                            <p className="text-sm text-muted-foreground">{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</p>
+                  {upcomingEvents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">Nothing scheduled</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {upcomingEvents.map(event => {
+                        const cfg = getEventTypeConfig(event.type);
+                        const Icon = cfg.icon;
+                        return (
+                          <div key={`${event.type}-${event.id}`}
+                            className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors"
+                            onClick={() => setActiveTab(event.tab)}>
+                            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                              <Icon className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{event.title}</p>
+                              {event.subtitle && <p className="text-xs text-muted-foreground truncate">{event.subtitle}</p>}
+                              <p className="text-xs text-primary font-medium mt-0.5">{fmtDate(event.date)}</p>
+                            </div>
+                            <Badge className={`text-xs shrink-0 ${cfg.colour}`}>{cfg.label}</Badge>
                           </div>
-                          <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
-                        </div>
-                        {job.end_date && <p className="text-xs text-muted-foreground mt-1">Due: {new Date(job.end_date).toLocaleDateString('en-GB')}</p>}
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Recent invoices + Active jobs */}
+              <div className="lg:col-span-2 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center justify-between">
+                      Recent Invoices
+                      <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}><Plus className="h-4 w-4 mr-2" />New</Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {recentInvoices.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No invoices yet</p>
+                      ) : recentInvoices.map((invoice) => (
+                        <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium text-sm">{invoice.invoice_number || `#${invoice.id?.slice(0, 8)}`}</p>
+                            <p className="text-xs text-muted-foreground">{invoice.client_name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-sm">£{Number(invoice.total ?? 0).toLocaleString('en-GB')}</p>
+                            <Badge className={`text-xs ${getStatusColor(invoice.status || '')}`}>{invoice.status}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center justify-between">
+                      Active Jobs
+                      <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New</Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {activeJobs.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No active jobs yet</p>
+                      ) : activeJobs.map((job) => (
+                        <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium text-sm">{job.title}</p>
+                            <p className="text-xs text-muted-foreground">{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</p>
+                          </div>
+                          <div className="text-right">
+                            <Badge className={`text-xs ${getStatusColor(job.status || '')}`}>{job.status}</Badge>
+                            {job.end_date && <p className="text-xs text-muted-foreground mt-1">Due {new Date(job.end_date).toLocaleDateString('en-GB')}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
 
