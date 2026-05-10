@@ -19,6 +19,7 @@ import {
   Hammer,
   UserCheck,
   Wrench,
+  Lock,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "@/components/AsyncState";
@@ -30,22 +31,30 @@ import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { PanelManagement } from "@/components/business/PanelManagement";
 import { MaintenanceManagement } from "@/components/business/MaintenanceManagement";
 
+const SESSION_KEY = "business-dashboard-view";
+
 const businessDashboardViews = [
-  { value: "overview", label: "Overview" },
-  { value: "panel", label: "Contractor Panel" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "jobs", label: "My Jobs" },
-  { value: "invoices", label: "Invoices" },
-  { value: "quotes", label: "Quotes" },
-  { value: "contracts", label: "Contracts" },
-  { value: "bids", label: "Bids" },
-  { value: "suppliers", label: "Suppliers" },
-  { value: "procurement", label: "Procurement" },
-  { value: "messages", label: "Messages" },
+  { value: "overview", label: "Overview", comingSoon: false },
+  { value: "panel", label: "Contractor Panel", comingSoon: false },
+  { value: "maintenance", label: "Maintenance", comingSoon: false },
+  { value: "jobs", label: "My Jobs", comingSoon: false },
+  { value: "invoices", label: "Invoices", comingSoon: false },
+  { value: "quotes", label: "Quotes", comingSoon: false },
+  { value: "contracts", label: "Contracts", comingSoon: true },
+  { value: "bids", label: "Bids", comingSoon: true },
+  { value: "suppliers", label: "Suppliers", comingSoon: false },
+  { value: "procurement", label: "Procurement", comingSoon: true },
+  { value: "messages", label: "Messages", comingSoon: true },
 ] as const;
 
+type ViewValue = typeof businessDashboardViews[number]["value"];
+
 const BusinessDashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<ViewValue>(() => {
+    const saved = sessionStorage.getItem(SESSION_KEY) as ViewValue | null;
+    const valid = businessDashboardViews.some((v) => v.value === saved);
+    return valid && saved ? saved : "overview";
+  });
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -59,6 +68,12 @@ const BusinessDashboard = () => {
     pendingInvoices: 0,
     completedJobs: 0,
   });
+
+  const handleTabChange = (value: string) => {
+    const view = value as ViewValue;
+    setActiveTab(view);
+    sessionStorage.setItem(SESSION_KEY, view);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -79,7 +94,6 @@ const BusinessDashboard = () => {
 
       setUser(currentUser);
 
-      // Two-step profile lookup: user_id → profiles.id
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id, user_type")
@@ -105,7 +119,6 @@ const BusinessDashboard = () => {
         return;
       }
 
-      // Load companyId
       const { data: companyRow } = await supabase
         .from("companies")
         .select("id")
@@ -113,7 +126,6 @@ const BusinessDashboard = () => {
         .maybeSingle();
       setCompanyId(companyRow?.id ?? null);
 
-      // Use profiles.id (pid) for FK lookups
       const [activeJobsRes, completedJobsRes, receivedQuotesRes, pendingInvoicesRes] = await Promise.all([
         supabase.from("jobs").select("id").eq("customer_id", pid).in("status", ["active", "in_progress", "in-progress"]),
         supabase.from("jobs").select("id").eq("customer_id", pid).eq("status", "completed"),
@@ -122,7 +134,6 @@ const BusinessDashboard = () => {
       ]);
 
       if (activeJobsRes.error || completedJobsRes.error || receivedQuotesRes.error || pendingInvoicesRes.error) {
-        console.error("Dashboard query error", { activeJobsRes, completedJobsRes, receivedQuotesRes, pendingInvoicesRes });
         setLoadError("Unable to load dashboard data. Please try again.");
         setLoading(false);
         return;
@@ -148,10 +159,10 @@ const BusinessDashboard = () => {
     dashboardData.completedJobs === 0;
 
   const stats = [
-    { title: "Active Jobs", value: `${dashboardData.activeJobs}`, icon: FileText, description: "Currently in progress", tab: "jobs" },
-    { title: "Quotes Received", value: `${dashboardData.receivedQuotes}`, icon: Briefcase, description: "From contractors", tab: "quotes" },
-    { title: "Pending Invoices", value: `${dashboardData.pendingInvoices}`, icon: Users, description: "Awaiting payment", tab: "invoices" },
-    { title: "Projects Completed", value: `${dashboardData.completedJobs}`, icon: TrendingUp, description: "Total finished", tab: "jobs" },
+    { title: "Active Jobs", value: `${dashboardData.activeJobs}`, icon: FileText, description: "Currently in progress", tab: "jobs" as ViewValue },
+    { title: "Quotes Received", value: `${dashboardData.receivedQuotes}`, icon: Briefcase, description: "From contractors", tab: "quotes" as ViewValue },
+    { title: "Pending Invoices", value: `${dashboardData.pendingInvoices}`, icon: Users, description: "Awaiting payment", tab: "invoices" as ViewValue },
+    { title: "Projects Completed", value: `${dashboardData.completedJobs}`, icon: TrendingUp, description: "Total finished", tab: "jobs" as ViewValue },
   ];
 
   if (loading) {
@@ -187,19 +198,29 @@ const BusinessDashboard = () => {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
           <div className="max-w-sm">
             <label htmlFor="business-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">
               View
             </label>
-            <Select value={activeTab} onValueChange={setActiveTab}>
+            <Select value={activeTab} onValueChange={handleTabChange}>
               <SelectTrigger id="business-dashboard-view" className="w-full">
                 <SelectValue placeholder="Select a view" />
               </SelectTrigger>
               <SelectContent>
                 {businessDashboardViews.map((view) => (
-                  <SelectItem key={view.value} value={view.value}>
-                    {view.label}
+                  <SelectItem
+                    key={view.value}
+                    value={view.value}
+                    className={view.comingSoon ? "text-muted-foreground" : ""}
+                  >
+                    <span className="flex items-center gap-2">
+                      {view.comingSoon && <Lock className="h-3 w-3 shrink-0" />}
+                      {view.label}
+                      {view.comingSoon && (
+                        <span className="text-xs text-muted-foreground">· Soon</span>
+                      )}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -211,15 +232,15 @@ const BusinessDashboard = () => {
             {hasNoActivity ? (
               <EmptyState
                 message="Your business dashboard has no jobs, quotes, or invoices yet."
-                ctaLabel="Post your first opportunity"
-                onCta={() => navigate("/contracts")}
+                ctaLabel="Browse the contractor directory"
+                onCta={() => navigate("/contractors")}
               />
             ) : null}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
                 <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setActiveTab(stat.tab)}>
+                  onClick={() => handleTabChange(stat.tab)}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
                     <stat.icon className="h-4 w-4 text-muted-foreground" />
@@ -234,7 +255,7 @@ const BusinessDashboard = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
-                onClick={() => setActiveTab("panel")}>
+                onClick={() => handleTabChange("panel")}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <UserCheck className="h-5 w-5 text-primary" />
@@ -248,7 +269,7 @@ const BusinessDashboard = () => {
               </Card>
 
               <Card className="cursor-pointer hover:shadow-md transition-shadow border-primary/20"
-                onClick={() => setActiveTab("maintenance")}>
+                onClick={() => handleTabChange("maintenance")}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Wrench className="h-5 w-5 text-primary" />
@@ -285,7 +306,7 @@ const BusinessDashboard = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => setActiveTab("panel")}>
+                    onClick={() => handleTabChange("panel")}>
                     <UserCheck className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Contractor Panel</p>
@@ -294,7 +315,7 @@ const BusinessDashboard = () => {
                     <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
                   </div>
                   <div className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => setActiveTab("maintenance")}>
+                    onClick={() => handleTabChange("maintenance")}>
                     <Wrench className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Maintenance & Compliance</p>
@@ -302,7 +323,7 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
                   </div>
-                  <div className="flex items-center gap-4 p-4 rounded-lg border">
+                  <div className="flex items-center gap-4 p-4 rounded-lg border opacity-60">
                     <FileText className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Contract Management</p>
@@ -310,7 +331,7 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
-                  <div className="flex items-center gap-4 p-4 rounded-lg border">
+                  <div className="flex items-center gap-4 p-4 rounded-lg border opacity-60">
                     <TrendingUp className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium">Spend Analytics</p>
@@ -410,4 +431,3 @@ const BusinessDashboard = () => {
 };
 
 export default BusinessDashboard;
-

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Menu, User as UserIcon, LogOut } from "lucide-react";
+import { Menu, LogOut, Settings } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -86,6 +86,15 @@ const Header = () => {
               <Link to="/dashboard" className="text-sm text-slate-700 hover:text-slate-900">
                 {profile?.full_name || "Dashboard"}
               </Link>
+              {profile?.user_type === "business" && (
+                <Link
+                  to="/dashboard/business/settings"
+                  className="text-sm text-slate-500 hover:text-slate-900"
+                  title="Business settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </Link>
+              )}
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="h-3.5 w-3.5 mr-1" />
                 Log out
@@ -116,14 +125,25 @@ const Header = () => {
             <Link to="/contractors" onClick={() => setIsMenuOpen(false)}>Hire</Link>
             <Link to="/contracts" onClick={() => setIsMenuOpen(false)}>Contracts</Link>
             {user ? (
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-1" />
-                Log out
-              </Button>
+              <>
+                {profile?.user_type === "business" && (
+                  <Link
+                    to="/dashboard/business/settings"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Business Settings
+                  </Link>
+                )}
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Log out
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-                  <UserIcon className="h-4 w-4 mr-2" />
                   Log in
                 </Button>
                 <Button size="sm" className="bg-orange-500 hover:bg-orange-400" onClick={() => navigate("/auth")}>
