@@ -1280,8 +1280,9 @@ export default function AdminDashboard() {
                     <div>
                       <div style={sectionLabel}>Live Preview</div>
                       <div style={{ background: '#f4f4f4', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-                        <div style={{ background: '#0f2744', padding: '20px 28px' }}>
-                          <span style={{ color: '#f07820', fontSize: 20, fontWeight: 700 }}>TradeStone</span>
+                        <div style={{ background: '#fff', borderBottom: '1px solid #e8e8e8', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <img src="https://tnvxfzmdjpsswjszwbvf.supabase.co/storage/v1/object/public/logos/425b9477-5d1b-4a31-b7f0-a91a31f5a99b/logo.png" alt="" width={24} height={24} style={{ display: 'block' }} />
+                          <span style={{ color: '#0f2744', fontSize: 18, fontWeight: 700 }}>TradeStone</span>
                         </div>
                         <div style={{ padding: '28px 28px 20px', background: '#fff' }}>
                           <div style={{ fontSize: 18, fontWeight: 600, color: '#0f2744', marginBottom: 16 }}>

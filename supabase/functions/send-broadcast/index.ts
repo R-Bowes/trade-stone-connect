@@ -80,8 +80,8 @@ function buildEmailHtml(
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:system-ui,-apple-system,sans-serif;">
   <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-    <div style="background:#0f2744;padding:22px 32px;">
-      <img src="https://tnvxfzmdjpsswjszwbvf.supabase.co/storage/v1/object/public/logos/425b9477-5d1b-4a31-b7f0-a91a31f5a99b/logo.png" alt="TradeStone" height="48" style="display:block;" />
+    <div style="background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 32px;">
+      <img src="https://tnvxfzmdjpsswjszwbvf.supabase.co/storage/v1/object/public/logos/425b9477-5d1b-4a31-b7f0-a91a31f5a99b/logo.png" alt="" height="24" style="display:inline-block;vertical-align:middle;margin-right:8px;" /><span style="color:#0f2744;font-size:18px;font-weight:700;vertical-align:middle;">TradeStone</span>
     </div>
     <div style="padding:32px 32px 24px;">
       <h2 style="margin:0 0 18px;color:#0f2744;font-size:20px;font-weight:600;">${esc(subject)}</h2>
