@@ -1356,10 +1356,16 @@ export default function AdminDashboard() {
                               scheduled: { bg: 'rgba(234,179,8,0.15)',   color: '#facc15' },
                               draft:     { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' },
                             };
+                            const fmtDateTime = (iso: string) => {
+                              const d = new Date(iso);
+                              const date = d.toLocaleDateString('en-GB');
+                              const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                              return `${date} ${time}`;
+                            };
                             const dateStr = b.sent_at
-                              ? new Date(b.sent_at).toLocaleDateString('en-GB')
+                              ? fmtDateTime(b.sent_at)
                               : b.scheduled_at
-                              ? new Date(b.scheduled_at).toLocaleDateString('en-GB')
+                              ? fmtDateTime(b.scheduled_at)
                               : '—';
                             return (
                               <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
