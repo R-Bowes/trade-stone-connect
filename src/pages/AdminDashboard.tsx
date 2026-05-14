@@ -92,7 +92,32 @@ type Stats = {
   totalInvoices: number;
 };
 
-type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'messages' | 'admins' | 'settings' | 'activity';
+type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'messages' | 'admins' | 'settings' | 'activity' | 'broadcast';
+
+type BroadcastEmail = {
+  id: string;
+  subject: string;
+  audience_type: string;
+  audience_filters: Record<string, unknown> | null;
+  recipient_count: number | null;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
+
+type BroadcastAudienceType = 'all' | 'contractors' | 'customers' | 'business';
+type BroadcastVerification = 'all' | 'verified' | 'unverified';
+
+const CTA_DESTINATIONS = [
+  { value: 'profile',     label: 'Complete profile',  url: 'https://tradesltd.co.uk/profile' },
+  { value: 'jobs',        label: 'View jobs',          url: 'https://tradesltd.co.uk/jobs' },
+  { value: 'marketplace', label: 'Visit marketplace',  url: 'https://tradesltd.co.uk/marketplace' },
+  { value: 'invoices',    label: 'View invoices',      url: 'https://tradesltd.co.uk/invoices' },
+] as const;
+
+const BROADCAST_TRADES = [
+  'Plumber', 'Electrician', 'Builder', 'Carpenter', 'Decorator', 'Roofer', 'General builder',
+] as const;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -158,10 +183,55 @@ export default function AdminDashboard() {
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [convLoading, setConvLoading] = useState(false);
 
+  // Broadcast tab state
+  const [broadcastAudienceType, setBroadcastAudienceType] = useState<BroadcastAudienceType>('all');
+  const [broadcastTrade, setBroadcastTrade] = useState('');
+  const [broadcastVerification, setBroadcastVerification] = useState<BroadcastVerification>('all');
+  const [broadcastExcludeRecent, setBroadcastExcludeRecent] = useState(false);
+  const [broadcastSubject, setBroadcastSubject] = useState('');
+  const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcastCtaEnabled, setBroadcastCtaEnabled] = useState(false);
+  const [broadcastCtaDestination, setBroadcastCtaDestination] = useState('profile');
+  const [broadcastCtaLabel, setBroadcastCtaLabel] = useState('Complete profile');
+  const [broadcastScheduleDate, setBroadcastScheduleDate] = useState('');
+  const [broadcastScheduleTime, setBroadcastScheduleTime] = useState('');
+  const [broadcastRecipientCount, setBroadcastRecipientCount] = useState<number | null>(null);
+  const [broadcastHistory, setBroadcastHistory] = useState<BroadcastEmail[]>([]);
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+
   useEffect(() => {
     if (!isAdmin) return;
     loadData();
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (activeTab === 'broadcast' && isAdmin) {
+      loadBroadcastHistory();
+    }
+  }, [activeTab, isAdmin]);
+
+  useEffect(() => {
+    if (activeTab !== 'broadcast') return;
+    setBroadcastRecipientCount(null);
+    const timer = setTimeout(async () => {
+      const db = adminDb as any;
+      let query = db.from('profiles').select('id', { count: 'exact', head: true });
+      if (broadcastAudienceType !== 'all') {
+        const dbType = broadcastAudienceType === 'customers' ? 'personal' : broadcastAudienceType;
+        query = query.eq('user_type', dbType);
+      }
+      if (broadcastAudienceType === 'contractors' && broadcastTrade) {
+        query = query.contains('trades', [broadcastTrade]);
+      }
+      if (broadcastAudienceType === 'contractors' && broadcastVerification !== 'all') {
+        query = query.eq('is_verified', broadcastVerification === 'verified');
+      }
+      const { count } = await query;
+      setBroadcastRecipientCount(count ?? 0);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [activeTab, broadcastAudienceType, broadcastTrade, broadcastVerification]);
 
   async function loadData() {
     setLoading(true);
@@ -418,6 +488,91 @@ export default function AdminDashboard() {
     loadData();
   }
 
+  // ── Broadcast ────────────────────────────────────────────────────────────
+
+  async function loadBroadcastHistory() {
+    const { data } = await (adminDb as any)
+      .from('broadcast_emails')
+      .select('id, subject, audience_type, audience_filters, recipient_count, scheduled_at, sent_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    setBroadcastHistory(data || []);
+  }
+
+  function buildAudienceFilters() {
+    const f: Record<string, unknown> = {};
+    if (broadcastAudienceType === 'contractors') {
+      if (broadcastTrade) f.trade = broadcastTrade;
+      if (broadcastVerification !== 'all') f.verified_only = broadcastVerification === 'verified';
+    }
+    if (broadcastExcludeRecent) f.exclude_recent_days = 7;
+    return Object.keys(f).length > 0 ? f : null;
+  }
+
+  async function handleSendNowBroadcast() {
+    if (!broadcastSubject || !broadcastBody) return;
+    setBroadcastSending(true);
+    setBroadcastMsg('');
+    const ctaDest = CTA_DESTINATIONS.find(d => d.value === broadcastCtaDestination);
+    const { data: insertData, error: insertError } = await (adminDb as any)
+      .from('broadcast_emails')
+      .insert({
+        subject: broadcastSubject,
+        body: broadcastBody,
+        cta_label: broadcastCtaEnabled && broadcastCtaLabel ? broadcastCtaLabel : null,
+        cta_url: broadcastCtaEnabled && ctaDest ? ctaDest.url : null,
+        audience_type: broadcastAudienceType,
+        audience_filters: buildAudienceFilters(),
+        created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+      })
+      .select('id')
+      .single();
+    if (insertError || !insertData) {
+      setBroadcastMsg(`Error: ${insertError?.message || 'Failed to save broadcast'}`);
+      setBroadcastSending(false);
+      return;
+    }
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('send-broadcast', {
+      body: { broadcast_id: insertData.id },
+    });
+    if (fnError) {
+      setBroadcastMsg(`Error: ${fnError.message || 'Send failed'}`);
+    } else {
+      setBroadcastMsg(`Sent to ${fnData?.sent ?? 0} recipients.`);
+      await loadBroadcastHistory();
+    }
+    setBroadcastSending(false);
+  }
+
+  async function handleScheduleBroadcast() {
+    if (!broadcastSubject || !broadcastBody || !broadcastScheduleDate) return;
+    setBroadcastSending(true);
+    setBroadcastMsg('');
+    const ctaDest = CTA_DESTINATIONS.find(d => d.value === broadcastCtaDestination);
+    const scheduledAt = broadcastScheduleTime
+      ? `${broadcastScheduleDate}T${broadcastScheduleTime}:00`
+      : `${broadcastScheduleDate}T09:00:00`;
+    const { error: insertError } = await (adminDb as any)
+      .from('broadcast_emails')
+      .insert({
+        subject: broadcastSubject,
+        body: broadcastBody,
+        cta_label: broadcastCtaEnabled && broadcastCtaLabel ? broadcastCtaLabel : null,
+        cta_url: broadcastCtaEnabled && ctaDest ? ctaDest.url : null,
+        audience_type: broadcastAudienceType,
+        audience_filters: buildAudienceFilters(),
+        scheduled_at: scheduledAt,
+        created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+      });
+    if (insertError) {
+      setBroadcastMsg(`Error: ${insertError.message}`);
+    } else {
+      setBroadcastMsg(`Scheduled for ${new Date(scheduledAt).toLocaleDateString('en-GB')}.`);
+      await loadBroadcastHistory();
+    }
+    setBroadcastSending(false);
+  }
+
   // ── Messages ─────────────────────────────────────────────────────────────
 
   async function handleViewConversation(conv: Conversation) {
@@ -546,12 +701,13 @@ export default function AdminDashboard() {
   const allTabs: Tab[] = [
     'overview', 'users', 'enquiries', 'jobs', 'invoices', 'messages',
     ...(isSuperAdmin ? ['admins', 'settings'] as Tab[] : []),
-    'activity',
+    'broadcast', 'activity',
   ];
   const tabLabel: Record<Tab, string> = {
     overview: 'Overview', users: 'Users', enquiries: 'Enquiries',
     jobs: 'Jobs', invoices: 'Invoices', messages: 'Messages',
     admins: 'Admins', settings: 'Settings', activity: 'Activity Log',
+    broadcast: 'Broadcast',
   };
 
   const adminEmailMap = Object.fromEntries(adminUsers.map(a => [a.id, a.email]));
@@ -973,6 +1129,269 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
+
+            {/* ── BROADCAST ────────────────────────────────────────────── */}
+            {activeTab === 'broadcast' && (() => {
+              const canSend = !!broadcastSubject && !!broadcastBody && !broadcastSending;
+              const canSchedule = canSend && !!broadcastScheduleDate;
+              const toggleStyle = (on: boolean): CSSProperties => ({
+                width: 36, height: 20, borderRadius: 10, position: 'relative', flexShrink: 0, cursor: 'pointer',
+                background: on ? '#f07820' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s',
+              });
+              const toggleKnob = (on: boolean): CSSProperties => ({
+                position: 'absolute', top: 2, left: on ? 18 : 2, width: 16, height: 16,
+                borderRadius: 8, background: '#fff', transition: 'left 0.2s',
+              });
+              const sectionLabel: CSSProperties = {
+                fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase',
+                letterSpacing: '0.07em', marginBottom: 14, fontWeight: 600,
+              };
+              return (
+                <div>
+                  {/* ── Composer ── */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36, marginBottom: 0 }}>
+
+                    {/* Left column */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+                      {/* Audience */}
+                      <div>
+                        <div style={sectionLabel}>Audience</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div>
+                            <label style={labelS}>Account type</label>
+                            <select
+                              value={broadcastAudienceType}
+                              onChange={e => { setBroadcastAudienceType(e.target.value as BroadcastAudienceType); setBroadcastTrade(''); setBroadcastVerification('all'); }}
+                              style={{ ...inputS, cursor: 'pointer' }}
+                            >
+                              <option value="all">All users</option>
+                              <option value="contractors">Contractors</option>
+                              <option value="customers">Customers</option>
+                              <option value="business">Business accounts</option>
+                            </select>
+                          </div>
+                          {broadcastAudienceType === 'contractors' && (
+                            <>
+                              <div>
+                                <label style={labelS}>Trade</label>
+                                <select value={broadcastTrade} onChange={e => setBroadcastTrade(e.target.value)} style={{ ...inputS, cursor: 'pointer' }}>
+                                  <option value="">All trades</option>
+                                  {BROADCAST_TRADES.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={labelS}>Verification status</label>
+                                <select value={broadcastVerification} onChange={e => setBroadcastVerification(e.target.value as BroadcastVerification)} style={{ ...inputS, cursor: 'pointer' }}>
+                                  <option value="all">All</option>
+                                  <option value="verified">Verified only</option>
+                                  <option value="unverified">Unverified</option>
+                                </select>
+                              </div>
+                            </>
+                          )}
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                            onClick={() => setBroadcastExcludeRecent(v => !v)}
+                          >
+                            <div style={toggleStyle(broadcastExcludeRecent)}>
+                              <div style={toggleKnob(broadcastExcludeRecent)} />
+                            </div>
+                            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Exclude recently emailed (7 days)</span>
+                          </div>
+                          <div style={{ fontSize: 13, color: broadcastRecipientCount !== null ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.3)' }}>
+                            {broadcastRecipientCount !== null
+                              ? `${broadcastRecipientCount} recipient${broadcastRecipientCount === 1 ? '' : 's'} match these filters`
+                              : 'Counting recipients...'
+                            }
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Subject */}
+                      <div>
+                        <label style={labelS}>Subject line</label>
+                        <input
+                          value={broadcastSubject}
+                          onChange={e => setBroadcastSubject(e.target.value)}
+                          style={inputS}
+                          placeholder="e.g. An important update from TradeStone"
+                        />
+                      </div>
+
+                      {/* Body */}
+                      <div>
+                        <label style={labelS}>Message body</label>
+                        <textarea
+                          value={broadcastBody}
+                          onChange={e => setBroadcastBody(e.target.value)}
+                          style={{ ...inputS, minHeight: 120, resize: 'vertical' }}
+                          rows={5}
+                          placeholder={"Write your message here.\nUse [first name] to personalise."}
+                        />
+                      </div>
+
+                      {/* CTA toggle */}
+                      <div>
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: broadcastCtaEnabled ? 14 : 0 }}
+                          onClick={() => setBroadcastCtaEnabled(v => !v)}
+                        >
+                          <div style={toggleStyle(broadcastCtaEnabled)}>
+                            <div style={toggleKnob(broadcastCtaEnabled)} />
+                          </div>
+                          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Include CTA button</span>
+                        </div>
+                        {broadcastCtaEnabled && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <label style={labelS}>Destination</label>
+                              <select
+                                value={broadcastCtaDestination}
+                                onChange={e => {
+                                  setBroadcastCtaDestination(e.target.value);
+                                  const dest = CTA_DESTINATIONS.find(d => d.value === e.target.value);
+                                  if (dest) setBroadcastCtaLabel(dest.label);
+                                }}
+                                style={{ ...inputS, cursor: 'pointer' }}
+                              >
+                                {CTA_DESTINATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelS}>Button label</label>
+                              <input value={broadcastCtaLabel} onChange={e => setBroadcastCtaLabel(e.target.value)} style={inputS} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Scheduled send */}
+                      <div>
+                        <label style={labelS}>Scheduled send (optional)</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <input type="date" value={broadcastScheduleDate} onChange={e => setBroadcastScheduleDate(e.target.value)} style={inputS} />
+                          <input type="time" value={broadcastScheduleTime} onChange={e => setBroadcastScheduleTime(e.target.value)} style={inputS} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right column — live preview */}
+                    <div>
+                      <div style={sectionLabel}>Live Preview</div>
+                      <div style={{ background: '#f4f4f4', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div style={{ background: '#0f2744', padding: '20px 28px' }}>
+                          <span style={{ color: '#f07820', fontSize: 20, fontWeight: 700 }}>TradeStone</span>
+                        </div>
+                        <div style={{ padding: '28px 28px 20px', background: '#fff' }}>
+                          <div style={{ fontSize: 18, fontWeight: 600, color: '#0f2744', marginBottom: 16 }}>
+                            {broadcastSubject || <span style={{ color: '#ccc' }}>Subject line</span>}
+                          </div>
+                          <div style={{ fontSize: 14, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                            {broadcastBody
+                              ? broadcastBody.replace(/\[first name\]/gi, 'James')
+                              : <span style={{ color: '#bbb', fontStyle: 'italic' }}>Your message will appear here...</span>
+                            }
+                          </div>
+                          {broadcastCtaEnabled && broadcastCtaLabel && (
+                            <div style={{ textAlign: 'center', margin: '24px 0 8px' }}>
+                              <span style={{ background: '#f07820', color: '#fff', padding: '12px 28px', borderRadius: 8, fontWeight: 600, fontSize: 14, display: 'inline-block' }}>
+                                {broadcastCtaLabel}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ background: '#f9f9f9', borderTop: '1px solid #e8e8e8', padding: '14px 28px', textAlign: 'center' }}>
+                          <span style={{ fontSize: 11, color: '#999' }}>TradeStone Connect · tradesltd.co.uk · Unsubscribe</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '28px 0 40px' }}>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+                      Sending to {broadcastRecipientCount ?? '...'} recipients via Resend · tradesltd.co.uk
+                    </span>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {broadcastMsg && (
+                        <span style={{ fontSize: 13, color: broadcastMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
+                          {broadcastMsg}
+                        </span>
+                      )}
+                      <button
+                        onClick={handleScheduleBroadcast}
+                        disabled={!canSchedule}
+                        style={{ ...btnSecondary, opacity: canSchedule ? 1 : 0.4, cursor: canSchedule ? 'pointer' : 'not-allowed' }}
+                      >
+                        Schedule
+                      </button>
+                      <button
+                        onClick={handleSendNowBroadcast}
+                        disabled={!canSend}
+                        style={{ ...btnPrimary, opacity: canSend ? 1 : 0.5, cursor: canSend ? 'pointer' : 'not-allowed' }}
+                      >
+                        {broadcastSending ? 'Sending...' : 'Send now'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* History */}
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#e8eef4', marginBottom: 16 }}>History</div>
+                    {broadcastHistory.length === 0 ? emptyState('No broadcasts sent yet') : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            {['Subject', 'Audience', 'Recipients', 'Scheduled / Sent', 'Status'].map(h => (
+                              <th key={h} style={thStyle}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {broadcastHistory.map(b => {
+                            const bStatus = b.sent_at ? 'sent' : b.scheduled_at ? 'scheduled' : 'draft';
+                            const bBadge: Record<string, { bg: string; color: string }> = {
+                              sent:      { bg: 'rgba(34,197,94,0.15)',   color: '#4ade80' },
+                              scheduled: { bg: 'rgba(234,179,8,0.15)',   color: '#facc15' },
+                              draft:     { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' },
+                            };
+                            const dateStr = b.sent_at
+                              ? new Date(b.sent_at).toLocaleDateString('en-GB')
+                              : b.scheduled_at
+                              ? new Date(b.scheduled_at).toLocaleDateString('en-GB')
+                              : '—';
+                            return (
+                              <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '10px 16px', color: '#e8eef4', maxWidth: 220 }}>
+                                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {b.subject}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize' }}>
+                                  {b.audience_type}
+                                </td>
+                                <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.5)' }}>
+                                  {b.recipient_count ?? '—'}
+                                </td>
+                                <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>
+                                  {dateStr}
+                                </td>
+                                <td style={{ padding: '10px 16px' }}>
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, ...bBadge[bStatus] }}>
+                                    {bStatus.charAt(0).toUpperCase() + bStatus.slice(1)}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── ACTIVITY LOG ─────────────────────────────────────────── */}
             {activeTab === 'activity' && (

@@ -7,7 +7,9 @@
       "Bash(git pull *)",
       "Bash(git stash *)",
       "Bash(npm run *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(Get-Content \"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\" -TotalCount 50)",
+      "PowerShell([System.IO.File]::ReadAllText\\(\"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\"\\))"
     ]
   }
 }
