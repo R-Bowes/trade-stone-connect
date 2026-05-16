@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Menu, LogOut, Settings } from "lucide-react";
+import { Menu, LogOut, Settings, FolderKanban } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, NavLink } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -73,10 +73,20 @@ const Header = () => {
         </Link>
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-700">
-          <Link to="/" className="hover:text-slate-900">Home</Link>
-          <Link to="/marketplace" className="hover:text-slate-900">Marketplace</Link>
-          <Link to="/contractors" className="hover:text-slate-900">Hire</Link>
-          <Link to="/contracts" className="hover:text-slate-900">Contracts</Link>
+          <NavLink to="/" end className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Home</NavLink>
+          <NavLink to="/marketplace" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Marketplace</NavLink>
+          <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Hire</NavLink>
+          <NavLink to="/contracts" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Contracts</NavLink>
+          <NavLink
+            to="/projects"
+            className={({ isActive }) =>
+              isActive
+                ? "font-semibold text-orange-500"
+                : "hover:text-slate-900"
+            }
+          >
+            Projects
+          </NavLink>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -120,10 +130,22 @@ const Header = () => {
       {isMenuOpen && (
         <div className="border-t border-zinc-200 bg-white px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3 text-sm text-slate-700">
-            <Link to="/" onClick={() => setIsMenuOpen(false)}>Home</Link>
-            <Link to="/marketplace" onClick={() => setIsMenuOpen(false)}>Marketplace</Link>
-            <Link to="/contractors" onClick={() => setIsMenuOpen(false)}>Hire</Link>
-            <Link to="/contracts" onClick={() => setIsMenuOpen(false)}>Contracts</Link>
+            <NavLink to="/" end onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Home</NavLink>
+            <NavLink to="/marketplace" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Marketplace</NavLink>
+            <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Hire</NavLink>
+            <NavLink to="/contracts" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Contracts</NavLink>
+            <NavLink
+              to="/projects"
+              onClick={() => setIsMenuOpen(false)}
+              className={({ isActive }) =>
+                isActive
+                  ? "flex items-center gap-2 font-semibold text-orange-500"
+                  : "flex items-center gap-2"
+              }
+            >
+              <FolderKanban className="h-4 w-4" />
+              Projects
+            </NavLink>
             {user ? (
               <>
                 {profile?.user_type === "business" && (
