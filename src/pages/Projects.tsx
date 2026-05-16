@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import Header from "@/components/Header";
 import { PostTenderForm } from "@/components/projects/PostTenderForm";
 import { supabase } from "@/integrations/supabase/client";
-import { FolderOpen, X, MapPin, Calendar, User } from "lucide-react";
+import { Calendar, FolderOpen, MapPin, User, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ type TenderRow = {
   budget_visible_to_contractors: boolean | null;
   proposal_deadline: string | null;
   created_at: string;
+  posted_by: string;
   poster: { full_name: string | null; company_name: string | null } | null;
 };
 
@@ -43,72 +45,28 @@ function posterName(poster: TenderRow["poster"]) {
   return poster.company_name || poster.full_name || "TradeStone member";
 }
 
-// ── Design tokens (shared with the rest of the navy dashboard) ─────────────────
-
-const C = {
-  bg: "#0f1b2d",
-  card: "#1a2942",
-  border: "rgba(255,255,255,0.08)",
-  muted: "rgba(255,255,255,0.50)",
-  white: "#ffffff",
-  accent: "#f07820",
-} as const;
-
 // ── Skeleton card ──────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
-  const line = (w: string, h = 12, mb = 0) => (
-    <div
-      style={{
-        width: w,
-        height: h,
-        borderRadius: 4,
-        background: "rgba(255,255,255,0.07)",
-        marginBottom: mb,
-      }}
-    />
-  );
-
   return (
-    <div
-      style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-      }}
-    >
-      {line("65%", 18, 4)}
-      {line("45%")}
-      <div style={{ display: "flex", gap: 6 }}>
-        {["30%", "25%", "35%"].map((w, i) => (
-          <div
-            key={i}
-            style={{
-              width: w,
-              height: 22,
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.07)",
-            }}
-          />
-        ))}
+    <Card className="p-6 flex flex-col gap-3 animate-pulse">
+      <div className="h-5 bg-muted rounded w-2/3" />
+      <div className="h-3.5 bg-muted rounded w-1/3" />
+      <div className="flex gap-2 mt-1">
+        <div className="h-5 bg-muted rounded-full w-20" />
+        <div className="h-5 bg-muted rounded-full w-16" />
+        <div className="h-5 bg-muted rounded-full w-24" />
       </div>
-      <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between" }}>
-        {line("35%")}
-        {line("30%")}
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="h-9 bg-muted rounded" />
+        <div className="h-9 bg-muted rounded" />
       </div>
-      <div
-        style={{
-          marginTop: 8,
-          height: 36,
-          borderRadius: 6,
-          background: "rgba(255,255,255,0.07)",
-        }}
-      />
-    </div>
+      <div className="h-px bg-border mt-1" />
+      <div className="flex items-center justify-between">
+        <div className="h-3.5 bg-muted rounded w-1/3" />
+        <div className="h-8 bg-muted rounded w-24" />
+      </div>
+    </Card>
   );
 }
 
@@ -124,158 +82,70 @@ function TenderCard({ tender }: { tender: TenderRow }) {
   const categories = tender.trade_categories ?? [];
 
   return (
-    <div
-      style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-      }}
-    >
+    <Card className="p-6 flex flex-col hover:shadow-md transition-shadow">
       {/* Title */}
-      <p
-        style={{
-          color: C.white,
-          fontSize: 15,
-          fontWeight: 700,
-          margin: "0 0 8px",
-          lineHeight: 1.3,
-        }}
-      >
-        {tender.title}
-      </p>
+      <h3 className="font-semibold text-lg leading-snug mb-2">{tender.title}</h3>
 
       {/* Location */}
       {location && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            marginBottom: 14,
-          }}
-        >
-          <MapPin size={12} style={{ color: C.muted, flexShrink: 0 }} />
-          <span style={{ color: C.muted, fontSize: 13 }}>{location}</span>
+        <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-4">
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <span>{location}</span>
         </div>
       )}
 
       {/* Trade chips */}
       {categories.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            marginBottom: 16,
-          }}
-        >
+        <div className="flex flex-wrap gap-1.5 mb-5">
           {categories.slice(0, 4).map(cat => (
             <span
               key={cat}
-              style={{
-                background: "rgba(240,120,32,0.12)",
-                border: "1px solid rgba(240,120,32,0.25)",
-                color: "#f09050",
-                borderRadius: 20,
-                padding: "2px 10px",
-                fontSize: 11,
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-              }}
+              className="bg-primary/10 text-primary border border-primary/20 text-xs px-2.5 py-0.5 rounded-full font-medium"
             >
               {cat}
             </span>
           ))}
           {categories.length > 4 && (
-            <span
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: `1px solid ${C.border}`,
-                color: C.muted,
-                borderRadius: 20,
-                padding: "2px 10px",
-                fontSize: 11,
-              }}
-            >
+            <span className="bg-muted text-muted-foreground text-xs px-2.5 py-0.5 rounded-full">
               +{categories.length - 4} more
             </span>
           )}
         </div>
       )}
 
-      {/* Budget + deadline row */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
+      {/* Budget + deadline */}
+      <div className="grid grid-cols-2 gap-4 mb-5">
         <div>
-          <p style={{ color: C.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 3px" }}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
             Budget
           </p>
-          <p style={{ color: C.white, fontSize: 14, fontWeight: 600, margin: 0 }}>{budget}</p>
+          <p className="font-semibold text-sm">{budget}</p>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <p style={{ color: C.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 3px" }}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
             Deadline
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
-            <Calendar size={12} style={{ color: C.muted }} />
-            <p style={{ color: C.white, fontSize: 13, margin: 0 }}>{deadline}</p>
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <p className="text-sm">{deadline}</p>
           </div>
         </div>
       </div>
 
-      {/* Divider */}
-      <div style={{ borderTop: `1px solid ${C.border}`, margin: "0 0 14px" }} />
-
-      {/* Posted by + button row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <User size={12} style={{ color: C.muted, flexShrink: 0 }} />
-          <span
-            style={{
-              color: C.muted,
-              fontSize: 12,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {posterName(tender.poster)}
-          </span>
+      {/* Divider + footer */}
+      <div className="border-t pt-4 mt-auto flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+          <User className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{posterName(tender.poster)}</span>
         </div>
-
         <Button
           size="sm"
-          style={{
-            background: C.accent,
-            color: C.white,
-            border: "none",
-            fontWeight: 600,
-            fontSize: 13,
-            flexShrink: 0,
-          }}
+          className="bg-orange-500 text-white hover:bg-orange-400 shrink-0"
         >
           View Tender
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -319,114 +189,73 @@ const Projects = () => {
 
   return (
     <>
-      {/* ── Main page ─────────────────────────────────────────────────────────── */}
-      <div style={{ minHeight: "100vh", background: C.bg }}>
+      <div className="min-h-screen bg-background">
         <Header />
 
-        {/* Page header */}
-        <div style={{ borderBottom: `1px solid ${C.border}`, padding: "24px 32px" }}>
-          <div
-            style={{
-              maxWidth: 1200,
-              margin: "0 auto",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-            }}
-          >
-            <div>
-              <h1 style={{ color: C.white, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
-                Projects
-              </h1>
-              <p style={{ color: C.muted, fontSize: 14, margin: "4px 0 0" }}>
-                Post tenders and manage your project pipeline
-              </p>
-            </div>
+        <main>
+          <section className="py-16 px-4">
+            <div className="container mx-auto max-w-6xl">
 
-            <Button
-              onClick={() => setShowForm(true)}
-              style={{ background: C.accent, color: C.white, border: "none", fontWeight: 600 }}
-            >
-              Post a Tender
-            </Button>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 32px 64px" }}>
-
-          {/* ── Loading: skeleton grid ── */}
-          {loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          )}
-
-          {/* ── Results: tender grid ── */}
-          {!loading && tenders.length > 0 && (
-            <>
-              <p style={{ color: C.muted, fontSize: 13, margin: "0 0 20px" }}>
-                {tenders.length} open tender{tenders.length !== 1 ? "s" : ""}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tenders.map(tender => (
-                  <TenderCard key={tender.id} tender={tender} />
-                ))}
+              {/* Page header */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                    Open <span className="text-primary">Tenders</span>
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Browse open project tenders and submit your proposal
+                  </p>
+                </div>
+                <Button
+                  onClick={() => setShowForm(true)}
+                  className="bg-orange-500 text-white hover:bg-orange-400 sm:shrink-0"
+                >
+                  Post a Tender
+                </Button>
               </div>
-            </>
-          )}
 
-          {/* ── Empty state ── */}
-          {!loading && tenders.length === 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 400,
-              }}
-            >
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: "50%",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 20px",
-                }}
-              >
-                <FolderOpen size={28} style={{ color: "rgba(255,255,255,0.3)" }} />
-              </div>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 16, fontWeight: 600, margin: "0 0 6px" }}>
-                No projects yet
-              </p>
-              <p style={{ color: "rgba(255,255,255,0.40)", fontSize: 14, margin: 0 }}>
-                Post a tender to get started
-              </p>
+              {/* Loading */}
+              {loading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <SkeletonCard key={i} />
+                  ))}
+                </div>
+              )}
+
+              {/* Results */}
+              {!loading && tenders.length > 0 && (
+                <>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    {tenders.length} open tender{tenders.length !== 1 ? "s" : ""}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {tenders.map(tender => (
+                      <TenderCard key={tender.id} tender={tender} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Empty state */}
+              {!loading && tenders.length === 0 && (
+                <div className="text-center py-24">
+                  <div className="bg-muted/50 rounded-full p-5 w-fit mx-auto mb-5">
+                    <FolderOpen className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">No projects yet</h3>
+                  <p className="text-muted-foreground">Post a tender to get started</p>
+                </div>
+              )}
+
             </div>
-          )}
-        </div>
+          </section>
+        </main>
       </div>
 
-      {/* ── Full-screen form overlay ───────────────────────────────────────────── */}
+      {/* Full-screen form overlay — PostTenderForm has its own dark background */}
       {showForm && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 50,
-            overflowY: "auto",
-            background: C.bg,
-          }}
-        >
+        <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: "#0f1b2d" }}>
           <button
             onClick={() => setShowForm(false)}
             style={{
@@ -444,7 +273,6 @@ const Projects = () => {
               gap: 6,
               color: "rgba(255,255,255,0.7)",
               fontSize: 13,
-              transition: "background 0.15s",
             }}
             onMouseEnter={e =>
               ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.14)")
