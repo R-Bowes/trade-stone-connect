@@ -26,6 +26,7 @@ type ProjectRow = {
   tender_status: string;
   budget: number | null;
   budget_revised: number | null;
+  retention_percentage: number | null;
 };
 
 type ProposalRow = {
@@ -91,13 +92,23 @@ type AttachmentRow = {
   file_url: string;
 };
 
+type SnagRow = {
+  id: string;
+  description: string;
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
+  raised_by: string;
+  raiser: { full_name: string | null; company_name: string | null } | null;
+};
+
 type MyProfile = {
   id: string;
   full_name: string | null;
   company_name: string | null;
 };
 
-type Tab = "overview" | "updates" | "changes" | "documents";
+type Tab = "overview" | "updates" | "changes" | "documents" | "snags";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -165,6 +176,7 @@ function TenderStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; style: string }> = {
     awarded: { label: "Awarded", style: "bg-green-50 text-green-700 border-green-200" },
     in_delivery: { label: "In Delivery", style: "bg-blue-50 text-blue-700 border-blue-200" },
+    completed: { label: "Completed", style: "bg-green-100 text-green-800 border-green-300" },
   };
   const e = map[status] ?? { label: status, style: "bg-muted text-muted-foreground border-border" };
   return <Badge label={e.label} style={e.style} />;
@@ -184,6 +196,7 @@ const ProjectDelivery = () => {
   const [changeRequests, setChangeRequests] = useState<ChangeRequestRow[]>([]);
   const [contracts, setContracts] = useState<ContractRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
+  const [snags, setSnags] = useState<SnagRow[]>([]);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
@@ -215,6 +228,13 @@ const ProjectDelivery = () => {
   const [showPCDialog, setShowPCDialog] = useState(false);
   const [submittingPC, setSubmittingPC] = useState(false);
 
+  // Snags
+  const [snagDescription, setSnagDescription] = useState("");
+  const [submittingSnag, setSubmittingSnag] = useState(false);
+  const [actioningSnag, setActioningSnag] = useState<string | null>(null);
+  const [showSignOffDialog, setShowSignOffDialog] = useState(false);
+  const [submittingSignOff, setSubmittingSignOff] = useState(false);
+
   useEffect(() => {
     if (id) fetchAll(id);
   }, [id]);
@@ -235,7 +255,7 @@ const ProjectDelivery = () => {
 
     const { data: proj, error: projError } = await supabase
       .from("projects")
-      .select("id, title, posted_by, tender_status, budget, budget_revised")
+      .select("id, title, posted_by, tender_status, budget, budget_revised, retention_percentage")
       .eq("id", projectId)
       .single();
 
@@ -292,11 +312,12 @@ const ProjectDelivery = () => {
     setChangeRequests((crRes.data ?? []) as unknown as ChangeRequestRow[]);
     setContracts((contractRes.data ?? []) as unknown as ContractRow[]);
 
-    // Fetch snags (not rendered yet)
-    await supabase
+    const { data: snagsRes } = await supabase
       .from("project_snags")
-      .select("id, description, status, created_at")
-      .eq("project_id", projectId);
+      .select("id, description, status, created_at, resolved_at, raised_by, raiser:profiles!raised_by(full_name, company_name)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
+    setSnags((snagsRes ?? []) as unknown as SnagRow[]);
 
     if (propRow) {
       const { data: atts } = await supabase
@@ -327,6 +348,16 @@ const ProjectDelivery = () => {
       .eq("project_id", id)
       .order("created_at", { ascending: false });
     setChangeRequests((data ?? []) as unknown as ChangeRequestRow[]);
+  }
+
+  async function refreshSnags() {
+    if (!id) return;
+    const { data } = await supabase
+      .from("project_snags")
+      .select("id, description, status, created_at, resolved_at, raised_by, raiser:profiles!raised_by(full_name, company_name)")
+      .eq("project_id", id)
+      .order("created_at", { ascending: false });
+    setSnags((data ?? []) as unknown as SnagRow[]);
   }
 
   // ── Submit update ─────────────────────────────────────────────────────────────
@@ -527,6 +558,132 @@ const ProjectDelivery = () => {
     }
   }
 
+  // ── Submit snag ───────────────────────────────────────────────────────────────
+
+  async function submitSnag() {
+    if (!id || !myProfile || !snagDescription.trim()) return;
+    setSubmittingSnag(true);
+    try {
+      const { error } = await supabase.from("project_snags").insert({
+        project_id: id,
+        raised_by: myProfile.id,
+        description: snagDescription.trim(),
+        status: "open",
+      });
+      if (error) throw error;
+      setSnagDescription("");
+      await refreshSnags();
+      toast({ title: "Snag raised" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to raise snag";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setSubmittingSnag(false);
+    }
+  }
+
+  // ── Update snag status ────────────────────────────────────────────────────────
+
+  async function updateSnagStatus(snagId: string, newStatus: "in_progress" | "open" | "resolved") {
+    setActioningSnag(snagId);
+    try {
+      const updates: Record<string, unknown> = { status: newStatus };
+      if (newStatus === "resolved") updates.resolved_at = new Date().toISOString();
+      if (newStatus === "open") updates.resolved_at = null;
+
+      const { error } = await supabase
+        .from("project_snags")
+        .update(updates)
+        .eq("id", snagId);
+      if (error) throw error;
+
+      await refreshSnags();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update snag";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setActioningSnag(null);
+    }
+  }
+
+  // ── Final sign-off ────────────────────────────────────────────────────────────
+
+  async function confirmFinalSignOff() {
+    if (!id || !myProfile || !proposal || !project) return;
+    setSubmittingSignOff(true);
+    try {
+      const { error: soErr } = await supabase.from("project_sign_offs").insert({
+        project_id: id,
+        signed_off_by: myProfile.id,
+        stage: "final",
+        retention_released: true,
+      });
+      if (soErr) throw soErr;
+
+      const { error: projErr } = await supabase
+        .from("projects")
+        .update({ tender_status: "completed" })
+        .eq("id", id);
+      if (projErr) throw projErr;
+
+      if (project.retention_percentage && proposal.total_cost) {
+        const retentionAmount = Math.round((project.retention_percentage / 100) * proposal.total_cost * 100) / 100;
+
+        // Fetch client profile for invoice details
+        const { data: clientProfile } = await supabase
+          .from("profiles")
+          .select("full_name, company_name, email, phone, user_id")
+          .eq("id", project.posted_by)
+          .single();
+
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 14);
+        const dueDateStr = dueDate.toISOString().slice(0, 10);
+
+        const clientName = clientProfile?.company_name || clientProfile?.full_name || "Client";
+        const clientEmail = clientProfile?.email;
+        if (!clientEmail) throw new Error("Client profile has no email address — retention invoice cannot be raised. Ask the client to add an email to their profile.");
+
+        const { error: invErr } = await supabase.from("invoices").insert({
+          contractor_id: proposal.contractor_id,
+          recipient_id: clientProfile?.user_id ?? null,
+          project_id: id,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_phone: clientProfile?.phone ?? null,
+          items: [
+            {
+              description: `Retention release — ${project.title}`,
+              quantity: 1,
+              unit_price: retentionAmount,
+              total: retentionAmount,
+            },
+          ],
+          subtotal: retentionAmount,
+          tax_rate: 0,
+          tax_amount: 0,
+          total: retentionAmount,
+          notes: `Retention release — ${project.title}`,
+          due_date: dueDateStr,
+          status: "draft",
+        });
+        if (invErr) throw invErr;
+      }
+
+      setProject(prev => prev ? { ...prev, tender_status: "completed" } : prev);
+      setShowSignOffDialog(false);
+      toast({
+        title: "Project complete",
+        description: "Retention has been released and the final invoice raised.",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to complete sign-off";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setSubmittingSignOff(false);
+    }
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const jobs = projectJobs.map(pj => pj.job).filter(Boolean);
@@ -587,7 +744,12 @@ const ProjectDelivery = () => {
     updates: "Updates",
     changes: "Change Requests",
     documents: "Documents",
+    snags: "Snags",
   };
+
+  const showSnagTab = project.tender_status === "in_delivery" || project.tender_status === "completed";
+  const openSnagCount = snags.filter(s => s.status === "open").length;
+  const allSnagsResolved = snags.length > 0 && snags.every(s => s.status === "resolved");
 
   return (
     <div className="min-h-screen bg-background">
@@ -656,6 +818,23 @@ const ProjectDelivery = () => {
                 )}
               </button>
             ))}
+            {showSnagTab && (
+              <button
+                onClick={() => setTab("snags")}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  tab === "snags"
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Snags
+                {openSnagCount > 0 && (
+                  <span className="ml-2 bg-red-100 text-red-700 text-xs rounded-full px-1.5 py-0.5 font-semibold">
+                    {openSnagCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* ── Overview ── */}
@@ -1233,6 +1412,172 @@ const ProjectDelivery = () => {
             </div>
           )}
 
+          {/* ── Snags ── */}
+          {tab === "snags" && showSnagTab && (
+            <div className="flex flex-col gap-4">
+
+              {/* Header row */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold">Snag List</h2>
+                  {openSnagCount > 0 && (
+                    <span className="bg-red-100 text-red-700 text-xs rounded-full px-2 py-0.5 font-semibold border border-red-200">
+                      {openSnagCount} open
+                    </span>
+                  )}
+                </div>
+                {isClient && project.tender_status === "in_delivery" && (
+                  <Button
+                    style={{ backgroundColor: "#f07820" }}
+                    className="text-white hover:opacity-90"
+                    onClick={() => {
+                      document.getElementById("snag-description-input")?.focus();
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Raise Snag
+                  </Button>
+                )}
+              </div>
+
+              {/* Raise snag form — client only */}
+              {isClient && project.tender_status === "in_delivery" && (
+                <Card className="p-5">
+                  <h3 className="font-semibold text-sm mb-3">Raise a new snag</h3>
+                  <div className="flex flex-col gap-3">
+                    <Textarea
+                      id="snag-description-input"
+                      value={snagDescription}
+                      onChange={e => setSnagDescription(e.target.value)}
+                      placeholder="Describe the snag..."
+                      rows={3}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        style={{ backgroundColor: "#f07820" }}
+                        className="text-white hover:opacity-90"
+                        onClick={submitSnag}
+                        disabled={submittingSnag || !snagDescription.trim()}
+                      >
+                        {submittingSnag && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                        Submit
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Snag cards */}
+              {snags.length === 0 ? (
+                <div className="text-center py-16">
+                  <p className="text-muted-foreground text-sm">No snags raised yet.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {snags.map(snag => {
+                    const statusBadge = {
+                      open: { label: "Open", style: "bg-red-50 text-red-700 border-red-200" },
+                      in_progress: { label: "In Progress", style: "bg-amber-50 text-amber-700 border-amber-200" },
+                      resolved: { label: "Resolved", style: "bg-green-50 text-green-700 border-green-200" },
+                    }[snag.status] ?? { label: snag.status, style: "bg-muted text-muted-foreground border-border" };
+
+                    return (
+                      <Card key={snag.id} className="p-4">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm mb-2">{snag.description}</p>
+                            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                              <Badge label={statusBadge.label} style={statusBadge.style} />
+                              <span>Raised by {partyName(snag.raiser)}</span>
+                              <span>·</span>
+                              <span>{formatDateTime(snag.created_at)}</span>
+                              {snag.status === "resolved" && snag.resolved_at && (
+                                <>
+                                  <span>·</span>
+                                  <span>Resolved {formatDateTime(snag.resolved_at)}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Contractor actions */}
+                          {isContractor && (
+                            <div className="flex gap-2 shrink-0">
+                              {snag.status === "open" && (
+                                <Button
+                                  size="sm"
+                                  className="bg-amber-500 hover:bg-amber-400 text-white"
+                                  onClick={() => updateSnagStatus(snag.id, "in_progress")}
+                                  disabled={actioningSnag === snag.id}
+                                >
+                                  {actioningSnag === snag.id && (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                  )}
+                                  Mark In Progress
+                                </Button>
+                              )}
+                              {snag.status === "in_progress" && (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-500 text-white"
+                                  onClick={() => updateSnagStatus(snag.id, "resolved")}
+                                  disabled={actioningSnag === snag.id}
+                                >
+                                  {actioningSnag === snag.id && (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                  )}
+                                  Mark Resolved
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Client actions on resolved snags */}
+                          {isClient && snag.status === "resolved" && (
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-500 text-white"
+                                onClick={() => {}}
+                              >
+                                Confirm Resolved
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 text-red-600 hover:bg-red-50"
+                                onClick={() => updateSnagStatus(snag.id, "open")}
+                                disabled={actioningSnag === snag.id}
+                              >
+                                {actioningSnag === snag.id && (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                )}
+                                Reopen
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Final sign-off button — client only, when in_delivery and all snags resolved */}
+              {isClient && project.tender_status === "in_delivery" && allSnagsResolved && (
+                <div className="border-t pt-6 mt-2">
+                  <Button
+                    className="bg-green-600 hover:bg-green-500 text-white"
+                    onClick={() => setShowSignOffDialog(true)}
+                  >
+                    All snags resolved — proceed to final sign-off
+                  </Button>
+                </div>
+              )}
+
+            </div>
+          )}
+
         </div>
       </main>
 
@@ -1278,6 +1623,47 @@ const ProjectDelivery = () => {
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 )}
                 Confirm rejection
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final sign-off dialog */}
+      {showSignOffDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="font-bold text-base">Final sign-off</h3>
+              <button
+                onClick={() => setShowSignOffDialog(false)}
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                disabled={submittingSignOff}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-muted-foreground">
+                This will formally close the project, release retention, and trigger the final invoice.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-5">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowSignOffDialog(false)}
+                disabled={submittingSignOff}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-500 text-white"
+                onClick={confirmFinalSignOff}
+                disabled={submittingSignOff}
+              >
+                {submittingSignOff && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Confirm sign-off
               </Button>
             </div>
           </div>
