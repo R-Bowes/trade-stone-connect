@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
-import { ArrowLeft, Calendar, MapPin, User } from "lucide-react";
+import { SubmitProposalForm } from "@/components/projects/SubmitProposalForm";
+import { ArrowLeft, Calendar, MapPin, User, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ const TenderDetail = () => {
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const [showProposalForm, setShowProposalForm] = useState(false);
 
   const [questionText, setQuestionText] = useState("");
   const [submittingQ, setSubmittingQ] = useState(false);
@@ -232,6 +235,21 @@ const TenderDetail = () => {
     if (!error) await refreshQanda();
   }
 
+  async function refreshProposalCount() {
+    if (!id) return;
+    const { count } = await supabase
+      .from("project_proposals")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", id);
+    setProposalCount(count ?? 0);
+  }
+
+  function handleProposalSuccess() {
+    setShowProposalForm(false);
+    toast({ title: "Proposal submitted", description: "Your proposal has been sent to the client." });
+    refreshProposalCount();
+  }
+
   const isPoster = Boolean(myProfile && tender && myProfile.id === tender.posted_by);
   const isContractor = myProfile?.user_type === "contractor";
 
@@ -306,6 +324,15 @@ const TenderDetail = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    {showProposalForm && (
+      <ProposalOverlay
+        projectId={tender.id}
+        scoringCriteria={scoringCriteria}
+        onSuccess={handleProposalSuccess}
+        onClose={() => setShowProposalForm(false)}
+      />
+    )}
     <div className="min-h-screen bg-background">
       <Header />
 
@@ -630,7 +657,10 @@ const TenderDetail = () => {
                 {(isContractor || isPoster) && (
                   <div className="border-t pt-4 flex flex-col gap-2">
                     {isContractor && !isPoster && (
-                      <Button className="bg-orange-500 text-white hover:bg-orange-400 w-full">
+                      <Button
+                        className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                        onClick={() => setShowProposalForm(true)}
+                      >
                         Submit Proposal
                       </Button>
                     )}
@@ -649,7 +679,61 @@ const TenderDetail = () => {
         </div>
       </main>
     </div>
+    </>
   );
 };
 
 export default TenderDetail;
+
+// ── Proposal form overlay — rendered outside the page tree so it sits above Header ──
+
+function ProposalOverlay({
+  projectId,
+  scoringCriteria,
+  onSuccess,
+  onClose,
+}: {
+  projectId: string;
+  scoringCriteria: { label: string; weight: number }[];
+  onSuccess: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: "#0f1b2d" }}>
+      <button
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          top: 16,
+          right: 20,
+          zIndex: 51,
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 8,
+          padding: "6px 10px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          color: "rgba(255,255,255,0.7)",
+          fontSize: 13,
+        }}
+        onMouseEnter={e =>
+          ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.14)")
+        }
+        onMouseLeave={e =>
+          ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)")
+        }
+      >
+        <X size={14} />
+        Close
+      </button>
+      <SubmitProposalForm
+        projectId={projectId}
+        scoringCriteria={scoringCriteria}
+        onSuccess={onSuccess}
+        onCancel={onClose}
+      />
+    </div>
+  );
+}
