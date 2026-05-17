@@ -665,9 +665,22 @@ const TenderDetail = () => {
                       </Button>
                     )}
                     {isPoster && (
-                      <Button variant="outline" className="w-full">
-                        Edit Tender
-                      </Button>
+                      <>
+                        <Button
+                          className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                          onClick={() => navigate(`/projects/${tender.id}/proposals`)}
+                        >
+                          Review Proposals
+                          {proposalCount > 0 && (
+                            <span className="ml-2 bg-white/20 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                              {proposalCount}
+                            </span>
+                          )}
+                        </Button>
+                        <Button variant="outline" className="w-full">
+                          Edit Tender
+                        </Button>
+                      </>
                     )}
                   </div>
                 )}
