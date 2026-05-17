@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
+import { ContractSigning } from "@/components/projects/ContractSigning";
 import {
   ArrowLeft,
   ExternalLink,
@@ -50,7 +51,11 @@ type ProposalRow = {
   submitted_at: string | null;
   rejection_reason: string | null;
   rejection_scores: { criterion: string; score: number }[] | null;
-  contractor: { full_name: string | null; company_name: string | null } | null;
+  contractor: {
+    full_name: string | null;
+    company_name: string | null;
+    stripe_account_id: string | null;
+  } | null;
   attachments: AttachmentRow[];
 };
 
@@ -60,9 +65,15 @@ type ProjectRow = {
   posted_by: string;
   scoring_criteria: ScoringCriterion[] | null;
   tender_status: string;
+  deposit_required: boolean | null;
+  deposit_amount: number | null;
 };
 
-type MyProfile = { id: string };
+type MyProfile = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +197,13 @@ const ProposalReview = () => {
   // Loading state for DB operations
   const [actioning, setActioning] = useState(false);
 
+  // Contract signing overlay
+  const [contractSigning, setContractSigning] = useState<{
+    contractId: string;
+    documentUrl: string;
+    proposal: ProposalRow;
+  } | null>(null);
+
   useEffect(() => {
     if (id) fetchAll(id);
   }, [id]);
@@ -205,7 +223,7 @@ const ProposalReview = () => {
     // Two-step profile lookup
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, full_name, company_name")
       .eq("user_id", user.id)
       .single();
     setMyProfile(profile as MyProfile | null);
@@ -213,7 +231,7 @@ const ProposalReview = () => {
     // Fetch project
     const { data: proj, error: projError } = await supabase
       .from("projects")
-      .select("id, title, posted_by, scoring_criteria, tender_status")
+      .select("id, title, posted_by, scoring_criteria, tender_status, deposit_required, deposit_amount")
       .eq("id", projectId)
       .single();
 
@@ -236,7 +254,7 @@ const ProposalReview = () => {
   async function loadProposals(projectId: string) {
     const { data: propsData } = await supabase
       .from("project_proposals")
-      .select(`*, contractor:profiles!contractor_id(full_name, company_name)`)
+      .select(`*, contractor:profiles!contractor_id(full_name, company_name, stripe_account_id)`)
       .eq("project_id", projectId)
       .order("submitted_at", { ascending: true });
 
@@ -284,17 +302,17 @@ const ProposalReview = () => {
   // ── Accept ────────────────────────────────────────────────────────────────────
 
   async function handleAccept(proposal: ProposalRow) {
-    if (!project || !id) return;
+    if (!project || !id || !myProfile) return;
     setActioning(true);
     try {
-      // 1. Mark this proposal accepted
+      // Step 1 — Accept the proposal, reject others, award project, seed jobs
+
       const { error: acceptError } = await supabase
         .from("project_proposals")
         .update({ status: "accepted" })
         .eq("id", proposal.id);
       if (acceptError) throw acceptError;
 
-      // 2. Reject all other proposals for this project
       await supabase
         .from("project_proposals")
         .update({ status: "rejected", rejection_reason: "Another proposal was selected" })
@@ -302,13 +320,11 @@ const ProposalReview = () => {
         .neq("id", proposal.id)
         .eq("status", "submitted");
 
-      // 3. Award the project
       await supabase
         .from("projects")
         .update({ tender_status: "awarded" })
         .eq("id", id);
 
-      // 4. Seed jobs from accepted proposal phases
       const phases = (proposal.phases as unknown as PhaseJson[]) ?? [];
       for (let i = 0; i < phases.length; i++) {
         const phase = phases[i];
@@ -337,17 +353,74 @@ const ProposalReview = () => {
         });
       }
 
-      toast({
-        title: "Proposal accepted",
-        description: `Project awarded to ${contractorName(proposal)}. ${phases.length} job${phases.length !== 1 ? "s" : ""} created.`,
-      });
+      // Step 2 — Generate contract document
+      const { data: contractData, error: contractError } =
+        await supabase.functions.invoke("generate-project-contract", {
+          body: { proposal_id: proposal.id, project_id: id },
+        });
+
+      if (contractError || !contractData?.contract_id) {
+        throw contractError ?? new Error("Contract generation failed");
+      }
+
       closePanel();
       await loadProposals(id);
+
+      // Show contract signing overlay for the client
+      setContractSigning({
+        contractId: contractData.contract_id as string,
+        documentUrl: contractData.document_url as string,
+        proposal,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "An error occurred";
       toast({ title: "Failed to accept proposal", description: msg, variant: "destructive" });
     } finally {
       setActioning(false);
+    }
+  }
+
+  // ── Client signed ─────────────────────────────────────────────────────────────
+
+  async function handleClientSigned() {
+    if (!id || !contractSigning || !project) return;
+    setContractSigning(null);
+
+    toast({
+      title: "Contract signed",
+      description: "The contractor has been notified to review and sign.",
+    });
+
+    if (project.deposit_required && project.deposit_amount) {
+      try {
+        const { data: depositData, error: depositError } =
+          await supabase.functions.invoke("create-deposit-checkout", {
+            body: {
+              project_id: id,
+              proposal_id: contractSigning.proposal.id,
+              amount: project.deposit_amount,
+              contractor_stripe_account:
+                contractSigning.proposal.contractor?.stripe_account_id,
+            },
+          });
+
+        if (depositError || !depositData?.checkout_url) {
+          throw depositError ?? new Error("Failed to create checkout session");
+        }
+
+        window.location.href = depositData.checkout_url as string;
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to start deposit payment";
+        toast({
+          title: "Payment error",
+          description: msg,
+          variant: "destructive",
+        });
+        navigate(`/projects/${id}`);
+      }
+    } else {
+      navigate(`/projects/${id}`);
     }
   }
 
@@ -901,6 +974,18 @@ const ProposalReview = () => {
               )}
           </div>
         </>
+      )}
+
+      {/* ── Contract signing overlay ── */}
+      {contractSigning && myProfile && (
+        <ContractSigning
+          contractId={contractSigning.contractId}
+          documentUrl={contractSigning.documentUrl}
+          partyName={myProfile.company_name || myProfile.full_name || ""}
+          role="client"
+          onSigned={handleClientSigned}
+          onCancel={() => setContractSigning(null)}
+        />
       )}
 
       {/* ── Reject modal ── */}

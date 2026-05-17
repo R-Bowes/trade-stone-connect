@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import { SubmitProposalForm } from "@/components/projects/SubmitProposalForm";
+import { ContractSigning } from "@/components/projects/ContractSigning";
 import { ArrowLeft, Calendar, MapPin, User, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ type TenderDetail = {
   scoring_criteria: ScoringCriterion[] | null;
   posted_by: string;
   created_at: string;
+  tender_status: string;
   poster: { full_name: string | null; company_name: string | null } | null;
 };
 
@@ -48,6 +50,7 @@ type MyProfile = {
   id: string;
   user_type: string;
   full_name: string | null;
+  company_name: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -109,6 +112,13 @@ const TenderDetail = () => {
 
   const [showProposalForm, setShowProposalForm] = useState(false);
 
+  // Contractor signing
+  const [winningContractData, setWinningContractData] = useState<{
+    contractId: string;
+    documentUrl: string;
+  } | null>(null);
+  const [showContractSigning, setShowContractSigning] = useState(false);
+
   const [questionText, setQuestionText] = useState("");
   const [submittingQ, setSubmittingQ] = useState(false);
   const [answeringId, setAnsweringId] = useState<string | null>(null);
@@ -127,13 +137,15 @@ const TenderDetail = () => {
       data: { user },
     } = await supabase.auth.getUser();
 
+    let localProfile: MyProfile | null = null;
     if (user) {
       const { data: p } = await supabase
         .from("profiles")
-        .select("id, user_type, full_name")
+        .select("id, user_type, full_name, company_name")
         .eq("user_id", user.id)
         .single();
-      setMyProfile(p as MyProfile | null);
+      localProfile = p as MyProfile | null;
+      setMyProfile(localProfile);
     }
 
     const { data, error } = await supabase
@@ -142,7 +154,7 @@ const TenderDetail = () => {
         `id, title, description, city, postcode, trade_categories,
          budget, budget_visible_to_contractors, proposal_deadline,
          deposit_required, deposit_percentage, retention_percentage,
-         scoring_criteria, posted_by, created_at,
+         scoring_criteria, posted_by, created_at, tender_status,
          poster:profiles!posted_by(full_name, company_name)`,
       )
       .eq("id", projectId)
@@ -153,7 +165,40 @@ const TenderDetail = () => {
       setLoading(false);
       return;
     }
-    setTender(data as unknown as TenderDetail);
+    const tenderData = data as unknown as TenderDetail;
+    setTender(tenderData);
+
+    // Check whether the logged-in user is the winning contractor for this project
+    if (
+      localProfile &&
+      localProfile.user_type === "contractor" &&
+      tenderData.tender_status === "awarded"
+    ) {
+      const { data: acceptedProp } = await supabase
+        .from("project_proposals")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("contractor_id", localProfile.id)
+        .eq("status", "accepted")
+        .maybeSingle();
+
+      if (acceptedProp) {
+        const { data: contract } = await supabase
+          .from("project_contracts")
+          .select("id, document_url")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (contract?.document_url) {
+          setWinningContractData({
+            contractId: contract.id,
+            documentUrl: contract.document_url,
+          });
+        }
+      }
+    }
 
     const { data: qa } = await supabase
       .from("project_qanda")
@@ -323,6 +368,15 @@ const TenderDetail = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  function handleContractorSigned() {
+    setShowContractSigning(false);
+    toast({
+      title: "Contract fully executed",
+      description: "Your jobs have been created.",
+    });
+    navigate("/dashboard/contractor");
+  }
+
   return (
     <>
     {showProposalForm && (
@@ -331,6 +385,16 @@ const TenderDetail = () => {
         scoringCriteria={scoringCriteria}
         onSuccess={handleProposalSuccess}
         onClose={() => setShowProposalForm(false)}
+      />
+    )}
+    {showContractSigning && winningContractData && myProfile && (
+      <ContractSigning
+        contractId={winningContractData.contractId}
+        documentUrl={winningContractData.documentUrl}
+        partyName={myProfile.company_name || myProfile.full_name || ""}
+        role="contractor"
+        onSigned={handleContractorSigned}
+        onCancel={() => setShowContractSigning(false)}
       />
     )}
     <div className="min-h-screen bg-background">
@@ -656,7 +720,15 @@ const TenderDetail = () => {
                 {/* Action buttons */}
                 {(isContractor || isPoster) && (
                   <div className="border-t pt-4 flex flex-col gap-2">
-                    {isContractor && !isPoster && (
+                    {isContractor && !isPoster && winningContractData && (
+                      <Button
+                        className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                        onClick={() => setShowContractSigning(true)}
+                      >
+                        Review and Sign Contract
+                      </Button>
+                    )}
+                    {isContractor && !isPoster && !winningContractData && (
                       <Button
                         className="bg-orange-500 text-white hover:bg-orange-400 w-full"
                         onClick={() => setShowProposalForm(true)}
