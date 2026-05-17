@@ -33,6 +33,7 @@ import BusinessSettings from "./pages/BusinessSettings";
 import Projects from "./pages/Projects";
 import TenderDetail from "./pages/TenderDetail";
 import ProposalReview from "./pages/ProposalReview";
+import ProjectDelivery from "./pages/ProjectDelivery";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
           <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/projects/:id" element={<ProtectedRoute><TenderDetail /></ProtectedRoute>} />
           <Route path="/projects/:id/proposals" element={<ProtectedRoute><ProposalReview /></ProtectedRoute>} />
+          <Route path="/projects/:id/delivery" element={<ProtectedRoute><ProjectDelivery /></ProtectedRoute>} />
 
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />

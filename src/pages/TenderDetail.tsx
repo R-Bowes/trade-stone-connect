@@ -172,7 +172,7 @@ const TenderDetail = () => {
     if (
       localProfile &&
       localProfile.user_type === "contractor" &&
-      tenderData.tender_status === "awarded"
+      (tenderData.tender_status === "awarded" || tenderData.tender_status === "in_delivery")
     ) {
       const { data: acceptedProp } = await supabase
         .from("project_proposals")
@@ -721,12 +721,23 @@ const TenderDetail = () => {
                 {(isContractor || isPoster) && (
                   <div className="border-t pt-4 flex flex-col gap-2">
                     {isContractor && !isPoster && winningContractData && (
-                      <Button
-                        className="bg-orange-500 text-white hover:bg-orange-400 w-full"
-                        onClick={() => setShowContractSigning(true)}
-                      >
-                        Review and Sign Contract
-                      </Button>
+                      <>
+                        {tender.tender_status === "awarded" && (
+                          <Button
+                            className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                            onClick={() => setShowContractSigning(true)}
+                          >
+                            Review and Sign Contract
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => navigate(`/projects/${tender.id}/delivery`)}
+                        >
+                          Go to Project
+                        </Button>
+                      </>
                     )}
                     {isContractor && !isPoster && !winningContractData && (
                       <Button
@@ -738,13 +749,23 @@ const TenderDetail = () => {
                     )}
                     {isPoster && (
                       <>
+                        {(tender.tender_status === "awarded" ||
+                          tender.tender_status === "in_delivery") && (
+                          <Button
+                            className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                            onClick={() => navigate(`/projects/${tender.id}/delivery`)}
+                          >
+                            Go to Project
+                          </Button>
+                        )}
                         <Button
-                          className="bg-orange-500 text-white hover:bg-orange-400 w-full"
+                          variant="outline"
+                          className="w-full"
                           onClick={() => navigate(`/projects/${tender.id}/proposals`)}
                         >
                           Review Proposals
                           {proposalCount > 0 && (
-                            <span className="ml-2 bg-white/20 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                            <span className="ml-2 bg-foreground/15 text-xs rounded-full px-1.5 py-0.5 leading-none">
                               {proposalCount}
                             </span>
                           )}

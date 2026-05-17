@@ -359,12 +359,17 @@ const ProposalReview = () => {
           body: { proposal_id: proposal.id, project_id: id },
         });
 
-      if (contractError || !contractData?.contract_id) {
-        throw contractError ?? new Error("Contract generation failed");
-      }
-
       closePanel();
       await loadProposals(id);
+
+      if (contractError || !contractData?.contract_id) {
+        toast({
+          title: "Proposal accepted",
+          description: "Contract generation failed — please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Show contract signing overlay for the client
       setContractSigning({
