@@ -31,6 +31,7 @@ import ContractorOnboarding from "./pages/ContractorOnboarding";
 import PayInvoicePage from "./pages/PayInvoicePage";
 import BusinessSettings from "./pages/BusinessSettings";
 import Projects from "./pages/Projects";
+import TenderDetail from "./pages/TenderDetail";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
           <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="/projects/:id" element={<ProtectedRoute><TenderDetail /></ProtectedRoute>} />
 
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />

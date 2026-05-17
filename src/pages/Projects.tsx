@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Header from "@/components/Header";
@@ -73,6 +74,7 @@ function SkeletonCard() {
 // ── Tender card ────────────────────────────────────────────────────────────────
 
 function TenderCard({ tender }: { tender: TenderRow }) {
+  const navigate = useNavigate();
   const location = [tender.city, tender.postcode].filter(Boolean).join(", ");
   const budget =
     tender.budget != null && tender.budget_visible_to_contractors
@@ -141,6 +143,7 @@ function TenderCard({ tender }: { tender: TenderRow }) {
         <Button
           size="sm"
           className="bg-orange-500 text-white hover:bg-orange-400 shrink-0"
+          onClick={() => navigate(`/projects/${tender.id}`)}
         >
           View Tender
         </Button>
