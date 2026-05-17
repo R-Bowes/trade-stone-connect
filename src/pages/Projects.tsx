@@ -200,10 +200,10 @@ const Projects = () => {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
                 <div>
                   <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                    Open <span className="text-primary">Tenders</span>
+                    Projects
                   </h1>
                   <p className="text-muted-foreground">
-                    Browse open project tenders and submit your proposal
+                    Post tenders and manage your project pipeline
                   </p>
                 </div>
                 <Button
