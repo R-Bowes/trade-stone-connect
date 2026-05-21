@@ -24,6 +24,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
+import JobPhotosTab from "@/components/JobPhotosTab";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -247,6 +248,7 @@ export function JobManagement() {
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
+  const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
 
@@ -263,6 +265,7 @@ export function JobManagement() {
       .maybeSingle();
 
     if (!profileRow?.id) { setLoading(false); return; }
+    setContractorProfileId(profileRow.id);
 
     // Load team members for this contractor
     const { data: teamData } = await supabase
@@ -867,6 +870,15 @@ export function JobManagement() {
                     )
                   )}
                 </div>
+                {contractorProfileId && job.status !== "cancelled" && (
+                  <div className="rounded-md border p-4">
+                    <JobPhotosTab
+                      jobId={job.id}
+                      contractorProfileId={contractorProfileId}
+                      isContractor={true}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

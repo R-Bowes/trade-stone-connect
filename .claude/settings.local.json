@@ -9,7 +9,12 @@
       "Bash(npm run *)",
       "Bash(xargs grep *)",
       "Bash(Get-Content \"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\" -TotalCount 50)",
-      "PowerShell([System.IO.File]::ReadAllText\\(\"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\"\\))"
+      "PowerShell([System.IO.File]::ReadAllText\\(\"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\"\\))",
+      "Bash(mkdir -p \"c:/Users/richa/trade-stone-connect/src/components/projects\")",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\richa\\trade-stone-connect\\src\\components"
     ]
   }
 }
