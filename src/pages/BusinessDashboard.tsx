@@ -30,6 +30,7 @@ import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { PanelManagement } from "@/components/business/PanelManagement";
 import { MaintenanceManagement } from "@/components/business/MaintenanceManagement";
+import { BusinessMessageInbox } from "@/components/business/BusinessMessageInbox";
 
 const SESSION_KEY = "business-dashboard-view";
 
@@ -44,7 +45,7 @@ const businessDashboardViews = [
   { value: "bids", label: "Bids", comingSoon: true },
   { value: "suppliers", label: "Suppliers", comingSoon: false },
   { value: "procurement", label: "Procurement", comingSoon: true },
-  { value: "messages", label: "Messages", comingSoon: true },
+  { value: "messages", label: "Messages", comingSoon: false },
 ] as const;
 
 type ViewValue = typeof businessDashboardViews[number]["value"];
@@ -339,6 +340,15 @@ const BusinessDashboard = () => {
                     </div>
                     <Badge variant="outline" className="ml-auto">Coming Soon</Badge>
                   </div>
+                  <div className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleTabChange("messages")}>
+                    <MessageCircle className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="font-medium">Messages</p>
+                      <p className="text-sm text-muted-foreground">Chat with contractors on your jobs</p>
+                    </div>
+                    <Badge className="ml-auto bg-green-100 text-green-800 border-green-200">Live</Badge>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -417,12 +427,15 @@ const BusinessDashboard = () => {
 
           <TabsContent value="messages" className="space-y-6">
             <h2 className="text-2xl font-bold">Messages</h2>
-            <Card><CardContent className="p-8 text-center">
-              <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Messages</h3>
-              <p className="text-muted-foreground mb-4">Your communications with contractors will appear here.</p>
-              <Badge variant="outline">Messaging Coming Soon</Badge>
-            </CardContent></Card>
+            {profileId ? (
+              <BusinessMessageInbox profileId={profileId} />
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">Unable to load messages — profile not found.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </main>

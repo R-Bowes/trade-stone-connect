@@ -22,9 +22,11 @@ import {
   ChevronLeft,
   Users,
   UserPlus,
+  MessageCircle,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
+import { ContractorMessagePanel } from "@/components/management/ContractorMessagePanel";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -870,6 +872,18 @@ export function JobManagement() {
                     )
                   )}
                 </div>
+                {contractorProfileId && job.status !== "cancelled" && (
+                  <div className="rounded-md border p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium mb-3" style={{ fontFamily: "Lexend, sans-serif" }}>
+                      <MessageCircle className="h-4 w-4" />
+                      Job Messages
+                    </div>
+                    <ContractorMessagePanel
+                      jobId={job.id}
+                      profileId={contractorProfileId}
+                    />
+                  </div>
+                )}
                 {contractorProfileId && job.status !== "cancelled" && (
                   <div className="rounded-md border p-4">
                     <JobPhotosTab

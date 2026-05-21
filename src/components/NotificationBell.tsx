@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, Trash2, Briefcase, StickyNote, FileText } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Briefcase, StickyNote, FileText, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,6 +23,8 @@ function NotificationIcon({ type }: { type: string }) {
       return <FileText className="h-4 w-4 text-destructive shrink-0" />;
     case "quote_response":
       return <FileText className="h-4 w-4 text-secondary shrink-0" />;
+    case "new_message":
+      return <MessageCircle className="h-4 w-4 text-primary shrink-0" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
@@ -44,6 +46,8 @@ export function NotificationBell() {
       navigate("/dashboard?view=invoices");
     } else if (notif.reference_type === "issued_quote" || notif.reference_type === "quote") {
       navigate("/dashboard");
+    } else if (notif.reference_type === "message") {
+      navigate("/dashboard/business?view=messages");
     }
     setOpen(false);
   };
