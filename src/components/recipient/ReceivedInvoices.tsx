@@ -1,299 +1,215 @@
-Read c:\Users\richa\trade-stone-connect\src\hooks\useReceivedInvoices.ts
-File is unchanged since the earlier read. Here it is verbatim:
-
-
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FileText, Pause, HelpCircle, Loader2, Download } from "lucide-react";
+import { useReceivedInvoices, type ReceivedInvoice } from "@/hooks/useReceivedInvoices";
+import { MessageDialog } from "./MessageDialog";
+import { PayInvoiceButton } from "@/components/recipient/PayInvoiceButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
+import { generateInvoicePdf, type ContractorProfile } from "@/lib/generateInvoicePdf";
 
-export interface ReceivedInvoice {
-  id: string;
-  invoice_number: string | null;
-  client_name: string;
-  client_email: string;
-  contractor_id: string;
-  recipient_id: string | null;
-  recipient_response: string | null;
-  responded_at: string | null;
-  items: any;
-  subtotal: number;
-  tax_rate: number;
-  tax_amount: number;
-  total: number;
-  status: string;
-  issued_date: string;
-  due_date: string;
-  paid_date: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-export function useReceivedInvoices() {
-  const [invoices, setInvoices] = useState<ReceivedInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
+export function ReceivedInvoices() {
+  const { invoices, loading, respondToInvoice, refetch } = useReceivedInvoices();
+  const [messageDialog, setMessageDialog] = useState<{ open: boolean; invoice: ReceivedInvoice | null }>({
+    open: false, invoice: null,
+  });
+  const [downloading, setDownloading] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchInvoices = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("recipient_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching received invoices:", error);
-    } else {
-      setInvoices((data || []) as unknown as ReceivedInvoice[]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (payment === "success") {
+      toast({
+        title: "Payment successful",
+        description: "Your payment has been received. The invoice will update shortly.",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+      const timer = setTimeout(() => refetch(), 3000);
+      return () => clearTimeout(timer);
     }
-    setLoading(false);
+    if (payment === "cancelled") {
+      toast({
+        title: "Payment cancelled",
+        description: "Your payment was not completed.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+  const handleDownload = async (inv: ReceivedInvoice) => {
+    setDownloading(inv.id);
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
+        .eq("id", inv.contractor_id)
+        .single();
 
-  const respondToInvoice = async (invoiceId: string, response: "paid" | "stalled" | "queried") => {
-    const { error } = await supabase
-      .from("invoices")
-      .update({
-        recipient_response: response,
-        responded_at: new Date().toISOString(),
-      })
-      .eq("id", invoiceId);
+      let contractor: ContractorProfile & { _logoBase64?: string } = {
+        full_name: profile?.full_name ?? null,
+        company_name: profile?.company_name ?? null,
+        email: profile?.email ?? null,
+        phone: profile?.phone ?? null,
+        address: profile?.address ?? null,
+        ts_profile_code: profile?.ts_profile_code ?? null,
+        logo_url: profile?.logo_url ?? null,
+      };
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to respond to invoice", variant: "destructive" });
-      throw error;
+      if (profile?.logo_url) {
+        try {
+          const response = await fetch(profile.logo_url);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          (contractor as any)._logoBase64 = base64;
+        } catch {
+          // logo fetch failed — continue without it
+        }
+      }
+
+      const invoiceForPdf = {
+        ...inv,
+        issued_date: inv.issued_date ?? inv.created_at,
+        client_phone: null,
+        client_address: null,
+      } as any;
+
+      generateInvoicePdf(invoiceForPdf, contractor);
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: "Could not generate the invoice PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(null);
     }
-
-    toast({ title: "Response Sent", description: `Invoice marked as ${response}.` });
-    fetchInvoices();
-    return invoiceId;
   };
 
-  return { invoices, loading, respondToInvoice, refetch: fetchInvoices };
-}
-74 lines total. Exports invoices, loading, respondToInvoice, and refetch.
+  const handleStall = async (invoice: ReceivedInvoice) => {
+    await respondToInvoice(invoice.id, "stalled");
+    await supabase.functions.invoke("notify-invoice-quote-action", {
+      body: { action_type: "stall", context_type: "invoice", context_id: invoice.id },
+    }).catch(console.error);
+    setMessageDialog({ open: true, invoice });
+  };
 
-Read src/lib/generateInvoicePdf.ts in full and return every line, 
-including the function signature and all parameters it accepts.
-File is unchanged since the earlier read. Here it is verbatim — all 208 lines:
+  const handleQuery = async (invoice: ReceivedInvoice) => {
+    await respondToInvoice(invoice.id, "queried");
+    await supabase.functions.invoke("notify-invoice-quote-action", {
+      body: { action_type: "query", context_type: "invoice", context_id: invoice.id },
+    }).catch(console.error);
+    setMessageDialog({ open: true, invoice });
+  };
 
+  const getResponseBadge = (invoice: ReceivedInvoice) => {
+    if (invoice.recipient_response === "paid") return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
+    if (invoice.recipient_response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
+    if (invoice.recipient_response === "queried") return <Badge className="bg-orange-100 text-orange-800">Queried</Badge>;
+    return <Badge variant="outline">Pending</Badge>;
+  };
 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
-import { format } from "date-fns";
-
-export interface ContractorProfile {
-  full_name: string | null;
-  company_name: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  ts_profile_code: string | null;
-  logo_url: string | null;
-}
-
-export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile) {
-  const doc = new jsPDF();
-  const items: InvoiceItem[] = Array.isArray(invoice.items)
-    ? (invoice.items as unknown as InvoiceItem[])
-    : [];
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-
-  // ── Contractor header (left) ──────────────────────────────────────────────
-  // ── Contractor header (left) ──────────────────────────────────────────────
-  let yLeft = 20;
-  if (contractor) {
-    if ((contractor as any)._logoBase64) {
-      try {
-        doc.addImage((contractor as any)._logoBase64, "PNG", margin, yLeft, 24, 24);
-        yLeft += 28;
-      } catch {
-        // logo failed to render — skip silently
-      }
-    }
-    const contractorName = contractor.company_name || contractor.full_name || "Contractor";
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(contractorName, margin, yLeft);
-    yLeft += 6;
-
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
-
-    if (contractor.ts_profile_code) {
-      doc.text(contractor.ts_profile_code, margin, yLeft);
-      yLeft += 5;
-    }
-    if (contractor.address) {
-      const addressLines = doc.splitTextToSize(contractor.address, 80);
-      doc.text(addressLines, margin, yLeft);
-      yLeft += addressLines.length * 4.5;
-    }
-    if (contractor.email) {
-      doc.text(contractor.email, margin, yLeft);
-      yLeft += 5;
-    }
-    if (contractor.phone) {
-      doc.text(contractor.phone, margin, yLeft);
-      yLeft += 5;
-    }
+  if (loading) {
+    return <div className="flex justify-center items-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 
-  // ── INVOICE title + number (right) ───────────────────────────────────────
-  doc.setFontSize(24);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text("INVOICE", pageWidth - margin, 20, { align: "right" });
-
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
-  doc.text(invoice.invoice_number || "—", pageWidth - margin, 28, { align: "right" });
-
-  // Status
-  const statusText = invoice.status.toUpperCase();
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  if (invoice.status === "paid") doc.setTextColor(22, 163, 74);
-  else if (invoice.status === "sent") doc.setTextColor(37, 99, 235);
-  else doc.setTextColor(100, 100, 100);
-  doc.text(statusText, pageWidth - margin, 36, { align: "right" });
-
-  // Dates
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
-  doc.text(
-    `Issued: ${format(new Date(invoice.issued_date), "dd MMM yyyy")}`,
-    pageWidth - margin, 44, { align: "right" }
-  );
-  doc.text(
-    `Due: ${format(new Date(invoice.due_date), "dd MMM yyyy")}`,
-    pageWidth - margin, 50, { align: "right" }
-  );
-  if (invoice.paid_date) {
-    doc.setTextColor(22, 163, 74);
-    doc.text(
-      `Paid: ${format(new Date(invoice.paid_date), "dd MMM yyyy")}`,
-      pageWidth - margin, 56, { align: "right" }
+  if (invoices.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No Invoices Received</h3>
+          <p className="text-muted-foreground">When contractors send you invoices, they'll appear here.</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  // ── Divider ───────────────────────────────────────────────────────────────
-  const dividerY = Math.max(yLeft, 62) + 4;
-  doc.setDrawColor(220, 220, 220);
-  doc.line(margin, dividerY, pageWidth - margin, dividerY);
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">Received Invoices</h2>
+      <TransactionFeeNotice />
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Invoice #</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell className="font-medium">{inv.invoice_number || "—"}</TableCell>
+                  <TableCell>{inv.client_name}</TableCell>
+                  <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
+                  <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
+                  <TableCell>{getResponseBadge(inv)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      {inv.recipient_response === "paid" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDownload(inv)}
+                          disabled={downloading === inv.id}
+                        >
+                          {downloading === inv.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Download className="h-4 w-4 mr-1" />}
+                          Download
+                        </Button>
+                      ) : (
+                        <>
+                          <PayInvoiceButton
+                            invoiceId={inv.id}
+                            amount={Number(inv.total)}
+                            status={inv.recipient_response || "pending"}
+                            onPaymentComplete={() => refetch()}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
+                            <Pause className="h-4 w-4 mr-1" />Stall
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleQuery(inv)}>
+                            <HelpCircle className="h-4 w-4 mr-1" />Query
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-  // ── Bill To ───────────────────────────────────────────────────────────────
-  let yPos = dividerY + 8;
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text("BILL TO", margin, yPos);
-  yPos += 5;
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(invoice.client_name, margin, yPos);
-  yPos += 5;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  if (invoice.client_email) { doc.text(invoice.client_email, margin, yPos); yPos += 5; }
-  if (invoice.client_phone) { doc.text(invoice.client_phone, margin, yPos); yPos += 5; }
-  if (invoice.client_address) { doc.text(invoice.client_address, margin, yPos); yPos += 5; }
-
-  // ── Items table ───────────────────────────────────────────────────────────
-  const startY = yPos + 6;
-  autoTable(doc, {
-    startY,
-    head: [["Description", "Qty", "Unit Price", "Total"]],
-    body: items.map(item => [
-      item.description,
-      String(item.quantity),
-      `£${Number(item.unit_price).toFixed(2)}`,
-      `£${(item.quantity * item.unit_price).toFixed(2)}`,
-    ]),
-    theme: "striped",
-    headStyles: { fillColor: [30, 58, 95], fontSize: 9, fontStyle: "bold" },
-    bodyStyles: { fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: "auto" },
-      1: { halign: "right", cellWidth: 20 },
-      2: { halign: "right", cellWidth: 30 },
-      3: { halign: "right", cellWidth: 30 },
-    },
-    margin: { left: margin, right: margin },
-  });
-
-  // ── Totals ────────────────────────────────────────────────────────────────
-  const finalY = (doc as any).lastAutoTable?.finalY ?? startY + 40;
-  const totalsX = pageWidth - margin;
-  let tY = finalY + 12;
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text("Subtotal", totalsX - 50, tY);
-  doc.text(`£${Number(invoice.subtotal).toFixed(2)}`, totalsX, tY, { align: "right" });
-
-  tY += 6;
-  doc.text(`Tax (${Number(invoice.tax_rate)}%)`, totalsX - 50, tY);
-  doc.text(`£${Number(invoice.tax_amount).toFixed(2)}`, totalsX, tY, { align: "right" });
-
-  tY += 3;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(totalsX - 55, tY, totalsX, tY);
-
-  tY += 7;
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text("Total", totalsX - 50, tY);
-  doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
-
-  // ── Notes ─────────────────────────────────────────────────────────────────
-  if (invoice.notes) {
-    tY += 16;
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(100, 100, 100);
-    doc.text("Notes", margin, tY);
-    doc.setFont("helvetica", "normal");
-    tY += 5;
-    const noteLines = doc.splitTextToSize(invoice.notes, pageWidth - margin * 2);
-    doc.text(noteLines, margin, tY);
-  }
-
-  // ── Footer ────────────────────────────────────────────────────────────────
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(160, 160, 160);
-  doc.text(
-    "Powered by TradeStone · tradesltd.co.uk",
-    pageWidth / 2,
-    pageHeight - 10,
-    { align: "center" }
+      {messageDialog.invoice && (
+        <MessageDialog
+          open={messageDialog.open}
+          onClose={() => setMessageDialog({ open: false, invoice: null })}
+          contractorId={messageDialog.invoice.contractor_id}
+          subject={`Invoice ${messageDialog.invoice.invoice_number || messageDialog.invoice.id} - ${messageDialog.invoice.recipient_response === "stalled" ? "Stalled" : "Query"}`}
+          contextType="invoice"
+          contextId={messageDialog.invoice.id}
+        />
+      )}
+    </div>
   );
-
-  doc.save(`${invoice.invoice_number || "invoice"}.pdf`);
 }
-Function signature:
-
-
-export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile)
-invoice: Invoice — required; the full invoice record from useInvoices (includes items, subtotal, tax_rate, tax_amount, total, client_name, client_email, client_phone, client_address, issued_date, due_date, paid_date, notes, status, invoice_number)
-contractor?: ContractorProfile — optional; if provided, renders contractor logo, name, address, email, phone, and profile code in the top-left header. The logo is read from _logoBase64 (a runtime-injected property, not part of the interface)
