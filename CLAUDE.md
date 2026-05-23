@@ -19,6 +19,15 @@
 - Repo: R-Bowes/trade-stone-connect
 - Domain: tradesltd.co.uk
 
+## Typography
+- **Wordmark**: TRADE in navy (`#1e3a5f`), STONE in orange (`#f07820`), Barlow Condensed 700 uppercase — set via inline style in `Header.tsx`
+- **Headings (h1/h2/h3)**: Barlow Condensed — 700 for h1/h2, 600 for h3, uppercase, letter-spacing 0.03em — set globally in `src/index.css` `@layer base`; all h1/h2 elements also carry `font-heading` class
+- **UI/Body (`font-sans`)**: Lexend 400/500/600/700
+- **Descriptions/Testimonials (`font-serif`)**: Source Serif 4 400; italic for pull-quotes
+- **Monospace (`font-mono`)**: Roboto Mono — use for TS codes and financial figures
+- **Google Fonts imports** (`src/index.css` lines 1–4): Barlow Condensed, Lexend, Source Serif 4, Roboto Mono
+- `Privacy.tsx` and `Terms.tsx` excluded from `font-heading` sweep — legal docs left in default browser styling
+
 ## Key IDs (test accounts)
 - Contractor: TS-C-4AE203, profiles.id = 425b9477-5d1b-4a31-b7f0-a91a31f5a99b
 - Contractor Stripe: acct_1TDourAB5sLPnZb9
