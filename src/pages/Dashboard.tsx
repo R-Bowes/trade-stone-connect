@@ -47,14 +47,14 @@ const Dashboard = () => {
       // Redirect based on user type
       switch (userType) {
         case "contractor":
-          navigate("/dashboard/contractor", { replace: true });
+          navigate(`/dashboard/contractor${window.location.search}`, { replace: true });
           break;
         case "business":
-          navigate("/dashboard/business", { replace: true });
+          navigate(`/dashboard/business${window.location.search}`, { replace: true });
           break;
         case "personal":
         default:
-          navigate("/dashboard/personal", { replace: true });
+          navigate(`/dashboard/personal${window.location.search}`, { replace: true });
           break;
       }
     };
