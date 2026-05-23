@@ -97,7 +97,7 @@ const Contracts = () => {
         <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <h1 className="font-heading text-4xl md:text-5xl font-bold mb-4">
                 Manage <span className="text-primary">Contracts</span> with Confidence
               </h1>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
@@ -108,7 +108,7 @@ const Contracts = () => {
             <div className="bg-card rounded-lg border p-6 shadow-tradestone mb-10">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
-                  <h2 className="text-2xl font-semibold mb-2">See what&apos;s available</h2>
+                  <h2 className="font-heading text-2xl font-semibold mb-2">See what&apos;s available</h2>
                   <p className="text-muted-foreground">
                     Browse contract tools in a quick, searchable view so you can spot available features at a glance.
                   </p>
@@ -151,7 +151,7 @@ const Contracts = () => {
 
             <div className="border-t pt-12">
               <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-2">Everything else you still get</h2>
+                <h2 className="font-heading text-2xl font-bold mb-2">Everything else you still get</h2>
                 <p className="text-muted-foreground">
                   The full Contracts experience remains below, now moved down for quicker access to available features first.
                 </p>
@@ -171,7 +171,7 @@ const Contracts = () => {
             </div>
 
             <div className="bg-muted/30 rounded-2xl p-8 text-center">
-              <h2 className="text-2xl font-bold mb-4">Ready to streamline your contracts?</h2>
+              <h2 className="font-heading text-2xl font-bold mb-4">Ready to streamline your contracts?</h2>
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
                 Join TradeStone Pro to access our full contract management suite, including AI-powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span> reviews and secure payment processing.
               </p>

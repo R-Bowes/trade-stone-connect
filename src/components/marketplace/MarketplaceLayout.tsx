@@ -23,7 +23,7 @@ const MarketplaceLayout = ({ children }: MarketplaceLayoutProps) => {
       
       <main className="container mx-auto px-4 py-8 pt-24">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Marketplace</h1>
+          <h1 className="font-heading text-4xl font-bold mb-2">Marketplace</h1>
           <p className="text-muted-foreground">Buy and sell construction materials, tools, and equipment</p>
         </div>
 

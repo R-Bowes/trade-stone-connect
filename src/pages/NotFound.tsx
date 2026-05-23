@@ -18,7 +18,7 @@ const NotFound = () => {
           className="h-24 w-auto"
         />
       </Link>
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground text-center">
+      <h1 className="font-heading text-2xl md:text-3xl font-semibold text-foreground text-center">
         Sorry, we're still finishing this up
       </h1>
       <p className="text-muted-foreground mt-4 text-center">

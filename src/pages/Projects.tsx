@@ -202,7 +202,7 @@ const Projects = () => {
               {/* Page header */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                  <h1 className="font-heading text-3xl md:text-4xl font-bold mb-2">
                     Projects
                   </h1>
                   <p className="text-muted-foreground">

@@ -136,7 +136,7 @@ const ContractorOnboarding = () => {
           {/* Step 1 — Account type */}
           {step === 1 && (
             <div>
-              <h2 className="text-xl font-bold text-[#1C2B3A] mb-2">How do you work?</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">How do you work?</h2>
               <p className="text-sm text-muted-foreground mb-6">This helps us set up your account correctly.</p>
               {[
                 { value: "sole_trader", label: "Sole trader", desc: "I work on my own or with occasional help" },
@@ -161,7 +161,7 @@ const ContractorOnboarding = () => {
           {/* Step 2 — Details */}
           {step === 2 && (
             <div>
-              <h2 className="text-xl font-bold text-[#1C2B3A] mb-2">Your details</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Your details</h2>
               <p className="text-sm text-muted-foreground mb-6">This appears on your profile and quotes.</p>
               <div className="space-y-4">
                 {[
@@ -190,7 +190,7 @@ const ContractorOnboarding = () => {
           {/* Step 3 — Trades & location */}
           {step === 3 && (
             <div>
-              <h2 className="text-xl font-bold text-[#1C2B3A] mb-2">Your trades & area</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Your trades & area</h2>
               <p className="text-sm text-muted-foreground mb-5">Select everything you offer — homeowners search by trade.</p>
 
               <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-3 block">
@@ -278,7 +278,7 @@ const ContractorOnboarding = () => {
           {/* Step 4 — Bio */}
           {step === 4 && (
             <div>
-              <h2 className="text-xl font-bold text-[#1C2B3A] mb-2">Tell homeowners about yourself</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Tell homeowners about yourself</h2>
               <p className="text-sm text-muted-foreground mb-6">A good bio gets more enquiries. Be specific about what you do best.</p>
 
               <div className="mb-5">

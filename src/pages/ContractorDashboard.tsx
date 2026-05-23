@@ -389,7 +389,7 @@ const ContractorDashboard = () => {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Hammer className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
+              <h1 className="font-heading text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
             </div>
             <Button variant="outline" size="sm" onClick={() => { setActiveTab("dashboard"); startTour(); }}>
               <HelpCircle className="h-4 w-4 mr-2" />Take Tour
@@ -530,7 +530,7 @@ const ContractorDashboard = () => {
 
           {/* Panel Invites Tab */}
           <TabsContent value="panel-invites" className="space-y-6">
-            <h2 className="text-2xl font-bold">Panel Invitations</h2>
+            <h2 className="font-heading text-2xl font-bold">Panel Invitations</h2>
             {profileId ? <PanelInvites profileId={profileId} /> : (
               <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load invites — profile not found.</p></CardContent></Card>
             )}
@@ -546,7 +546,7 @@ const ContractorDashboard = () => {
           {/* Enquiries Tab */}
           <TabsContent value="enquiries" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Enquiries</h2>
+              <h2 className="font-heading text-2xl font-bold">Enquiries</h2>
               <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -610,7 +610,7 @@ const ContractorDashboard = () => {
           {/* Issued Quotes Tab */}
           <TabsContent value="issued-quotes" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Issued Quotes</h2>
+              <h2 className="font-heading text-2xl font-bold">Issued Quotes</h2>
               <Button variant="outline" onClick={async () => {
                 if (!profileId) return;
                 const { data } = await supabase.from('issued_quotes').select('id, quote_number, client_name, total, status, recipient_response, created_at').eq('contractor_id', profileId).order('created_at', { ascending: false });
@@ -675,7 +675,7 @@ const ContractorDashboard = () => {
           {/* Projects Tab */}
           <TabsContent value="projects" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Project Management</h2>
+              <h2 className="font-heading text-2xl font-bold">Project Management</h2>
               <Button onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
             </div>
             {activeJobs.length === 0 ? (

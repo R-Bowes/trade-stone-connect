@@ -192,7 +192,7 @@ const BusinessDashboard = () => {
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-2">
             <Building2 className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Business Dashboard</h1>
+            <h1 className="font-heading text-3xl font-bold">Business Dashboard</h1>
           </div>
           <p className="text-muted-foreground">
             Manage contract opportunities, track bids, and connect with qualified contractors.
@@ -381,7 +381,7 @@ const BusinessDashboard = () => {
           <TabsContent value="quotes"><ReceivedQuotes /></TabsContent>
 
           <TabsContent value="contracts" className="space-y-6">
-            <h2 className="text-2xl font-bold">Contract Opportunities</h2>
+            <h2 className="font-heading text-2xl font-bold">Contract Opportunities</h2>
             <Card><CardContent className="p-8 text-center">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No Contracts Posted</h3>
@@ -391,7 +391,7 @@ const BusinessDashboard = () => {
           </TabsContent>
 
           <TabsContent value="bids" className="space-y-6">
-            <h2 className="text-2xl font-bold">Received Bids</h2>
+            <h2 className="font-heading text-2xl font-bold">Received Bids</h2>
             <Card><CardContent className="p-8 text-center">
               <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No Bids Yet</h3>
@@ -402,7 +402,7 @@ const BusinessDashboard = () => {
 
           <TabsContent value="suppliers" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Preferred Suppliers</h2>
+              <h2 className="font-heading text-2xl font-bold">Preferred Suppliers</h2>
               <Button variant="outline" asChild>
                 <Link to="/contractors"><Search className="mr-2 h-4 w-4" />Find Contractors</Link>
               </Button>
@@ -416,7 +416,7 @@ const BusinessDashboard = () => {
           </TabsContent>
 
           <TabsContent value="procurement" className="space-y-6">
-            <h2 className="text-2xl font-bold">Procurement</h2>
+            <h2 className="font-heading text-2xl font-bold">Procurement</h2>
             <Card><CardContent className="p-8 text-center">
               <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">Procurement Management</h3>
@@ -426,7 +426,7 @@ const BusinessDashboard = () => {
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
-            <h2 className="text-2xl font-bold">Messages</h2>
+            <h2 className="font-heading text-2xl font-bold">Messages</h2>
             {profileId ? (
               <BusinessMessageInbox profileId={profileId} />
             ) : (

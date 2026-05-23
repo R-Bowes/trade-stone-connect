@@ -723,7 +723,7 @@ const ProjectDelivery = () => {
         <Header />
         <main className="py-16 px-4">
           <div className="container mx-auto max-w-5xl text-center py-24">
-            <h2 className="text-2xl font-bold mb-3">Project not found</h2>
+            <h2 className="font-heading text-2xl font-bold mb-3">Project not found</h2>
             <p className="text-muted-foreground mb-6">
               This project may not exist or you don't have permission to view it.
             </p>
@@ -769,7 +769,7 @@ const ProjectDelivery = () => {
                 Back to tender
               </button>
               <div className="flex items-center gap-3 flex-wrap mb-1">
-                <h1 className="text-2xl font-bold">{project.title}</h1>
+                <h1 className="font-heading text-2xl font-bold">{project.title}</h1>
                 <TenderStatusBadge status={project.tender_status} />
               </div>
               {proposal.total_cost != null && (
@@ -1419,7 +1419,7 @@ const ProjectDelivery = () => {
               {/* Header row */}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold">Snag List</h2>
+                  <h2 className="font-heading text-base font-semibold">Snag List</h2>
                   {openSnagCount > 0 && (
                     <span className="bg-red-100 text-red-700 text-xs rounded-full px-2 py-0.5 font-semibold border border-red-200">
                       {openSnagCount} open

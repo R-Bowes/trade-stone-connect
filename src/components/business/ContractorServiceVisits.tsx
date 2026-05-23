@@ -341,7 +341,7 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Service Visits</h2>
+          <h2 className="font-heading text-2xl font-bold">Service Visits</h2>
           <p className="text-muted-foreground text-sm mt-1">Your scheduled maintenance and service visits.</p>
         </div>
       </div>

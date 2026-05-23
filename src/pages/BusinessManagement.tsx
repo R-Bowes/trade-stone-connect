@@ -147,7 +147,7 @@ const BusinessManagement = () => {
       
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Business Management</h1>
+          <h1 className="font-heading text-3xl font-bold mb-2">Business Management</h1>
           <p className="text-muted-foreground">Manage your contracting business with powerful tools designed for professionals.</p>
         </div>
 
@@ -253,7 +253,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="quotes" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Quote Requests</h2>
+              <h2 className="font-heading text-2xl font-bold">Quote Requests</h2>
               <div className="flex gap-2">
                 <Button variant="outline">
                   <Filter className="h-4 w-4 mr-2" />Filter
@@ -322,7 +322,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="invoices" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Invoice Management</h2>
+              <h2 className="font-heading text-2xl font-bold">Invoice Management</h2>
               <div className="flex gap-2">
                 <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
                 <Button><Plus className="h-4 w-4 mr-2" />Create Invoice</Button>
@@ -369,7 +369,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="projects" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Project Management</h2>
+              <h2 className="font-heading text-2xl font-bold">Project Management</h2>
               <Button><Plus className="h-4 w-4 mr-2" />New Project</Button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -403,7 +403,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="clients" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Client Management</h2>
+              <h2 className="font-heading text-2xl font-bold">Client Management</h2>
               <Button><Plus className="h-4 w-4 mr-2" />Add Client</Button>
             </div>
             <Card>
@@ -424,7 +424,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="payments" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Payment Tracking</h2>
+              <h2 className="font-heading text-2xl font-bold">Payment Tracking</h2>
               <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button>
             </div>
             <TransactionFeeNotice />
@@ -437,7 +437,7 @@ const BusinessManagement = () => {
 
           <TabsContent value="reports" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Business Reports</h2>
+              <h2 className="font-heading text-2xl font-bold">Business Reports</h2>
               <Button variant="outline"><Download className="h-4 w-4 mr-2" />Generate Report</Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -93,7 +93,7 @@ export function ScheduleManagement() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Schedule & Availability</h2>
+        <h2 className="font-heading text-2xl font-bold">Schedule & Availability</h2>
         <Button onClick={() => { setEditingEvent(null); setDefaultDate(undefined); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-2" />
           Add Event

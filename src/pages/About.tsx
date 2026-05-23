@@ -102,7 +102,7 @@ const About = () => {
         <section className="container mx-auto max-w-6xl px-4 py-14">
           <div className="mx-auto mb-12 max-w-3xl text-center">
             <Badge variant="secondary" className="mb-4">How It Works</Badge>
-            <h1 className="mb-4 text-4xl font-bold tracking-tight md:text-5xl">TradeStone by user type</h1>
+            <h1 className="font-heading mb-4 text-4xl font-bold tracking-tight md:text-5xl">TradeStone by user type</h1>
             <p className="text-lg text-muted-foreground">
               Pick your profile and follow a purpose-built flow. Every account type gets a tailored
               path from planning to payment — without duplicated steps or guesswork.
@@ -122,7 +122,7 @@ const About = () => {
                           <JourneyIcon className="h-5 w-5 text-foreground" />
                         </span>
                         <div>
-                          <h2 className="text-2xl font-semibold">{journey.title}</h2>
+                          <h2 className="font-heading text-2xl font-semibold">{journey.title}</h2>
                           <p className="text-sm text-muted-foreground">{journey.subtitle}</p>
                         </div>
                       </div>
@@ -160,7 +160,7 @@ const About = () => {
           </div>
 
           <section className="mt-12 rounded-xl border bg-card p-6 text-center shadow-sm md:p-8">
-            <h2 className="text-2xl font-semibold">Ready to choose your path?</h2>
+            <h2 className="font-heading text-2xl font-semibold">Ready to choose your path?</h2>
             <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
               Create an account and select Personal, Business, or Contractor to unlock the workflow
               designed for your projects.

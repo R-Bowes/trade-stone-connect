@@ -1446,7 +1446,7 @@ export default function AdminDashboard() {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: 0 }}>User Profile</h2>
+              <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: 0 }}>User Profile</h2>
               <button onClick={() => setProfileSlideOver(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 20, cursor: 'pointer' }}>✕</button>
             </div>
             {([
@@ -1474,7 +1474,7 @@ export default function AdminDashboard() {
       {editingProfile && (
         <div style={overlay} onClick={() => setEditingProfile(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Edit Profile</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Edit Profile</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={labelS}>Full Name</label><input value={editFields.full_name} onChange={e => setEditFields(f => ({ ...f, full_name: e.target.value }))} style={inputS} /></div>
               <div>
@@ -1499,7 +1499,7 @@ export default function AdminDashboard() {
       {deleteConfirmId && (
         <div style={overlay} onClick={() => setDeleteConfirmId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Delete Account</h2>
+            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Delete Account</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               This will anonymise the email to <code style={{ color: '#f07820' }}>deleted_[id]@tradestone.com</code> and set <code style={{ color: '#f07820' }}>is_active = false</code>. This cannot be undone from the dashboard.
             </p>
@@ -1515,7 +1515,7 @@ export default function AdminDashboard() {
       {createAdminOpen && (
         <div style={overlay} onClick={() => { setCreateAdminOpen(false); setAdminActionError(''); }}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Create Admin Account</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Create Admin Account</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={labelS}>Email</label><input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} style={inputS} type="email" /></div>
               <div><label style={labelS}>Password</label><input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} style={inputS} type="password" /></div>
@@ -1544,7 +1544,7 @@ export default function AdminDashboard() {
       {removeAdminId && (
         <div style={overlay} onClick={() => setRemoveAdminId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Remove Admin</h2>
+            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Remove Admin</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               Remove <strong style={{ color: '#e8eef4' }}>{adminUsers.find(a => a.id === removeAdminId)?.email}</strong> from admin access? They will no longer be able to log in to the admin panel.
             </p>
@@ -1560,7 +1560,7 @@ export default function AdminDashboard() {
       {reassignModal && (
         <div style={overlay} onClick={() => setReassignModal(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Reassign Enquiry</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Reassign Enquiry</h2>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, margin: '0 0 20px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {reassignModal.job_description?.slice(0, 80) || 'Enquiry'}
             </p>
@@ -1587,7 +1587,7 @@ export default function AdminDashboard() {
       {cancelEnquiryId && (
         <div style={overlay} onClick={() => setCancelEnquiryId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Cancel Enquiry</h2>
+            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Cancel Enquiry</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               Set this enquiry status to <strong>cancelled</strong>. Notify both parties separately as needed.
             </p>
@@ -1603,7 +1603,7 @@ export default function AdminDashboard() {
       {markCompleteJobId && (
         <div style={overlay} onClick={() => setMarkCompleteJobId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Job Complete</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Job Complete</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               Force this job to <strong>completed</strong> status. This action is logged.
             </p>
@@ -1619,7 +1619,7 @@ export default function AdminDashboard() {
       {raiseDisputeJobId && (
         <div style={overlay} onClick={() => { setRaiseDisputeJobId(null); setDisputeNote(''); }}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Raise Dispute</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Raise Dispute</h2>
             <div>
               <label style={labelS}>Notes (optional)</label>
               <textarea value={disputeNote} onChange={e => setDisputeNote(e.target.value)} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} placeholder="Describe the reason for the dispute…" />
@@ -1636,7 +1636,7 @@ export default function AdminDashboard() {
       {markPaidInvoiceId && (
         <div style={overlay} onClick={() => setMarkPaidInvoiceId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Invoice as Paid</h2>
+            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Invoice as Paid</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               Manually mark this invoice as <strong>paid</strong>. Use only when payment was received outside of Stripe.
             </p>
@@ -1652,7 +1652,7 @@ export default function AdminDashboard() {
       {voidInvoiceId && (
         <div style={overlay} onClick={() => setVoidInvoiceId(null)}>
           <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Void Invoice</h2>
+            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Void Invoice</h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
               Set this invoice to <strong>voided</strong>. This cannot be undone from the dashboard.
             </p>
@@ -1673,7 +1673,7 @@ export default function AdminDashboard() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, flexShrink: 0 }}>
               <div>
-                <h2 style={{ color: '#e8eef4', fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>
+                <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>
                   {messagesSlideOver.subject || 'Conversation'}
                 </h2>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>

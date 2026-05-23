@@ -115,7 +115,7 @@ export function ReceivedQuotes() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Received Quotes</h2>
+      <h2 className="font-heading text-2xl font-bold">Received Quotes</h2>
       <Card>
         <CardContent className="p-0">
           <Table>

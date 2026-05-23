@@ -267,7 +267,7 @@ const Auth = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-center mb-2">Welcome to TradeStone</h1>
+            <h1 className="font-heading text-3xl font-bold text-center mb-2">Welcome to TradeStone</h1>
             <p className="text-muted-foreground text-center">Sign in or create your account</p>
           </div>
 

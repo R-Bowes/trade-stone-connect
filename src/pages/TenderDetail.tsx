@@ -339,7 +339,7 @@ const TenderDetail = () => {
         <Header />
         <main className="py-16 px-4">
           <div className="container mx-auto max-w-6xl text-center py-24">
-            <h2 className="text-2xl font-bold mb-3">Tender not found</h2>
+            <h2 className="font-heading text-2xl font-bold mb-3">Tender not found</h2>
             <p className="text-muted-foreground mb-6">
               This tender may have been removed or you don't have permission to view it.
             </p>
@@ -420,7 +420,7 @@ const TenderDetail = () => {
 
               {/* Title + meta */}
               <div>
-                <h1 className="text-3xl font-bold mb-3 leading-snug">{tender.title}</h1>
+                <h1 className="font-heading text-3xl font-bold mb-3 leading-snug">{tender.title}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <User className="h-3.5 w-3.5 shrink-0" />
@@ -452,7 +452,7 @@ const TenderDetail = () => {
               {/* Description */}
               {tender.description && (
                 <div>
-                  <h2 className="text-base font-semibold mb-2">Description</h2>
+                  <h2 className="font-heading text-base font-semibold mb-2">Description</h2>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
                     {tender.description}
                   </p>
@@ -461,7 +461,7 @@ const TenderDetail = () => {
 
               {/* Q&A thread */}
               <div>
-                <h2 className="text-base font-semibold mb-4">Questions &amp; Answers</h2>
+                <h2 className="font-heading text-base font-semibold mb-4">Questions &amp; Answers</h2>
 
                 {shown.length === 0 && (
                   <p className="text-sm text-muted-foreground mb-4">No questions yet.</p>

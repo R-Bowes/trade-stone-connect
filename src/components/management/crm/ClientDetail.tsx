@@ -35,7 +35,7 @@ export function ClientDetail({ client, activities, onBack, onEdit, onDelete, onA
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" />Back</Button>
-        <h2 className="text-xl font-bold flex-1">{client.full_name}</h2>
+        <h2 className="font-heading text-xl font-bold flex-1">{client.full_name}</h2>
         <Button variant="outline" size="sm" onClick={() => onEdit(client)}><Edit className="h-4 w-4 mr-1" />Edit</Button>
         <Button variant="destructive" size="sm" onClick={() => onDelete(client.id)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>
       </div>

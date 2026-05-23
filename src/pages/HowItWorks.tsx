@@ -128,7 +128,7 @@ const HowItWorks = () => {
         <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <h1 className="font-heading text-4xl md:text-5xl font-bold mb-4">
                 How <span className="text-primary">TradeStone</span> Works
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -157,7 +157,7 @@ const HowItWorks = () => {
         <section className="py-16 px-4 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
                 Choose Your <span className="text-primary">Account Type</span>
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -245,7 +245,7 @@ const HowItWorks = () => {
         <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
                 Feature <span className="text-primary">Comparison</span>
               </h2>
               <p className="text-lg text-muted-foreground">

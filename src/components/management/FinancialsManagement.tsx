@@ -151,7 +151,7 @@ export function FinancialsManagement() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Financial Management</h2>
+        <h2 className="font-heading text-2xl font-bold">Financial Management</h2>
         <div className="flex gap-2">
           <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button>
           <Button onClick={() => { setEditingExpense(null); setDialogOpen(true); }}>

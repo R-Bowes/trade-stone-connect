@@ -325,7 +325,7 @@ export function SubmitProposalForm({
     <div style={{ background: T.bg, minHeight: "100vh", padding: "32px 16px" }}>
       {/* Page header */}
       <div style={{ maxWidth: 720, margin: "0 auto 32px" }}>
-        <h1 style={{ color: T.white, fontSize: 22, fontWeight: 700, margin: 0 }}>
+        <h1 className="font-heading" style={{ color: T.white, fontSize: 22, fontWeight: 700, margin: 0 }}>
           Submit a Proposal
         </h1>
         <p style={{ color: T.muted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
@@ -1125,7 +1125,7 @@ export function SubmitProposalForm({
 function StepHeader({ title, sub }: { title: string; sub: string }) {
   return (
     <div style={{ marginBottom: 4 }}>
-      <h2 style={{ color: T.white, fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>
+      <h2 className="font-heading" style={{ color: T.white, fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>
         {title}
       </h2>
       <p style={{ color: T.muted, fontSize: 13, margin: 0 }}>{sub}</p>

@@ -286,7 +286,7 @@ const PersonalDashboard = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">My Dashboard</h1>
+          <h1 className="font-heading text-3xl font-bold mb-2">My Dashboard</h1>
           <p className="text-muted-foreground">Track your project requests and manage your saved contractors.</p>
         </div>
 
@@ -422,7 +422,7 @@ const PersonalDashboard = () => {
           {/* My Requests */}
           <TabsContent value="requests" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">My Enquiries</h2>
+              <h2 className="font-heading text-2xl font-bold">My Enquiries</h2>
             </div>
 
             {profileId && user && (
@@ -530,7 +530,7 @@ const PersonalDashboard = () => {
           {/* Saved */}
           <TabsContent value="saved" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Saved Contractors</h2>
+              <h2 className="font-heading text-2xl font-bold">Saved Contractors</h2>
             </div>
 
             <Card>
@@ -551,7 +551,7 @@ const PersonalDashboard = () => {
           {/* Messages */}
           <TabsContent value="messages" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Messages</h2>
+              <h2 className="font-heading text-2xl font-bold">Messages</h2>
             </div>
 
             <Card>

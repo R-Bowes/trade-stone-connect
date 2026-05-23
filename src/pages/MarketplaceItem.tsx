@@ -27,7 +27,7 @@ const MarketplaceItem = () => {
         <Header />
         <main className="container mx-auto px-4 py-8 pt-24">
           <div className="text-center py-12">
-            <h1 className="text-2xl font-bold mb-4">Item Not Found</h1>
+            <h1 className="font-heading text-2xl font-bold mb-4">Item Not Found</h1>
             <p className="text-muted-foreground mb-6">The item you're looking for doesn't exist.</p>
             <Button asChild>
               <Link to="/marketplace">Back to Marketplace</Link>
@@ -83,7 +83,7 @@ const MarketplaceItem = () => {
           <div className="space-y-6">
             <div>
               <div className="flex items-start justify-between mb-2">
-                <h1 className="text-3xl font-bold">{item.title}</h1>
+                <h1 className="font-heading text-3xl font-bold">{item.title}</h1>
                 <Badge variant="secondary" className="text-sm">
                   {item.condition}
                 </Badge>

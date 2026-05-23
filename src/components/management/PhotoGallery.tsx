@@ -144,7 +144,7 @@ export function PhotoGallery() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Photo Gallery</h2>
+          <h2 className="font-heading text-2xl font-bold">Photo Gallery</h2>
           <p className="text-muted-foreground">Manage your project photos</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

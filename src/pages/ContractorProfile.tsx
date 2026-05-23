@@ -195,7 +195,7 @@ const ContractorProfile = () => {
               </div>
 
               <div className="flex-1">
-                <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
+                <h1 className="font-heading text-3xl font-bold mb-1">{displayName}</h1>
                 {displayCompany && <p className="text-xl text-muted-foreground mb-4">{displayCompany}</p>}
 
                 <div className="flex flex-wrap items-center gap-6 mb-6">

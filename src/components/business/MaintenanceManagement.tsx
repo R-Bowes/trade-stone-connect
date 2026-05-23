@@ -941,7 +941,7 @@ export const MaintenanceManagement = ({ companyId, profileId }: MaintenanceManag
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Maintenance & Compliance</h2>
+          <h2 className="font-heading text-2xl font-bold">Maintenance & Compliance</h2>
           <p className="text-muted-foreground text-sm mt-1">Manage planned preventative maintenance across your sites and assets.</p>
         </div>
       </div>

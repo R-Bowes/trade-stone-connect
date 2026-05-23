@@ -84,7 +84,7 @@ export default function Notifications() {
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
+            <h1 className="font-heading text-2xl font-bold text-foreground">Notifications</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {unreadCount > 0
                 ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`

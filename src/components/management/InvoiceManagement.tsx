@@ -85,7 +85,7 @@ export function InvoiceManagement() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Invoice Management</h2>
+        <h2 className="font-heading text-2xl font-bold">Invoice Management</h2>
         <Button onClick={() => { setEditingInvoice(null); setDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" />Create Invoice
         </Button>

@@ -45,7 +45,7 @@ export function ClientJobsView() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">My Jobs</h2>
+      <h2 className="font-heading text-2xl font-bold">My Jobs</h2>
 
       {jobs.length === 0 ? (
         <Card>

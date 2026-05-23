@@ -517,7 +517,7 @@ const ProposalReview = () => {
         <Header />
         <main className="py-16 px-4">
           <div className="container mx-auto max-w-7xl text-center py-24">
-            <h2 className="text-2xl font-bold mb-3">Project not found</h2>
+            <h2 className="font-heading text-2xl font-bold mb-3">Project not found</h2>
             <Button variant="outline" onClick={() => navigate("/projects")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Projects
@@ -549,7 +549,7 @@ const ProposalReview = () => {
                   Back to tender
                 </button>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl font-bold">{project.title}</h1>
+                  <h1 className="font-heading text-2xl font-bold">{project.title}</h1>
                   <span className="bg-muted text-muted-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full border">
                     {proposals.length} proposal{proposals.length !== 1 ? "s" : ""}
                   </span>
@@ -755,7 +755,7 @@ const ProposalReview = () => {
             {/* Panel header */}
             <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
               <div>
-                <h2 className="font-bold text-lg leading-tight">
+                <h2 className="font-heading font-bold text-lg leading-tight">
                   {contractorName(selectedProposal)}
                 </h2>
                 <div className="flex items-center gap-2 mt-0.5">
