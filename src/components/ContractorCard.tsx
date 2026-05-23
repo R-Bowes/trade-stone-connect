@@ -8,7 +8,8 @@ export interface ContractorCardData {
   name: string;
   company: string;
   location: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
+  logoUrl?: string | null;
   primaryTrade: string;
   trades: string[];
   rating: number | null;
@@ -90,19 +91,25 @@ function RecentJobsStrip({
 
 export function ContractorCard({ contractor }: { contractor: ContractorCardData }) {
   const navigate = useNavigate();
-  const { nextAvailable } = useAvailability(contractor.id);
 
-  const handleClick = () => {
-    navigate(`/contractor/${contractor.tsCode}`);
-  };
+  // Fix: call getNextAvailable() as a function, not destructure nextAvailable
+  const { getNextAvailable } = useAvailability(contractor.id);
+  const nextAvailableDate = getNextAvailable();
 
-  const availabilityLabel = nextAvailable
-    ? new Date(nextAvailable).toLocaleDateString("en-GB", {
+  const availabilityLabel = nextAvailableDate
+    ? nextAvailableDate.toLocaleDateString("en-GB", {
         weekday: "short",
         day: "numeric",
         month: "short",
       })
     : null;
+
+  const handleClick = () => {
+    navigate(`/contractor/${contractor.tsCode}`);
+  };
+
+  // Logo takes priority over avatar, then falls back to initials
+  const displayImage = contractor.logoUrl ?? contractor.avatarUrl ?? null;
 
   return (
     <div
@@ -145,13 +152,13 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
         </div>
       </div>
 
-      {/* Avatar area */}
+      {/* Logo / avatar area */}
       <div style={styles.photoArea}>
-        {contractor.avatarUrl ? (
+        {displayImage ? (
           <img
-            src={contractor.avatarUrl}
+            src={displayImage}
             alt={contractor.name}
-            style={styles.avatarImg}
+            style={contractor.logoUrl ? styles.logoImg : styles.avatarImg}
           />
         ) : (
           <div style={styles.avatarInitials}>{getInitials(contractor.name)}</div>
@@ -286,12 +293,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   photoArea: {
     background: "#f5f5f5",
-    height: 76,
+    height: 80,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     borderBottom: "1px solid #e8e8e8",
   },
+  // Logo: rectangular, contained, no circle crop
+  logoImg: {
+    maxHeight: 56,
+    maxWidth: "80%",
+    objectFit: "contain",
+  },
+  // Avatar: circular crop
   avatarImg: {
     width: 56,
     height: 56,
