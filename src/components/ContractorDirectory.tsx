@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, MapPin, Loader2, Clock3, X } from "lucide-react";
-import ContractorCard from "./ContractorCard";
+import { ContractorCard, ContractorCardData } from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 
@@ -132,23 +132,27 @@ const ContractorDirectory = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : filteredContractors.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filteredContractors.map((contractor) => (
-              <ContractorCard
-                key={contractor.user_id}
-                name={contractor.full_name || "Unknown"}
-                company={contractor.company_name || "Independent Contractor"}
-                code={contractor.ts_profile_code || ""}
-                profileId={contractor.id}
-                specialties={contractor.trades && contractor.trades.length > 0 ? contractor.trades : []}
-                bioSnippet={contractor.bio || undefined}
-                rating={contractor.rating ?? null}
-                reviewCount={contractor.review_count ?? null}
-                location={contractor.location || ""}
-                image={contractor.logo_url || undefined}
-                isVerified={contractor.is_verified ?? false}
-              />
-            ))}
+          <div className="contractor-card-grid">
+            {filteredContractors.map((contractor) => {
+              const mapped: ContractorCardData = {
+                id: contractor.id,
+                tsCode: contractor.ts_profile_code ?? "",
+                name: contractor.full_name ?? "Unknown",
+                company: contractor.company_name ?? "Independent Contractor",
+                location: contractor.location ?? "",
+                avatarUrl: contractor.avatar_url ?? null,
+                primaryTrade: contractor.trades?.[0] ?? "General Building",
+                trades: contractor.trades ?? [],
+                rating: contractor.rating ?? null,
+                jobsCompleted: contractor.review_count ?? 0,
+                responseTimeHours: null,
+                verified: contractor.is_verified ?? false,
+                availability: null,
+                recentJobs: null,
+                isNew: !contractor.rating && !contractor.review_count,
+              };
+              return <ContractorCard key={contractor.user_id} contractor={mapped} />;
+            })}
           </div>
         ) : (
           <div className="text-center py-12">
