@@ -1,165 +1,445 @@
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Star, MapPin, Heart, Wrench } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import "./ContractorCard.css";
 import { useAvailability } from "@/hooks/useAvailability";
-import { format, isToday, isTomorrow } from "date-fns";
 
-interface ContractorCardProps {
+export interface ContractorCardData {
+  id: string;
+  tsCode: string;
   name: string;
   company: string;
-  code: string;
-  profileId: string;
-  specialties: string[];
-  bioSnippet?: string;
-  rating?: number | null;
-  reviewCount?: number | null;
   location: string;
-  image?: string;
-  isVerified?: boolean;
+  avatarUrl?: string;
+  primaryTrade: string;
+  trades: string[];
+  rating: number | null;
+  jobsCompleted: number;
+  responseTimeHours: number | null;
+  verified: boolean;
+  recentJobs: Array<{ rating: number; month: string }> | null;
+  isNew: boolean;
 }
 
-function NextAvailableBadge({ profileId }: { profileId: string }) {
-  const { getNextAvailable, loading } = useAvailability(profileId);
-
-  if (loading) return null;
-
-  const next = getNextAvailable();
-  if (!next) return (
-    <Badge variant="outline" className="text-xs">Contact for availability</Badge>
-  );
-
-  let label = "";
-  if (isToday(next)) label = "Available today";
-  else if (isTomorrow(next)) label = "Available tomorrow";
-  else label = `Available ${format(next, "EEE d MMM")}`;
-
-  const isImmediate = isToday(next) || isTomorrow(next);
-
-  return (
-    <Badge
-      variant="outline"
-      className={`text-xs ${isImmediate ? "border-green-300 bg-green-50 text-green-800" : "border-amber-300 bg-amber-50 text-amber-800"}`}
-    >
-      {label}
-    </Badge>
-  );
-}
-
-const ContractorCard = ({
-  name,
-  company,
-  code,
-  profileId,
-  specialties,
-  bioSnippet,
-  rating,
-  reviewCount,
-  location,
-  image,
-  isVerified,
-}: ContractorCardProps) => {
-  const navigate = useNavigate();
-  const [isLiked, setIsLiked] = useState(false);
-
-  const handleViewProfile = () => {
-    navigate(`/contractor/${code}`);
-  };
-
-  return (
-    <Card className="contractor-card">
-      <div className="flex items-start space-x-4">
-        {/* Avatar */}
-        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-          {image ? (
-            <img
-              src={image}
-              alt={name}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            <Wrench className="h-8 w-8 text-muted-foreground" />
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-1 gap-2">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-lg leading-tight truncate">{name}</h3>
-              <p className="text-sm text-muted-foreground truncate">{company}</p>
-            </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
-              <Badge variant="secondary" className="text-xs font-mono">{code}</Badge>
-              {isVerified && (
-                <Badge className="text-xs bg-green-500 text-white">Verified</Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Rating and Location */}
-          <div className="flex flex-wrap items-center gap-3 mb-3 text-sm">
-            {rating != null ? (
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-primary text-primary" />
-                <span className="font-medium">{rating}</span>
-                {reviewCount != null && reviewCount > 0 && (
-                  <span className="text-muted-foreground">({reviewCount})</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-xs text-muted-foreground">No reviews yet</span>
-            )}
-            {location && (
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                <span>{location}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Specialties */}
-          <div className="flex flex-wrap gap-1 mb-3">
-            {specialties.slice(0, 3).map((specialty, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {specialty}
-              </Badge>
-            ))}
-            {specialties.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{specialties.length - 3} more
-              </Badge>
-            )}
-          </div>
-
-          {bioSnippet && (
-            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{bioSnippet}</p>
-          )}
-
-          {/* Availability */}
-          <div className="mb-3">
-            <NextAvailableBadge profileId={profileId} />
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button size="sm" className="flex-1" onClick={handleViewProfile}>
-              View Profile
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsLiked(!isLiked)}
-            >
-              <Heart className={`h-4 w-4 ${isLiked ? "fill-red-500 text-red-500" : ""}`} />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
+const TRADE_ABBREV: Record<string, string> = {
+  Electrical: "ELEC",
+  Plumbing: "PLMB",
+  Roofing: "ROOF",
+  Carpentry: "CARP",
+  Painting: "DECO",
+  "General Building": "BUILD",
+  Plastering: "PLST",
+  Tiling: "TILE",
+  Landscaping: "LAND",
+  Heating: "HVAC",
 };
 
-export default ContractorCard;
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function getTradeAbbrev(trade: string) {
+  return TRADE_ABBREV[trade] ?? trade.slice(0, 4).toUpperCase();
+}
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <span style={{ color: "#f07820", fontSize: 11, fontWeight: 700 }}>
+      ★ {rating.toFixed(1)}
+    </span>
+  );
+}
+
+function RecentJobsStrip({
+  recentJobs,
+  isNew,
+}: {
+  recentJobs: Array<{ rating: number; month: string }> | null;
+  isNew: boolean;
+}) {
+  if (isNew || !recentJobs) {
+    return (
+      <div style={styles.recentWrap}>
+        <div style={styles.newBadge}>✦ New to TradeStone</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.recentWrap}>
+      <div style={styles.recentLabel}>Recent jobs</div>
+      <div style={styles.weeksRow}>
+        {recentJobs.slice(0, 3).map((job, i) => {
+          const isGreat = job.rating >= 5;
+          const isGood = job.rating >= 4 && job.rating < 5;
+          return (
+            <div
+              key={i}
+              style={{
+                ...styles.weekCell,
+                background: isGreat ? "#f07820" : isGood ? "#1a4a2a" : "#2d3f6b",
+              }}
+            >
+              <span style={styles.weekPts}>{job.rating}★</span>
+              <span style={styles.weekLbl}>{job.month}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function ContractorCard({ contractor }: { contractor: ContractorCardData }) {
+  const navigate = useNavigate();
+  const { nextAvailable } = useAvailability(contractor.id);
+
+  const handleClick = () => {
+    navigate(`/contractor/${contractor.tsCode}`);
+  };
+
+  const availabilityLabel = nextAvailable
+    ? new Date(nextAvailable).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      })
+    : null;
+
+  return (
+    <div
+      style={styles.card}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && handleClick()}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow =
+          "0 8px 24px rgba(0,0,0,0.35)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow =
+          "0 2px 8px rgba(0,0,0,0.2)";
+      }}
+    >
+      {/* Header strip */}
+      <div style={styles.header}>
+        <div>
+          {contractor.rating !== null ? (
+            <>
+              <StarRating rating={contractor.rating} />
+              <div style={styles.headerSub}>{contractor.jobsCompleted} jobs</div>
+            </>
+          ) : (
+            <div style={styles.headerSub}>No reviews yet</div>
+          )}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={styles.tradeBadge}>
+            {getTradeAbbrev(contractor.primaryTrade)}
+          </div>
+          {contractor.verified && (
+            <div style={styles.verifiedRow}>
+              <span style={styles.verifiedDot} />
+              Verified
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Avatar */}
+      <div style={styles.photoArea}>
+        {contractor.avatarUrl ? (
+          <img
+            src={contractor.avatarUrl}
+            alt={contractor.name}
+            style={styles.avatarImg}
+          />
+        ) : (
+          <div style={styles.avatarInitials}>{getInitials(contractor.name)}</div>
+        )}
+      </div>
+
+      {/* Name block */}
+      <div style={styles.nameBlock}>
+        <div style={styles.nameText}>{contractor.name}</div>
+        <div style={styles.companyText}>{contractor.company}</div>
+        <div style={styles.tsCode}>{contractor.tsCode}</div>
+      </div>
+
+      {/* Stats row */}
+      <div style={styles.statsRow}>
+        <div style={styles.statCell}>
+          <span style={styles.statVal}>{contractor.jobsCompleted}</span>
+          <span style={styles.statLbl}>Jobs</span>
+        </div>
+        <div
+          style={{
+            ...styles.statCell,
+            borderLeft: "1px solid #2d3f6b",
+            borderRight: "1px solid #2d3f6b",
+          }}
+        >
+          <span style={styles.statVal}>
+            {contractor.rating !== null ? contractor.rating.toFixed(1) : "—"}
+          </span>
+          <span style={styles.statLbl}>Rating</span>
+        </div>
+        <div style={styles.statCell}>
+          <span style={styles.statVal}>
+            {contractor.responseTimeHours !== null
+              ? `${contractor.responseTimeHours}h`
+              : "—"}
+          </span>
+          <span style={styles.statLbl}>Response</span>
+        </div>
+      </div>
+
+      {/* Recent jobs / new badge */}
+      <RecentJobsStrip recentJobs={contractor.recentJobs} isNew={contractor.isNew} />
+
+      {/* Trades chips */}
+      <div style={styles.tradesRow}>
+        {contractor.trades.slice(0, 3).map((t) => (
+          <span key={t} style={styles.tradeChip}>
+            {t}
+          </span>
+        ))}
+        {contractor.trades.length > 3 && (
+          <span style={styles.tradeChip}>+{contractor.trades.length - 3}</span>
+        )}
+      </div>
+
+      {/* Availability — resolved internally via useAvailability */}
+      <div style={styles.availRow}>
+        {availabilityLabel ? (
+          <div style={styles.availPillGreen}>Available {availabilityLabel}</div>
+        ) : (
+          <div style={styles.availPillGrey}>Contact for availability</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ContractorCardGrid({
+  contractors,
+}: {
+  contractors: ContractorCardData[];
+}) {
+  return (
+    <div className="contractor-card-grid">
+      {contractors.map((c) => (
+        <ContractorCard key={c.tsCode} contractor={c} />
+      ))}
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  card: {
+    background: "#1a2744",
+    borderRadius: 12,
+    overflow: "hidden",
+    cursor: "pointer",
+    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+    fontFamily: "'Lexend', sans-serif",
+    userSelect: "none",
+  },
+  header: {
+    background: "#f07820",
+    padding: "8px 10px 6px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  headerSub: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+  },
+  tradeBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#f07820",
+    background: "#fff",
+    borderRadius: 4,
+    padding: "2px 6px",
+    letterSpacing: "0.5px",
+  },
+  verifiedRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    fontSize: 8,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 4,
+    gap: 3,
+  },
+  verifiedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: "#4ade80",
+    display: "inline-block",
+  },
+  photoArea: {
+    background: "#243058",
+    height: 80,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImg: {
+    width: 60,
+    height: 60,
+    borderRadius: "50%",
+    border: "2px solid #f07820",
+    objectFit: "cover",
+  },
+  avatarInitials: {
+    width: 60,
+    height: 60,
+    borderRadius: "50%",
+    background: "#1a2744",
+    border: "2px solid #f07820",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#f07820",
+  },
+  nameBlock: {
+    background: "#243058",
+    padding: "6px 10px 6px",
+    textAlign: "center",
+    borderBottom: "1px solid #2d3f6b",
+  },
+  nameText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    margin: 0,
+  },
+  companyText: {
+    color: "#f07820",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  tsCode: {
+    fontSize: 9,
+    color: "#8899bb",
+    fontFamily: "monospace",
+    marginTop: 2,
+  },
+  statsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    borderTop: "1px solid #2d3f6b",
+  },
+  statCell: {
+    textAlign: "center",
+    padding: "7px 4px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  statVal: {
+    fontSize: 17,
+    fontWeight: 700,
+    color: "#fff",
+    lineHeight: 1,
+  },
+  statLbl: {
+    fontSize: 8,
+    color: "#8899bb",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginTop: 2,
+  },
+  recentWrap: {
+    padding: "6px 10px",
+    borderTop: "1px solid #2d3f6b",
+  },
+  recentLabel: {
+    fontSize: 8,
+    color: "#8899bb",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: 4,
+  },
+  weeksRow: {
+    display: "flex",
+    gap: 3,
+  },
+  weekCell: {
+    flex: 1,
+    borderRadius: 3,
+    padding: "3px 2px",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  weekPts: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#fff",
+  },
+  weekLbl: {
+    fontSize: 7,
+    color: "rgba(255,255,255,0.5)",
+  },
+  newBadge: {
+    background: "#2d3f6b",
+    color: "#f07820",
+    fontSize: 9,
+    fontWeight: 600,
+    borderRadius: 4,
+    padding: "4px 8px",
+    textAlign: "center",
+    letterSpacing: "0.5px",
+  },
+  tradesRow: {
+    padding: "4px 8px",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 3,
+  },
+  tradeChip: {
+    fontSize: 8,
+    background: "#2d3f6b",
+    color: "#aabbdd",
+    borderRadius: 3,
+    padding: "2px 5px",
+  },
+  availRow: {
+    padding: "4px 8px 10px",
+  },
+  availPillGreen: {
+    background: "#0f3a1f",
+    color: "#4ade80",
+    fontSize: 9,
+    borderRadius: 4,
+    padding: "4px 8px",
+    textAlign: "center",
+    fontWeight: 600,
+  },
+  availPillGrey: {
+    background: "#2d3f6b",
+    color: "#8899bb",
+    fontSize: 9,
+    borderRadius: 4,
+    padding: "4px 8px",
+    textAlign: "center",
+  },
+};
