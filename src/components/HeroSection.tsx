@@ -67,8 +67,8 @@ const HeroSection = () => {
         />
 
         <div className="relative mx-auto flex max-w-4xl flex-col items-center text-center text-white">
-          <h1 className="mb-6 font-heading text-5xl font-extrabold tracking-tight md:text-6xl">
-            Build &amp; Grow with TradeStone
+          <h1 className="mb-6 font-heading text-5xl font-bold uppercase tracking-wide md:text-7xl">
+            Build & Grow with <span style={{ color: '#f07820' }}>TradeStone</span>
           </h1>
           <p className="max-w-2xl text-xl leading-relaxed text-slate-100 md:text-[1.4rem]">
             Connect with professionals, buy surplus materials, and win contracts with ease.

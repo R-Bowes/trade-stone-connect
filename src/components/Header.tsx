@@ -69,7 +69,12 @@ const Header = () => {
       <div className="container flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2.5">
           <img src={tradestoneLogo} alt="TradeStone logo" className="h-7 w-auto" />
-          <span className="text-3xl font-bold leading-none text-slate-900">TradeStone</span>
+          <span
+            className="leading-none uppercase tracking-wide"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: '28px', letterSpacing: '1px' }}
+          >
+            <span style={{ color: '#1e3a5f' }}>TRADE</span><span style={{ color: '#f07820' }}>STONE</span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-700">
