@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +13,33 @@ import { format } from "date-fns";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 
 export function ReceivedInvoices() {
-  const { invoices, loading, respondToInvoice } = useReceivedInvoices();
+  const { invoices, loading, respondToInvoice, refetch } = useReceivedInvoices();
   const [messageDialog, setMessageDialog] = useState<{ open: boolean; invoice: ReceivedInvoice | null }>({
     open: false, invoice: null,
   });
   const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (payment === "success") {
+      toast({
+        title: "Payment successful",
+        description: "Your payment has been received. The invoice will update shortly.",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+      const timer = setTimeout(() => refetch(), 3000);
+      return () => clearTimeout(timer);
+    }
+    if (payment === "cancelled") {
+      toast({
+        title: "Payment cancelled",
+        description: "Your payment was not completed.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const handleStall = async (invoice: ReceivedInvoice) => {
     await respondToInvoice(invoice.id, "stalled");
@@ -84,18 +106,13 @@ export function ReceivedInvoices() {
                   <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
                   <TableCell>{getResponseBadge(inv)}</TableCell>
                   <TableCell className="text-right">
-                    {!inv.recipient_response && (
+                    {inv.recipient_response !== "paid" && (
                       <div className="flex justify-end gap-1">
                         <PayInvoiceButton
                           invoiceId={inv.id}
                           amount={Number(inv.total)}
                           status={inv.recipient_response || "pending"}
-                          onPaymentComplete={async () => {
-                            await respondToInvoice(inv.id, "paid");
-                            await supabase.functions.invoke("notify-invoice-quote-action", {
-                              body: { action_type: "pay", context_type: "invoice", context_id: inv.id },
-                            }).catch(console.error);
-                          }}
+                          onPaymentComplete={() => refetch()}
                         />
                         <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
                           <Pause className="h-4 w-4 mr-1" />Stall
