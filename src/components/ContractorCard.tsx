@@ -45,14 +45,6 @@ function getTradeAbbrev(trade: string) {
   return TRADE_ABBREV[trade] ?? trade.slice(0, 4).toUpperCase();
 }
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <span style={{ color: "#f07820", fontSize: 11, fontWeight: 700 }}>
-      ★ {rating.toFixed(1)}
-    </span>
-  );
-}
-
 function RecentJobsStrip({
   recentJobs,
   isNew,
@@ -80,10 +72,13 @@ function RecentJobsStrip({
               key={i}
               style={{
                 ...styles.weekCell,
-                background: isGreat ? "#f07820" : isGood ? "#1a4a2a" : "#2d3f6b",
+                background: isGreat ? "#f07820" : isGood ? "#e8f5e9" : "#f5f5f5",
+                border: isGreat ? "none" : "1px solid #e0e0e0",
               }}
             >
-              <span style={styles.weekPts}>{job.rating}★</span>
+              <span style={{ ...styles.weekPts, color: isGreat ? "#fff" : "#1a2744" }}>
+                {job.rating}★
+              </span>
               <span style={styles.weekLbl}>{job.month}</span>
             </div>
           );
@@ -117,42 +112,40 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && handleClick()}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
         (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 8px 24px rgba(0,0,0,0.35)";
+          "0 6px 20px rgba(0,0,0,0.12)";
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
         (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 2px 8px rgba(0,0,0,0.2)";
+          "0 1px 4px rgba(0,0,0,0.08)";
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
       }}
     >
-      {/* Header strip */}
+      {/* Orange header strip */}
       <div style={styles.header}>
-        <div>
+        <div style={styles.headerLeft}>
           {contractor.rating !== null ? (
             <>
-              <StarRating rating={contractor.rating} />
-              <div style={styles.headerSub}>{contractor.jobsCompleted} jobs</div>
+              <span style={styles.ratingText}>★ {contractor.rating.toFixed(1)}</span>
+              <span style={styles.headerSub}>{contractor.jobsCompleted} jobs</span>
             </>
           ) : (
-            <div style={styles.headerSub}>No reviews yet</div>
+            <span style={styles.headerSub}>No reviews yet</span>
           )}
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={styles.tradeBadge}>
-            {getTradeAbbrev(contractor.primaryTrade)}
-          </div>
+        <div style={styles.headerRight}>
+          <div style={styles.tradeBadge}>{getTradeAbbrev(contractor.primaryTrade)}</div>
           {contractor.verified && (
             <div style={styles.verifiedRow}>
               <span style={styles.verifiedDot} />
-              Verified
+              <span style={styles.verifiedText}>Verified</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Avatar */}
+      {/* Avatar area */}
       <div style={styles.photoArea}>
         {contractor.avatarUrl ? (
           <img
@@ -178,13 +171,7 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
           <span style={styles.statVal}>{contractor.jobsCompleted}</span>
           <span style={styles.statLbl}>Jobs</span>
         </div>
-        <div
-          style={{
-            ...styles.statCell,
-            borderLeft: "1px solid #2d3f6b",
-            borderRight: "1px solid #2d3f6b",
-          }}
-        >
+        <div style={{ ...styles.statCell, borderLeft: "1px solid #e8e8e8", borderRight: "1px solid #e8e8e8" }}>
           <span style={styles.statVal}>
             {contractor.rating !== null ? contractor.rating.toFixed(1) : "—"}
           </span>
@@ -192,9 +179,7 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
         </div>
         <div style={styles.statCell}>
           <span style={styles.statVal}>
-            {contractor.responseTimeHours !== null
-              ? `${contractor.responseTimeHours}h`
-              : "—"}
+            {contractor.responseTimeHours !== null ? `${contractor.responseTimeHours}h` : "—"}
           </span>
           <span style={styles.statLbl}>Response</span>
         </div>
@@ -206,16 +191,14 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
       {/* Trades chips */}
       <div style={styles.tradesRow}>
         {contractor.trades.slice(0, 3).map((t) => (
-          <span key={t} style={styles.tradeChip}>
-            {t}
-          </span>
+          <span key={t} style={styles.tradeChip}>{t}</span>
         ))}
         {contractor.trades.length > 3 && (
           <span style={styles.tradeChip}>+{contractor.trades.length - 3}</span>
         )}
       </div>
 
-      {/* Availability — resolved internally via useAvailability */}
+      {/* Availability */}
       <div style={styles.availRow}>
         {availabilityLabel ? (
           <div style={styles.availPillGreen}>Available {availabilityLabel}</div>
@@ -227,11 +210,7 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
   );
 }
 
-export function ContractorCardGrid({
-  contractors,
-}: {
-  contractors: ContractorCardData[];
-}) {
+export function ContractorCardGrid({ contractors }: { contractors: ContractorCardData[] }) {
   return (
     <div className="contractor-card-grid">
       {contractors.map((c) => (
@@ -243,12 +222,13 @@ export function ContractorCardGrid({
 
 const styles: Record<string, React.CSSProperties> = {
   card: {
-    background: "#1a2744",
+    background: "#ffffff",
     borderRadius: 12,
     overflow: "hidden",
     cursor: "pointer",
     transition: "transform 0.15s ease, box-shadow 0.15s ease",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+    border: "1px solid #e8e8e8",
     fontFamily: "'Lexend', sans-serif",
     userSelect: "none",
   },
@@ -259,10 +239,25 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
+  headerLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  },
+  headerRight: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#fff",
+  },
   headerSub: {
     fontSize: 9,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
+    color: "rgba(255,255,255,0.85)",
   },
   tradeBadge: {
     fontSize: 10,
@@ -276,10 +271,6 @@ const styles: Record<string, React.CSSProperties> = {
   verifiedRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "flex-end",
-    fontSize: 8,
-    color: "rgba(255,255,255,0.85)",
-    marginTop: 4,
     gap: 3,
   },
   verifiedDot: {
@@ -289,46 +280,50 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#4ade80",
     display: "inline-block",
   },
+  verifiedText: {
+    fontSize: 8,
+    color: "rgba(255,255,255,0.9)",
+  },
   photoArea: {
-    background: "#243058",
-    height: 80,
+    background: "#f5f5f5",
+    height: 76,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    borderBottom: "1px solid #e8e8e8",
   },
   avatarImg: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     borderRadius: "50%",
     border: "2px solid #f07820",
     objectFit: "cover",
   },
   avatarInitials: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     borderRadius: "50%",
     background: "#1a2744",
     border: "2px solid #f07820",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 700,
     color: "#f07820",
   },
   nameBlock: {
-    background: "#243058",
-    padding: "6px 10px 6px",
+    background: "#fff",
+    padding: "8px 10px 6px",
     textAlign: "center",
-    borderBottom: "1px solid #2d3f6b",
+    borderBottom: "1px solid #e8e8e8",
   },
   nameText: {
-    color: "#fff",
+    color: "#1a2744",
     fontSize: 12,
     fontWeight: 700,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
-    margin: 0,
   },
   companyText: {
     color: "#f07820",
@@ -337,14 +332,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tsCode: {
     fontSize: 9,
-    color: "#8899bb",
+    color: "#999",
     fontFamily: "monospace",
     marginTop: 2,
   },
   statsRow: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
-    borderTop: "1px solid #2d3f6b",
+    borderBottom: "1px solid #e8e8e8",
+    background: "#fafafa",
   },
   statCell: {
     textAlign: "center",
@@ -356,23 +352,23 @@ const styles: Record<string, React.CSSProperties> = {
   statVal: {
     fontSize: 17,
     fontWeight: 700,
-    color: "#fff",
+    color: "#1a2744",
     lineHeight: 1,
   },
   statLbl: {
     fontSize: 8,
-    color: "#8899bb",
+    color: "#999",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
     marginTop: 2,
   },
   recentWrap: {
     padding: "6px 10px",
-    borderTop: "1px solid #2d3f6b",
+    borderBottom: "1px solid #e8e8e8",
   },
   recentLabel: {
     fontSize: 8,
-    color: "#8899bb",
+    color: "#999",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
     marginBottom: 4,
@@ -393,14 +389,13 @@ const styles: Record<string, React.CSSProperties> = {
   weekPts: {
     fontSize: 9,
     fontWeight: 700,
-    color: "#fff",
   },
   weekLbl: {
     fontSize: 7,
-    color: "rgba(255,255,255,0.5)",
+    color: "#999",
   },
   newBadge: {
-    background: "#2d3f6b",
+    background: "#fff4ec",
     color: "#f07820",
     fontSize: 9,
     fontWeight: 600,
@@ -408,38 +403,43 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 8px",
     textAlign: "center",
     letterSpacing: "0.5px",
+    border: "1px solid #fde0c8",
   },
   tradesRow: {
-    padding: "4px 8px",
+    padding: "6px 8px",
     display: "flex",
     flexWrap: "wrap",
     gap: 3,
+    borderBottom: "1px solid #e8e8e8",
   },
   tradeChip: {
     fontSize: 8,
-    background: "#2d3f6b",
-    color: "#aabbdd",
+    background: "#f0f0f0",
+    color: "#1a2744",
     borderRadius: 3,
-    padding: "2px 5px",
+    padding: "2px 6px",
+    border: "1px solid #e0e0e0",
   },
   availRow: {
-    padding: "4px 8px 10px",
+    padding: "6px 8px 10px",
   },
   availPillGreen: {
-    background: "#0f3a1f",
-    color: "#4ade80",
+    background: "#f0fdf4",
+    color: "#166534",
     fontSize: 9,
     borderRadius: 4,
     padding: "4px 8px",
     textAlign: "center",
     fontWeight: 600,
+    border: "1px solid #bbf7d0",
   },
   availPillGrey: {
-    background: "#2d3f6b",
-    color: "#8899bb",
+    background: "#f5f5f5",
+    color: "#888",
     fontSize: 9,
     borderRadius: 4,
     padding: "4px 8px",
     textAlign: "center",
+    border: "1px solid #e0e0e0",
   },
 };
