@@ -6,18 +6,17 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
-  Filter, MessageCircle, Star, Loader2, Hammer, HelpCircle,
+  Filter, MessageCircle, Star, Loader2,
   ChevronDown, ChevronUp, RefreshCw, XCircle, MessageSquare,
-  AlertTriangle, Calendar, Wrench, ChevronRight, UserCheck,
+  AlertTriangle, Calendar, Wrench, UserCheck,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
-import { useNavigate } from "react-router-dom";
-import Header from "@/components/Header";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import ContractorLayout from "@/components/ContractorLayout";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
@@ -65,25 +64,6 @@ interface UpcomingEvent {
   tab: string;
 }
 
-const contractorDashboardViews = [
-  { value: "dashboard", label: "Dashboard" },
-  { value: "panel-invites", label: "Panel Invites" },
-  { value: "service-visits", label: "Service Visits" },
-  { value: "enquiries", label: "Enquiries" },
-  { value: "issued-quotes", label: "Issued Quotes" },
-  { value: "jobs", label: "Jobs" },
-  { value: "invoices", label: "Invoices" },
-  { value: "projects", label: "Projects" },
-  { value: "contracts", label: "Contracts" },
-  { value: "team", label: "Team" },
-  { value: "timesheets", label: "Timesheets" },
-  { value: "photos", label: "Photos" },
-  { value: "documents", label: "Documents" },
-  { value: "financials", label: "Financials" },
-  { value: "schedule", label: "Schedule" },
-  { value: "clients", label: "CRM" },
-  { value: "profile", label: "Profile" },
-] as const;
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -96,7 +76,6 @@ const fmtDate = (iso: string) => {
 };
 
 const ContractorDashboard = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
@@ -124,6 +103,9 @@ const ContractorDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get("view") ?? "dashboard";
+  const setActiveTab = (tab: string) => navigate(`/dashboard/contractor?view=${tab}`);
 
   const tourSteps: TourStep[] = useMemo(() => [
     { target: '[data-tour="dashboard-header"]', title: "Welcome to Your Dashboard!", description: "This is your command centre. Get an overview of your revenue, projects, invoices, and clients all in one place.", placement: "bottom" },
@@ -374,42 +356,18 @@ const ContractorDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
-      </div>
+      <ContractorLayout>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </ContractorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Hammer className="h-8 w-8 text-primary" />
-              <h1 className="font-heading text-3xl font-bold" data-tour="dashboard-header">Contractor Dashboard</h1>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => { setActiveTab("dashboard"); startTour(); }}>
-              <HelpCircle className="h-4 w-4 mr-2" />Take Tour
-            </Button>
-          </div>
-          <p className="text-muted-foreground">Manage your contracting business with powerful tools designed for professionals.</p>
-        </div>
-
+    <ContractorLayout>
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <div className="max-w-sm" data-tour={`tab-${activeTab}`}>
-            <label htmlFor="contractor-dashboard-view" className="mb-2 block text-sm font-medium text-muted-foreground">View</label>
-            <Select value={activeTab} onValueChange={setActiveTab}>
-              <SelectTrigger id="contractor-dashboard-view" className="w-full"><SelectValue placeholder="Select a view" /></SelectTrigger>
-              <SelectContent>
-                {contractorDashboardViews.map((view) => (
-                  <SelectItem key={view.value} value={view.value}>{view.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
@@ -724,8 +682,8 @@ const ContractorDashboard = () => {
         </Tabs>
 
         <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />
-      </main>
-    </div>
+      </div>
+    </ContractorLayout>
   );
 };
 
