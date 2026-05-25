@@ -172,20 +172,19 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           >
             <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
           </button>
-          {!collapsed && (
+          {!collapsed && profile && (
             <span
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: 700,
-                fontSize: 22,
-                letterSpacing: 1,
+                color: "rgba(255,255,255,0.95)",
+                fontWeight: 600,
+                fontSize: 14,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
+                textOverflow: "ellipsis",
                 lineHeight: 1,
               }}
             >
-              <span style={{ color: "rgba(255,255,255,0.95)" }}>TRADE</span>
-              <span style={{ color: "#f07820" }}>STONE</span>
+              {profile.full_name}
             </span>
           )}
         </div>
