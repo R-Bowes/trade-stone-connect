@@ -18,6 +18,7 @@ import type { User } from "@supabase/supabase-js";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ContractorLayout from "@/components/ContractorLayout";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
+import { ProfileEditor } from "@/components/management/ProfileEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
@@ -679,6 +680,7 @@ const ContractorDashboard = () => {
           <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
           <TabsContent value="clients"><CRMManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
+          <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
 
         <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />

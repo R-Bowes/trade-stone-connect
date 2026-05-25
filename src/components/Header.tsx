@@ -230,7 +230,7 @@ const Header = () => {
                     {/* Nav items */}
                     {[
                       { icon: "ti-layout-dashboard", label: "My dashboard", href: "/dashboard/contractor" },
-                      { icon: "ti-user", label: "My profile", href: "/dashboard/contractor?view=profile" },
+                      { icon: "ti-user", label: "My profile", href: "/dashboard/contractor?view=profile-editor" },
                       { icon: "ti-settings", label: "Account settings", href: "/dashboard/contractor?view=settings" },
                     ].map((item) => (
                       <button
@@ -333,7 +333,7 @@ const Header = () => {
                   My dashboard
                 </Link>
                 <Link
-                  to="/dashboard/contractor?view=profile"
+                  to="/dashboard/contractor?view=profile-editor"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-2"
                 >

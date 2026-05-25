@@ -4,386 +4,236 @@ import Header from "@/components/Header";
 import QuoteRequestDialog from "@/components/QuoteRequestDialog";
 import { ContractorMessageDialog } from "@/components/ContractorMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { useAvailability } from "@/hooks/useAvailability";
-import { format, isToday, isTomorrow } from "date-fns";
+import { usePublicProfileWidgets } from "@/hooks/useProfileWidgets";
 import {
-  ArrowLeft,
-  Star,
-  MapPin,
-  Calendar,
-  Wrench,
-  Clock,
-  CheckCircle,
-  MessageSquare,
-  Share2,
-  Heart,
-  Camera,
-  FileText,
-  ExternalLink,
-} from "lucide-react";
+  HeroBlock, EnquireBlock, WidgetBlock,
+  type PublicProfile, type ProfilePhoto, type ProfileCredential,
+  type ProfileReview, type ProfileTeamMember, type WidgetBlockData,
+} from "@/components/profile/ProfileWidgets";
+import { format, isToday, isTomorrow, addDays } from "date-fns";
 
-type ContractorProfileData = {
-  id: string;
-  user_id: string;
-  full_name: string | null;
-  company_name: string | null;
-  ts_profile_code: string | null;
-  user_type: "personal" | "business" | "contractor";
-  trades: string[] | null;
-  location: string | null;
-  working_radius: string | null;
-  bio: string | null;
-  logo_url: string | null;
-  is_verified: boolean | null;
-  rating: number | null;
-  review_count: number | null;
-  years_experience: number | null;
-  completed_jobs: number | null;
-  created_at: string;
-  updated_at: string;
-};
+// ─── Data types ───────────────────────────────────────────────────────────────
 
-function formatNextAvailable(date: Date | null): string {
-  if (!date) return "Contact for availability";
-  if (isToday(date)) return "Available today";
-  if (isTomorrow(date)) return "Available tomorrow";
-  return `Available from ${format(date, "EEE d MMM")}`;
+interface ContractorPageData extends PublicProfile {
+  id: string;       // profiles.id
+  user_id: string;  // profiles.user_id
 }
 
+function formatAvailability(date: Date | null): { label: string; isAvailable: boolean } {
+  if (!date) return { label: "Contact for availability", isAvailable: false };
+  if (isToday(date)) return { label: "Available today", isAvailable: true };
+  if (isTomorrow(date)) return { label: "Available tomorrow", isAvailable: true };
+  return { label: `Available from ${format(date, "EEE d MMM")}`, isAvailable: true };
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 const ContractorProfile = () => {
-  const { code } = useParams();
+  const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const [isLiked, setIsLiked] = useState(false);
-  const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
-  const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
-  const [contractorProfile, setContractorProfile] = useState<ContractorProfileData | null>(null);
-  const [contractorDocuments, setContractorDocuments] = useState<Array<{
-    id: string;
-    title: string;
-    description: string | null;
-    document_url: string;
-    file_name: string;
-    file_size: number | null;
-  }>>([]);
+
+  const [contractor, setContractor] = useState<ContractorPageData | null>(null);
+  const [photos, setPhotos] = useState<ProfilePhoto[]>([]);
+  const [credentials, setCredentials] = useState<ProfileCredential[]>([]);
+  const [reviews, setReviews] = useState<ProfileReview[]>([]);
+  const [team, setTeam] = useState<ProfileTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [isQuoteOpen, setIsQuoteOpen] = useState(false);
+  const [isMessageOpen, setIsMessageOpen] = useState(false);
+
+  // Widget layout — reads from profile_widgets for this contractor
+  const { widgets } = usePublicProfileWidgets(contractor?.id ?? "");
+
+  // Availability — takes profiles.id
+  const { getNextAvailable, loading: availLoading } = useAvailability(contractor?.id ?? "");
+  const nextAvailable = contractor?.id ? getNextAvailable() : null;
+  const { label: availLabel, isAvailable } = formatAvailability(nextAvailable);
+
   useEffect(() => {
-    const loadContractorProfile = async () => {
-      if (!code) return;
-      try {
-        const { data, error } = await supabase
-          .from("public_pro_profiles")
-          .select("id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, logo_url, is_verified, rating, review_count, years_experience, completed_jobs, created_at, updated_at")
-          .eq("ts_profile_code", code)
-          .maybeSingle();
-        if (error || !data) {
-          setContractorProfile(null);
-        } else {
-          setContractorProfile(data);
-          const { data: docs } = await supabase
-            .from("contractor_documents")
-            .select("id, title, description, document_url, file_name, file_size")
-            .eq("contractor_id", data.id)
-            .order("display_order", { ascending: true });
-          setContractorDocuments(docs || []);
-        }
-      } catch {
-        setContractorProfile(null);
-      } finally {
+    if (!code) return;
+    const load = async () => {
+      setLoading(true);
+
+      // Fetch public profile by ts_profile_code
+      const { data: pub, error } = await supabase
+        .from("public_pro_profiles")
+        .select(`
+          id, user_id, full_name, company_name, ts_profile_code,
+          bio, trades, location, working_radius,
+          avatar_url, logo_url, is_verified,
+          rating, review_count, completed_jobs, years_experience, hourly_rate
+        `)
+        .eq("ts_profile_code", code)
+        .maybeSingle();
+
+      if (error || !pub) {
+        setContractor(null);
         setLoading(false);
+        return;
       }
+
+      setContractor(pub as ContractorPageData);
+
+      // contractor_photos uses user_id FK
+      const { data: photoData } = await supabase
+        .from("contractor_photos")
+        .select("id, photo_url, title")
+        .eq("contractor_id", pub.user_id)
+        .order("display_order", { ascending: true });
+      setPhotos(photoData ?? []);
+
+      // contractor_credentials uses profiles.id FK (two-step already resolved)
+      const { data: credData } = await supabase
+        .from("contractor_credentials")
+        .select("id, name, issuer, reference_number, verified")
+        .eq("contractor_id", pub.id)
+        .order("display_order", { ascending: true });
+      setCredentials(credData ?? []);
+
+      // job_reviews uses profiles.id FK (two-step already resolved)
+      const { data: reviewData } = await supabase
+        .from("job_reviews")
+        .select("id, rating, comment, created_at")
+        .eq("contractor_id", pub.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setReviews(reviewData ?? []);
+
+      // team_members uses user_id FK — RLS restricts to owner only; returns empty for public viewers
+      const { data: teamData } = await supabase
+        .from("team_members")
+        .select("id, full_name, role")
+        .eq("contractor_id", pub.user_id)
+        .eq("is_active", true);
+      setTeam(teamData ?? []);
+
+      setLoading(false);
     };
-    loadContractorProfile();
+    load();
   }, [code]);
 
-  const { getNextAvailable, loading: availabilityLoading } = useAvailability(contractorProfile?.id ?? "");
-  const nextAvailableDate = contractorProfile?.id ? getNextAvailable() : null;
-  const nextAvailableLabel = formatNextAvailable(nextAvailableDate);
-  const isAvailable = nextAvailableDate !== null;
-
-  const openMessageFlow = async () => {
+  const handleEnquire = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/auth"); return; }
-    if (!contractorProfile?.user_id) return;
-    setIsMessageDialogOpen(true);
+    setIsQuoteOpen(true);
+  };
+
+  const handleMessage = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { navigate("/auth"); return; }
+    if (!contractor?.user_id) return;
+    setIsMessageOpen(true);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen" style={{ background: "#f4f4f0" }}>
         <Header />
-        <main className="pt-20 flex items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
+        <main style={{ paddingTop: 80, display: "flex", justifyContent: "center" }}>
+          <p style={{ color: "#9ca3af", fontSize: 14 }}>Loading...</p>
         </main>
       </div>
     );
   }
 
-  if (!contractorProfile) {
+  if (!contractor) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen" style={{ background: "#f4f4f0" }}>
         <Header />
-        <main className="pt-20 flex items-center justify-center">
-          <p className="text-muted-foreground">Contractor not found.</p>
+        <main style={{ paddingTop: 80, display: "flex", justifyContent: "center" }}>
+          <p style={{ color: "#9ca3af", fontSize: 14 }}>Contractor not found.</p>
         </main>
       </div>
     );
   }
 
-  const displayName = contractorProfile.full_name || "Unknown";
-  const displayCompany = contractorProfile.company_name || "";
-  const displayCode = contractorProfile.ts_profile_code || code || "";
-  const displayTrades = contractorProfile.trades && contractorProfile.trades.length > 0 ? contractorProfile.trades : [];
-  const displayBio = contractorProfile.bio || "";
-  const displayLocation = contractorProfile.location || "";
-  const displayRadius = contractorProfile.working_radius || "";
-  const displayRating = contractorProfile.rating;
-  const displayReviewCount = contractorProfile.review_count;
-  const displayYearsExp = contractorProfile.years_experience;
-  const displayCompletedJobs = contractorProfile.completed_jobs;
+  const availabilityInfo = {
+    label: availLoading ? "Checking..." : availLabel,
+    isAvailable: availLoading ? false : isAvailable,
+    loading: availLoading,
+  };
+
+  const blockData: WidgetBlockData = {
+    profile: contractor,
+    photos,
+    credentials,
+    reviews,
+    team,
+    availability: availabilityInfo,
+  };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: "#f4f4f0" }}>
       <Header />
-      <main className="pt-20">
-        <div className="border-b bg-card/50">
-          <div className="container mx-auto max-w-6xl px-4 py-4">
-            <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Directory
-            </Button>
-          </div>
+
+      <main style={{ paddingTop: 72 }}>
+        {/* Back link */}
+        <div style={{ maxWidth: 680, margin: "0 auto", padding: "16px 16px 0" }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 13, color: "#6b7280", fontFamily: "inherit", padding: 0,
+            }}
+          >
+            <i className="ti ti-arrow-left" style={{ fontSize: 16 }} />
+            Back to directory
+          </button>
         </div>
 
-        <section className="py-8 px-4 bg-gradient-to-br from-card/50 to-muted/30">
-          <div className="container mx-auto max-w-6xl">
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex flex-col items-center lg:items-start">
-                <Avatar className="w-32 h-32 mb-4">
-                  <AvatarImage src={contractorProfile.logo_url || ""} alt={displayName} />
-                  <AvatarFallback className="text-2xl">
-                    <Wrench className="h-12 w-12" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary" className="font-mono">{displayCode}</Badge>
-                  {contractorProfile.is_verified && (
-                    <Badge variant="default" className="bg-green-500">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Message
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setIsLiked(!isLiked)}>
-                    <Heart className={`h-4 w-4 ${isLiked ? "fill-red-500 text-red-500" : ""}`} />
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <Share2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+        {/* Profile card */}
+        <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
+          {/* Hero — always first */}
+          <HeroBlock profile={contractor} availability={availabilityInfo} />
 
-              <div className="flex-1">
-                <h1 className="font-heading text-3xl font-bold mb-1">{displayName}</h1>
-                {displayCompany && <p className="text-xl text-muted-foreground mb-4">{displayCompany}</p>}
+          {/* Enabled widgets in saved order */}
+          {widgets.map(w => (
+            <WidgetBlock key={w.widget_key} widgetKey={w.widget_key} data={blockData} />
+          ))}
 
-                <div className="flex flex-wrap items-center gap-6 mb-6">
-                  {displayRating !== null ? (
-                    <div className="flex items-center gap-2">
-                      <Star className="h-5 w-5 fill-primary text-primary" />
-                      <span className="font-semibold text-lg">{displayRating.toFixed(1)}</span>
-                      {displayReviewCount !== null && (
-                        <span className="text-muted-foreground">({displayReviewCount} review{displayReviewCount !== 1 ? "s" : ""})</span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No reviews yet</span>
-                  )}
-                  {displayLocation && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-5 w-5" />
-                      <span>{displayLocation}</span>
-                    </div>
-                  )}
-                </div>
-
-                {displayTrades.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {displayTrades.map((trade, i) => (
-                      <Badge key={i} variant="outline">{trade}</Badge>
-                    ))}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <Card className="p-4 text-center">
-                    {displayYearsExp !== null ? (
-                      <><div className="text-2xl font-bold text-primary">{displayYearsExp}</div><div className="text-sm text-muted-foreground">Years Experience</div></>
-                    ) : (
-                      <><div className="text-sm font-medium text-muted-foreground">Not set</div><div className="text-sm text-muted-foreground">Years Experience</div></>
-                    )}
-                  </Card>
-                  <Card className="p-4 text-center">
-                    {displayCompletedJobs !== null ? (
-                      <><div className="text-2xl font-bold text-primary">{displayCompletedJobs}</div><div className="text-sm text-muted-foreground">Jobs Completed</div></>
-                    ) : (
-                      <><div className="text-sm font-medium text-muted-foreground">Not set</div><div className="text-sm text-muted-foreground">Jobs Completed</div></>
-                    )}
-                  </Card>
-                  <Card className="p-4 text-center">
-                    {displayRating !== null ? (
-                      <><div className="text-2xl font-bold text-primary">{displayRating.toFixed(1)}</div><div className="text-sm text-muted-foreground">Average Rating</div></>
-                    ) : (
-                      <><div className="text-sm font-medium text-muted-foreground">No reviews</div><div className="text-sm text-muted-foreground">Average Rating</div></>
-                    )}
-                  </Card>
-                  <Card className="p-4 text-center">
-                    {availabilityLoading ? (
-                      <><div className="text-sm font-medium text-muted-foreground animate-pulse">Checking...</div><div className="text-sm text-muted-foreground">Availability</div></>
-                    ) : (
-                      <><div className={`text-sm font-bold ${isAvailable ? "text-green-600" : "text-muted-foreground"}`}>{nextAvailableLabel}</div><div className="text-sm text-muted-foreground">Availability</div></>
-                    )}
-                  </Card>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Button size="lg" className="hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Send Message
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => setIsQuoteDialogOpen(true)}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Request Quote
-                  </Button>
-                </div>
-              </div>
-            </div>
+          {/* Message button */}
+          <div style={{
+            background: "white", borderRadius: 12, marginBottom: 10,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.07)", padding: "16px 20px",
+          }}>
+            <button
+              onClick={handleMessage}
+              disabled={!contractor.user_id}
+              style={{
+                width: "100%", background: "white", color: "#1a2744",
+                border: "1px solid #d1d5db", borderRadius: 8,
+                padding: "12px", fontSize: 14, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              <i className="ti ti-message" style={{ fontSize: 18 }} />
+              Send a message
+            </button>
           </div>
-        </section>
 
-        <section className="py-8 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-                <TabsTrigger value="reviews">Reviews</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-6">
-                <Card className="p-6">
-                  <h3 className="text-xl font-semibold mb-4">About</h3>
-                  {displayBio ? (
-                    <p className="text-muted-foreground leading-relaxed">{displayBio}</p>
-                  ) : (
-                    <p className="text-muted-foreground italic">No bio added yet.</p>
-                  )}
-                  {displayRadius && (
-                    <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>Works within {displayRadius} of {displayLocation || "base location"}</span>
-                    </div>
-                  )}
-                </Card>
-                <Card className="p-6">
-                  <h3 className="text-xl font-semibold mb-4">Availability</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span>Next available</span>
-                      {availabilityLoading ? (
-                        <Badge variant="outline" className="animate-pulse">Checking...</Badge>
-                      ) : (
-                        <Badge className={isAvailable ? "bg-green-500" : ""} variant={isAvailable ? "default" : "outline"}>
-                          {nextAvailableLabel}
-                        </Badge>
-                      )}
-                    </div>
-                    <Separator />
-                    <Button className="w-full hero-gradient" onClick={() => void openMessageFlow()} disabled={!contractorProfile.user_id}>
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Send Message
-                    </Button>
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="portfolio" className="space-y-6">
-                <Card className="p-6 text-center text-muted-foreground">
-                  <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No portfolio images uploaded yet.</p>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="documents" className="space-y-6">
-                {contractorDocuments.length === 0 ? (
-                  <Card className="p-6 text-center text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No documents have been uploaded yet.</p>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {contractorDocuments.map((doc) => (
-                      <Card key={doc.id} className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <FileText className="h-8 w-8 text-primary flex-shrink-0" />
-                            <div className="min-w-0">
-                              <p className="font-medium truncate">{doc.title}</p>
-                              {doc.description && (
-                                <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
-                              )}
-                            </div>
-                          </div>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              View
-                            </a>
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="reviews" className="space-y-6">
-                <Card className="p-6 text-center text-muted-foreground">
-                  <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No reviews yet.</p>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </section>
+          {/* Enquire CTA — always last */}
+          <EnquireBlock onEnquire={handleEnquire} />
+        </div>
       </main>
 
       <QuoteRequestDialog
-        isOpen={isQuoteDialogOpen}
-        onClose={() => setIsQuoteDialogOpen(false)}
-        contractorId={contractorProfile.id}
-        contractorName={displayName}
+        isOpen={isQuoteOpen}
+        onClose={() => setIsQuoteOpen(false)}
+        contractorId={contractor.id}
+        contractorName={contractor.full_name ?? ""}
       />
 
-      {contractorProfile.user_id && (
+      {contractor.user_id && (
         <ContractorMessageDialog
-          open={isMessageDialogOpen}
-          onOpenChange={setIsMessageDialogOpen}
-          recipientUserId={contractorProfile.user_id}
-          contractorName={displayName}
-          contractorLocation={displayLocation}
+          open={isMessageOpen}
+          onOpenChange={setIsMessageOpen}
+          recipientUserId={contractor.user_id}
+          contractorName={contractor.full_name ?? ""}
+          contractorLocation={contractor.location ?? ""}
         />
       )}
     </div>
