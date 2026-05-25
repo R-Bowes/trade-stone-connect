@@ -85,6 +85,7 @@ interface ContractorLayoutProps {
 interface SidebarProfile {
   full_name: string;
   ts_profile_code: string | null;
+  logo_url: string | null;
 }
 
 const ContractorLayout = ({ children }: ContractorLayoutProps) => {
@@ -106,7 +107,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, ts_profile_code")
+        .select("full_name, ts_profile_code, logo_url")
         .eq("user_id", user.id)
         .single();
       if (data) setProfile(data as SidebarProfile);
@@ -143,14 +144,12 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           overflow: "hidden",
         }}
       >
-        {/* Toggle + wordmark */}
+        {/* Toggle row */}
         <div
           style={{
             padding: "12px 10px",
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
             flexShrink: 0,
           }}
         >
@@ -172,20 +171,92 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           >
             <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
           </button>
-          {!collapsed && profile && (
-            <span
+        </div>
+
+        {/* Profile block */}
+        <div
+          style={{
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            padding: collapsed ? "10px 0 12px" : "0 10px 14px",
+            display: "flex",
+            flexDirection: collapsed ? "column" : "row",
+            alignItems: "center",
+            gap: collapsed ? 0 : 10,
+            overflow: "hidden",
+            flexShrink: 0,
+            justifyContent: collapsed ? "center" : "flex-start",
+          }}
+        >
+          {/* Avatar / logo circle */}
+          {profile?.logo_url ? (
+            <div
               style={{
-                color: "rgba(255,255,255,0.95)",
-                fontWeight: 600,
-                fontSize: 14,
-                whiteSpace: "nowrap",
+                width: 36,
+                height: 36,
+                borderRadius: 6,
+                border: "2px solid #f07820",
+                background: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
                 overflow: "hidden",
-                textOverflow: "ellipsis",
-                lineHeight: 1,
               }}
             >
-              {profile.full_name}
-            </span>
+              <img
+                src={profile.logo_url}
+                alt={profile?.full_name ?? ""}
+                style={{ maxHeight: 28, maxWidth: 28, objectFit: "contain" }}
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                border: "2px solid #f07820",
+                background: "#1e3a5f",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                color: "white",
+                fontSize: 13,
+                fontWeight: 700,
+                userSelect: "none",
+              }}
+            >
+              {initials}
+            </div>
+          )}
+          {!collapsed && profile && (
+            <div style={{ overflow: "hidden", minWidth: 0 }}>
+              <div
+                style={{
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {profile.full_name}
+              </div>
+              {profile.ts_profile_code && (
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.45)",
+                    fontSize: 11,
+                    fontFamily: "'Roboto Mono', monospace",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {profile.ts_profile_code}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -261,66 +332,6 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           ))}
         </nav>
 
-        {/* Profile footer */}
-        <div
-          style={{
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-            padding: "12px 10px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            overflow: "hidden",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              border: "2px solid #f07820",
-              background: "#1e3a5f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              color: "white",
-              fontSize: 12,
-              fontWeight: 700,
-              userSelect: "none",
-            }}
-          >
-            {initials}
-          </div>
-          {!collapsed && profile && (
-            <div style={{ overflow: "hidden", minWidth: 0 }}>
-              <div
-                style={{
-                  color: "white",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {profile.full_name}
-              </div>
-              {profile.ts_profile_code && (
-                <div
-                  style={{
-                    color: "rgba(255,255,255,0.45)",
-                    fontSize: 11,
-                    fontFamily: "'Roboto Mono', monospace",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {profile.ts_profile_code}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </aside>
 
       {/* Main column */}
