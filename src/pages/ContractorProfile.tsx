@@ -187,7 +187,7 @@ const ContractorProfile = () => {
         {/* Profile card */}
         <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
           {/* Hero — always first */}
-          <HeroBlock profile={contractor} availability={availabilityInfo} />
+          <HeroBlock profile={contractor} availability={availabilityInfo} coverUrl={contractor.cover_url} />
 
           {/* Enabled widgets in saved order */}
           {widgets.map(w => (

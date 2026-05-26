@@ -13,6 +13,7 @@ export interface PublicProfile {
   working_radius: string | null;
   avatar_url: string | null;
   logo_url: string | null;
+  cover_url?: string | null;
   is_verified: boolean | null;
   rating: number | null;
   review_count: number | null;
@@ -123,18 +124,34 @@ export function HeroBlock({
   profile,
   availability,
   isPreview = false,
+  coverUrl,
 }: {
   profile: PublicProfile | null;
   availability: AvailabilityInfo;
   isPreview?: boolean;
+  coverUrl?: string | null;
 }) {
   if (!profile) return null;
   const { full_name, company_name, ts_profile_code, logo_url, avatar_url, is_verified, location } = profile;
   const imgSrc = logo_url || avatar_url;
 
   return (
-    <div style={{ background: "#1a2744", borderRadius: "12px 12px 0 0", padding: "28px 24px 24px" }}>
-      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+    <div style={{
+      ...(coverUrl
+        ? { backgroundImage: `url(${coverUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+        : { background: "#1a2744" }),
+      borderRadius: "12px 12px 0 0",
+      padding: "28px 24px 24px",
+      position: "relative",
+    }}>
+      {coverUrl && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(26,39,68,0.82)",
+          borderRadius: "12px 12px 0 0",
+        }} />
+      )}
+      <div style={{ position: "relative", display: "flex", gap: 20, alignItems: "flex-start" }}>
         {/* Avatar / logo */}
         {imgSrc ? (
           logo_url ? (
@@ -388,21 +405,37 @@ function CredentialsBlock({ credentials }: { credentials: ProfileCredential[] })
   );
 }
 
-function AvailabilityBlock({ availability }: { availability: AvailabilityInfo }) {
+function AvailabilityBlock({
+  availability,
+  workingRadius,
+  location,
+}: {
+  availability: AvailabilityInfo;
+  workingRadius?: string | null;
+  location?: string | null;
+}) {
   return (
     <SectionCard title="Availability">
       {availability.loading ? (
         <div style={{ fontSize: 14, color: "#aaa" }}>Checking availability...</div>
       ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <i
-            className={`ti ${availability.isAvailable ? "ti-circle-check" : "ti-circle-x"}`}
-            style={{ fontSize: 20, color: availability.isAvailable ? "#16a34a" : "#aaa" }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 600, color: availability.isAvailable ? "#15803d" : "#888" }}>
-            {availability.label}
-          </span>
-        </div>
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <i
+              className={`ti ${availability.isAvailable ? "ti-circle-check" : "ti-circle-x"}`}
+              style={{ fontSize: 20, color: availability.isAvailable ? "#16a34a" : "#aaa" }}
+            />
+            <span style={{ fontSize: 14, fontWeight: 600, color: availability.isAvailable ? "#15803d" : "#888" }}>
+              {availability.label}
+            </span>
+          </div>
+          {workingRadius && location && (
+            <div style={{ marginTop: 10, fontSize: 13, color: "#888", display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-map-pin" style={{ fontSize: 14, color: "#f07820" }} />
+              Works within {workingRadius} miles of {location}
+            </div>
+          )}
+        </>
       )}
     </SectionCard>
   );
@@ -473,7 +506,7 @@ export function WidgetBlock({ widgetKey, data }: { widgetKey: WidgetKey; data: W
     case "photos":       return <PhotosBlock photos={data.photos} />;
     case "reviews":      return <ReviewsBlock reviews={data.reviews} />;
     case "credentials":  return <CredentialsBlock credentials={data.credentials} />;
-    case "availability": return <AvailabilityBlock availability={data.availability} />;
+    case "availability": return <AvailabilityBlock availability={data.availability} workingRadius={data.profile?.working_radius} location={data.profile?.location} />;
     case "team":         return <TeamBlock team={data.team} />;
     default:             return null;
   }

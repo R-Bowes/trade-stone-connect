@@ -1,3 +1,6 @@
+// SQL required: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url text;
+// SQL required: CREATE STORAGE BUCKET covers (public: true) — run in Supabase dashboard
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -78,7 +81,7 @@ function WidgetRow({ widgetKey, isEnabled, onToggle, onDragStart, onDragOver, on
 
 export function ProfileEditor() {
   const { widgets, toggleWidget, reorderWidgets, saveWidgets, saving } = useProfileWidgets();
-  const { credentials } = useContractorCredentials();
+  const { credentials, addCredential, deleteCredential } = useContractorCredentials();
   const { toast } = useToast();
 
   // Profile + supplementary data for preview
@@ -89,6 +92,21 @@ export function ProfileEditor() {
   const [photos, setPhotos] = useState<ProfilePhoto[]>([]);
   const [reviews, setReviews] = useState<ProfileReview[]>([]);
   const [team, setTeam] = useState<ProfileTeamMember[]>([]);
+
+  // Cover image
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Credential form
+  const [credName, setCredName] = useState("");
+  const [credIssuer, setCredIssuer] = useState("");
+  const [credRef, setCredRef] = useState("");
+  const [credAdding, setCredAdding] = useState(false);
+
+  // Photo upload
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -124,6 +142,14 @@ export function ProfileEditor() {
       if (!profile) return;
       setContractorId(profile.id);
       setTsCode(profile.ts_profile_code);
+
+      // cover_url: requires ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url text
+      const { data: coverRow } = await (supabase as any)
+        .from("profiles")
+        .select("cover_url")
+        .eq("user_id", user.id)
+        .single();
+      if (coverRow?.cover_url) setCoverUrl(coverRow.cover_url as string);
 
       if (profile.ts_profile_code) {
         const { data: pub } = await supabase
@@ -165,6 +191,76 @@ export function ProfileEditor() {
   const handlePublish = async () => {
     await saveWidgets();
     toast({ title: "Profile updated", description: "Your profile layout has been saved." });
+  };
+
+  const handleCoverUpload = async (file: File) => {
+    if (!userId) return;
+    setCoverUploading(true);
+    const { error: uploadError } = await supabase.storage
+      .from("covers")
+      .upload(`${userId}/cover.jpg`, file, { upsert: true, contentType: file.type });
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      setCoverUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("covers").getPublicUrl(`${userId}/cover.jpg`);
+    const url = urlData.publicUrl;
+    await (supabase as any).from("profiles").update({ cover_url: url }).eq("user_id", userId);
+    setCoverUrl(url);
+    setCoverUploading(false);
+  };
+
+  const handleAddCredential = async () => {
+    if (!credName.trim() || credAdding) return;
+    setCredAdding(true);
+    await addCredential({
+      name: credName.trim(),
+      issuer: credIssuer.trim() || null,
+      reference_number: credRef.trim() || null,
+      verified: false,
+      display_order: credentials.length,
+    });
+    setCredName("");
+    setCredIssuer("");
+    setCredRef("");
+    setCredAdding(false);
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!userId) return;
+    setPhotoUploading(true);
+    const timestamp = Date.now();
+    const path = `${userId}/${timestamp}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from("contractor-photos")
+      .upload(path, file, { upsert: false, contentType: file.type });
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      setPhotoUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("contractor-photos").getPublicUrl(path);
+    const { data: inserted } = await supabase
+      .from("contractor_photos")
+      .insert({
+        contractor_id: userId,
+        photo_url: urlData.publicUrl,
+        display_order: photos.length,
+      })
+      .select()
+      .single();
+    if (inserted) setPhotos(prev => [...prev, { id: inserted.id, photo_url: inserted.photo_url, title: inserted.title }]);
+    setPhotoUploading(false);
+  };
+
+  const handleDeletePhoto = async (photoId: string, photoUrl: string) => {
+    const pathSegment = photoUrl.split("/contractor-photos/")[1];
+    if (pathSegment) {
+      await supabase.storage.from("contractor-photos").remove([pathSegment]);
+    }
+    await supabase.from("contractor_photos").delete().eq("id", photoId);
+    setPhotos(prev => prev.filter(p => p.id !== photoId));
   };
 
   const handleDragStart = (index: number, key: WidgetKey) => {
@@ -259,6 +355,7 @@ export function ProfileEditor() {
           padding: "9px 12px",
           background: "#fafafa",
           borderBottom: "1px solid #f3f4f6",
+          flexShrink: 0,
         }}>
           <i className="ti ti-grip-vertical" style={{ fontSize: 16, color: "#e5e7eb", flexShrink: 0 }} />
           <i className="ti ti-id-badge" style={{ fontSize: 16, color: "#1a2744", flexShrink: 0 }} />
@@ -268,8 +365,56 @@ export function ProfileEditor() {
           </span>
         </div>
 
-        {/* Draggable widget list */}
+        {/* Cover image section */}
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #f3f4f6", flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 600, color: "#6b7280",
+            textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6,
+          }}>
+            Cover image
+          </div>
+          <div style={{
+            width: "100%", height: 72, borderRadius: 6, overflow: "hidden",
+            background: "#1a2744",
+            backgroundImage: coverUrl ? `url(${coverUrl})` : undefined,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            marginBottom: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {!coverUrl && (
+              <i className="ti ti-photo" style={{ fontSize: 22, color: "rgba(255,255,255,0.25)" }} />
+            )}
+          </div>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ""; }}
+          />
+          <button
+            onClick={() => coverInputRef.current?.click()}
+            disabled={coverUploading}
+            style={{
+              width: "100%", background: "none",
+              color: coverUploading ? "#bbb" : "#374151",
+              border: "1px solid #d1d5db", borderRadius: 5, padding: "6px 10px",
+              fontSize: 12, fontWeight: 500,
+              cursor: coverUploading ? "default" : "pointer",
+              fontFamily: "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            }}
+          >
+            <i className="ti ti-upload" style={{ fontSize: 13 }} />
+            {coverUploading ? "Uploading..." : "Upload cover image"}
+          </button>
+        </div>
+
+        {/* Scrollable area: widget rows + credentials + photos */}
         <div style={{ flex: 1, overflowY: "auto" }}>
+
+          {/* Draggable widget rows */}
           {widgets.map((w, i) => (
             <WidgetRow
               key={w.widget_key}
@@ -283,13 +428,181 @@ export function ProfileEditor() {
               isDragOver={dragOverIndex === i && dragIndex !== i}
             />
           ))}
+
+          {/* Credentials section */}
+          <div style={{ padding: "10px 12px 8px", borderTop: "2px solid #f3f4f6" }}>
+            <div style={{
+              fontSize: 10, fontWeight: 600, color: "#6b7280",
+              textTransform: "uppercase", letterSpacing: "0.07em",
+              marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <i className="ti ti-certificate" style={{ fontSize: 13, color: "#f07820" }} />
+              Credentials
+            </div>
+
+            {credentials.length === 0 && (
+              <div style={{ fontSize: 12, color: "#bbb", fontStyle: "italic", marginBottom: 8 }}>
+                No credentials added.
+              </div>
+            )}
+            {credentials.map(c => (
+              <div key={c.id} style={{
+                display: "flex", alignItems: "flex-start", gap: 7,
+                padding: "6px 0", borderBottom: "1px solid #f3f4f6",
+              }}>
+                <i className="ti ti-certificate" style={{ fontSize: 14, color: "#f07820", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#1a2744", lineHeight: 1.3 }}>{c.name}</div>
+                  {c.issuer && <div style={{ fontSize: 11, color: "#9ca3af" }}>{c.issuer}</div>}
+                  {c.reference_number && (
+                    <div style={{ fontSize: 10, color: "#bbb", fontFamily: "'Roboto Mono', monospace" }}>
+                      {c.reference_number}
+                    </div>
+                  )}
+                </div>
+                {c.verified && (
+                  <i className="ti ti-circle-check" style={{ fontSize: 14, color: "#16a34a", flexShrink: 0, marginTop: 1 }} />
+                )}
+                <button
+                  onClick={() => deleteCredential(c.id)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    padding: "2px 3px", color: "#d1d5db", flexShrink: 0,
+                    display: "flex", alignItems: "center",
+                  }}
+                  aria-label="Delete credential"
+                >
+                  <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                </button>
+              </div>
+            ))}
+
+            {/* Add credential form */}
+            <div style={{ marginTop: 10 }}>
+              <input
+                value={credName}
+                onChange={e => setCredName(e.target.value)}
+                placeholder="Credential name"
+                style={{
+                  width: "100%", padding: "5px 8px", fontSize: 12,
+                  border: "1px solid #e5e7eb", borderRadius: 5,
+                  fontFamily: "inherit", color: "#374151", marginBottom: 4,
+                  boxSizing: "border-box", outline: "none",
+                }}
+              />
+              <input
+                value={credIssuer}
+                onChange={e => setCredIssuer(e.target.value)}
+                placeholder="Issuer (optional)"
+                style={{
+                  width: "100%", padding: "5px 8px", fontSize: 12,
+                  border: "1px solid #e5e7eb", borderRadius: 5,
+                  fontFamily: "inherit", color: "#374151", marginBottom: 4,
+                  boxSizing: "border-box", outline: "none",
+                }}
+              />
+              <input
+                value={credRef}
+                onChange={e => setCredRef(e.target.value)}
+                placeholder="Reference number (optional)"
+                onKeyDown={e => { if (e.key === "Enter") handleAddCredential(); }}
+                style={{
+                  width: "100%", padding: "5px 8px", fontSize: 12,
+                  border: "1px solid #e5e7eb", borderRadius: 5,
+                  fontFamily: "inherit", color: "#374151", marginBottom: 6,
+                  boxSizing: "border-box", outline: "none",
+                }}
+              />
+              <button
+                onClick={handleAddCredential}
+                disabled={!credName.trim() || credAdding}
+                style={{
+                  width: "100%",
+                  background: credName.trim() && !credAdding ? "#1a2744" : "#e5e7eb",
+                  color: credName.trim() && !credAdding ? "white" : "#aaa",
+                  border: "none", borderRadius: 5, padding: "7px 10px",
+                  fontSize: 12, fontWeight: 600,
+                  cursor: credName.trim() && !credAdding ? "pointer" : "default",
+                  fontFamily: "inherit",
+                }}
+              >
+                {credAdding ? "Adding..." : "Add credential"}
+              </button>
+            </div>
+          </div>
+
+          {/* Portfolio photos section */}
+          <div style={{ padding: "10px 12px 14px", borderTop: "2px solid #f3f4f6" }}>
+            <div style={{
+              fontSize: 10, fontWeight: 600, color: "#6b7280",
+              textTransform: "uppercase", letterSpacing: "0.07em",
+              marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <i className="ti ti-photo" style={{ fontSize: 13, color: "#f07820" }} />
+              Portfolio photos
+            </div>
+
+            {photos.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5, marginBottom: 8 }}>
+                {photos.map(p => (
+                  <div key={p.id} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
+                    <img
+                      src={p.photo_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                    <button
+                      onClick={() => handleDeletePhoto(p.id, p.photo_url)}
+                      style={{
+                        position: "absolute", top: 2, right: 2,
+                        background: "rgba(0,0,0,0.55)", border: "none",
+                        borderRadius: 3, color: "white", cursor: "pointer",
+                        padding: "2px 4px",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                      aria-label="Delete photo"
+                    >
+                      <i className="ti ti-trash" style={{ fontSize: 11 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ""; }}
+            />
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              disabled={photoUploading}
+              style={{
+                width: "100%", background: "none",
+                color: photoUploading ? "#bbb" : "#374151",
+                border: "1px solid #d1d5db", borderRadius: 5, padding: "6px 10px",
+                fontSize: 12, fontWeight: 500,
+                cursor: photoUploading ? "default" : "pointer",
+                fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              }}
+            >
+              <i className="ti ti-plus" style={{ fontSize: 13 }} />
+              {photoUploading ? "Uploading..." : "Add photo"}
+            </button>
+          </div>
+
         </div>
       </div>
 
       {/* ── Right preview panel ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto" }}>
-          <HeroBlock profile={publicProfile} availability={availabilityInfo} isPreview />
+          <HeroBlock profile={publicProfile} availability={availabilityInfo} isPreview coverUrl={coverUrl} />
 
           {widgets
             .filter(w => w.is_enabled)
