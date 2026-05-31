@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
+import ForgotPasswordDialog from "@/components/ui/ForgotPasswordDialog";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ const Auth = () => {
 
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
   const captchaEnabled = false;
@@ -340,10 +342,17 @@ const Auth = () => {
                         required
                       />
                     </div>
+                    <div className="flex justify-end">
+                      <Button type="button" variant="link" className="h-auto p-0 text-sm"
+                        onClick={() => setForgotOpen(true)}>
+                        Forgot password?
+                      </Button>
+                    </div>
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? "Signing in..." : "Sign In"}
                     </Button>
                   </form>
+                  <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} defaultEmail={loginEmail} />
                 </CardContent>
               </Card>
             </TabsContent>

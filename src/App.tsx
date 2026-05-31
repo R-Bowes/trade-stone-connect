@@ -29,6 +29,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminLogin from "@/pages/AdminLogin";
 import ContractorOnboarding from "./pages/ContractorOnboarding";
 import PayInvoicePage from "./pages/PayInvoicePage";
+import ResetPassword from "./components/ui/ResetPassword";
 import BusinessSettings from "./pages/BusinessSettings";
 import Projects from "./pages/Projects";
 import TenderDetail from "./pages/TenderDetail";
@@ -62,6 +63,7 @@ const App = () => (
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/about" element={<About />} />
           <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

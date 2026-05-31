@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
+import { ChangePasswordCard } from "@/components/ui/ChangePasswordCard";
 
 interface Profile {
   full_name: string;
@@ -481,6 +482,8 @@ export function ProfileManagement() {
           </Button>
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
     </div>
   );
 }
