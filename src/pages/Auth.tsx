@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import ForgotPasswordDialog from "@/components/ui/ForgotPasswordDialog";
+import { ForgotPasswordDialog } from "@/components/ui/ForgotPasswordDialog";
 
 const Auth = () => {
   const navigate = useNavigate();
