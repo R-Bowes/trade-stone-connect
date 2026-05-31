@@ -679,6 +679,7 @@ const ContractorDashboard = () => {
           <TabsContent value="financials"><FinancialsManagement /></TabsContent>
           <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
           <TabsContent value="clients"><CRMManagement /></TabsContent>
+          <TabsContent value="settings"><ProfileManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
           <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>

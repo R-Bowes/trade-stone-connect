@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { ForgotPasswordDialog } from "@/components/ui/ForgotPasswordDialog";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const quickTestPassword = import.meta.env.VITE_DEV_TEST_PASSWORD ?? "";
@@ -63,12 +64,12 @@ const Auth = () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.user) {
+      if (session?.user && location.pathname !== "/reset-password") {
         navigate("/");
       }
     };
     checkUser();
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const resetCaptcha = () => {
     setCaptchaToken("");

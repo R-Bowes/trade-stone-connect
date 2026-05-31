@@ -11,6 +11,7 @@ import { Building2, Loader2, ArrowLeft, Save } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { LoadingState, ErrorState } from "@/components/AsyncState";
+import { ChangePasswordCard } from "@/components/ui/ChangePasswordCard";
 
 interface BusinessProfile {
   full_name: string;
@@ -337,6 +338,8 @@ const BusinessSettings = () => {
               ))}
             </CardContent>
           </Card>
+
+          <ChangePasswordCard />
 
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={saving} className="min-w-32">
