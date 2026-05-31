@@ -12,7 +12,15 @@
       "PowerShell([System.IO.File]::ReadAllText\\(\"c:\\\\Users\\\\richa\\\\trade-stone-connect\\\\src\\\\integrations\\\\supabase\\\\types.ts\"\\))",
       "Bash(mkdir -p \"c:/Users/richa/trade-stone-connect/src/components/projects\")",
       "Bash(npx tsc *)",
-      "Bash(npx supabase *)"
+      "Bash(npx supabase *)",
+      "Bash(npm install *)",
+      "Bash(read f *)",
+      "Bash(grep -i 'public_pro_profiles\\\\|rating\\\\|review_count\\\\|completed_jobs\\\\|years_experience\\\\|is_verified\\\\|logo_url\\\\|avatar' supabase/migrations/__TRACKED_VAR__)",
+      "Bash(sed -n '379,450p' src/integrations/supabase/types.ts)",
+      "Bash(sed -n '2408,2470p' src/integrations/supabase/types.ts)",
+      "Bash(node -e ' *)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(npx vite *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\richa\\trade-stone-connect\\src\\components"

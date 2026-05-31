@@ -121,15 +121,18 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("Not authenticated");
 
-      let recipientId: string | null = null;
-      if (enquiry.customer_id) {
-        const { data: customerProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", enquiry.customer_id)
-          .maybeSingle();
-        recipientId = customerProfile?.id ?? null;
-      }
+      // profiles.id != auth uid — resolve the contractor's profile id explicitly
+      // so contractor_id holds a profiles.id (what the RLS policy matches against).
+      const { data: contractorProfile, error: contractorError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (contractorError) throw contractorError;
+      if (!contractorProfile) throw new Error("Contractor profile not found");
+
+      // enquiry.customer_id is already a profiles.id; null for guest enquiries.
+      const recipientId: string | null = enquiry.customer_id ?? null;
 
       const lineItems = filledItems.map(({ description, quantity, unit_price }) => ({
         description: description.trim(),
@@ -139,7 +142,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       }));
 
       const { error: quoteError } = await supabase.from("issued_quotes").insert({
-        contractor_id: user.id,
+        contractor_id: contractorProfile.id,
         recipient_id: recipientId,
         client_name: enquiry.customer_name ?? "",
         client_email: enquiry.customer_email ?? "",

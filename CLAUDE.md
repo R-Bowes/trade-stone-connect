@@ -1,4 +1,55 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # TradeStone — Claude Compliance & Project Notes
+
+## Commands
+
+```bash
+npm run dev          # start Vite dev server
+npm run build        # production build (runs tsc first)
+npm run lint         # ESLint
+npx tsc --noEmit     # type-check without emitting files
+npx supabase gen types typescript --project-id tnvxfzmdjpsswjszwbvf --schema public > src/integrations/supabase/types.ts  # regenerate DB types
+```
+
+No test runner is configured — verify changes by running the dev server.
+
+## Architecture
+
+### Routing (`src/App.tsx`)
+React Router v6. Three protected dashboard routes gated by `ProtectedRoute` with `requiredRole`:
+- `/dashboard/contractor` → `ContractorDashboard` (role: `contractor`)
+- `/dashboard/business` → `BusinessDashboard` (role: `business`)
+- `/dashboard/personal` → `PersonalDashboard` (role: `personal`)
+
+Public contractor profile: `/contractor/:code` where `:code` is `ts_profile_code`.
+
+### Contractor Dashboard navigation pattern
+`ContractorDashboard` reads `?view=xxx` from the URL (`useSearchParams`) and renders the matching `<TabsContent>` or management component. `ContractorLayout` drives sidebar navigation by calling `navigate('/dashboard/contractor?view=xxx')`. Adding a new view requires: (1) a new nav item in `ContractorLayout.tsx`, (2) a new `TabsContent` or conditional render in `ContractorDashboard.tsx`.
+
+### Supabase client & types
+`src/integrations/supabase/client.ts` — typed with `createClient<Database>`. Always import `supabase` from here. Types live in `src/integrations/supabase/types.ts` (generated — do not hand-edit). After schema changes, regenerate types with the command above.
+
+### Data layer
+- **`public_pro_profiles` view** — the only table clients and the directory can query. Exposes safe fields from `profiles` (no email/phone). Always query this view for public contractor data; never query `profiles` directly from client-facing code.
+- **`profiles` table** — source of truth. Contractors read/write their own row via RLS (`user_id = auth.uid()`).
+- **Two-step ID lookup** — `profiles.id` ≠ `profiles.user_id`. Any table whose FK points to `profiles.id` (e.g. `profile_widgets`, `contractor_credentials`, `availability_slots`) requires: fetch `profiles.id` where `user_id = auth.uid()`, then use that UUID as the FK.
+- **`contractor_photos`** — exception: its `contractor_id` FK points to `profiles.user_id` (not `profiles.id`). Use `auth.uid()` directly here.
+
+### Hook conventions (`src/hooks/`)
+- Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
+- `useAvailability(contractorId)` — read-only, safe for public pages; takes `profiles.id`.
+- `useContractorAvailabilityManager(contractorId)` — extends above with write helpers.
+- `useContractors` / `useContractorByCode` — use `@tanstack/react-query`; query `public_pro_profiles`.
+- Management hooks (`useInvoices`, `useJobs`, `useCRM`, etc.) handle their own auth internally.
+
+### Icons
+Tabler Icons load from CDN (see `index.html`). Use `<i className="ti ti-icon-name" />` — do **not** import from `@tabler/icons-react`. Lucide icons (`lucide-react`) are used in some existing components; prefer Tabler for all new UI.
+
+### Styling
+Tailwind + shadcn/ui components. Inline `style={{}}` objects are used extensively in dashboard/sidebar components alongside Tailwind classes — both patterns are acceptable. The `cn()` utility (`src/lib/utils.ts`) merges class names. No CSS modules.
 
 ## Critical Rules (read every session)
 - `profiles.id` ≠ `profiles.user_id` — always use two-step lookup pattern
