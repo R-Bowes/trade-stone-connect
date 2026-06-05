@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Contractors from "./pages/Contractors";
@@ -20,7 +20,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
-import PersonalDashboard from "./pages/PersonalDashboard";
+import HomeownerDashboard from "./pages/HomeownerDashboard";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import ContractorDashboard from "./pages/ContractorDashboard";
 import About from "./pages/About";
@@ -68,7 +68,8 @@ const App = () => (
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/dashboard/personal" element={<ProtectedRoute requiredRole="personal"><PersonalDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/homeowner" element={<ProtectedRoute requiredRole="personal"><HomeownerDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/personal" element={<Navigate to="/dashboard/homeowner" replace />} />
           <Route path="/dashboard/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
           <Route path="/dashboard/business/settings" element={<ProtectedRoute requiredRole="business"><BusinessSettings /></ProtectedRoute>} />
           <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />

@@ -54,7 +54,7 @@ const Dashboard = () => {
           break;
         case "personal":
         default:
-          navigate(`/dashboard/personal${window.location.search}`, { replace: true });
+          navigate(`/dashboard/homeowner${window.location.search}`, { replace: true });
           break;
       }
     };
