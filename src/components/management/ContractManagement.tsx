@@ -28,6 +28,7 @@ interface Contract {
 
 export function ContractManagement() {
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [clientTsCodeMap, setClientTsCodeMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
@@ -67,7 +68,23 @@ export function ContractManagement() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setContracts(data || []);
+      const loaded = data || [];
+      setContracts(loaded);
+
+      const emails = [...new Set(loaded.map(c => c.client_email).filter(Boolean))];
+      if (emails.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("email, ts_profile_code")
+          .in("email", emails);
+        if (profiles) {
+          const map: Record<string, string> = {};
+          for (const p of profiles) {
+            if (p.email && p.ts_profile_code) map[p.email] = p.ts_profile_code;
+          }
+          setClientTsCodeMap(map);
+        }
+      }
     } catch (error) {
       console.error("Error loading contracts:", error);
       toast({
@@ -402,7 +419,12 @@ export function ContractManagement() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Contact</p>
-                  <p>{contract.client_email} {contract.client_phone && `• ${contract.client_phone}`}</p>
+                  <p>
+                    {clientTsCodeMap[contract.client_email]
+                      ? <span className="font-mono">{clientTsCodeMap[contract.client_email]}</span>
+                      : contract.client_email}
+                    {contract.client_phone && ` • ${contract.client_phone}`}
+                  </p>
                 </div>
               </div>
               <SubcontractManagement 

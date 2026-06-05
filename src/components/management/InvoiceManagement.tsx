@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +30,33 @@ export function InvoiceManagement() {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clientTsCodeMap, setClientTsCodeMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (invoices.length === 0) return;
+    const emails = [...new Set(invoices.map(inv => inv.client_email).filter(Boolean))];
+    supabase
+      .from("profiles")
+      .select("email, ts_profile_code")
+      .in("email", emails)
+      .then(({ data }) => {
+        if (!data) return;
+        const map: Record<string, string> = {};
+        for (const row of data) {
+          if (row.email && row.ts_profile_code) map[row.email] = row.ts_profile_code;
+        }
+        setClientTsCodeMap(map);
+      });
+  }, [invoices]);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
+      const clientDisplay = clientTsCodeMap[inv.client_email] ?? inv.client_email;
       const matchesSearch = !search ||
         inv.client_name.toLowerCase().includes(search.toLowerCase()) ||
         inv.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
-        inv.client_email.toLowerCase().includes(search.toLowerCase());
+        inv.client_email.toLowerCase().includes(search.toLowerCase()) ||
+        clientDisplay.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -194,7 +214,9 @@ export function InvoiceManagement() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{inv.client_name}</p>
-                        <p className="text-xs text-muted-foreground">{inv.client_email}</p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {clientTsCodeMap[inv.client_email] ?? inv.client_email}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{format(new Date(inv.issued_date), "dd MMM yyyy")}</TableCell>
@@ -231,7 +253,7 @@ if (profile?.logo_url) {
     // logo fetch failed — proceed without it
   }
 }
-generateInvoicePdf(inv, enrichedProfile);
+generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? null);
 }} title="Download PDF">
                           <Download className="h-4 w-4" />
                         </Button>
@@ -282,7 +304,9 @@ generateInvoicePdf(inv, enrichedProfile);
                 <div>
                   <p className="text-sm text-muted-foreground">Bill To</p>
                   <p className="font-semibold text-lg">{previewInvoice.client_name}</p>
-                  <p className="text-sm text-muted-foreground">{previewInvoice.client_email}</p>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {clientTsCodeMap[previewInvoice.client_email] ?? previewInvoice.client_email}
+                  </p>
                   {previewInvoice.client_phone && <p className="text-sm text-muted-foreground">{previewInvoice.client_phone}</p>}
                   {previewInvoice.client_address && <p className="text-sm text-muted-foreground">{previewInvoice.client_address}</p>}
                 </div>
@@ -347,7 +371,7 @@ generateInvoicePdf(inv, enrichedProfile);
               )}
 
               <div className="border-t pt-4">
-                <Button onClick={() => generateInvoicePdf(previewInvoice)} className="w-full">
+                <Button onClick={() => generateInvoicePdf(previewInvoice, undefined, clientTsCodeMap[previewInvoice.client_email] ?? null)} className="w-full">
                   <Download className="h-4 w-4 mr-2" />Download PDF
                 </Button>
               </div>

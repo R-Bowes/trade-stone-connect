@@ -13,7 +13,7 @@ export interface ContractorProfile {
   logo_url: string | null;
 }
 
-export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile) {
+export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile, clientTsCode?: string | null) {
   const doc = new jsPDF();
   const items: InvoiceItem[] = Array.isArray(invoice.items)
     ? (invoice.items as unknown as InvoiceItem[])
@@ -127,7 +127,8 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  if (invoice.client_email) { doc.text(invoice.client_email, margin, yPos); yPos += 5; }
+  if (clientTsCode) { doc.text(clientTsCode, margin, yPos); yPos += 5; }
+  else if (invoice.client_email) { doc.text(invoice.client_email, margin, yPos); yPos += 5; }
   if (invoice.client_phone) { doc.text(invoice.client_phone, margin, yPos); yPos += 5; }
   if (invoice.client_address) { doc.text(invoice.client_address, margin, yPos); yPos += 5; }
 

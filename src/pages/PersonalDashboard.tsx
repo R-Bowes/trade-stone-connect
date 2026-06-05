@@ -39,6 +39,7 @@ const PersonalDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [tsCode, setTsCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [enquiryRefreshKey, setEnquiryRefreshKey] = useState(0);
@@ -239,7 +240,7 @@ const PersonalDashboard = () => {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id, user_type")
+        .select("id, user_type, ts_profile_code")
         .eq("user_id", currentUser.id)
         .maybeSingle();
 
@@ -255,6 +256,7 @@ const PersonalDashboard = () => {
       }
 
       setProfileId(profile?.id ?? null);
+      setTsCode(profile?.ts_profile_code ?? null);
       setUser(currentUser);
       setLoading(false);
     };
@@ -286,8 +288,20 @@ const PersonalDashboard = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
-          <h1 className="font-heading text-3xl font-bold mb-2">My Dashboard</h1>
-          <p className="text-muted-foreground">Track your project requests and manage your saved contractors.</p>
+          <h1 className="font-heading text-3xl font-bold mb-1">My Dashboard</h1>
+          {tsCode && (
+            <span
+              style={{
+                fontFamily: "'Roboto Mono', monospace",
+                fontSize: 12,
+                color: "#9ca3af",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {tsCode}
+            </span>
+          )}
+          <p className="text-muted-foreground mt-1">Track your project requests and manage your saved contractors.</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
