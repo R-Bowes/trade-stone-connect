@@ -28,7 +28,12 @@ interface Company {
   postcode: string | null;
 }
 
-const BusinessSettings = () => {
+interface BusinessSettingsProps {
+  /** When true, suppress the Header and back-link — used when rendered inside BusinessLayout. */
+  embedded?: boolean;
+}
+
+const BusinessSettings = ({ embedded = false }: BusinessSettingsProps) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -174,6 +179,7 @@ const BusinessSettings = () => {
   };
 
   if (loading) {
+    if (embedded) return <LoadingState message="Loading settings..." />;
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -183,6 +189,7 @@ const BusinessSettings = () => {
   }
 
   if (loadError) {
+    if (embedded) return <ErrorState message={loadError} onRetry={() => window.location.reload()} />;
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -191,11 +198,9 @@ const BusinessSettings = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+  const content = (
+    <div className={embedded ? "p-6 max-w-3xl" : "container mx-auto px-4 py-8 max-w-3xl"}>
+      {!embedded && (
         <div className="mb-8">
           <Link
             to="/dashboard/business"
@@ -210,6 +215,7 @@ const BusinessSettings = () => {
           </div>
           <p className="text-muted-foreground mt-1">Manage your company profile and preferences.</p>
         </div>
+      )}
 
         <div className="space-y-6">
           {/* Contact details */}
@@ -351,7 +357,15 @@ const BusinessSettings = () => {
             </Button>
           </div>
         </div>
-      </main>
+    </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      {content}
     </div>
   );
 };

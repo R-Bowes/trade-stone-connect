@@ -23,9 +23,15 @@ import {
   FREQUENCY_DAYS, VISIT_STATUS_CONFIG, CONTRACT_STATUS_CONFIG,
 } from "@/components/business/maintenance-types";
 
+type MaintenanceTab = "sites" | "assets" | "contracts" | "schedules" | "visits";
+
 interface MaintenanceManagementProps {
   companyId: string;
   profileId: string;
+  /** If set, only these tabs are shown and the component starts on this tab. */
+  defaultTab?: MaintenanceTab;
+  /** When true, the overview stats row and the header description are hidden. */
+  embedded?: boolean;
 }
 
 const ALL_FREQUENCIES: ServiceFrequency[] = [
@@ -820,9 +826,9 @@ const VisitsTab = ({
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export const MaintenanceManagement = ({ companyId, profileId }: MaintenanceManagementProps) => {
+export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedded }: MaintenanceManagementProps) => {
   const { toast } = useToast();
-  const [tab, setTab] = useState('sites');
+  const [tab, setTab] = useState<MaintenanceTab>(defaultTab ?? 'sites');
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
 
   const [sites, setSites] = useState<Site[]>([]);
@@ -937,45 +943,54 @@ export const MaintenanceManagement = ({ companyId, profileId }: MaintenanceManag
   const activeContracts = contracts.filter(c => c.status === 'active').length;
   const pendingVisits = visits.filter(v => v.status === 'scheduled' || v.status === 'confirmed').length;
 
+  // When embedded, restrict to the two tabs relevant to the business dashboard nav entries.
+  const visibleTabs: MaintenanceTab[] = defaultTab
+    ? ["sites", "assets"]
+    : ["sites", "assets", "contracts", "schedules", "visits"];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-2xl font-bold">Maintenance & Compliance</h2>
-          <p className="text-muted-foreground text-sm mt-1">Manage planned preventative maintenance across your sites and assets.</p>
-        </div>
-      </div>
-
-      {/* Overview stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0"><FileText className="h-5 w-5 text-blue-700" /></div>
-          <div><p className="text-2xl font-bold">{activeContracts}</p><p className="text-xs text-muted-foreground">Active Contracts</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0"><Clock className="h-5 w-5 text-yellow-700" /></div>
-          <div><p className="text-2xl font-bold">{dueSoonCount}</p><p className="text-xs text-muted-foreground">Due This Month</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${overdueCount > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
-            {overdueCount > 0 ? <AlertTriangle className="h-5 w-5 text-red-700" /> : <CheckCircle2 className="h-5 w-5 text-green-700" />}
+      {!embedded && (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="font-heading text-2xl font-bold">Maintenance & Compliance</h2>
+              <p className="text-muted-foreground text-sm mt-1">Manage planned preventative maintenance across your sites and assets.</p>
+            </div>
           </div>
-          <div><p className="text-2xl font-bold">{overdueCount}</p><p className="text-xs text-muted-foreground">Overdue</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0"><Calendar className="h-5 w-5 text-purple-700" /></div>
-          <div><p className="text-2xl font-bold">{pendingVisits}</p><p className="text-xs text-muted-foreground">Pending Visits</p></div>
-        </CardContent></Card>
-      </div>
+
+          {/* Overview stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0"><FileText className="h-5 w-5 text-blue-700" /></div>
+              <div><p className="text-2xl font-bold">{activeContracts}</p><p className="text-xs text-muted-foreground">Active Contracts</p></div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0"><Clock className="h-5 w-5 text-yellow-700" /></div>
+              <div><p className="text-2xl font-bold">{dueSoonCount}</p><p className="text-xs text-muted-foreground">Due This Month</p></div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${overdueCount > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
+                {overdueCount > 0 ? <AlertTriangle className="h-5 w-5 text-red-700" /> : <CheckCircle2 className="h-5 w-5 text-green-700" />}
+              </div>
+              <div><p className="text-2xl font-bold">{overdueCount}</p><p className="text-xs text-muted-foreground">Overdue</p></div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0"><Calendar className="h-5 w-5 text-purple-700" /></div>
+              <div><p className="text-2xl font-bold">{pendingVisits}</p><p className="text-xs text-muted-foreground">Pending Visits</p></div>
+            </CardContent></Card>
+          </div>
+        </>
+      )}
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="sites">Sites</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
-          <TabsTrigger value="contracts">Contracts</TabsTrigger>
-          <TabsTrigger value="schedules">Schedules</TabsTrigger>
-          <TabsTrigger value="visits">Visits</TabsTrigger>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as MaintenanceTab)}>
+        <TabsList className={`grid w-full`} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+          {visibleTabs.includes("sites") && <TabsTrigger value="sites">Sites</TabsTrigger>}
+          {visibleTabs.includes("assets") && <TabsTrigger value="assets">Assets</TabsTrigger>}
+          {visibleTabs.includes("contracts") && <TabsTrigger value="contracts">Contracts</TabsTrigger>}
+          {visibleTabs.includes("schedules") && <TabsTrigger value="schedules">Schedules</TabsTrigger>}
+          {visibleTabs.includes("visits") && <TabsTrigger value="visits">Visits</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="sites" className="mt-6">

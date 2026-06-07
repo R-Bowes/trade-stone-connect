@@ -35,8 +35,38 @@ Public contractor profile: `/contractor/:code` where `:code` is `ts_profile_code
 ### Data layer
 - **`public_pro_profiles` view** — the only table clients and the directory can query. Exposes safe fields from `profiles` (no email/phone). Always query this view for public contractor data; never query `profiles` directly from client-facing code.
 - **`profiles` table** — source of truth. Contractors read/write their own row via RLS (`user_id = auth.uid()`).
-- **Two-step ID lookup** — `profiles.id` ≠ `profiles.user_id`. Any table whose FK points to `profiles.id` (e.g. `profile_widgets`, `contractor_credentials`, `availability_slots`) requires: fetch `profiles.id` where `user_id = auth.uid()`, then use that UUID as the FK.
-- **`contractor_photos`** — exception: its `contractor_id` FK points to `profiles.user_id` (not `profiles.id`). Use `auth.uid()` directly here.
+
+### Compliance vs credentials — two separate tables
+
+`contractor_credentials` does NOT hold expiry dates. Columns: id,
+contractor_id (-> profiles(id)), name, issuer, reference_number, verified
+(bool), display_order, created_at, updated_at. Displayed credentials/badges
+only.
+
+Expiry-tracked compliance lives in `compliance_items`: contractor_id, name,
+type, reference_number, issued_date, issuing_body, expiry_date, status,
+document_url, alert_sent. Any compliance / cert / insurance expiry view
+(including the business compliance view) must read `compliance_items`, NOT
+`contractor_credentials`.
+
+### Row-level security (RLS)
+
+`profiles.id == profiles.user_id == auth.uid()` for every row, by
+construction: migration 20260328110000 set `id = user_id` and added
+`FK (id) -> auth.users(id)`; `handle_new_user` (20260427120000) writes
+`id = new.id` and `user_id = new.id` on every signup.
+
+Because of this, RLS policies compare DIRECTLY against `auth.uid()`. This is
+the actual pattern throughout the codebase. Do NOT use the
+`col IN (SELECT id FROM profiles WHERE user_id = auth.uid())` subquery form —
+it is equivalent but is not what the code uses, and mixing the two is noise.
+
+- User-owned tables (e.g. jobs.contractor_id, jobs.customer_id):
+  `USING (contractor_id = auth.uid())`
+- Owned via an intermediary (business tier, keyed on company_id):
+  `USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()))`
+  — a subquery is unavoidable here because the row holds a company id, not a
+  user id. This is the one sanctioned subquery form.
 
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
@@ -51,10 +81,40 @@ Tabler Icons load from CDN (see `index.html`). Use `<i className="ti ti-icon-nam
 ### Styling
 Tailwind + shadcn/ui components. Inline `style={{}}` objects are used extensively in dashboard/sidebar components alongside Tailwind classes — both patterns are acceptable. The `cn()` utility (`src/lib/utils.ts`) merges class names. No CSS modules.
 
+### Business tier — PARTIALLY BUILT (live DB, not in migration history)
+
+The business tier is not greenfield. These already exist in the live
+database, created via the Supabase dashboard and therefore absent from the
+migration files — the DB cannot currently be rebuilt from migrations alone:
+
+- `companies` — the business/organisation root. owner_id, name, address
+  fields, contact details, logo_url, industry, company_size. `owner_id` is
+  the link to the business user (-> profiles(id), being formalised with FK +
+  backfill).
+- `sites` — company_id -> companies(id)
+- `assets` — company_id -> companies(id), site_id -> sites(id);
+  `category` is the `asset_category` enum
+- `contractor_panel` — company_id -> companies(id)
+- `sla_rules` (NOT sla_policies) — company_id -> companies(id); has `name`
+  and `applies_to_trade`. Wired into jobs via sla_rule_id, sla_response_due,
+  sla_resolution_due, responded_at.
+
+Ownership root for ALL business-tier data is `companies(id)`, not
+`profiles(id)` directly. RLS keys through `companies.owner_id`.
+
+`jobs` already carries: priority, company_id, sla_rule_id, sla_response_due,
+sla_resolution_due, responded_at. The business-tier migration adds only
+`site_id` and `asset_id`.
+
+`business_members` does not yet exist — forward-compatible placeholder added
+by the business-tier migration; owner-only in v1, multi-user RLS deferred.
+
+Dashboard-created native enums (in DB, not in migrations): asset_category,
+service_contract_status, service_document_type, service_frequency,
+service_visit_status. The service_* enums imply partial service-contract /
+PPM scaffolding — scope UNCONFIRMED; audit before building on it.
+
 ## Critical Rules (read every session)
-- `profiles.id` ≠ `profiles.user_id` — always use two-step lookup pattern
-- RLS policies must use: `contractor_id IN (SELECT id FROM profiles WHERE user_id = auth.uid())`
-- Never use `auth.uid() = contractor_id` directly
 - No emojis in UI
 - No fake placeholder data anywhere
 - GBP only, UK date format (d MMM yyyy)
@@ -111,7 +171,7 @@ Tailwind + shadcn/ui components. Inline `style={{}}` objects are used extensivel
 ### Backlog (priority order)
 1. Stage progression bug — root-cause and fix
 2. Stripe Checkout — replace blocked embedded Elements payment flow
-3. Business dashboard — roll out Business account functionality  
+3. Business dashboard — build the UI; schema spine live (see Architecture)
 4. Team management — contractor side (adding workers, assigning to jobs, timesheets by worker)
 5. First real contractor onboarding
 6. PDF quote generation (invoices done, quotes still PDF-less)

@@ -88,12 +88,17 @@ export type Database = {
           id: string
           install_date: string | null
           is_active: boolean | null
+          last_serviced: string | null
+          location_note: string | null
           make: string | null
           model: string | null
           name: string
+          next_service_due: string | null
           serial_number: string | null
           site_id: string
+          status: string
           updated_at: string | null
+          warranty_expiry: string | null
         }
         Insert: {
           category: Database["public"]["Enums"]["asset_category"]
@@ -103,12 +108,17 @@ export type Database = {
           id?: string
           install_date?: string | null
           is_active?: boolean | null
+          last_serviced?: string | null
+          location_note?: string | null
           make?: string | null
           model?: string | null
           name: string
+          next_service_due?: string | null
           serial_number?: string | null
           site_id: string
+          status?: string
           updated_at?: string | null
+          warranty_expiry?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["asset_category"]
@@ -118,12 +128,17 @@ export type Database = {
           id?: string
           install_date?: string | null
           is_active?: boolean | null
+          last_serviced?: string | null
+          location_note?: string | null
           make?: string | null
           model?: string | null
           name?: string
+          next_service_due?: string | null
           serial_number?: string | null
           site_id?: string
+          status?: string
           updated_at?: string | null
+          warranty_expiry?: string | null
         }
         Relationships: [
           {
@@ -220,6 +235,62 @@ export type Database = {
         }
         Relationships: []
       }
+      business_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: string
+          site_scope: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          site_scope?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          site_scope?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_site_scope_fkey"
+            columns: ["site_scope"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
@@ -235,7 +306,7 @@ export type Database = {
           industry: string | null
           logo_url: string | null
           name: string
-          owner_id: string | null
+          owner_id: string
           phone: string | null
           postcode: string | null
           updated_at: string | null
@@ -255,7 +326,7 @@ export type Database = {
           industry?: string | null
           logo_url?: string | null
           name: string
-          owner_id?: string | null
+          owner_id: string
           phone?: string | null
           postcode?: string | null
           updated_at?: string | null
@@ -275,7 +346,7 @@ export type Database = {
           industry?: string | null
           logo_url?: string | null
           name?: string
-          owner_id?: string | null
+          owner_id?: string
           phone?: string | null
           postcode?: string | null
           updated_at?: string | null
@@ -2000,6 +2071,7 @@ export type Database = {
         Row: {
           actual_end: string | null
           actual_start: string | null
+          asset_id: string | null
           company_id: string | null
           completed_at: string | null
           contract_value: number | null
@@ -2018,6 +2090,7 @@ export type Database = {
           responded_at: string | null
           signed_off_at: string | null
           signed_off_by: string | null
+          site_id: string | null
           sla_resolution_due: string | null
           sla_response_due: string | null
           sla_rule_id: string | null
@@ -2029,6 +2102,7 @@ export type Database = {
         Insert: {
           actual_end?: string | null
           actual_start?: string | null
+          asset_id?: string | null
           company_id?: string | null
           completed_at?: string | null
           contract_value?: number | null
@@ -2047,6 +2121,7 @@ export type Database = {
           responded_at?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
+          site_id?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
@@ -2058,6 +2133,7 @@ export type Database = {
         Update: {
           actual_end?: string | null
           actual_start?: string | null
+          asset_id?: string | null
           company_id?: string | null
           completed_at?: string | null
           contract_value?: number | null
@@ -2076,6 +2152,7 @@ export type Database = {
           responded_at?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
+          site_id?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
@@ -2085,6 +2162,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "jobs_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "jobs_company_id_fkey"
             columns: ["company_id"]
@@ -2146,6 +2230,13 @@ export type Database = {
             columns: ["signed_off_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {

@@ -20,7 +20,15 @@
       "Bash(sed -n '2408,2470p' src/integrations/supabase/types.ts)",
       "Bash(node -e ' *)",
       "Bash(echo \"Exit: $?\")",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(Select-String -Path src/**/*.tsx,src/**/*.ts -Pattern \"ts_profile_code|client_email|customer_email|TS-P|customerTsCode|client_ts_code\" -SimpleMatch)",
+      "Bash(Select-Object Filename,LineNumber,Line)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(git -C \"c:\\\\Users\\\\richa\\\\trade-stone-connect\" commit -m $msg1)",
+      "PowerShell(git -C \"c:\\\\Users\\\\richa\\\\trade-stone-connect\" push origin main 2>&1)",
+      "Bash(git status *)",
+      "Bash(Dashboard)",
+      "Bash(App\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\richa\\trade-stone-connect\\src\\components"
