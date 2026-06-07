@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
+import SidebarHelpButton from "@/components/help/SidebarHelpButton";
+import TutorialModal from "@/components/help/TutorialModal";
+import HelpModal from "@/components/help/HelpModal";
+import WhatIsNewModal from "@/components/help/WhatIsNewModal";
 
 interface NavItem {
   value: string;
@@ -117,6 +121,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
   const currentTitle = VIEW_LABELS[activeView] ?? "Dashboard";
 
   return (
+    <>
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* Sidebar */}
       <aside
@@ -288,6 +293,8 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
             </div>
           ))}
         </nav>
+
+        <SidebarHelpButton collapsed={collapsed} />
       </aside>
 
       {/* Main column */}
@@ -320,6 +327,10 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
         <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
       </div>
     </div>
+    <TutorialModal />
+    <HelpModal />
+    <WhatIsNewModal />
+    </>
   );
 };
 

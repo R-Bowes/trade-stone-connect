@@ -1070,6 +1070,30 @@ export type Database = {
           },
         ]
       }
+      feature_announcements: {
+        Row: {
+          applies_to: string[]
+          description: string | null
+          id: string
+          released_at: string
+          title: string
+        }
+        Insert: {
+          applies_to: string[]
+          description?: string | null
+          id?: string
+          released_at?: string
+          title: string
+        }
+        Update: {
+          applies_to?: string[]
+          description?: string | null
+          id?: string
+          released_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
@@ -2560,6 +2584,7 @@ export type Database = {
           location: string | null
           logo_url: string | null
           onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
           phone: string | null
           rating: number | null
           review_count: number | null
@@ -2594,6 +2619,7 @@ export type Database = {
           location?: string | null
           logo_url?: string | null
           onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
           phone?: string | null
           rating?: number | null
           review_count?: number | null
@@ -2628,6 +2654,7 @@ export type Database = {
           location?: string | null
           logo_url?: string | null
           onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
           phone?: string | null
           rating?: number | null
           review_count?: number | null
@@ -4371,6 +4398,39 @@ export type Database = {
             columns: ["worker_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_seen_announcements: {
+        Row: {
+          announcement_id: string
+          seen_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          seen_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          seen_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_seen_announcements_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "feature_announcements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_seen_announcements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

@@ -17,6 +17,7 @@ import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ContractorLayout from "@/components/ContractorLayout";
+import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { ProfileEditor } from "@/components/management/ProfileEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
@@ -355,7 +356,7 @@ const ContractorDashboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading || !profileId) {
     return (
       <ContractorLayout>
         <div className="flex justify-center items-center h-64">
@@ -366,6 +367,7 @@ const ContractorDashboard = () => {
   }
 
   return (
+    <HelpSystemProvider profileId={profileId} role="contractor">
     <ContractorLayout>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
@@ -687,6 +689,7 @@ const ContractorDashboard = () => {
         <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />
       </div>
     </ContractorLayout>
+    </HelpSystemProvider>
   );
 };
 

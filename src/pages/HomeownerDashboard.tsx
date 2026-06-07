@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import HomeownerLayout from "@/components/layout/HomeownerLayout";
+import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
@@ -772,5 +773,9 @@ export default function HomeownerDashboard() {
     );
   }
 
-  return <HomeownerLayout>{renderView()}</HomeownerLayout>;
+  return (
+    <HelpSystemProvider profileId={profileId} role="personal">
+      <HomeownerLayout>{renderView()}</HomeownerLayout>
+    </HelpSystemProvider>
+  );
 }
