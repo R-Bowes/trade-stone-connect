@@ -42,6 +42,7 @@ export default function WhatIsNewModal() {
               fontSize: 18,
               color: "#1a2744",
               margin: "0 0 20px",
+              textTransform: "none",
             }}
           >
             What's new in TradeStone
@@ -65,7 +66,7 @@ export default function WhatIsNewModal() {
                   flexShrink: 0,
                 }}
               >
-                <i className="ti ti-sparkles" style={{ fontSize: 20, color: "#f07820", lineHeight: 1 }} />
+                <i className="ti ti-star" style={{ fontSize: 20, color: "#f07820", lineHeight: 1 }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <p

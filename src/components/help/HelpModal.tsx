@@ -242,7 +242,6 @@ export default function HelpModal() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <i className="ti ti-player-play" style={{ fontSize: 14, lineHeight: 1 }} />
                 Start
               </button>
             </div>
@@ -292,7 +291,7 @@ export default function HelpModal() {
                         flexShrink: 0,
                       }}
                     >
-                      <i className="ti ti-sparkles" style={{ fontSize: 16, color: "#f07820", lineHeight: 1 }} />
+                      <i className="ti ti-star" style={{ fontSize: 16, color: "#f07820", lineHeight: 1 }} />
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <p

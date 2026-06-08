@@ -26,7 +26,7 @@ const STEPS: Record<UserRole, TutorialStep[]> = {
     },
     {
       title: "Track your job as it happens",
-      icon: "ti-clipboard-check",
+      icon: "ti-circle-check",
       body: "Once work starts, your job moves through clear stages. Your contractor adds photos as they go, you can message them directly, and you sign off when you're satisfied.",
     },
     {
@@ -38,27 +38,27 @@ const STEPS: Record<UserRole, TutorialStep[]> = {
   contractor: [
     {
       title: "Welcome to TradeStone",
-      icon: "ti-tool",
+      icon: "ti-tools",
       body: "TradeStone helps you win work through your profile, manage every job without the admin headache, and get paid on time. Let's get you set up.",
     },
     {
       title: "Your profile is your pitch",
-      icon: "ti-user-circle",
+      icon: "ti-certificate",
       body: "Homeowners browse TradeStone before they reach out. A complete profile — trades, service area, photos, and availability — is how they find and choose you. The more detail, the better the leads.",
     },
     {
       title: "Respond to enquiries and win the job",
-      icon: "ti-mail-opened",
+      icon: "ti-message-question",
       body: "New enquiries land in your dashboard. Review the brief, send a quote with your price and proposed schedule, and the client accepts directly through the platform.",
     },
     {
       title: "Manage work from start to sign-off",
-      icon: "ti-layout-kanban",
+      icon: "ti-layout-columns",
       body: "Every accepted job lives in your dashboard. Update the stage as you progress, add photos, message your client, and keep everything documented in one thread.",
     },
     {
       title: "Invoice and get paid through TradeStone",
-      icon: "ti-cash",
+      icon: "ti-receipt",
       body: "Raise your invoice when the job's complete. The client pays through TradeStone and the funds transfer to your account — no chasing, no awkward conversations.",
     },
   ],
@@ -80,7 +80,7 @@ const STEPS: Record<UserRole, TutorialStep[]> = {
     },
     {
       title: "Raise jobs and approve quotes",
-      icon: "ti-clipboard-check",
+      icon: "ti-circle-check",
       body: "Create a job, assign it to a panel contractor, and review their quote before anything starts. Once approved, the job runs through TradeStone — stage updates, photos, and sign-off all tracked.",
     },
     {
@@ -210,6 +210,7 @@ export default function TutorialModal() {
               color: "#1a2744",
               margin: 0,
               lineHeight: 1.3,
+              textTransform: "none",
             }}
           >
             {current.title}
