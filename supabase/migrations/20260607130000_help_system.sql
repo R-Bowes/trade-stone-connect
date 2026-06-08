@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.feature_announcements (
   released_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.feature_announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated read" ON public.feature_announcements;
 CREATE POLICY "authenticated read"
   ON public.feature_announcements
   FOR SELECT
@@ -25,10 +26,12 @@ CREATE TABLE IF NOT EXISTS public.user_seen_announcements (
   PRIMARY KEY (user_id, announcement_id)
 );
 ALTER TABLE public.user_seen_announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "owner select" ON public.user_seen_announcements;
 CREATE POLICY "owner select"
   ON public.user_seen_announcements
   FOR SELECT
   USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "owner insert" ON public.user_seen_announcements;
 CREATE POLICY "owner insert"
   ON public.user_seen_announcements
   FOR INSERT
@@ -40,10 +43,11 @@ CREATE INDEX IF NOT EXISTS fa_released_at_idx
 CREATE INDEX IF NOT EXISTS usa_user_id_idx
   ON public.user_seen_announcements(user_id);
 
--- E. Seed announcement (visible to all three roles)
+-- E. Seed announcement (visible to all three roles) — skip if already present
 INSERT INTO public.feature_announcements (title, description, applies_to)
 VALUES (
   'Your new dashboard has arrived',
   'Everything you need is now in the sidebar, with a clearer overview and faster access to your jobs.',
   ARRAY['personal','contractor','business']
-);
+)
+ON CONFLICT DO NOTHING;
