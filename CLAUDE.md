@@ -68,6 +68,11 @@ it is equivalent but is not what the code uses, and mixing the two is noise.
   — a subquery is unavoidable here because the row holds a company id, not a
   user id. This is the one sanctioned subquery form.
 
+`auth_user_company_ids()` has been retired from the `companies` SELECT policy
+(replaced by direct `owner_id = auth.uid()`). Do not use it in new policies —
+calling it from a policy on `companies` causes 42P17 infinite recursion because
+the function queries `companies` while RLS is already active on that table.
+
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
 - `useAvailability(contractorId)` — read-only, safe for public pages; takes `profiles.id`.
