@@ -831,6 +831,7 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
   const [tab, setTab] = useState<MaintenanceTab>(defaultTab ?? 'sites');
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
 
+
   const [sites, setSites] = useState<Site[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [contracts, setContracts] = useState<(ServiceContract & { contractor_name?: string; site_name?: string })[]>([]);
