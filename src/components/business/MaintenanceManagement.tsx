@@ -993,14 +993,18 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
           {visibleTabs.includes("visits") && <TabsTrigger value="visits">Visits</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="sites" className="mt-6">
-          <SitesTab companyId={companyId} sites={sites} loading={loading} onRefresh={load}
-            onSelectSite={(s) => { setSelectedSite(s); setTab('assets'); }} />
-        </TabsContent>
+        {tab === 'sites' && (
+          <div className="mt-6">
+            <SitesTab companyId={companyId} sites={sites} loading={loading} onRefresh={load}
+              onSelectSite={(s) => { setSelectedSite(s); setTab('assets'); }} />
+          </div>
+        )}
 
-        <TabsContent value="assets" className="mt-6">
-          <AssetsTab companyId={companyId} sites={sites} assets={assets} loading={loading} onRefresh={load} />
-        </TabsContent>
+        {tab === 'assets' && (
+          <div className="mt-6">
+            <AssetsTab companyId={companyId} sites={sites} assets={assets} loading={loading} onRefresh={load} />
+          </div>
+        )}
 
         <TabsContent value="contracts" className="mt-6">
           <ContractsTab companyId={companyId} sites={sites} contracts={contracts}
