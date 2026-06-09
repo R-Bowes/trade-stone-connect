@@ -159,24 +159,14 @@ const BusinessDashboard = () => {
         );
 
       case "sites":
-        return (
-          <div className="p-6">
-            <MaintenanceManagement
-              companyId={companyId!}
-              profileId={profileId}
-              defaultTab="sites"
-              embedded
-            />
-          </div>
-        );
-
       case "assets":
         return (
           <div className="p-6">
             <MaintenanceManagement
+              key={activeView}
               companyId={companyId!}
               profileId={profileId}
-              defaultTab="assets"
+              defaultTab={activeView === "assets" ? "assets" : "sites"}
               embedded
             />
           </div>
