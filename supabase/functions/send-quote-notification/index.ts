@@ -11,7 +11,6 @@ const RATE_LIMIT_WINDOW_MINUTES = 60;
 
 // NEW
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://trade-stone-connect-abc123.vercel.app",
   "https://tradesltd.co.uk",
   "https://www.tradesltd.co.uk",
   "http://localhost:5173",

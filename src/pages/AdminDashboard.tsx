@@ -1303,7 +1303,7 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div style={{ background: '#f9f9f9', borderTop: '1px solid #e8e8e8', padding: '14px 28px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 11, color: '#999' }}>TradeStone Connect · tradesltd.co.uk · Unsubscribe</span>
+                          <span style={{ fontSize: 11, color: '#999' }}>TradeStone · tradesltd.co.uk · Unsubscribe</span>
                         </div>
                       </div>
                     </div>

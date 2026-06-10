@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://trade-stone-connect-abc123.vercel.app",
   "https://tradesltd.co.uk",
   "https://www.tradesltd.co.uk",
   "http://localhost:5173",
