@@ -73,6 +73,14 @@ it is equivalent but is not what the code uses, and mixing the two is noise.
 calling it from a policy on `companies` causes 42P17 infinite recursion because
 the function queries `companies` while RLS is already active on that table.
 
+`companies` SELECT policy ("Companies readable") uses only `owner_id = auth.uid()`.
+A `service_visits` subquery was removed in migration 20260609120000 — it created
+mutual recursion: companies SELECT → service_visits RLS → service_visits policy
+queries companies → companies SELECT → ∞. Do NOT add subqueries on tables whose
+own RLS policies query back to `companies`. Contractor reads of company rows are
+covered by "Companies readable by panel contractors" instead. Any contractor with
+legitimate service visits should already be in `contractor_panel`.
+
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
 - `useAvailability(contractorId)` — read-only, safe for public pages; takes `profiles.id`.
@@ -119,6 +127,12 @@ service_contract_status, service_document_type, service_frequency,
 service_visit_status. The service_* enums imply partial service-contract /
 PPM scaffolding — scope UNCONFIRMED; audit before building on it.
 
+## Edge Function secrets
+- `SITE_URL` is the canonical origin env var for Edge Functions; `PUBLIC_URL` and
+  `PUBLIC_APP_URL` are set to the same value for legacy compatibility — new functions
+  must use `SITE_URL` only. Standardising the old two is captured in LATER.md.
+- `LOVABLE_API_KEY` secret retired (Lovable fully retired).
+
 ## Critical Rules (read every session)
 - No emojis in UI
 - No fake placeholder data anywhere
@@ -126,6 +140,7 @@ PPM scaffolding — scope UNCONFIRMED; audit before building on it.
 - Read full file before modifying — preserve all existing logic
 - Fix broken features before building new ones
 - Core job flow first: enquiry → quote → schedule → job → invoice → payment
+- Platform name is **TradeStone** — never "TradeStone Connect", "TradeStone Marketplace", or any other suffix
 
 ## Stack
 - Frontend: React/TypeScript, Vite, shadcn/ui, Tailwind
