@@ -204,3 +204,53 @@ high-value add.
   Approvals view is quote-approvals only until job sign-off is scoped.
 - Business tier SLA per-contractor pairing (matching `applies_to_trade` to a
   contractor's declared trade) — follow-on, currently a reference table only.
+
+---
+
+## FM feature backlog (from deployed-app review, 2026-06-13)
+
+Captured from a full review of the live business dashboard. Almost all of this is
+downstream of the job-raising flow (site → asset → panel contractor → enquiry):
+the dashboard's job/SLA/spend tiles and "jobs across sites" panel are already built
+but empty because no job can be raised yet. Build the job flow first; these become
+meaningful only once jobs exist.
+
+### Quick win — surface existing asset columns (UI only, NO schema work)
+These columns already exist on `assets` but the Add Asset form / register don't
+expose them: `status` (operational/faulty/decommissioned), `warranty_expiry`,
+`last_serviced`, `next_service_due`, `reference`, `location_note`. Add to the form
+and show on the register. "Asset condition + next service due" is core FM language
+and demos well. → Designated FIRST easy win to slot in AFTER the job flow.
+
+### Site card depth
+Site contact / manager, access instructions / opening hours, site type/category,
+photos/documents, and an asset-count summary on the site card ("HQ — 3 assets,
+1 due for service").
+
+### Compliance document management (needs schema)
+No cert/insurance/expiry schema exists; the Compliance page is a read-only shell
+with no add controls. Needs: tables for contractor certifications/insurance with
+expiry dates, UI to add/request documents from the business side, and expiry /
+renewal alerting. Tie to contractor profiles.
+
+### SLA rules (needs schema + UI)
+The "SLA Rules" section and the "SLA at risk" dashboard tile are vestigial — no UI
+exists to create a rule. Needs SLA rule schema (response/priority tiers) + creation
+UI, then the "SLA at risk" tile becomes live.
+
+### Contractor profile depth / metrics (views over jobs)
+Per-contractor: ratings, job completion rate, average response time, job history,
+total spend, last active. Preferred contractor by trade or by site. All require
+jobs to exist first.
+
+### Asset register UX
+Filter by category / service-due / status, RAG (red/amber/green) service-due
+indicators, bulk export, asset-count summary tile, "assets due for service"
+dashboard tile.
+
+### Pure later
+QR / asset-tag support for field scanning; lifecycle / depreciation tracking.
+
+### Housekeeping to verify
+Top-bar public nav exposes /projects and /contracts links. Confirm these are not
+half-built routes visible to real visitors (Projects is a LATER item).
