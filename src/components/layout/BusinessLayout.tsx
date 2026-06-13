@@ -57,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Account",
     items: [
       { value: "messages", label: "Messages", icon: "ti-messages" },
+      { value: "team",     label: "Team",     icon: "ti-users" },
       { value: "settings", label: "Settings", icon: "ti-settings" },
     ],
   },
@@ -73,6 +74,7 @@ const VIEW_LABELS: Record<string, string> = {
   invoices:   "Invoices",
   spend:      "Spend",
   messages:   "Messages",
+  team:       "Team",
   settings:   "Settings",
 };
 

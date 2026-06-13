@@ -28,6 +28,14 @@ const Dashboard = () => {
         return;
       }
 
+      // Complete a pending invite before role-redirecting (set by InvitePage when unauthed).
+      const pendingToken = localStorage.getItem("pending_invite_token");
+      if (pendingToken) {
+        localStorage.removeItem("pending_invite_token");
+        navigate(`/invite?token=${pendingToken}`, { replace: true });
+        return;
+      }
+
       // Get user profile to determine type
       const { data: profile, error } = await supabase
         .from("profiles")

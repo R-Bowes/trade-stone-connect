@@ -8,6 +8,7 @@ import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
+import { BusinessTeamView } from "@/components/business/BusinessTeamView";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { PanelManagement } from "@/components/business/PanelManagement";
@@ -17,6 +18,13 @@ import BusinessSettings from "@/pages/BusinessSettings";
 import Header from "@/components/Header";
 import type { User } from "@supabase/supabase-js";
 
+interface PendingInviteSummary {
+  id: string;
+  company_id: string;
+  role: string;
+  companies: { name: string } | null;
+}
+
 const BusinessDashboard = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -25,9 +33,15 @@ const BusinessDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInviteSummary[]>([]);
   const [companyFetchError, setCompanyFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Increment to re-trigger Phase 2 (e.g. after accepting an in-dashboard invite)
+  const [resolveKey, setResolveKey] = useState(0);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   // Phase 1: resolve auth + profile (runs once on mount).
   useEffect(() => {
@@ -53,48 +67,101 @@ const BusinessDashboard = () => {
 
       const pid = profile?.id ?? null;
       setProfileId(pid);
-      // If no profile row exists, phase 2 won't fire (profileId stays null).
-      // Clear loading here so the user sees a useful state rather than hanging.
       if (!pid) setLoading(false);
     };
     loadProfile();
   }, [navigate]);
 
-  // Phase 2: resolve company — re-runs whenever profileId becomes available.
-  // This also handles the in-session case: user creates their company via
-  // embedded Settings, then navigates to a company-requiring view. Previously
-  // the [navigate] dependency never re-fired, so companyId stayed null.
+  // Phase 2: membership-aware company resolution.
+  // Re-runs when profileId becomes available or resolveKey changes (post-invite-accept).
   useEffect(() => {
     if (!profileId) return;
 
     const fetchCompany = async () => {
+      setLoading(true);
       setCompanyFetchError(null);
+      setCompanyId(null);
+      setCurrentRole(null);
+      setPendingInvites([]);
 
-      // .limit(1) prevents PGRST116 (the "multiple rows" error from .maybeSingle())
-      // from being treated silently as "no company". We also check `error` explicitly
-      // so RLS blocks / network failures surface as a distinct error, not as null.
-      const { data: company, error: companyError } = await supabase
+      // 1. Try owner resolution.
+      const { data: ownerCompany, error: ownerError } = await supabase
         .from("companies")
         .select("id")
         .eq("owner_id", profileId)
         .limit(1)
         .maybeSingle();
 
-      if (companyError) {
-        console.error("[BusinessDashboard] company fetch error:", companyError);
+      if (ownerError) {
+        console.error("[BusinessDashboard] company fetch error:", ownerError);
         setCompanyFetchError(
-          `Unable to load company data (${companyError.code ?? companyError.message}). ` +
+          `Unable to load company data (${ownerError.code ?? ownerError.message}). ` +
           `Check the companies RLS SELECT policy allows owner reads.`
         );
-      } else {
-        setCompanyId(company?.id ?? null);
+        setLoading(false);
+        return;
+      }
+
+      if (ownerCompany) {
+        setCompanyId(ownerCompany.id);
+        setCurrentRole("owner");
+        setLoading(false);
+        return;
+      }
+
+      // 2. No owned company — try active membership.
+      const { data: memberRow, error: memberError } = await supabase
+        .from("business_members")
+        .select("company_id, role")
+        .eq("profile_id", profileId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+
+      if (memberError) {
+        console.error("[BusinessDashboard] membership fetch error:", memberError);
+        // Non-fatal — fall through to invite check.
+      }
+
+      if (memberRow) {
+        setCompanyId(memberRow.company_id);
+        setCurrentRole(memberRow.role);
+        setLoading(false);
+        return;
+      }
+
+      // 3. No active company — check for pending invites (TS-Code path: profile_id is set).
+      const { data: invites } = await supabase
+        .from("business_members")
+        .select("id, company_id, role, companies(name)")
+        .eq("profile_id", profileId)
+        .eq("status", "invited");
+
+      if (invites && invites.length > 0) {
+        setPendingInvites(invites as unknown as PendingInviteSummary[]);
       }
 
       setLoading(false);
     };
 
     fetchCompany();
-  }, [profileId]);
+  }, [profileId, resolveKey]);
+
+  const handleAcceptInvite = async (inviteId: string) => {
+    setAccepting(true);
+    setAcceptError(null);
+    try {
+      const { error } = await supabase.rpc("accept_business_invite", { p_invite_id: inviteId });
+      if (error) throw error;
+      setPendingInvites([]);
+      setResolveKey((k) => k + 1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setAcceptError(msg);
+    } finally {
+      setAccepting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -115,8 +182,38 @@ const BusinessDashboard = () => {
   }
 
   const renderView = () => {
+    // Show accept-invite prompt when no active company but pending TS-Code invites exist.
+    if (!companyId && pendingInvites.length > 0) {
+      return (
+        <div className="p-6 max-w-md space-y-3">
+          <h2 className="font-heading text-xl font-bold">Pending invitation</h2>
+          {pendingInvites.map((invite) => (
+            <div key={invite.id} className="border rounded-lg p-4 space-y-2">
+              <p className="text-sm">
+                <span className="font-medium">
+                  {invite.companies?.name ?? "A company"}
+                </span>{" "}
+                has invited you to join as{" "}
+                <span className="font-semibold">{invite.role}</span>.
+              </p>
+              {acceptError && (
+                <p className="text-xs text-red-600">{acceptError}</p>
+              )}
+              <button
+                onClick={() => handleAcceptInvite(invite.id)}
+                disabled={accepting}
+                className="px-4 py-2 bg-[#f07820] text-white rounded text-sm font-medium disabled:opacity-60"
+              >
+                {accepting ? "Accepting..." : "Accept invitation"}
+              </button>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "sites", "assets", "compliance"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "sites", "assets", "compliance", "team"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -201,6 +298,15 @@ const BusinessDashboard = () => {
           <div className="p-6">
             <BusinessMessageInbox profileId={profileId} />
           </div>
+        );
+
+      case "team":
+        return (
+          <BusinessTeamView
+            companyId={companyId!}
+            profileId={profileId}
+            currentRole={currentRole ?? "member"}
+          />
         );
 
       case "settings":

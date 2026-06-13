@@ -94,6 +94,7 @@ export type Database = {
           model: string | null
           name: string
           next_service_due: string | null
+          reference: string | null
           serial_number: string | null
           site_id: string
           status: string
@@ -114,6 +115,7 @@ export type Database = {
           model?: string | null
           name: string
           next_service_due?: string | null
+          reference?: string | null
           serial_number?: string | null
           site_id: string
           status?: string
@@ -134,6 +136,7 @@ export type Database = {
           model?: string | null
           name?: string
           next_service_due?: string | null
+          reference?: string | null
           serial_number?: string | null
           site_id?: string
           status?: string
@@ -237,28 +240,40 @@ export type Database = {
       }
       business_members: {
         Row: {
+          accepted_at: string | null
           company_id: string
-          created_at: string
+          created_at: string | null
           id: string
+          invite_expires_at: string | null
+          invite_token: string | null
+          invited_email: string | null
+          profile_id: string | null
           role: string
-          site_scope: string | null
-          user_id: string
+          status: string
         }
         Insert: {
+          accepted_at?: string | null
           company_id: string
-          created_at?: string
+          created_at?: string | null
           id?: string
-          role?: string
-          site_scope?: string | null
-          user_id: string
+          invite_expires_at?: string | null
+          invite_token?: string | null
+          invited_email?: string | null
+          profile_id?: string | null
+          role: string
+          status?: string
         }
         Update: {
+          accepted_at?: string | null
           company_id?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
+          invite_expires_at?: string | null
+          invite_token?: string | null
+          invited_email?: string | null
+          profile_id?: string | null
           role?: string
-          site_scope?: string | null
-          user_id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -269,22 +284,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "business_members_site_scope_fkey"
-            columns: ["site_scope"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "business_members_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "business_members_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "business_members_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "business_members_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
@@ -933,7 +941,9 @@ export type Database = {
       enquiries: {
         Row: {
           additional_details: string | null
+          asset_id: string | null
           budget_range: string | null
+          company_id: string | null
           contractor_id: string | null
           created_at: string | null
           customer_email: string | null
@@ -947,6 +957,7 @@ export type Database = {
           photo_urls: string[] | null
           preferred_timeline: string | null
           project_id: string | null
+          site_id: string | null
           status: string | null
           title: string | null
           trade: string | null
@@ -954,7 +965,9 @@ export type Database = {
         }
         Insert: {
           additional_details?: string | null
+          asset_id?: string | null
           budget_range?: string | null
+          company_id?: string | null
           contractor_id?: string | null
           created_at?: string | null
           customer_email?: string | null
@@ -968,6 +981,7 @@ export type Database = {
           photo_urls?: string[] | null
           preferred_timeline?: string | null
           project_id?: string | null
+          site_id?: string | null
           status?: string | null
           title?: string | null
           trade?: string | null
@@ -975,7 +989,9 @@ export type Database = {
         }
         Update: {
           additional_details?: string | null
+          asset_id?: string | null
           budget_range?: string | null
+          company_id?: string | null
           contractor_id?: string | null
           created_at?: string | null
           customer_email?: string | null
@@ -989,12 +1005,27 @@ export type Database = {
           photo_urls?: string[] | null
           preferred_timeline?: string | null
           project_id?: string | null
+          site_id?: string | null
           status?: string | null
           title?: string | null
           trade?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "enquiries_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "enquiries_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1028,6 +1059,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -1069,30 +1107,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      feature_announcements: {
-        Row: {
-          applies_to: string[]
-          description: string | null
-          id: string
-          released_at: string
-          title: string
-        }
-        Insert: {
-          applies_to: string[]
-          description?: string | null
-          id?: string
-          released_at?: string
-          title: string
-        }
-        Update: {
-          applies_to?: string[]
-          description?: string | null
-          id?: string
-          released_at?: string
-          title?: string
-        }
-        Relationships: []
       }
       expenses: {
         Row: {
@@ -1215,6 +1229,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feature_announcements: {
+        Row: {
+          applies_to: string[]
+          description: string | null
+          id: string
+          released_at: string
+          title: string
+        }
+        Insert: {
+          applies_to: string[]
+          description?: string | null
+          id?: string
+          released_at?: string
+          title: string
+        }
+        Update: {
+          applies_to?: string[]
+          description?: string | null
+          id?: string
+          released_at?: string
+          title?: string
+        }
+        Relationships: []
       }
       gdpr_erasure_log: {
         Row: {
@@ -3922,32 +3960,53 @@ export type Database = {
       sites: {
         Row: {
           address: string
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
           company_id: string
           created_at: string | null
+          created_by: string | null
           id: string
           is_active: boolean | null
           name: string
+          notes: string | null
           postcode: string
+          reference: string | null
+          status: string
           updated_at: string | null
         }
         Insert: {
           address: string
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
           company_id: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          notes?: string | null
           postcode: string
+          reference?: string | null
+          status?: string
           updated_at?: string | null
         }
         Update: {
           address?: string
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
           company_id?: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          notes?: string | null
           postcode?: string
+          reference?: string | null
+          status?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -3956,6 +4015,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4433,6 +4506,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_seen_announcements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -4514,6 +4594,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_business_invite: {
+        Args: { p_invite_id?: string; p_token?: string }
+        Returns: string
+      }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       auth_user_company_ids: { Args: never; Returns: string[] }
       check_sla_breaches: { Args: never; Returns: undefined }
@@ -4521,7 +4605,15 @@ export type Database = {
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
+      is_company_member: {
+        Args: { p_company_id: string; p_roles?: string[] }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_site_member: {
+        Args: { p_roles?: string[]; p_site_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       asset_category:

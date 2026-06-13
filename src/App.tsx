@@ -35,6 +35,7 @@ import Projects from "./pages/Projects";
 import TenderDetail from "./pages/TenderDetail";
 import ProposalReview from "./pages/ProposalReview";
 import ProjectDelivery from "./pages/ProjectDelivery";
+import InvitePage from "./pages/InvitePage";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/invite" element={<InvitePage />} />
 
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
