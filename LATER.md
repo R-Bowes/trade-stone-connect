@@ -254,3 +254,37 @@ QR / asset-tag support for field scanning; lifecycle / depreciation tracking.
 ### Housekeeping to verify
 Top-bar public nav exposes /projects and /contracts links. Confirm these are not
 half-built routes visible to real visitors (Projects is a LATER item).
+
+---
+
+## Org / site-coverage model + TS-codes-everywhere (design target, per RB 2026-06-13)
+
+NOT a nested hierarchy — a coverage model:
+- A member's scope = the SET OF SITES they cover. Labels local/area/regional/
+  national just describe breadth (one site / a cluster / wider / all), not nested
+  region>area>site entities.
+- ALL members can raise AND approve work. Scope only determines which sites' work
+  they see and can act on — no per-action capability gradient on the work itself.
+- Org management (invite/remove members, manage sites) stays owner/admin — a
+  separate gate, unchanged.
+- Open question for the design pass: are area/region reusable named site-groups
+  (define once, assign), or ad-hoc per-member site sets? Resolve then.
+- Likely future refinement (not v1): approval thresholds / spend limits — FM
+  procurement usually wants approval gated above a value. Park for now.
+
+Implementation seam (keeps the job flow built now forward-compatible):
+- Work actions go through can_act_for_site(member, site). v1 fill = active member
+  of the owning company (everyone effectively national until coverage assigned).
+  Scope layer later narrows which sites, never who-can.
+- Approvals view must be company-aware (raise and approve can be different people),
+  not customer_id-keyed.
+- business_members gains a coverage representation when this is built.
+
+TS-codes-everywhere:
+- Extend the TS-x scheme beyond profiles. Every SITE gets a code (e.g. TS-S-XXXXXX);
+  every coverage level/group gets a code (e.g. TS-A- area / TS-R- region). Mirror
+  the ts_profile_code generation pattern (unique, generated on insert).
+- Site codes are a cheap standalone addition (sites.ts_site_code + generation);
+  level codes depend on coverage entities existing. Decide letter scheme when built.
+
+Links back to the dropped business_members.site_scope column (v1 rebuild).
