@@ -37,6 +37,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { value: "sites",  label: "Sites",          icon: "ti-building-skyscraper" },
       { value: "assets", label: "Asset register", icon: "ti-tools" },
+      { value: "groups", label: "Site groups",    icon: "ti-folders" },
     ],
   },
   {
@@ -69,6 +70,7 @@ const VIEW_LABELS: Record<string, string> = {
   approvals:  "Approvals",
   sites:      "Sites",
   assets:     "Asset Register",
+  groups:     "Site Groups",
   panel:      "Contractor Panel",
   compliance: "Compliance",
   invoices:   "Invoices",

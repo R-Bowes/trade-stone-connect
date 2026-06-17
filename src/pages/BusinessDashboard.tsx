@@ -9,6 +9,7 @@ import { BusinessJobsView } from "@/components/business/BusinessJobsView";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
 import { BusinessTeamView } from "@/components/business/BusinessTeamView";
+import { SiteGroupsView } from "@/components/business/SiteGroupsView";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { PanelManagement } from "@/components/business/PanelManagement";
@@ -227,7 +228,7 @@ const BusinessDashboard = () => {
     }
 
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "sites", "assets", "compliance", "team"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "sites", "assets", "compliance", "team", "groups"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -319,6 +320,14 @@ const BusinessDashboard = () => {
           <BusinessTeamView
             companyId={companyId!}
             profileId={profileId}
+            isOwner={isOwner}
+          />
+        );
+
+      case "groups":
+        return (
+          <SiteGroupsView
+            companyId={companyId!}
             isOwner={isOwner}
           />
         );
