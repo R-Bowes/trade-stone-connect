@@ -21,9 +21,15 @@ import type { User } from "@supabase/supabase-js";
 interface PendingInviteSummary {
   id: string;
   company_id: string;
-  role: string;
+  coverageKind: string;
   companies: { name: string } | null;
 }
+
+const COVERAGE_LABEL: Record<string, string> = {
+  national: "National coverage",
+  group: "Group coverage",
+  site: "Site coverage",
+};
 
 const BusinessDashboard = () => {
   const navigate = useNavigate();
@@ -33,7 +39,7 @@ const BusinessDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<PendingInviteSummary[]>([]);
   const [companyFetchError, setCompanyFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,10 +87,10 @@ const BusinessDashboard = () => {
       setLoading(true);
       setCompanyFetchError(null);
       setCompanyId(null);
-      setCurrentRole(null);
+      setIsOwner(false);
       setPendingInvites([]);
 
-      // 1. Try owner resolution.
+      // 1. Try owner resolution — owners have no business_members row.
       const { data: ownerCompany, error: ownerError } = await supabase
         .from("companies")
         .select("id")
@@ -104,15 +110,15 @@ const BusinessDashboard = () => {
 
       if (ownerCompany) {
         setCompanyId(ownerCompany.id);
-        setCurrentRole("owner");
+        setIsOwner(true);
         setLoading(false);
         return;
       }
 
-      // 2. No owned company — try active membership.
+      // 2. No owned company — try active coverage membership.
       const { data: memberRow, error: memberError } = await supabase
         .from("business_members")
-        .select("company_id, role")
+        .select("company_id, coverage_kind, coverage_group_id, coverage_site_id")
         .eq("profile_id", profileId)
         .eq("status", "active")
         .limit(1)
@@ -125,7 +131,7 @@ const BusinessDashboard = () => {
 
       if (memberRow) {
         setCompanyId(memberRow.company_id);
-        setCurrentRole(memberRow.role);
+        setIsOwner(false);
         setLoading(false);
         return;
       }
@@ -133,12 +139,18 @@ const BusinessDashboard = () => {
       // 3. No active company — check for pending invites (TS-Code path: profile_id is set).
       const { data: invites } = await supabase
         .from("business_members")
-        .select("id, company_id, role, companies(name)")
+        .select("id, company_id, coverage_kind, coverage_group_id, coverage_site_id, companies(name)")
         .eq("profile_id", profileId)
         .eq("status", "invited");
 
       if (invites && invites.length > 0) {
-        setPendingInvites(invites as unknown as PendingInviteSummary[]);
+        const mapped: PendingInviteSummary[] = (invites as any[]).map((inv) => ({
+          id: inv.id,
+          company_id: inv.company_id,
+          coverageKind: inv.coverage_kind,
+          companies: inv.companies,
+        }));
+        setPendingInvites(mapped);
       }
 
       setLoading(false);
@@ -193,8 +205,10 @@ const BusinessDashboard = () => {
                 <span className="font-medium">
                   {invite.companies?.name ?? "A company"}
                 </span>{" "}
-                has invited you to join as{" "}
-                <span className="font-semibold">{invite.role}</span>.
+                has invited you to join with{" "}
+                <span className="font-semibold">
+                  {COVERAGE_LABEL[invite.coverageKind] ?? invite.coverageKind}
+                </span>.
               </p>
               {acceptError && (
                 <p className="text-xs text-red-600">{acceptError}</p>
@@ -305,7 +319,7 @@ const BusinessDashboard = () => {
           <BusinessTeamView
             companyId={companyId!}
             profileId={profileId}
-            currentRole={currentRole ?? "member"}
+            isOwner={isOwner}
           />
         );
 

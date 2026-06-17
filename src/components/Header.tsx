@@ -10,18 +10,20 @@ import tradestoneLogo from "@/assets/tradestone-logo.png";
 
 interface UserProfile {
   user_type: "personal" | "business" | "contractor";
-  full_name: string;
+  full_name: string | null;
   ts_profile_code: string | null;
   logo_url: string | null;
 }
 
-const getInitials = (name: string) =>
-  name
+const getInitials = (name: string | null | undefined) => {
+  if (!name) return "?";
+  return name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+};
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

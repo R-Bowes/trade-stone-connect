@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -242,37 +267,43 @@ export type Database = {
         Row: {
           accepted_at: string | null
           company_id: string
+          coverage_group_id: string | null
+          coverage_kind: string
+          coverage_site_id: string | null
           created_at: string | null
           id: string
           invite_expires_at: string | null
           invite_token: string | null
           invited_email: string | null
           profile_id: string | null
-          role: string
           status: string
         }
         Insert: {
           accepted_at?: string | null
           company_id: string
+          coverage_group_id?: string | null
+          coverage_kind: string
+          coverage_site_id?: string | null
           created_at?: string | null
           id?: string
           invite_expires_at?: string | null
           invite_token?: string | null
           invited_email?: string | null
           profile_id?: string | null
-          role: string
           status?: string
         }
         Update: {
           accepted_at?: string | null
           company_id?: string
+          coverage_group_id?: string | null
+          coverage_kind?: string
+          coverage_site_id?: string | null
           created_at?: string | null
           id?: string
           invite_expires_at?: string | null
           invite_token?: string | null
           invited_email?: string | null
           profile_id?: string | null
-          role?: string
           status?: string
         }
         Relationships: [
@@ -281,6 +312,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_coverage_group_id_fkey"
+            columns: ["coverage_group_id"]
+            isOneToOne: false
+            referencedRelation: "site_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_coverage_site_id_fkey"
+            columns: ["coverage_site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {
@@ -317,6 +362,7 @@ export type Database = {
           owner_id: string
           phone: string | null
           postcode: string | null
+          sourcing_policy: string
           updated_at: string | null
           website: string | null
         }
@@ -337,6 +383,7 @@ export type Database = {
           owner_id: string
           phone?: string | null
           postcode?: string | null
+          sourcing_policy?: string
           updated_at?: string | null
           website?: string | null
         }
@@ -357,6 +404,7 @@ export type Database = {
           owner_id?: string
           phone?: string | null
           postcode?: string | null
+          sourcing_policy?: string
           updated_at?: string | null
           website?: string | null
         }
@@ -3957,6 +4005,68 @@ export type Database = {
           },
         ]
       }
+      site_group_members: {
+        Row: {
+          group_id: string
+          site_id: string
+        }
+        Insert: {
+          group_id: string
+          site_id: string
+        }
+        Update: {
+          group_id?: string
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "site_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_group_members_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_groups: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          group_type: string
+          id: string
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          group_type: string
+          id?: string
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          group_type?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_groups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sites: {
         Row: {
           address: string
@@ -3973,6 +4083,7 @@ export type Database = {
           postcode: string
           reference: string | null
           status: string
+          ts_site_code: string
           updated_at: string | null
         }
         Insert: {
@@ -3990,6 +4101,7 @@ export type Database = {
           postcode: string
           reference?: string | null
           status?: string
+          ts_site_code: string
           updated_at?: string | null
         }
         Update: {
@@ -4007,6 +4119,7 @@ export type Database = {
           postcode?: string
           reference?: string | null
           status?: string
+          ts_site_code?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -4600,20 +4713,16 @@ export type Database = {
       }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       auth_user_company_ids: { Args: never; Returns: string[] }
+      can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_sla_breaches: { Args: never; Returns: undefined }
+      generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
-      is_company_member: {
-        Args: { p_company_id: string; p_roles?: string[] }
-        Returns: boolean
-      }
+      is_company_member: { Args: { p_company_id: string }; Returns: boolean }
+      is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
-      is_site_member: {
-        Args: { p_roles?: string[]; p_site_id: string }
-        Returns: boolean
-      }
     }
     Enums: {
       asset_category:
@@ -4818,6 +4927,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       asset_category: [
