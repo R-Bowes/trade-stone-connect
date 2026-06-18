@@ -72,11 +72,23 @@ function CheckoutForm({
     try {
       const { data: quote } = await supabase
         .from("issued_quotes")
-        .select("contractor_id, recipient_id, title, client_address")
+        .select("contractor_id, recipient_id, title, client_address, enquiry_id")
         .eq("id", quoteId)
         .single();
 
       if (quote) {
+        let company_id: string | null = null;
+        let site_id: string | null = null;
+        let asset_id: string | null = null;
+        if (quote.enquiry_id) {
+          const { data: enq } = await supabase
+            .from("enquiries")
+            .select("company_id, site_id, asset_id")
+            .eq("id", quote.enquiry_id)
+            .maybeSingle();
+          if (enq) { company_id = enq.company_id; site_id = enq.site_id; asset_id = enq.asset_id; }
+        }
+
         const { error: jobError } = await supabase.from("jobs").insert({
           contractor_id: quote.contractor_id,
           customer_id: quote.recipient_id,
@@ -85,6 +97,9 @@ function CheckoutForm({
           location: quote.client_address ?? null,
           status: "scheduled",
           contract_value: totalAmount,
+          company_id,
+          site_id,
+          asset_id,
         });
 
         if (jobError) {

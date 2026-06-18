@@ -144,6 +144,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       const { error: quoteError } = await supabase.from("issued_quotes").insert({
         contractor_id: contractorProfile.id,
         recipient_id: recipientId,
+        enquiry_id: enquiry.id,
         client_name: enquiry.customer_name ?? "",
         client_email: enquiry.customer_email ?? "",
         client_phone: enquiry.customer_phone ?? null,

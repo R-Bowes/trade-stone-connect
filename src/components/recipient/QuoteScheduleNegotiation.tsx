@@ -100,10 +100,22 @@ export function QuoteScheduleNegotiation({
     try {
       const { data: quote, error: quoteError } = await supabase
         .from("issued_quotes")
-        .select("contractor_id, recipient_id, title, client_address, total")
+        .select("contractor_id, recipient_id, title, client_address, total, enquiry_id")
         .eq("id", quoteId)
         .single();
       if (quoteError || !quote) throw quoteError ?? new Error("Quote not found");
+
+      let company_id: string | null = null;
+      let site_id: string | null = null;
+      let asset_id: string | null = null;
+      if (quote.enquiry_id) {
+        const { data: enq } = await supabase
+          .from("enquiries")
+          .select("company_id, site_id, asset_id")
+          .eq("id", quote.enquiry_id)
+          .maybeSingle();
+        if (enq) { company_id = enq.company_id; site_id = enq.site_id; asset_id = enq.asset_id; }
+      }
 
       // Extract start_date from the confirmed proposal if one exists
       const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
@@ -118,6 +130,9 @@ export function QuoteScheduleNegotiation({
         status: "scheduled",
         contract_value: quote.total,
         start_date: startDate,
+        company_id,
+        site_id,
+        asset_id,
       });
       if (jobError) throw jobError;
 
