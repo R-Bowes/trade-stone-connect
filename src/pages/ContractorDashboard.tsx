@@ -684,19 +684,7 @@ const ContractorDashboard = () => {
           <TabsContent value="clients"><CRMManagement /></TabsContent>
           <TabsContent value="settings"><ProfileManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
-          <TabsContent
-            value="canvas-editor"
-            style={{
-              height: "100%",
-              padding: 0,
-              marginLeft: "calc(50% - 50vw)",
-              marginRight: "calc(50% - 50vw)",
-              width: "100vw",
-              maxWidth: "100vw",
-            }}
-          >
-            <CanvasEditor />
-          </TabsContent>
+          <TabsContent value="canvas-editor" style={{ height: "100%", padding: 0 }}><CanvasEditor /></TabsContent>
           <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
 
