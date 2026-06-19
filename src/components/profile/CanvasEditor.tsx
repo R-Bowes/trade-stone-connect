@@ -944,9 +944,13 @@ function EditPanel(props: EditPanelProps) {
         {section && def?.deletable && (
           <button
             onClick={() => onDeleteSection(section.id)}
-            style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, padding: "9px 12px", cursor: "pointer", fontFamily: "inherit" }}
+            title="Delete section"
+            aria-label="Delete section"
+            style={{ width: 36, height: 36, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "white", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", transition: "color 0.15s, border-color 0.15s, background 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#6b7280"; e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.background = "white"; }}
           >
-            <i className="ti ti-trash" style={{ fontSize: 14 }} />
+            <i className="ti ti-trash" style={{ fontSize: 15 }} />
           </button>
         )}
       </div>
@@ -1140,6 +1144,9 @@ export function CanvasEditor() {
     saveDraft, publish,
   } = useProfileEditor();
 
+  const gallerySections = draft.sections.filter(s => s.type === "gallery");
+  const projectSections = draft.sections.filter(s => s.type === "project");
+
   const { galleries, addGallery, updateGallery, deleteGallery } = usePhotoGalleries();
   const { projects, addProject, updateProject, deleteProject } = useContractorProjects();
   const { members, addMember, deleteMember } = useContractorTeam();
@@ -1225,6 +1232,10 @@ export function CanvasEditor() {
   const handleDeleteSection = useCallback(async (id: string) => {
     const section = draft.sections.find(s => s.id === id);
     if (!section) return;
+    const confirmed = window.confirm(
+      `Delete "${section.label}"? This removes the section from your profile${section.type === "gallery" ? " and deletes its photos" : ""}. This can't be undone.`
+    );
+    if (!confirmed) return;
     if (section.type === "gallery" && section.sectionRefId) {
       try { await deleteGallery(section.sectionRefId); } catch (_) { /* non-fatal */ }
     }
@@ -1232,24 +1243,34 @@ export function CanvasEditor() {
     if (activeId === id) setActiveId(null);
   }, [draft.sections, removeSection, deleteGallery, activeId]);
 
+  const focusSection = (sectionId: string) => {
+    setActiveId(sectionId);
+    requestAnimationFrame(() => {
+      document.getElementById(`canvas-block-${sectionId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
   const handleAddGallery = useCallback(async () => {
-    if (addingGallery) return;
+    if (addingGallery || gallerySections.length >= 3) return;
     setAddingGallery(true);
     try {
       const galleryId = await addGallery("New gallery");
       if (galleryId) {
-        addSection("gallery", galleryId, "New gallery");
+        const newSectionId = addSection("gallery", galleryId, "New gallery");
+        focusSection(newSectionId);
       }
     } catch (err) {
       console.error("Failed to add gallery:", err);
     } finally {
       setAddingGallery(false);
     }
-  }, [addGallery, addSection, addingGallery]);
+  }, [addGallery, addSection, addingGallery, gallerySections.length]);
 
   const handleAddProject = useCallback(() => {
-    addSection("project", undefined, "Project showcase");
-  }, [addSection]);
+    if (projectSections.length >= 3) return;
+    const newSectionId = addSection("project", undefined, "Project showcase");
+    focusSection(newSectionId);
+  }, [addSection, projectSections.length]);
 
   if (loading) {
     return (

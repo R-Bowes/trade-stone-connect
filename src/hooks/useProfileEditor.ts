@@ -271,16 +271,18 @@ export function useProfileEditor() {
   }, []);
 
   // Adds a repeatable section (gallery/project) before the CTA block.
+  // Returns the new section's id so callers can select/scroll to it.
   const addSection = useCallback((
     type: RepeatableSectionKey,
     sectionRefId?: string,
     label?: string,
-  ) => {
+  ): string => {
+    const newId = crypto.randomUUID();
     setDraft(prev => {
       const withoutCta = prev.sections.filter(s => s.type !== "cta");
       const cta = prev.sections.find(s => s.type === "cta");
       const newSec: SectionInstance = {
-        id: crypto.randomUUID(),
+        id: newId,
         type,
         is_enabled: true,
         display_order: withoutCta.length,
@@ -295,6 +297,7 @@ export function useProfileEditor() {
       ];
       return { ...prev, sections: updated.map((s, i) => ({ ...s, display_order: i })) };
     });
+    return newId;
   }, []);
 
   const removeSection = useCallback((id: string) => {

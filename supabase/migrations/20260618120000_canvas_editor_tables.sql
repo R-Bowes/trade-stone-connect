@@ -23,7 +23,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS profiles_vanity_slug_idx
 ALTER TABLE profile_widgets
   ADD COLUMN IF NOT EXISTS label text;
 
--- ── contractor_projects ──────────────────────────────────────────────────────
+-- contractor_projects
 -- Portfolio showcases (max 3 enforced in app). contractor_id -> profiles(id).
 CREATE TABLE IF NOT EXISTS contractor_projects (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,21 +41,19 @@ CREATE TABLE IF NOT EXISTS contractor_projects (
 
 ALTER TABLE contractor_projects ENABLE ROW LEVEL SECURITY;
 
--- Everyone can read; only the owning contractor can write.
--- contractor_id references profiles(id) and profiles.id = auth.uid() for the owner.
 CREATE POLICY "contractor_projects: public read"
   ON contractor_projects FOR SELECT USING (true);
 
 CREATE POLICY "contractor_projects: owner write"
   ON contractor_projects FOR ALL
-  USING     (contractor_id = auth.uid())
-  WITH CHECK (contractor_id = auth.uid());
+  USING     (contractor_id IN (SELECT id FROM profiles WHERE user_id = auth.uid()))
+  WITH CHECK (contractor_id IN (SELECT id FROM profiles WHERE user_id = auth.uid()));
 
-GRANT SELECT             ON contractor_projects TO anon, authenticated;
+GRANT SELECT ON contractor_projects TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON contractor_projects TO authenticated;
-GRANT ALL                ON contractor_projects TO service_role;
+GRANT ALL ON contractor_projects TO service_role;
 
--- ── contractor_photo_galleries ───────────────────────────────────────────────
+-- contractor_photo_galleries
 -- Named photo galleries (max 3 enforced in app). contractor_id -> profiles(id).
 CREATE TABLE IF NOT EXISTS contractor_photo_galleries (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,14 +71,14 @@ CREATE POLICY "contractor_photo_galleries: public read"
 
 CREATE POLICY "contractor_photo_galleries: owner write"
   ON contractor_photo_galleries FOR ALL
-  USING     (contractor_id = auth.uid())
-  WITH CHECK (contractor_id = auth.uid());
+  USING     (contractor_id IN (SELECT id FROM profiles WHERE user_id = auth.uid()))
+  WITH CHECK (contractor_id IN (SELECT id FROM profiles WHERE user_id = auth.uid()));
 
-GRANT SELECT             ON contractor_photo_galleries TO anon, authenticated;
+GRANT SELECT ON contractor_photo_galleries TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON contractor_photo_galleries TO authenticated;
-GRANT ALL                ON contractor_photo_galleries TO service_role;
+GRANT ALL ON contractor_photo_galleries TO service_role;
 
--- ── contractor_photos: add gallery_id ───────────────────────────────────────
+-- contractor_photos: add gallery_id
 -- ON DELETE SET NULL: deleting a gallery orphans its photos rather than
 -- cascade-deleting them, so the contractor doesn't lose uploaded files.
 ALTER TABLE contractor_photos
