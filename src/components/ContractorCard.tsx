@@ -20,19 +20,6 @@ export interface ContractorCardData {
   isNew: boolean;
 }
 
-const TRADE_ABBREV: Record<string, string> = {
-  Electrical: "ELEC",
-  Plumbing: "PLMB",
-  Roofing: "ROOF",
-  Carpentry: "CARP",
-  Painting: "DECO",
-  "General Building": "BUILD",
-  Plastering: "PLST",
-  Tiling: "TILE",
-  Landscaping: "LAND",
-  Heating: "HVAC",
-};
-
 function getInitials(name: string | null | undefined) {
   if (!name) return "?";
   return name
@@ -41,10 +28,6 @@ function getInitials(name: string | null | undefined) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-}
-
-function getTradeAbbrev(trade: string) {
-  return TRADE_ABBREV[trade] ?? trade.slice(0, 4).toUpperCase();
 }
 
 function RecentJobsStrip({
@@ -143,7 +126,6 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
           )}
         </div>
         <div style={styles.headerRight}>
-          <div style={styles.tradeBadge}>{getTradeAbbrev(contractor.primaryTrade)}</div>
           {contractor.verified && (
             <div style={styles.verifiedRow}>
               <span style={styles.verifiedDot} />
@@ -266,15 +248,6 @@ const styles: Record<string, React.CSSProperties> = {
   headerSub: {
     fontSize: 9,
     color: "rgba(255,255,255,0.85)",
-  },
-  tradeBadge: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "#f07820",
-    background: "#fff",
-    borderRadius: 4,
-    padding: "2px 6px",
-    letterSpacing: "0.5px",
   },
   verifiedRow: {
     display: "flex",
