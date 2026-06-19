@@ -655,12 +655,58 @@ export type Database = {
           },
         ]
       }
+      contractor_photo_galleries: {
+        Row: {
+          contractor_id: string
+          created_at: string | null
+          display_order: number
+          id: string
+          is_enabled: boolean
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          title?: string
+          updated_at?: string | null
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_photo_galleries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_photo_galleries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_photos: {
         Row: {
           contractor_id: string
           created_at: string
           description: string | null
           display_order: number
+          gallery_id: string | null
           id: string
           is_featured: boolean
           photo_url: string
@@ -673,6 +719,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          gallery_id?: string | null
           id?: string
           is_featured?: boolean
           photo_url: string
@@ -685,6 +732,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          gallery_id?: string | null
           id?: string
           is_featured?: boolean
           photo_url?: string
@@ -706,6 +754,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contractor_photos_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_photo_galleries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_projects: {
+        Row: {
+          completed_date: string | null
+          contractor_id: string
+          created_at: string | null
+          description: string | null
+          display_order: number
+          id: string
+          photos: string[] | null
+          title: string
+          updated_at: string | null
+          value_label: string | null
+        }
+        Insert: {
+          completed_date?: string | null
+          contractor_id: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          photos?: string[] | null
+          title: string
+          updated_at?: string | null
+          value_label?: string | null
+        }
+        Update: {
+          completed_date?: string | null
+          contractor_id?: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          photos?: string[] | null
+          title?: string
+          updated_at?: string | null
+          value_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_projects_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_projects_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2613,6 +2722,12 @@ export type Database = {
           display_order: number
           id: string
           is_enabled: boolean
+          is_published: boolean
+          label: string | null
+          meta: Json | null
+          published_order: number | null
+          section_instance_id: string | null
+          section_ref_id: string | null
           updated_at: string | null
           widget_key: string
         }
@@ -2622,6 +2737,12 @@ export type Database = {
           display_order?: number
           id?: string
           is_enabled?: boolean
+          is_published?: boolean
+          label?: string | null
+          meta?: Json | null
+          published_order?: number | null
+          section_instance_id?: string | null
+          section_ref_id?: string | null
           updated_at?: string | null
           widget_key: string
         }
@@ -2631,6 +2752,12 @@ export type Database = {
           display_order?: number
           id?: string
           is_enabled?: boolean
+          is_published?: boolean
+          label?: string | null
+          meta?: Json | null
+          published_order?: number | null
+          section_instance_id?: string | null
+          section_ref_id?: string | null
           updated_at?: string | null
           widget_key?: string
         }
@@ -2654,12 +2781,16 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          availability_heading: string | null
           avatar_url: string | null
           bio: string | null
+          bio_heading: string | null
           company_name: string | null
           completed_jobs: number | null
           cover_url: string | null
           created_at: string
+          credentials_heading: string | null
+          cta_label: string | null
           email: string | null
           full_name: string | null
           hourly_rate: number | null
@@ -2672,29 +2803,46 @@ export type Database = {
           onboarding_completed: boolean | null
           onboarding_completed_at: string | null
           phone: string | null
+          profile_is_published: boolean
+          profile_published_at: string | null
+          profile_seo_description: string | null
+          profile_seo_title: string | null
+          profile_vanity_slug: string | null
+          profile_visibility_public: boolean
           rating: number | null
           review_count: number | null
+          reviews_heading: string | null
+          seo_description: string | null
+          seo_title: string | null
+          services_heading: string | null
           stripe_account_id: string | null
+          team_heading: string | null
           trades: string[] | null
           ts_profile_code: string | null
           updated_at: string
           user_id: string
           user_type: Database["public"]["Enums"]["user_type"]
+          vanity_slug: string | null
           vat_number: string | null
           vat_registered: boolean | null
           vat_registration_date: string | null
+          visibility_public: boolean
           website: string | null
           working_radius: string | null
           years_experience: number | null
         }
         Insert: {
           address?: string | null
+          availability_heading?: string | null
           avatar_url?: string | null
           bio?: string | null
+          bio_heading?: string | null
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
           created_at?: string
+          credentials_heading?: string | null
+          cta_label?: string | null
           email?: string | null
           full_name?: string | null
           hourly_rate?: number | null
@@ -2707,29 +2855,46 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           phone?: string | null
+          profile_is_published?: boolean
+          profile_published_at?: string | null
+          profile_seo_description?: string | null
+          profile_seo_title?: string | null
+          profile_vanity_slug?: string | null
+          profile_visibility_public?: boolean
           rating?: number | null
           review_count?: number | null
+          reviews_heading?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          services_heading?: string | null
           stripe_account_id?: string | null
+          team_heading?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          vanity_slug?: string | null
           vat_number?: string | null
           vat_registered?: boolean | null
           vat_registration_date?: string | null
+          visibility_public?: boolean
           website?: string | null
           working_radius?: string | null
           years_experience?: number | null
         }
         Update: {
           address?: string | null
+          availability_heading?: string | null
           avatar_url?: string | null
           bio?: string | null
+          bio_heading?: string | null
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
           created_at?: string
+          credentials_heading?: string | null
+          cta_label?: string | null
           email?: string | null
           full_name?: string | null
           hourly_rate?: number | null
@@ -2742,17 +2907,30 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           phone?: string | null
+          profile_is_published?: boolean
+          profile_published_at?: string | null
+          profile_seo_description?: string | null
+          profile_seo_title?: string | null
+          profile_vanity_slug?: string | null
+          profile_visibility_public?: boolean
           rating?: number | null
           review_count?: number | null
+          reviews_heading?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          services_heading?: string | null
           stripe_account_id?: string | null
+          team_heading?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
           updated_at?: string
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]
+          vanity_slug?: string | null
           vat_number?: string | null
           vat_registered?: boolean | null
           vat_registration_date?: string | null
+          visibility_public?: boolean
           website?: string | null
           working_radius?: string | null
           years_experience?: number | null

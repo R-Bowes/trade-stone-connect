@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "clients", label: "CRM", icon: "ti-address-book" },
       { value: "photos", label: "Photos", icon: "ti-photo" },
       { value: "documents", label: "Documents", icon: "ti-files" },
-      { value: "profile-editor", label: "Profile editor", icon: "ti-layout-columns" },
+      { value: "canvas-editor", label: "Profile editor", icon: "ti-layout-columns" },
     ],
   },
 ];
@@ -81,6 +81,7 @@ const VIEW_LABELS: Record<string, string> = {
   photos: "Photos",
   documents: "Documents",
   profile: "Profile",
+  "canvas-editor": "Profile Editor",
   "profile-editor": "Profile Editor",
 };
 

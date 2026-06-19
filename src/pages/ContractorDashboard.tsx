@@ -20,6 +20,7 @@ import ContractorLayout from "@/components/ContractorLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { ProfileEditor } from "@/components/management/ProfileEditor";
+import { CanvasEditor } from "@/components/profile/CanvasEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
@@ -683,6 +684,7 @@ const ContractorDashboard = () => {
           <TabsContent value="clients"><CRMManagement /></TabsContent>
           <TabsContent value="settings"><ProfileManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
+          <TabsContent value="canvas-editor" style={{ height: "100%", padding: 0 }}><CanvasEditor /></TabsContent>
           <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
 
