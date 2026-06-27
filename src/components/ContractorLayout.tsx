@@ -85,6 +85,25 @@ const VIEW_LABELS: Record<string, string> = {
   "profile-editor": "Profile Editor",
 };
 
+const VIEW_SUBTITLES: Record<string, string> = {
+  dashboard: "Your business at a glance",
+  enquiries: "Review new requests, send a quote or ask for more details before committing",
+  "issued-quotes": "Chase outstanding quotes or review what's been accepted",
+  jobs: "Move jobs through stages, assign team members and message clients",
+  projects: "Track multi-stage work, manage proposals and monitor budgets",
+  contracts: "View contract terms, renewal dates and linked service visits",
+  "panel-invites": "Accept or decline invitations to join a business's contractor panel",
+  schedule: "See what's coming up and block time off to manage your availability",
+  "service-visits": "Log visit outcomes, upload photos and mark visits complete",
+  team: "Add team members, set their role and daily rate",
+  timesheets: "Review hours logged by you and your team against each job",
+  invoices: "Send invoices, track what's paid and chase outstanding amounts",
+  financials: "See your earnings over time and understand where your money is coming from",
+  clients: "Keep track of clients, note key contacts and log important conversations",
+  photos: "Browse job photos by project or upload new ones from site",
+  documents: "Store and share certificates, contracts and compliance documents",
+};
+
 interface ContractorLayoutProps {
   children: React.ReactNode;
 }
@@ -150,6 +169,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
     : "—";
 
   const currentTitle = VIEW_LABELS[activeView] ?? "Dashboard";
+  const currentSubtitle = VIEW_SUBTITLES[activeView];
 
   return (
     <>
@@ -457,13 +477,29 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
               <i className="ti ti-menu" style={{ fontSize: 22 }} />
             </button>
           )}
-          <h1
-            className="font-heading text-2xl font-bold"
-            data-tour="dashboard-header"
-            style={{ margin: 0 }}
-          >
-            {currentTitle}
-          </h1>
+          <div>
+            <h1
+              className="font-heading text-2xl font-bold"
+              data-tour="dashboard-header"
+              style={{ margin: 0 }}
+            >
+              {currentTitle}
+            </h1>
+            {currentSubtitle && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.8rem",
+                  color: "#6b7280",
+                  fontFamily: "Lexend, sans-serif",
+                  fontWeight: 400,
+                  lineHeight: 1.4,
+                }}
+              >
+                {currentSubtitle}
+              </p>
+            )}
+          </div>
         </div>
         <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
       </div>
