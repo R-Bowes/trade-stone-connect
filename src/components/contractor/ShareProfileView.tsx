@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
+import BusinessCardEditor from "./BusinessCardEditor";
 
 interface ProfileData {
   tsCode: string;
   fullName: string;
   trade: string;
+  location: string;
+  logoUrl: string;
 }
 
 const QR_OPTIONS = {
@@ -31,7 +34,7 @@ const ShareProfileView = () => {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("ts_profile_code, full_name, trades")
+        .select("ts_profile_code, full_name, trades, location, logo_url")
         .eq("user_id", user.id)
         .single();
       if (data) {
@@ -39,6 +42,8 @@ const ShareProfileView = () => {
           tsCode: data.ts_profile_code ?? "",
           fullName: data.full_name ?? "",
           trade: data.trades && data.trades.length > 0 ? data.trades[0] : "Contractor",
+          location: data.location ?? "",
+          logoUrl: data.logo_url ?? "",
         });
       }
       setLoading(false);
@@ -331,23 +336,18 @@ const ShareProfileView = () => {
         }}
       >
         {/* Card 1 — Business card template */}
-        <div style={cardStyle}>
-          <i className="ti ti-id-badge-2" style={{ fontSize: 24, color: "#1a2744" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ ...cardStyle, gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <i className="ti ti-id-badge-2" style={{ fontSize: 24, color: "#1a2744" }} />
             <span style={cardTitleStyle}>Business card template</span>
-            <span style={pillBadgeStyle}>Coming soon</span>
           </div>
-          <p style={cardDescriptionStyle}>
-            Print-ready PDF with your name, trade, TS code, and QR code. A6 format with bleed marks included.
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button style={primaryButtonStyle} onClick={() => console.log("Coming soon")}>
-              Download PDF
-            </button>
-            <button style={secondaryButtonStyle} onClick={() => console.log("Coming soon")}>
-              Open in Canva
-            </button>
-          </div>
+          <BusinessCardEditor
+            tsCode={tsCode}
+            fullName={profile?.fullName ?? ""}
+            trade={profile?.trade ?? ""}
+            location={profile?.location ?? ""}
+            logoUrl={profile?.logoUrl}
+          />
         </div>
 
         {/* Card 2 — Van sticker */}
