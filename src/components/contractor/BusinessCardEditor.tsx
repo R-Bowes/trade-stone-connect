@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import jsPDF from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BusinessCardEditorProps {
+  tsCode?: string;
+  fullName?: string;
+  trade?: string;
+  location?: string;
+  logoUrl?: string;
+}
+
+interface FetchedProfile {
   tsCode: string;
   fullName: string;
   trade: string;
   location: string;
-  logoUrl?: string;
+  logoUrl: string;
 }
 
 interface Template {
@@ -329,15 +338,58 @@ const outlineButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const BusinessCardEditor = ({ tsCode, fullName, trade, location, logoUrl }: BusinessCardEditorProps) => {
+const BusinessCardEditor = ({
+  tsCode: tsCodeProp = "",
+  fullName: fullNameProp = "",
+  trade: tradeProp = "",
+  location: locationProp = "",
+  logoUrl: logoUrlProp = "",
+}: BusinessCardEditorProps) => {
   const [activeTemplate, setActiveTemplate] = useState("navy");
   const [primaryColor, setPrimaryColor] = useState("#1a2744");
   const [tagline, setTagline] = useState("");
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [fetchedProfile, setFetchedProfile] = useState<FetchedProfile | null>(null);
 
   const frontCanvasRef = useRef<HTMLCanvasElement>(null);
   const backCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Self-fetch the contractor's profile when no props are passed in
+  // (e.g. when rendered standalone from the business-card-editor dashboard tab).
+  useEffect(() => {
+    if (tsCodeProp) return;
+    let cancelled = false;
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("ts_profile_code, full_name, trades, location, logo_url")
+        .eq("user_id", user.id)
+        .single();
+      if (data && !cancelled) {
+        setFetchedProfile({
+          tsCode: data.ts_profile_code ?? "",
+          fullName: data.full_name ?? "",
+          trade: data.trades && data.trades.length > 0 ? data.trades[0] : "Contractor",
+          location: data.location ?? "",
+          logoUrl: data.logo_url ?? "",
+        });
+      }
+    };
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const tsCode = tsCodeProp || fetchedProfile?.tsCode || "";
+  const fullName = fullNameProp || fetchedProfile?.fullName || "";
+  const trade = tradeProp || fetchedProfile?.trade || "";
+  const location = locationProp || fetchedProfile?.location || "";
+  const logoUrl = logoUrlProp || fetchedProfile?.logoUrl || "";
 
   useEffect(() => {
     if (!logoUrl) return;

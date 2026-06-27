@@ -85,6 +85,7 @@ const VIEW_LABELS: Record<string, string> = {
   "canvas-editor": "Profile Editor",
   "profile-editor": "Profile Editor",
   "share-profile": "Share profile",
+  "business-card-editor": "Business card editor",
 };
 
 const VIEW_SUBTITLES: Record<string, string> = {
@@ -105,6 +106,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   photos: "Browse job photos by project or upload new ones from site",
   documents: "Store and share certificates, contracts and compliance documents",
   "share-profile": "Download branded assets to use on your van, business cards, and emails",
+  "business-card-editor": "Design and download your branded business cards",
 };
 
 interface ContractorLayoutProps {

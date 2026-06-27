@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
-import BusinessCardEditor from "./BusinessCardEditor";
 
 interface ProfileData {
   tsCode: string;
@@ -18,6 +18,7 @@ const QR_OPTIONS = {
 };
 
 const ShareProfileView = () => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -336,18 +337,20 @@ const ShareProfileView = () => {
         }}
       >
         {/* Card 1 — Business card template */}
-        <div style={{ ...cardStyle, gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <i className="ti ti-id-badge-2" style={{ fontSize: 24, color: "#1a2744" }} />
-            <span style={cardTitleStyle}>Business card template</span>
+        <div style={cardStyle}>
+          <i className="ti ti-id-badge-2" style={{ fontSize: 24, color: "#1a2744" }} />
+          <span style={cardTitleStyle}>Business card template</span>
+          <p style={cardDescriptionStyle}>
+            Design a branded business card with your TS code and QR code. Choose from 8 templates and download as PNG or PDF.
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={primaryButtonStyle}
+              onClick={() => navigate("/dashboard/contractor?view=business-card-editor")}
+            >
+              Create business card
+            </button>
           </div>
-          <BusinessCardEditor
-            tsCode={tsCode}
-            fullName={profile?.fullName ?? ""}
-            trade={profile?.trade ?? ""}
-            location={profile?.location ?? ""}
-            logoUrl={profile?.logoUrl}
-          />
         </div>
 
         {/* Card 2 — Van sticker */}
