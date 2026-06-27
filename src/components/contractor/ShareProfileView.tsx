@@ -31,12 +31,12 @@ const ShareProfileView = () => {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, trades")
+        .select("ts_profile_code, full_name, trades")
         .eq("user_id", user.id)
         .single();
       if (data) {
         setProfile({
-          tsCode: data.id,
+          tsCode: data.ts_profile_code ?? "",
           fullName: data.full_name ?? "",
           trade: data.trades && data.trades.length > 0 ? data.trades[0] : "Contractor",
         });
