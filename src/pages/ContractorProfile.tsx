@@ -649,13 +649,13 @@ const ContractorProfile = () => {
 
   const handleEnquire = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/auth"); return; }
+    if (!user) { navigate(`/auth?returnTo=${encodeURIComponent(window.location.pathname)}`); return; }
     setIsQuoteOpen(true);
   };
 
   const handleMessage = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/auth"); return; }
+    if (!user) { navigate(`/auth?returnTo=${encodeURIComponent(window.location.pathname)}`); return; }
     if (!profile?.user_id) return;
     setIsMessageOpen(true);
   };

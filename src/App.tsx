@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Contractors from "./pages/Contractors";
@@ -39,6 +39,11 @@ import InvitePage from "./pages/InvitePage";
 
 const queryClient = new QueryClient();
 
+const RedirectToContractor = () => {
+  const { code } = useParams<{ code: string }>();
+  return <Navigate to={`/contractor/${code}`} replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -51,6 +56,7 @@ const App = () => (
           <Route path="/contractors" element={<Contractors />} />
           <Route path="/contracts" element={<Contracts />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/c/:code" element={<RedirectToContractor />} />
           <Route path="/contractor/:code" element={<ContractorProfile />} />
           <Route path="/hire/:slug" element={<ContractorProfile />} />
           <Route path="/business" element={<BusinessManagement />} />

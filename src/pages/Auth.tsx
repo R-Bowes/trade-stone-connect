@@ -38,6 +38,9 @@ const Auth = () => {
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
   const captchaEnabled = false;
 
+  const returnToParam = new URLSearchParams(location.search).get("returnTo");
+  const safeReturnTo = returnToParam && returnToParam.startsWith("/") ? returnToParam : null;
+
   const accountTypeDetails: Record<
     "personal" | "business" | "contractor",
     { title: string; description: string }
@@ -111,7 +114,7 @@ const Auth = () => {
           title: "Welcome back!",
           description: "You have been logged in successfully.",
         });
-        navigate("/dashboard");
+        navigate(safeReturnTo ?? "/dashboard");
       }
     } catch {
       toast({
@@ -176,7 +179,7 @@ const Auth = () => {
             : "Please check your email to verify your account.",
         });
         if (userType === "contractor") {
-          navigate("/onboarding/contractor");
+          navigate(safeReturnTo ?? "/onboarding/contractor");
         }
       }
     } catch {
