@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Contractors from "./pages/Contractors";
@@ -44,12 +45,29 @@ const RedirectToContractor = () => {
   return <Navigate to={`/contractor/${code}`} replace />;
 };
 
+function usePageTracking() {
+  const location = useLocation();
+  useEffect(() => {
+    if (typeof window.gtag !== "undefined") {
+      window.gtag("config", "G-67CCVE770P", {
+        page_path: location.pathname + location.search,
+      });
+    }
+  }, [location]);
+}
+
+const PageTracker = () => {
+  usePageTracking();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <PageTracker />
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />
