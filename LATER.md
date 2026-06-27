@@ -163,11 +163,372 @@ high-value add.
 - **Homeowner job history** + **warranty tracking** (warranty start date ties
   to the completion PDF above).
 
-## Materials marketplace
-- **Materials / equipment marketplace** — deferred. Different product surface
-  (sellers, listings, own trust/payment flow), distracts from the core loop.
-  The existing materials page is hidden/quiet for now; the "marketplace" that
-  matters near-term is contractor discovery, not C2C materials.
+## Materials Marketplace
+
+**Status:** Designed, not built. Build only after B2B/FM wedge is validated
+with paying customers. Schema must NOT be pushed to Supabase until build begins.
+
+**What it is**
+A two-sided marketplace for trade materials and supplies sitting inside
+TradeStone. Sellers list materials; buyers (contractors, homeowners, businesses)
+purchase them. Distinct from the Hire page (which finds people) — this finds
+things.
+
+**The differentiated angle**
+Contractors regularly have surplus materials after a job — unopened packs of
+tiles, unused plasterboard, leftover conduit. Currently sold on Facebook
+Marketplace with zero trust signals. A TradeStone-native listing carries the
+seller's TS code, verified trade status, and job history. That trust layer
+cannot be replicated on any general marketplace.
+
+---
+
+### Seller types (three tiers, phased)
+
+**Phase 1 — Contractor surplus (build this first)**
+Any verified contractor (TS-C code) can list items they no longer need.
+Optionally linkable to a job (`job_id`) for provenance context ("leftover
+from a loft conversion"). No separate onboarding — they already have a
+TradeStone account and Stripe Connect set up.
+
+**Phase 2 — Business/FM clearance**
+Business accounts (TS-B codes) can list bulk clearance from sites or asset
+disposals. Same listing flow as contractor surplus. Lot listings (entire
+quantity must go together) supported.
+
+**Phase 3 — Retail outlets / trade merchants**
+Screwfix-type retailers, trade counters, independent merchants listing new
+stock. Completely separate commercial relationship — requires merchant
+onboarding flow, VAT handling, delivery/click-and-collect logistics, and a
+supplier agreement. Do NOT build until Phase 1 is proven and there is volume
+to offer merchants. Schema accommodates Phase 3 via `seller_type` field but
+no UI or onboarding for retail until then.
+
+---
+
+### Listing taxonomy
+
+Every listing has two classification fields — never conflate them into a
+single "condition" dropdown.
+
+**`condition`** (enum)
+- `new_sealed` — unopened, in original packaging
+- `new_opened` — unused but packaging opened or damaged
+- `part_used` — some consumed, remainder available (e.g. half a roll of
+  cable, part bag of cement)
+- `used_good` — used, good working order, no significant damage
+- `used_fair` — used, some wear or cosmetic damage, fully functional
+
+**`source_type`** (enum)
+- `retail` — sold by a retail/merchant account (Phase 3 only)
+- `surplus` — contractor unused stock from a job or overorder
+- `clearance` — end-of-project lot, site clearance, or asset disposal
+
+Both fields display on every card and listing detail: e.g. "New (sealed) ·
+Surplus" or "Part used · Surplus".
+
+---
+
+### Listing fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | text | Short and specific ("Dulux Trade Matt 10L White x3 tins") |
+| `description` | text | Condition context, reason for sale, any defects |
+| `category` | enum | See category tree below |
+| `condition` | enum | See taxonomy above |
+| `source_type` | enum | See taxonomy above |
+| `quantity` | numeric | Available quantity |
+| `unit` | enum | `each`, `m`, `m2`, `m3`, `kg`, `tonne`, `litre`, `pack`, `pallet`, `lot` |
+| `price` | numeric(10,2) | GBP. For `lot` listings, single price for entire quantity |
+| `is_lot` | boolean | true = entire quantity must be purchased together |
+| `negotiable` | boolean | Seller open to offers |
+| `location_postcode` | text | Area only. Full address shared only after purchase confirmed |
+| `photos` | — | Min 1, max 10. Storage bucket: `marketplace-photos` |
+| `job_id` | uuid FK | Optional. Links to `jobs.id` for provenance ("from job TS-J-xxxxx") |
+| `seller_id` | uuid FK | References `profiles(id)` |
+| `seller_type` | enum | `contractor`, `business`, `retail` |
+| `status` | enum | `draft`, `active`, `reserved`, `sold`, `removed` |
+| `expires_at` | timestamptz | Auto-set 90 days from publish. Seller prompted to renew or remove |
+
+---
+
+### Category tree (top level — subcategories at build time)
+
+Electrical · Plumbing & heating · Groundworks & drainage · Timber & sheet
+materials · Insulation · Plastering & drylining · Roofing · Fixings &
+fasteners · Tools & equipment · Flooring · Tiles & adhesives · Painting &
+decorating · Doors, windows & ironmongery · General building materials · Other
+
+---
+
+### Schema (DO NOT RUN — for reference at build time only)
+
+```sql
+-- Marketplace listings
+CREATE TABLE marketplace_listings (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id       uuid NOT NULL REFERENCES profiles(id),
+  seller_type     text NOT NULL CHECK (seller_type IN ('contractor','business','retail')),
+  title           text NOT NULL,
+  description     text,
+  category        text NOT NULL,
+  condition       text NOT NULL CHECK (condition IN (
+                    'new_sealed','new_opened','part_used','used_good','used_fair'
+                  )),
+  source_type     text NOT NULL CHECK (source_type IN ('retail','surplus','clearance')),
+  quantity        numeric NOT NULL,
+  unit            text NOT NULL CHECK (unit IN (
+                    'each','m','m2','m3','kg','tonne','litre','pack','pallet','lot'
+                  )),
+  price           numeric(10,2) NOT NULL,
+  is_lot          boolean NOT NULL DEFAULT false,
+  negotiable      boolean NOT NULL DEFAULT false,
+  location_postcode text,
+  job_id          uuid REFERENCES jobs(id),
+  status          text NOT NULL DEFAULT 'draft' CHECK (status IN (
+                    'draft','active','reserved','sold','removed'
+                  )),
+  expires_at      timestamptz,
+  created_at      timestamptz DEFAULT now(),
+  updated_at      timestamptz DEFAULT now()
+);
+
+-- Listing photos (multiple per listing)
+CREATE TABLE marketplace_listing_photos (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id      uuid NOT NULL REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+  storage_path    text NOT NULL,
+  display_order   int NOT NULL DEFAULT 0,
+  created_at      timestamptz DEFAULT now()
+);
+
+-- Orders (buyer purchases a listing)
+CREATE TABLE marketplace_orders (
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id               uuid NOT NULL REFERENCES marketplace_listings(id),
+  buyer_id                 uuid NOT NULL REFERENCES profiles(id),
+  quantity_purchased       numeric NOT NULL,
+  amount_paid              numeric(10,2) NOT NULL,
+  stripe_payment_intent_id text,
+  status                   text NOT NULL DEFAULT 'pending' CHECK (status IN (
+                             'pending','paid','collection_arranged','completed',
+                             'refunded','disputed'
+                           )),
+  created_at               timestamptz DEFAULT now(),
+  updated_at               timestamptz DEFAULT now()
+);
+```
+
+---
+
+### UI components to build
+
+**Marketplace browse page** (replace existing placeholder page)
+Search + category filter + condition filter + distance radius filter.
+Card grid: lead photo, title, condition+source badge pair, price, seller TS
+code + trade badge, location area, posted date. Sort: newest / price asc /
+price desc / nearest.
+
+**Listing detail page**
+Photo gallery (swipeable), full condition+source display, seller identity card
+(TS code, trade, rating, job count — links to public profile), optional job
+provenance link, price/quantity/unit, "Make an offer" button if negotiable,
+"Buy now" → Stripe payment flow.
+
+**Create listing flow** (contractor/business dashboard — multi-step)
+Step 1: Category + condition + source type
+Step 2: Title, description, quantity, unit, price, negotiable toggle, lot toggle
+Step 3: Photos (min 1 required)
+Step 4: Location postcode, optional job link, expiry acknowledgement
+Step 5: Preview + publish
+
+**My listings** (dashboard section)
+Tabs: Active / Reserved / Sold / Expired. Renew / edit / remove actions per
+listing. Order notification on purchase.
+
+---
+
+### Payment model
+Stripe Connect destination charge — same pattern as job payments.
+Platform fee: 5% (higher than job payments — lower relationship value, higher
+dispute risk on physical goods).
+Buyer protection: 48-hour dispute window after collection confirmed.
+No physical fulfilment handling by TradeStone — collection or local delivery
+arranged directly between buyer and seller.
+
+---
+
+### Explicitly out of scope until Phase 3
+- Delivery/logistics integration
+- Retail outlet onboarding and merchant agreements
+- VAT invoice generation for merchant sales (contractor P2P surplus sales
+  carry no VAT obligation for non-VAT-registered sellers)
+- Product catalogue / SKU database (listings are free-text, not catalogue-matched)
+- Tool and equipment hire (separate liability model — see Tool Hire section below)
+
+---
+
+## Tool Hire & Equipment Rental
+
+**Status:** Designed, not built. Dependent on Materials Marketplace
+infrastructure being live first — shares listing browse UI, Stripe flow,
+and storage bucket patterns. Build as Phase 2 of the marketplace.
+
+**What it is**
+Contractors and businesses can list tools and equipment for short-term hire.
+Distinct from the materials marketplace (ownership transfers there; here it
+doesn't). A contractor with a £2,000 laser level sitting idle between jobs
+can earn from it. A homeowner or smaller contractor can access professional
+kit without capital outlay.
+
+**Why it's separate from materials listings**
+Hire involves: time-bounded availability, a return obligation, damage liability,
+insurance requirements, and deposit handling. None of those apply to a
+straightforward sale. Conflating hire and sale in one listing model creates
+legal ambiguity and UI confusion. Separate tables, separate flow.
+
+---
+
+### Hire listing fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | text | Specific make/model ("DeWalt DCS367 18V Reciprocating Saw") |
+| `description` | text | Condition, accessories included, collection/delivery info |
+| `category` | enum | See tool category tree below |
+| `condition` | enum | `excellent`, `good`, `fair` (simpler than materials — hire items are always used) |
+| `daily_rate` | numeric(10,2) | GBP per day |
+| `weekly_rate` | numeric(10,2) | Optional. If set, displayed alongside daily rate |
+| `deposit_amount` | numeric(10,2) | Held by TradeStone via Stripe, released on return confirmed |
+| `min_hire_days` | int | Minimum booking period (default 1) |
+| `max_hire_days` | int | Maximum continuous hire period |
+| `location_postcode` | text | Area only until booking confirmed |
+| `delivery_available` | boolean | Lister offers delivery (buyer pays delivery cost separately) |
+| `photos` | — | Min 1, max 10. Same `marketplace-photos` storage bucket |
+| `owner_id` | uuid FK | References `profiles(id)` |
+| `owner_type` | enum | `contractor`, `business` (no retail hire in Phase 1) |
+| `status` | enum | `draft`, `active`, `booked`, `unavailable`, `removed` |
+| `insurance_confirmed` | boolean | Owner confirms item is covered under their policy |
+
+---
+
+### Hire bookings
+
+| Field | Type | Notes |
+|---|---|---|
+| `listing_id` | uuid FK | References hire listing |
+| `hirer_id` | uuid FK | References `profiles(id)` |
+| `start_date` | date | Hire start |
+| `end_date` | date | Hire end (return due) |
+| `total_charged` | numeric(10,2) | Days × daily rate (or weekly rate if applicable) |
+| `deposit_held` | numeric(10,2) | Stripe hold amount |
+| `deposit_status` | enum | `held`, `released`, `forfeited` (partial or full on damage) |
+| `stripe_payment_intent_id` | text | |
+| `return_confirmed_at` | timestamptz | Set by owner on return. Triggers deposit release |
+| `damage_claimed` | boolean | Owner flagged damage on return |
+| `status` | enum | `pending`, `confirmed`, `active`, `returned`, `disputed`, `cancelled` |
+
+---
+
+### Tool category tree (top level)
+
+Power tools · Hand tools · Measuring & survey · Access & lifting · Groundworks
+& excavation · Concreting & mixing · Welding & cutting · Generators &
+compressors · Plumbing & drainage · Electrical test equipment · Cleaning &
+preparation · Other
+
+---
+
+### Schema (DO NOT RUN — for reference at build time only)
+
+```sql
+CREATE TABLE hire_listings (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id            uuid NOT NULL REFERENCES profiles(id),
+  owner_type          text NOT NULL CHECK (owner_type IN ('contractor','business')),
+  title               text NOT NULL,
+  description         text,
+  category            text NOT NULL,
+  condition           text NOT NULL CHECK (condition IN ('excellent','good','fair')),
+  daily_rate          numeric(10,2) NOT NULL,
+  weekly_rate         numeric(10,2),
+  deposit_amount      numeric(10,2) NOT NULL DEFAULT 0,
+  min_hire_days       int NOT NULL DEFAULT 1,
+  max_hire_days       int,
+  location_postcode   text,
+  delivery_available  boolean NOT NULL DEFAULT false,
+  insurance_confirmed boolean NOT NULL DEFAULT false,
+  status              text NOT NULL DEFAULT 'draft' CHECK (status IN (
+                        'draft','active','booked','unavailable','removed'
+                      )),
+  created_at          timestamptz DEFAULT now(),
+  updated_at          timestamptz DEFAULT now()
+);
+
+CREATE TABLE hire_listing_photos (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id      uuid NOT NULL REFERENCES hire_listings(id) ON DELETE CASCADE,
+  storage_path    text NOT NULL,
+  display_order   int NOT NULL DEFAULT 0,
+  created_at      timestamptz DEFAULT now()
+);
+
+CREATE TABLE hire_bookings (
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id               uuid NOT NULL REFERENCES hire_listings(id),
+  hirer_id                 uuid NOT NULL REFERENCES profiles(id),
+  start_date               date NOT NULL,
+  end_date                 date NOT NULL,
+  total_charged            numeric(10,2) NOT NULL,
+  deposit_held             numeric(10,2) NOT NULL DEFAULT 0,
+  deposit_status           text NOT NULL DEFAULT 'held' CHECK (deposit_status IN (
+                             'held','released','forfeited'
+                           )),
+  stripe_payment_intent_id text,
+  return_confirmed_at      timestamptz,
+  damage_claimed           boolean NOT NULL DEFAULT false,
+  status                   text NOT NULL DEFAULT 'pending' CHECK (status IN (
+                             'pending','confirmed','active','returned',
+                             'disputed','cancelled'
+                           )),
+  created_at               timestamptz DEFAULT now(),
+  updated_at               timestamptz DEFAULT now()
+);
+```
+
+---
+
+### Key design decisions locked
+
+**Deposit handling:** TradeStone holds the deposit via Stripe payment hold
+(not a separate charge). On `return_confirmed_at` being set by the owner,
+deposit is released automatically via Stripe. If `damage_claimed = true`,
+deposit release is paused and goes to manual dispute resolution.
+
+**Insurance:** Owner self-declares `insurance_confirmed`. TradeStone does not
+verify policies in Phase 1. This is a known risk — flagged for Phase 2 where
+verified insurance upload (policy document + expiry date) would be required
+before listing goes live.
+
+**Availability calendar:** Not a real-time calendar in Phase 1. `status =
+'booked'` blocks the listing for the booking window. Multiple concurrent
+bookings not supported until a proper availability calendar UI is built
+(Phase 2 of hire).
+
+**Platform fee:** 10% of hire charge (higher than materials sale — deposit
+handling, dispute mediation, and return coordination all add operational cost).
+Deposit itself carries no platform fee.
+
+**Explicitly out of scope until Phase 2 of hire:**
+- Delivery cost calculation or logistics integration
+- Verified insurance document upload
+- Availability calendar with date-range picker
+- Multi-item hire bundles
+- Long-term rental (>30 days — different tax/legal treatment)
+- Commercial hire companies listing fleet (separate merchant relationship)</new_string>
+</invoke>
+
 
 ## Mobile
 - **Native app (React Native)** — iOS/Android, offline timesheets/job notes,
