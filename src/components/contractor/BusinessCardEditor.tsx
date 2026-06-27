@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import jsPDF from "jspdf";
+import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
 
 interface BusinessCardEditorProps {
@@ -76,38 +77,22 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawQRPattern(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
-  const finderSize = size * 0.22;
-  const pad = size * 0.06;
-  const positions: [number, number][] = [
-    [x + pad, y + pad],
-    [x + size - pad - finderSize, y + pad],
-    [x + pad, y + size - pad - finderSize],
-  ];
-
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.fillStyle = color;
-  for (const [fx, fy] of positions) {
-    ctx.strokeRect(fx, fy, finderSize, finderSize);
-    const innerSize = finderSize * 0.4;
-    const innerOffset = (finderSize - innerSize) / 2;
-    ctx.fillRect(fx + innerOffset, fy + innerOffset, innerSize, innerSize);
-  }
-
-  const gridSize = 4;
-  const dotSize = 4;
-  const gridSpan = size * 0.4;
-  const gridStartX = x + (size - gridSpan) / 2;
-  const gridStartY = y + (size - gridSpan) / 2;
-  const step = gridSpan / gridSize;
-  for (let i = 0; i < gridSize; i++) {
-    for (let j = 0; j < gridSize; j++) {
-      if ((i + j) % 2 === 0) {
-        ctx.fillRect(gridStartX + i * step, gridStartY + j * step, dotSize, dotSize);
-      }
-    }
-  }
+async function drawRealQR(
+  ctx: CanvasRenderingContext2D,
+  url: string,
+  x: number,
+  y: number,
+  size: number,
+  darkColor: string,
+  lightColor: string
+): Promise<void> {
+  const offscreen = document.createElement("canvas");
+  await QRCode.toCanvas(offscreen, url, {
+    width: size,
+    margin: 1,
+    color: { dark: darkColor, light: lightColor },
+  });
+  ctx.drawImage(offscreen, x, y, size, size);
 }
 
 function drawInitialsAvatar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, accent: string, fullName: string) {
@@ -194,11 +179,11 @@ async function drawFront(
 
   const qrSize = 88;
   const qrX = W - 112, qrY = H - 132;
-  ctx.fillStyle = withAlpha(accent, 0.12);
+  ctx.fillStyle = bg;
   ctx.beginPath();
-  ctx.roundRect(qrX, qrY, qrSize, qrSize, 8);
+  ctx.roundRect(qrX - 4, qrY - 4, qrSize + 8, qrSize + 8, 6);
   ctx.fill();
-  drawQRPattern(ctx, qrX, qrY, qrSize, accent);
+  await drawRealQR(ctx, `https://www.tradesltd.co.uk/c/${tsCode}`, qrX, qrY, qrSize, accent, bg);
 
   ctx.textAlign = "center";
   ctx.font = "400 12px sans-serif";
@@ -214,7 +199,7 @@ async function drawFront(
   ctx.globalAlpha = prevAlpha;
 }
 
-function drawBack(
+async function drawBack(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
@@ -254,11 +239,11 @@ function drawBack(
 
   const qrSize = 124;
   const qrX = W - 180, qrY = H / 2 - 70;
-  ctx.fillStyle = "#f3f4f6";
+  ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.roundRect(qrX, qrY, qrSize, qrSize, 10);
+  ctx.roundRect(qrX - 4, qrY - 4, qrSize + 8, qrSize + 8, 8);
   ctx.fill();
-  drawQRPattern(ctx, qrX, qrY, qrSize, bg);
+  await drawRealQR(ctx, `https://www.tradesltd.co.uk/c/${tsCode}`, qrX, qrY, qrSize, bg, "#ffffff");
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#9ca3af";
@@ -430,8 +415,11 @@ const BusinessCardEditor = ({
     const W = frontCanvas.width;
     const H = frontCanvas.height;
 
-    drawFront(frontCtx, W, H, bg, accent, textColor, subColor, fullName, trade, location, tagline, tsCode, logoDataUrl);
-    drawBack(backCtx, W, H, bg, accent, textColor, subColor, tsCode);
+    const draw = async () => {
+      await drawFront(frontCtx, W, H, bg, accent, textColor, subColor, fullName, trade, location, tagline, tsCode, logoDataUrl);
+      await drawBack(backCtx, W, H, bg, accent, textColor, subColor, tsCode);
+    };
+    draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTemplate, primaryColor, tagline, logoDataUrl, tsCode, fullName, trade, location]);
 
