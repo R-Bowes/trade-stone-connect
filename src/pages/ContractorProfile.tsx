@@ -454,7 +454,8 @@ const ContractorProfile = () => {
         id, user_id, full_name, company_name, ts_profile_code,
         bio, trades, location, working_radius,
         avatar_url, logo_url, is_verified,
-        rating, review_count, completed_jobs, years_experience, hourly_rate
+        rating, review_count, completed_jobs, years_experience, hourly_rate,
+        profile_is_published, cover_url, cta_label
       `;
 
       if (code) {
@@ -490,19 +491,11 @@ const ContractorProfile = () => {
         return;
       }
 
-      // Canvas-only fields not yet exposed by public_pro_profiles — all public-facing
-      // (no PII), so reading profiles directly here is safe under current RLS.
-      const { data: canvasFields } = await (supabase as any)
-        .from("profiles")
-        .select("cover_url, profile_is_published, cta_label")
-        .eq("id", profileId)
-        .maybeSingle();
-
       const assembled: PageProfile = {
         ...(pub as any),
-        cover_url: canvasFields?.cover_url ?? null,
-        profile_is_published: canvasFields?.profile_is_published ?? false,
-        cta_label: canvasFields?.cta_label ?? null,
+        cover_url: (pub as any).cover_url ?? null,
+        profile_is_published: (pub as any).profile_is_published ?? false,
+        cta_label: (pub as any).cta_label ?? null,
       };
       setProfile(assembled);
 
