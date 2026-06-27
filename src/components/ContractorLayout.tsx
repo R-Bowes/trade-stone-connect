@@ -100,6 +100,10 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
     return localStorage.getItem("sb_collapsed") === "true";
   });
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
@@ -107,6 +111,13 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   useEffect(() => {
     localStorage.setItem("sb_collapsed", String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -124,7 +135,10 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
 
   const handleNav = (value: string) => {
     navigate(`/dashboard/contractor?view=${value}`);
+    setMobileOpen(false);
   };
+
+  const effectiveCollapsed = isMobile ? false : collapsed;
 
   const initials = profile?.full_name
     ? profile.full_name
@@ -140,17 +154,47 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   return (
     <>
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Mobile backdrop */}
+      {isMobile && mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 49,
+            background: "rgba(0,0,0,0.4)",
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        style={{
-          width: collapsed ? 52 : 220,
-          transition: "width 0.2s ease",
-          background: "#1a2744",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
+        style={
+          isMobile
+            ? {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                height: "100vh",
+                width: 280,
+                zIndex: 50,
+                transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+                transition: "transform 0.25s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }
+            : {
+                width: collapsed ? 52 : 220,
+                transition: "width 0.2s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 0,
+                overflow: "hidden",
+              }
+        }
       >
         {/* Toggle row */}
         <div
@@ -158,41 +202,64 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             padding: "12px 10px",
             display: "flex",
             alignItems: "center",
+            justifyContent: isMobile ? "flex-end" : "flex-start",
             flexShrink: 0,
           }}
         >
-          <button
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(255,255,255,0.8)",
-              padding: 4,
-              borderRadius: 4,
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-              lineHeight: 1,
-            }}
-          >
-            <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+                fontSize: 22,
+              }}
+            >
+              ×
+            </button>
+          ) : (
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+            >
+              <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
+            </button>
+          )}
         </div>
 
         {/* Profile block */}
         <div
           style={{
             borderBottom: "1px solid rgba(255,255,255,0.08)",
-            padding: collapsed ? "10px 0 12px" : "0 10px 14px",
+            padding: effectiveCollapsed ? "10px 0 12px" : "0 10px 14px",
             display: "flex",
-            flexDirection: collapsed ? "column" : "row",
+            flexDirection: effectiveCollapsed ? "column" : "row",
             alignItems: "center",
-            gap: collapsed ? 0 : 10,
+            gap: effectiveCollapsed ? 0 : 10,
             overflow: "hidden",
             flexShrink: 0,
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
           }}
         >
           {/* Avatar / logo circle */}
@@ -238,7 +305,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
               {initials}
             </div>
           )}
-          {!collapsed && profile && (
+          {!effectiveCollapsed && profile && (
             <div style={{ overflow: "hidden", minWidth: 0 }}>
               <div
                 style={{
@@ -279,7 +346,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
         >
           {NAV_GROUPS.map((group) => (
             <div key={group.group}>
-              {!collapsed && (
+              {!effectiveCollapsed && (
                 <div
                   style={{
                     padding: "8px 12px 4px",
@@ -300,14 +367,14 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                   <button
                     key={item.value}
                     onClick={() => handleNav(item.value)}
-                    title={collapsed ? item.label : undefined}
+                    title={effectiveCollapsed ? item.label : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
                       width: "100%",
-                      padding: collapsed ? "9px 0" : "7px 12px",
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      padding: effectiveCollapsed ? "9px 0" : "7px 12px",
+                      justifyContent: effectiveCollapsed ? "center" : "flex-start",
                       background: isActive
                         ? "rgba(240,120,32,0.18)"
                         : "transparent",
@@ -332,7 +399,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                       className={`ti ${item.icon}`}
                       style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}
                     />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!effectiveCollapsed && <span>{item.label}</span>}
                   </button>
                 );
               })}
@@ -340,7 +407,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           ))}
         </nav>
 
-        <SidebarHelpButton collapsed={collapsed} />
+        <SidebarHelpButton collapsed={effectiveCollapsed} />
       </aside>
 
       {/* Main column */}
@@ -351,9 +418,12 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           flexDirection: "column",
           overflow: "hidden",
           minWidth: 0,
+          width: isMobile ? "100vw" : undefined,
         }}
       >
-        <Header />
+        <div style={{ display: isMobile ? "none" : "block" }}>
+          <Header />
+        </div>
         {/* Topbar: current view title */}
         <div
           style={{
@@ -361,8 +431,32 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
           }}
         >
+          {isMobile && (
+            <button
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              style={{
+                width: 40,
+                height: 40,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#1a2744",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                padding: 0,
+              }}
+            >
+              <i className="ti ti-menu" style={{ fontSize: 22 }} />
+            </button>
+          )}
           <h1
             className="font-heading text-2xl font-bold"
             data-tour="dashboard-header"
