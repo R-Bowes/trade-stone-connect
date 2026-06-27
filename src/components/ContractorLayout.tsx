@@ -59,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "photos", label: "Photos", icon: "ti-photo" },
       { value: "documents", label: "Documents", icon: "ti-files" },
       { value: "canvas-editor", label: "Profile editor", icon: "ti-layout-columns" },
+      { value: "share-profile", label: "Share profile", icon: "ti-qrcode" },
     ],
   },
 ];
@@ -83,6 +84,7 @@ const VIEW_LABELS: Record<string, string> = {
   profile: "Profile",
   "canvas-editor": "Profile Editor",
   "profile-editor": "Profile Editor",
+  "share-profile": "Share profile",
 };
 
 const VIEW_SUBTITLES: Record<string, string> = {
@@ -102,6 +104,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   clients: "Keep track of clients, note key contacts and log important conversations",
   photos: "Browse job photos by project or upload new ones from site",
   documents: "Store and share certificates, contracts and compliance documents",
+  "share-profile": "Download branded assets to use on your van, business cards, and emails",
 };
 
 interface ContractorLayoutProps {

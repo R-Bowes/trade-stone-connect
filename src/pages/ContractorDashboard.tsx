@@ -36,6 +36,7 @@ import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
 import { ContractorServiceVisits } from "@/components/business/ContractorServiceVisits";
+import ShareProfileView from "@/components/contractor/ShareProfileView";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -685,6 +686,7 @@ const ContractorDashboard = () => {
           <TabsContent value="settings"><ProfileManagement /></TabsContent>
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
           <TabsContent value="canvas-editor" style={{ height: "100%", padding: 0 }}><CanvasEditor /></TabsContent>
+          <TabsContent value="share-profile"><ShareProfileView /></TabsContent>
           <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
 
