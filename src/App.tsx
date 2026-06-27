@@ -17,8 +17,10 @@ import MarketplaceEquipment from "./pages/MarketplaceEquipment";
 import MarketplaceTools from "./pages/MarketplaceTools";
 import MarketplaceItem from "./pages/MarketplaceItem";
 import Auth from "./pages/Auth";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import TermsAndConditions from "./pages/legal/TermsAndConditions";
+import CookiePolicy from "./pages/legal/CookiePolicy";
+import Footer from "./components/Footer";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import HomeownerDashboard from "./pages/HomeownerDashboard";
@@ -85,8 +87,9 @@ const App = () => (
           <Route path="/marketplace/item/:id" element={<MarketplaceItem />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/login" element={<Auth />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="/about" element={<About />} />
           <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
@@ -113,6 +116,7 @@ const App = () => (
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <Footer />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

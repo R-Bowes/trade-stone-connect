@@ -1,5 +1,4 @@
 import Header from "@/components/Header";
-import SiteFooter from "@/components/SiteFooter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -176,7 +175,6 @@ const About = () => {
           </section>
         </section>
       </main>
-      <SiteFooter />
     </div>
   );
 };
