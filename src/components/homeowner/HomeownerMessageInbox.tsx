@@ -111,7 +111,16 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                 )}
               </div>
               <span className="text-xs text-muted-foreground truncate leading-tight">{conv.job_title}</span>
-              <div className="flex items-center gap-1.5 mt-0.5">{statusPill(conv.job_status)}</div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+  {conv.job_status !== "enquiry" && statusPill(conv.job_status)}
+  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+    conv.context === "enquiry"
+      ? "bg-blue-50 text-blue-700"
+      : "bg-orange-50 text-orange-700"
+  }`}>
+    {conv.context === "enquiry" ? "Enquiry" : "Job"}
+  </span>
+</div>
               {conv.latest_message && (
                 <span className="text-[11px] text-muted-foreground truncate mt-0.5">{conv.latest_message}</span>
               )}
@@ -142,7 +151,14 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">{selectedConv.job_title}</span>
-                  {statusPill(selectedConv.job_status)}
+                  {selectedConv.job_status !== "enquiry" && statusPill(selectedConv.job_status)}
+<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+  selectedConv.context === "enquiry"
+    ? "bg-blue-50 text-blue-700"
+    : "bg-orange-50 text-orange-700"
+}`}>
+  {selectedConv.context === "enquiry" ? "Enquiry" : "Job"}
+</span>
                 </div>
               </div>
             </div>

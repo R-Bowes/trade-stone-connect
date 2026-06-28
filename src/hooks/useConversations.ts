@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface JobConversation {
   id: string;
-  job_id: string;
+  job_id: string | null;
+  enquiry_id: string | null;
+  context: "job" | "enquiry";
   job_title: string;
   job_status: string;
   contractor_id: string;
@@ -14,7 +16,7 @@ export interface JobConversation {
   created_at: string;
 }
 
-// Standalone function — can be called outside of the hook (e.g., in ContractorMessagePanel)
+// Standalone function — get or create a job-stage conversation
 export async function getOrCreateConversation(jobId: string): Promise<string> {
   const { data: existing } = await (supabase as any)
     .from("job_conversations")
@@ -26,7 +28,7 @@ export async function getOrCreateConversation(jobId: string): Promise<string> {
 
   const { data: created, error } = await (supabase as any)
     .from("job_conversations")
-    .insert({ job_id: jobId })
+    .insert({ job_id: jobId, context: "job" })
     .select("id")
     .single();
 
@@ -41,13 +43,8 @@ export function useConversations() {
   const fetchConversations = useCallback(async () => {
     setLoading(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
 
     const { data: profileRow } = await supabase
       .from("profiles")
@@ -55,47 +52,76 @@ export function useConversations() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!profileRow?.id) {
-      setLoading(false);
-      return;
-    }
+    if (!profileRow?.id) { setLoading(false); return; }
     const profileId = profileRow.id;
 
-    // Jobs where this user is either contractor or customer
+    // ── 1. Job-stage conversations ──────────────────────────────────────────
     const { data: jobs } = await supabase
       .from("jobs")
       .select("id, title, status, contractor_id, customer_id")
       .or(`contractor_id.eq.${profileId},customer_id.eq.${profileId}`);
 
-    if (!jobs || jobs.length === 0) {
-      setConversations([]);
-      setLoading(false);
-      return;
+    const jobIds = (jobs || []).map((j) => j.id);
+    const jobMap = new Map((jobs || []).map((j) => [j.id, j]));
+
+    let jobConvData: any[] = [];
+    if (jobIds.length > 0) {
+      const { data } = await (supabase as any)
+        .from("job_conversations")
+        .select("id, job_id, enquiry_id, context, created_at")
+        .in("job_id", jobIds);
+      jobConvData = data || [];
     }
 
-    const jobIds = jobs.map((j) => j.id);
-
-    const { data: convData } = await (supabase as any)
+    // ── 2. Enquiry-stage conversations ──────────────────────────────────────
+    // These have job_id = null but enquiry_id set.
+    // The contractor is on the enquiry; the customer is the enquiry's customer_id.
+    const { data: enquiryConvData } = await (supabase as any)
       .from("job_conversations")
-      .select("id, job_id, created_at")
-      .in("job_id", jobIds);
+      .select("id, job_id, enquiry_id, context, created_at")
+      .eq("context", "enquiry")
+      .is("job_id", null);
 
-    if (!convData || (convData as any[]).length === 0) {
+    // Filter to only enquiry convs where the current user is involved
+    // (contractor on the enquiry, or customer on the enquiry)
+    const enquiryIds = (enquiryConvData || [])
+      .map((c: any) => c.enquiry_id)
+      .filter(Boolean);
+
+    let relevantEnquiryConvs: any[] = [];
+    if (enquiryIds.length > 0) {
+      const { data: enquiries } = await supabase
+        .from("enquiries")
+        .select("id, title, contractor_id, customer_id")
+        .in("id", enquiryIds)
+        .or(`contractor_id.eq.${profileId},customer_id.eq.${profileId}`);
+
+      const relevantEnquiryIds = new Set((enquiries || []).map((e) => e.id));
+      const enquiryMap = new Map((enquiries || []).map((e) => [e.id, e]));
+
+      relevantEnquiryConvs = (enquiryConvData || [])
+        .filter((c: any) => relevantEnquiryIds.has(c.enquiry_id))
+        .map((c: any) => ({ ...c, _enquiry: enquiryMap.get(c.enquiry_id) }));
+    }
+
+    // ── 3. Merge all conversations ──────────────────────────────────────────
+    const allConvs = [...jobConvData, ...relevantEnquiryConvs];
+
+    if (allConvs.length === 0) {
       setConversations([]);
       setLoading(false);
       return;
     }
 
-    const convIds = (convData as any[]).map((c) => c.id);
+    const convIds = allConvs.map((c: any) => c.id);
 
-    // Fetch all messages for these conversations to compute latest + unread
+    // ── 4. Fetch messages for all conversations ─────────────────────────────
     const { data: msgData } = await (supabase as any)
       .from("job_messages")
       .select("id, conversation_id, content, created_at, sender_id, read_at")
       .in("conversation_id", convIds)
       .order("created_at", { ascending: false });
 
-    const jobMap = new Map(jobs.map((j) => [j.id, j]));
     const latestByConv = new Map<string, any>();
     const unreadByConv = new Map<string, number>();
 
@@ -111,21 +137,45 @@ export function useConversations() {
       }
     }
 
-    const mapped: JobConversation[] = (convData as any[]).map((conv) => {
-      const job = jobMap.get(conv.job_id);
+    // ── 5. Map to JobConversation ───────────────────────────────────────────
+    const mapped: JobConversation[] = allConvs.map((conv: any) => {
       const latest = latestByConv.get(conv.id);
-      return {
-        id: conv.id,
-        job_id: conv.job_id,
-        job_title: job?.title ?? "Unknown job",
-        job_status: job?.status ?? "unknown",
-        contractor_id: job?.contractor_id ?? "",
-        customer_id: job?.customer_id ?? "",
-        latest_message: latest?.content ?? null,
-        latest_message_at: latest?.created_at ?? null,
-        unread_count: unreadByConv.get(conv.id) ?? 0,
-        created_at: conv.created_at,
-      };
+      const isJobConv = conv.context !== "enquiry" && conv.job_id;
+
+      if (isJobConv) {
+        const job = jobMap.get(conv.job_id);
+        return {
+          id: conv.id,
+          job_id: conv.job_id,
+          enquiry_id: conv.enquiry_id ?? null,
+          context: "job" as const,
+          job_title: job?.title ?? "Unknown job",
+          job_status: job?.status ?? "unknown",
+          contractor_id: job?.contractor_id ?? "",
+          customer_id: job?.customer_id ?? "",
+          latest_message: latest?.content ?? null,
+          latest_message_at: latest?.created_at ?? null,
+          unread_count: unreadByConv.get(conv.id) ?? 0,
+          created_at: conv.created_at,
+        };
+      } else {
+        // Enquiry-stage conversation
+        const enquiry = conv._enquiry;
+        return {
+          id: conv.id,
+          job_id: null,
+          enquiry_id: conv.enquiry_id ?? null,
+          context: "enquiry" as const,
+          job_title: enquiry?.title ?? "Enquiry",
+          job_status: "enquiry",
+          contractor_id: enquiry?.contractor_id ?? "",
+          customer_id: enquiry?.customer_id ?? "",
+          latest_message: latest?.content ?? null,
+          latest_message_at: latest?.created_at ?? null,
+          unread_count: unreadByConv.get(conv.id) ?? 0,
+          created_at: conv.created_at,
+        };
+      }
     });
 
     // Sort most-recently-active first
