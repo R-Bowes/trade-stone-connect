@@ -33,6 +33,7 @@ import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
+import { StripeConnect } from "@/components/management/StripeConnect";
 import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
@@ -91,6 +92,7 @@ const ContractorDashboard = () => {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
@@ -137,7 +139,8 @@ const ContractorDashboard = () => {
       const pid = profileRow?.id ?? null;
       setProfileId(pid);
 
-      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url').eq('user_id', currentUser.id).single();
+      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id').eq('user_id', currentUser.id).single();
+      setStripeAccountId((profileData as any)?.stripe_account_id ?? null);
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
       if (profileData && (hasNoTrades || !(profileData as any).location || !(profileData as any).working_radius || !(profileData as any).logo_url)) {
@@ -379,6 +382,8 @@ const ContractorDashboard = () => {
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
             {profileId && <PanelInvites profileId={profileId} />}
+
+            {!stripeAccountId && <StripeConnect />}
 
             {/* Stats grid — 3 cols on md, 6 on lg */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
