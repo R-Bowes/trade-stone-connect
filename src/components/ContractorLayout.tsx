@@ -6,6 +6,7 @@ import SidebarHelpButton from "@/components/help/SidebarHelpButton";
 import TutorialModal from "@/components/help/TutorialModal";
 import HelpModal from "@/components/help/HelpModal";
 import WhatIsNewModal from "@/components/help/WhatIsNewModal";
+import { useConversations } from "@/hooks/useConversations";
 
 interface NavItem {
   value: string;
@@ -134,6 +135,10 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
+
+  // Unread message count for sidebar badge
+  const { conversations } = useConversations();
+  const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
 
   useEffect(() => {
     localStorage.setItem("sb_collapsed", String(collapsed));
@@ -290,7 +295,6 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             justifyContent: effectiveCollapsed ? "center" : "flex-start",
           }}
         >
-          {/* Avatar / logo circle */}
           {profile?.logo_url ? (
             <div
               style={{
@@ -391,6 +395,9 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
               )}
               {group.items.map((item) => {
                 const isActive = activeView === item.value;
+                const isMessages = item.value === "messages";
+                const showBadge = isMessages && totalUnread > 0;
+
                 return (
                   <button
                     key={item.value}
@@ -423,11 +430,53 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                       boxSizing: "border-box",
                     }}
                   >
-                    <i
-                      className={`ti ${item.icon}`}
-                      style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}
-                    />
-                    {!effectiveCollapsed && <span>{item.label}</span>}
+                    {/* Icon — with badge dot when collapsed */}
+                    <div style={{ position: "relative", flexShrink: 0, lineHeight: 1 }}>
+                      <i
+                        className={`ti ${item.icon}`}
+                        style={{ fontSize: 18, lineHeight: 1 }}
+                      />
+                      {showBadge && effectiveCollapsed && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: -3,
+                            right: -4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: "#f07820",
+                            border: "1.5px solid #1a2744",
+                            display: "block",
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Label + count badge when expanded */}
+                    {!effectiveCollapsed && (
+                      <>
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {showBadge && (
+                          <span
+                            style={{
+                              background: "#f07820",
+                              color: "#fff",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              borderRadius: 10,
+                              padding: "1px 6px",
+                              minWidth: 18,
+                              textAlign: "center",
+                              lineHeight: "16px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {totalUnread > 99 ? "99+" : totalUnread}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </button>
                 );
               })}
@@ -452,7 +501,6 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
         <div style={{ display: isMobile ? "none" : "block" }}>
           <Header />
         </div>
-        {/* Topbar: current view title */}
         <div
           style={{
             padding: "10px 24px",
