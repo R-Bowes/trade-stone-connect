@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, MessageSquare, Send } from "lucide-react";
 
+interface HomeownerMessageInboxProps {
+  profileId: string;
+}
+
 function statusPill(status: string) {
   const map: Record<string, { label: string; classes: string }> = {
     scheduled:  { label: "Scheduled",  classes: "bg-slate-100 text-slate-700" },
@@ -23,7 +27,7 @@ function statusPill(status: string) {
   );
 }
 
-export function HomeownerMessageInbox() {
+export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps) {
   const { conversations, loading: convsLoading } = useConversations();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contractorNames, setContractorNames] = useState<Record<string, string>>({});
@@ -33,7 +37,7 @@ export function HomeownerMessageInbox() {
   const { messages, loading: msgsLoading, sendMessage, markAllRead } =
     useMessages(selectedId, "personal");
 
-  // Batch-fetch contractor display names
+  // Batch-fetch contractor display names — homeowner always sees contractor name
   useEffect(() => {
     const ids = [...new Set(conversations.map((c) => c.contractor_id).filter(Boolean))];
     if (ids.length === 0) return;
@@ -156,7 +160,8 @@ export function HomeownerMessageInbox() {
                 </p>
               )}
               {messages.map((msg) => {
-                const isMine = msg.sender_role === "personal";
+                // Use sender_id comparison for reliability
+                const isMine = msg.sender_id === profileId || msg.sender_role === "personal";
                 if (msg.message_type === "milestone") {
                   return (
                     <div key={msg.id} className="flex items-center gap-3 py-1">
@@ -172,7 +177,9 @@ export function HomeownerMessageInbox() {
                   <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
                     <div
                       className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${isMine ? "rounded-br-sm" : "rounded-bl-sm"}`}
-                      style={isMine ? { backgroundColor: "#1e2d4a", color: "#fff" } : { backgroundColor: "#f1f1f1", color: "#1a1a1a" }}
+                      style={isMine
+                        ? { backgroundColor: "#1e2d4a", color: "#fff" }
+                        : { backgroundColor: "#f1f1f1", color: "#1a1a1a" }}
                     >
                       {msg.content}
                     </div>
