@@ -517,7 +517,7 @@ const ContractorDashboard = () => {
       All conversations with your clients in one place
     </p>
   </div>
-  {profileId && <BusinessMessageInbox profileId={profileId} />}
+  {profileId && <BusinessMessageInbox profileId={profileId} senderRole="contractor" />}
 </TabsContent>
 
           {/* Enquiries Tab */}

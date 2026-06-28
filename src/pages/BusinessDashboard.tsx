@@ -315,7 +315,7 @@ const BusinessDashboard = () => {
       case "messages":
         return (
           <div className="p-6">
-            <BusinessMessageInbox profileId={profileId} />
+            <BusinessMessageInbox profileId={profileId} senderRole="business" />
           </div>
         );
 

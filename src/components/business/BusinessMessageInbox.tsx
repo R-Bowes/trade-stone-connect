@@ -10,34 +10,20 @@ import { Loader2, MessageSquare, Send } from "lucide-react";
 
 interface BusinessMessageInboxProps {
   profileId: string;
+  senderRole?: "business" | "contractor";
 }
-
-type JobStatus =
-  | "scheduled"
-  | "in_progress"
-  | "snagging"
-  | "complete"
-  | "cancelled";
 
 function statusPill(status: string) {
   const map: Record<string, { label: string; classes: string }> = {
-    scheduled: { label: "Scheduled", classes: "bg-slate-100 text-slate-700" },
-    in_progress: {
-      label: "In progress",
-      classes: "bg-orange-100 text-orange-700",
-    },
-    snagging: { label: "Snagging", classes: "bg-amber-100 text-amber-700" },
-    complete: { label: "Complete", classes: "bg-green-100 text-green-700" },
-    cancelled: { label: "Cancelled", classes: "bg-red-100 text-red-700" },
+    scheduled:  { label: "Scheduled",  classes: "bg-slate-100 text-slate-700" },
+    in_progress:{ label: "In progress",classes: "bg-orange-100 text-orange-700" },
+    snagging:   { label: "Snagging",   classes: "bg-amber-100 text-amber-700" },
+    complete:   { label: "Complete",   classes: "bg-green-100 text-green-700" },
+    cancelled:  { label: "Cancelled",  classes: "bg-red-100 text-red-700" },
   };
-  const entry = map[status] ?? {
-    label: status,
-    classes: "bg-muted text-muted-foreground",
-  };
+  const entry = map[status] ?? { label: status, classes: "bg-muted text-muted-foreground" };
   return (
-    <span
-      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${entry.classes}`}
-    >
+    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${entry.classes}`}>
       {entry.label}
     </span>
   );
@@ -45,46 +31,52 @@ function statusPill(status: string) {
 
 export function BusinessMessageInbox({
   profileId,
+  senderRole = "business",
 }: BusinessMessageInboxProps) {
   const { conversations, loading: convsLoading } = useConversations();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [contractorNames, setContractorNames] = useState<
-    Record<string, string>
-  >({});
+  // Maps profile id → display name for the OTHER party in each conversation
+  const [otherPartyNames, setOtherPartyNames] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { messages, loading: msgsLoading, sendMessage, markAllRead } =
-    useMessages(selectedId, "business");
+    useMessages(selectedId, senderRole);
 
-  // Batch-fetch contractor display names whenever the conversation list changes
+  // Batch-fetch the OTHER party's display name for each conversation.
+  // If current user is the contractor → show customer name.
+  // If current user is the customer/business → show contractor name.
   useEffect(() => {
-    const ids = [
-      ...new Set(conversations.map((c) => c.contractor_id).filter(Boolean)),
+    if (conversations.length === 0) return;
+
+    const otherIds = [
+      ...new Set(
+        conversations.map((c) =>
+          c.contractor_id === profileId ? c.customer_id : c.contractor_id
+        ).filter(Boolean)
+      ),
     ];
-    if (ids.length === 0) return;
+
+    if (otherIds.length === 0) return;
 
     supabase
       .from("profiles")
       .select("id, full_name, company_name")
-      .in("id", ids)
+      .in("id", otherIds)
       .then(({ data }) => {
         if (!data) return;
         const map: Record<string, string> = {};
         for (const p of data) {
-          map[p.id] =
-            (p as any).company_name || p.full_name || "Unknown contractor";
+          map[p.id] = (p as any).company_name || p.full_name || "Unknown";
         }
-        setContractorNames(map);
+        setOtherPartyNames(map);
       });
-  }, [conversations]);
+  }, [conversations, profileId]);
 
-  // Mark all read when a conversation is opened
   useEffect(() => {
     if (selectedId) markAllRead();
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -96,28 +88,19 @@ export function BusinessMessageInbox({
     await sendMessage(trimmed);
   };
 
+  const getOtherPartyName = (conv: { contractor_id: string; customer_id: string }) => {
+    const otherId = conv.contractor_id === profileId ? conv.customer_id : conv.contractor_id;
+    return otherPartyNames[otherId] ?? "Loading...";
+  };
+
   const selectedConv = conversations.find((c) => c.id === selectedId) ?? null;
 
   return (
-    <div
-      className="flex border rounded-lg overflow-hidden bg-background"
-      style={{ minHeight: 600 }}
-    >
-      {/* ── Sidebar ── */}
-      <div
-        className="flex flex-col border-r bg-muted/20 shrink-0 overflow-y-auto"
-        style={{ width: 260 }}
-      >
-        <div
-          className="px-4 py-3 border-b"
-          style={{ fontFamily: "Lexend, sans-serif" }}
-        >
-          <h3
-            className="text-sm font-semibold"
-            style={{ color: "#1e2d4a" }}
-          >
-            Messages
-          </h3>
+    <div className="flex border rounded-lg overflow-hidden bg-background" style={{ minHeight: 600 }}>
+      {/* Sidebar */}
+      <div className="flex flex-col border-r bg-muted/20 shrink-0 overflow-y-auto" style={{ width: 260 }}>
+        <div className="px-4 py-3 border-b" style={{ fontFamily: "Lexend, sans-serif" }}>
+          <h3 className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>Messages</h3>
         </div>
 
         {convsLoading && (
@@ -134,43 +117,27 @@ export function BusinessMessageInbox({
 
         {conversations.map((conv) => {
           const isSelected = conv.id === selectedId;
-          const contractorName =
-            contractorNames[conv.contractor_id] ?? "Loading...";
           return (
             <button
               key={conv.id}
               type="button"
               onClick={() => setSelectedId(conv.id)}
               className={`w-full text-left px-4 py-3 border-b transition-colors flex flex-col gap-0.5 ${
-                isSelected
-                  ? "bg-[#1e2d4a]/5 border-l-2 border-l-[#1e2d4a]"
-                  : "hover:bg-muted/40"
+                isSelected ? "bg-[#1e2d4a]/5 border-l-2 border-l-[#1e2d4a]" : "hover:bg-muted/40"
               }`}
             >
               <div className="flex items-center justify-between gap-1">
-                <span
-                  className="text-xs font-semibold truncate"
-                  style={{ color: "#1e2d4a" }}
-                >
-                  {contractorName}
+                <span className="text-xs font-semibold truncate" style={{ color: "#1e2d4a" }}>
+                  {getOtherPartyName(conv)}
                 </span>
                 {conv.unread_count > 0 && (
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: "#f07820" }}
-                  />
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: "#f07820" }} />
                 )}
               </div>
-              <span className="text-xs text-muted-foreground truncate leading-tight">
-                {conv.job_title}
-              </span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {statusPill(conv.job_status)}
-              </div>
+              <span className="text-xs text-muted-foreground truncate leading-tight">{conv.job_title}</span>
+              <div className="flex items-center gap-1.5 mt-0.5">{statusPill(conv.job_status)}</div>
               {conv.latest_message && (
-                <span className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {conv.latest_message}
-                </span>
+                <span className="text-[11px] text-muted-foreground truncate mt-0.5">{conv.latest_message}</span>
               )}
               {conv.latest_message_at && (
                 <span className="text-[10px] text-muted-foreground/60">
@@ -182,7 +149,7 @@ export function BusinessMessageInbox({
         })}
       </div>
 
-      {/* ── Chat area ── */}
+      {/* Chat area */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {!selectedConv ? (
           <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
@@ -191,22 +158,14 @@ export function BusinessMessageInbox({
           </div>
         ) : (
           <>
-            {/* Chat header */}
-            <div
-              className="px-5 py-3 border-b flex items-center justify-between gap-2"
-              style={{ fontFamily: "Lexend, sans-serif" }}
-            >
+            {/* Header */}
+            <div className="px-5 py-3 border-b flex items-center gap-2" style={{ fontFamily: "Lexend, sans-serif" }}>
               <div className="flex flex-col gap-0.5">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: "#1e2d4a" }}
-                >
-                  {contractorNames[selectedConv.contractor_id] ?? "Contractor"}
+                <span className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>
+                  {getOtherPartyName(selectedConv)}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    {selectedConv.job_title}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{selectedConv.job_title}</span>
                   {statusPill(selectedConv.job_status)}
                 </div>
               </div>
@@ -219,26 +178,21 @@ export function BusinessMessageInbox({
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               )}
-
               {!msgsLoading && messages.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground py-6">
                   No messages yet. Start the conversation below.
                 </p>
               )}
-
               {messages.map((msg) => {
-                const isMine = msg.sender_role === "business";
+                // isMine: message was sent by the current user
+                const isMine = msg.sender_id === profileId ||
+                  msg.sender_role === senderRole;
 
                 if (msg.message_type === "milestone") {
                   return (
-                    <div
-                      key={msg.id}
-                      className="flex items-center gap-3 py-1"
-                    >
+                    <div key={msg.id} className="flex items-center gap-3 py-1">
                       <div className="flex-1 h-px bg-border" />
-                      <span
-                        className="text-[11px] font-medium px-3 py-1 rounded-full border text-muted-foreground shrink-0"
-                      >
+                      <span className="text-[11px] font-medium px-3 py-1 rounded-full border text-muted-foreground shrink-0">
                         {msg.content}
                       </span>
                       <div className="flex-1 h-px bg-border" />
@@ -247,22 +201,12 @@ export function BusinessMessageInbox({
                 }
 
                 return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}
-                  >
+                  <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
                     <div
-                      className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
-                        isMine ? "rounded-br-sm" : "rounded-bl-sm"
-                      }`}
-                      style={
-                        isMine
-                          ? { backgroundColor: "#1e2d4a", color: "#fff" }
-                          : {
-                              backgroundColor: "#f1f1f1",
-                              color: "#1a1a1a",
-                            }
-                      }
+                      className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${isMine ? "rounded-br-sm" : "rounded-bl-sm"}`}
+                      style={isMine
+                        ? { backgroundColor: "#1e2d4a", color: "#fff" }
+                        : { backgroundColor: "#f1f1f1", color: "#1a1a1a" }}
                     >
                       {msg.content}
                     </div>
@@ -275,18 +219,13 @@ export function BusinessMessageInbox({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input bar */}
+            {/* Input */}
             <div className="px-4 py-3 border-t flex items-center gap-2">
               <Input
                 placeholder="Type a message..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 className="flex-1"
               />
               <Button
