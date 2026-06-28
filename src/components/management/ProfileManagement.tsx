@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { ChangePasswordCard } from "@/components/ui/ChangePasswordCard";
+import { StripeConnect } from "@/components/management/StripeConnect";
 
 interface Profile {
   full_name: string;
@@ -480,6 +481,16 @@ export function ProfileManagement() {
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Account</CardTitle>
+          <CardDescription>Manage your Stripe account to receive invoice payments from clients.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <StripeConnect />
         </CardContent>
       </Card>
 
