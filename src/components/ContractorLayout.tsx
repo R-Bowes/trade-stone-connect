@@ -186,7 +186,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
 
   return (
     <>
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", minHeight: "100vh" }}>
       {/* Mobile backdrop */}
       {isMobile && mobileOpen && (
         <div
@@ -225,7 +225,10 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 display: "flex",
                 flexDirection: "column",
                 flexShrink: 0,
-                overflow: "hidden",
+                position: "sticky",
+                top: 0,
+                height: "100vh",
+                overflowY: "auto",
               }
         }
       >
@@ -493,7 +496,6 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
           minWidth: 0,
           width: isMobile ? "100vw" : undefined,
         }}
@@ -557,7 +559,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             )}
           </div>
         </div>
-        <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
+        <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
     </div>
     <TutorialModal />
