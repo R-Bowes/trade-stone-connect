@@ -13,10 +13,13 @@ type Enquiry = {
   id: string;
   contractor_id: string | null;
   customer_id: string | null;
-  customer_name: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
+  customer_name: string | null;   // write-only — never render in UI
+  customer_email: string | null;  // write-only — never render in UI
+  customer_phone: string | null;  // write-only — timed reveal only (48hr rule)
+  customer_ts_code: string | null;
   job_description: string;
+  title: string | null;
+  job_type: string | null;
   location: string;
   preferred_timeline: string | null;
   budget_range: string | null;
@@ -58,7 +61,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
 
   useEffect(() => {
     if (!open) return;
-    setTitle(`Quote for ${enquiry.customer_name ?? "customer"}`);
+    // Use enquiry title as starting point — never default to customer name
+    setTitle(enquiry.title ?? "");
     setDescription(enquiry.job_description ?? "");
     setItems([blankItem()]);
     setCompletionTime("");
@@ -145,6 +149,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         contractor_id: contractorProfile.id,
         recipient_id: recipientId,
         enquiry_id: enquiry.id,
+        // client_* fields are required by NOT NULL constraints — written to DB only,
+        // never rendered in any UI component. Contact reveal governed by 48hr rule.
         client_name: enquiry.customer_name ?? "",
         client_email: enquiry.customer_email ?? "",
         client_phone: enquiry.customer_phone ?? null,
@@ -161,6 +167,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         completion_time: completionTime || null,
         deposit_required: depositRequired,
         deposit_percentage: depositRequired ? depositPercentage : 0,
+        deposit_amount: depositRequired ? depositAmount : null,
         terms: terms.trim() || null,
         status: "sent",
         sent_at: new Date().toISOString(),
@@ -177,7 +184,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
 
       toast({
         title: "Quote sent",
-        description: `Quote sent to ${enquiry.customer_name ?? "customer"}.`,
+        description: `Quote sent successfully.`,
       });
       onSuccess?.();
       onOpenChange(false);
@@ -199,12 +206,13 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         <DialogHeader>
           <DialogTitle>Send Quote</DialogTitle>
           <DialogDescription>
-            Create a quote for {customerTsCode ?? enquiry.customer_name ?? "customer"}.
+            {/* Never fall back to customer name — use TS code or generic label */}
+            Create a quote for {customerTsCode ?? "this customer"}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Read-only enquiry context */}
+          {/* Read-only enquiry context — no contact details rendered */}
           <div className="rounded-md bg-muted p-4 space-y-2 text-sm">
             <p className="font-medium text-foreground">Enquiry details</p>
             <p className="text-muted-foreground line-clamp-3">{enquiry.job_description}</p>
@@ -223,6 +231,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               id="quote-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              placeholder="Brief description of the work"
               disabled={submitting}
             />
           </div>
@@ -388,7 +397,9 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
-                  Customer will be asked to pay <span className="font-medium text-foreground">£{fmt(depositAmount)}</span> before contact details are revealed.
+                  Customer will be asked to pay{" "}
+                  <span className="font-medium text-foreground">£{fmt(depositAmount)}</span>{" "}
+                  before the job is confirmed and scheduled.
                 </p>
               </div>
             )}

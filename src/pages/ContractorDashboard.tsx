@@ -16,6 +16,7 @@ import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { BusinessMessageInbox } from "@/components/business/BusinessMessageInbox";
 import ContractorLayout from "@/components/ContractorLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
@@ -506,6 +507,18 @@ const ContractorDashboard = () => {
               <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load service visits — profile not found.</p></CardContent></Card>
             )}
           </TabsContent>
+
+          <TabsContent value="messages" className="space-y-6">
+  <div>
+    <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
+      Messages
+    </h2>
+    <p className="text-muted-foreground text-sm mt-1">
+      All conversations with your clients in one place
+    </p>
+  </div>
+  {profileId && <BusinessMessageInbox profileId={profileId} />}
+</TabsContent>
 
           {/* Enquiries Tab */}
           <TabsContent value="enquiries" className="space-y-6">

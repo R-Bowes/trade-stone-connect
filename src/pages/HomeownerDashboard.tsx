@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { HomeownerMessageInbox } from "@/components/homeowner/HomeownerMessageInbox";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
@@ -747,7 +748,11 @@ export default function HomeownerDashboard() {
         return <div className="p-6"><ReceivedInvoices /></div>;
 
       case "messages":
-        return <HomeownerMessages profileId={profileId} userId={userId} />;
+  return (
+    <div className="p-6">
+      <HomeownerMessageInbox />
+    </div>
+  );
 
       case "settings":
         return <HomeownerSettings />;

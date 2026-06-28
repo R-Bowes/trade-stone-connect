@@ -6,6 +6,7 @@ import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -23,10 +24,10 @@ import {
   Users,
   UserPlus,
   MessageCircle,
+  MessageSquare,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
-import { ContractorMessagePanel } from "@/components/management/ContractorMessagePanel";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -253,6 +254,7 @@ export function JobManagement() {
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
+  const navigate = useNavigate();
 
   const loadJobs = async () => {
     setLoading(true);
@@ -269,7 +271,6 @@ export function JobManagement() {
     if (!profileRow?.id) { setLoading(false); return; }
     setContractorProfileId(profileRow.id);
 
-    // Load team members for this contractor
     const { data: teamData } = await supabase
       .from("team_members")
       .select("id, full_name, role, is_active")
@@ -323,7 +324,6 @@ export function JobManagement() {
     const jobIds = mapped.map((j) => j.id);
 
     if (jobIds.length > 0) {
-      // Load snag items
       const { data: snagData, error: snagError } = await supabase
         .from("job_snag_items")
         .select("id, job_id, title, is_resolved")
@@ -341,7 +341,6 @@ export function JobManagement() {
         setSnagItemsByJob(grouped);
       }
 
-      // Load assignments
       const { data: assignData } = await supabase
         .from("job_assignments")
         .select("id, job_id, team_member_id, is_contractor")
@@ -354,7 +353,6 @@ export function JobManagement() {
       }, {});
       setAssignmentsByJob(groupedAssign);
 
-      // Load timesheets
       const { data: tsData } = await supabase
         .from("timesheets")
         .select("id, job_id, date, hours, worker_id, description")
@@ -872,18 +870,28 @@ export function JobManagement() {
                     )
                   )}
                 </div>
-                {contractorProfileId && job.status !== "cancelled" && (
-                  <div className="rounded-md border p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium mb-3" style={{ fontFamily: "Lexend, sans-serif" }}>
-                      <MessageCircle className="h-4 w-4" />
-                      Job Messages
+
+                {/* Message client button — navigates to Messages inbox */}
+                {job.status !== "cancelled" && (
+                  <div className="rounded-lg border p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium" style={{ fontFamily: "Lexend, sans-serif" }}>
+                        Job Messages
+                      </span>
                     </div>
-                    <ContractorMessagePanel
-                      jobId={job.id}
-                      profileId={contractorProfileId}
-                    />
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/dashboard/contractor?view=messages")}
+                      style={{ backgroundColor: "#f07820", color: "#fff" }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                      Message client
+                    </Button>
                   </div>
                 )}
+
+                {/* Job photos */}
                 {contractorProfileId && job.status !== "cancelled" && (
                   <div className="rounded-md border p-4">
                     <JobPhotosTab
