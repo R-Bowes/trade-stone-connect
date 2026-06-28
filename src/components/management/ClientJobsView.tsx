@@ -192,7 +192,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
             <CardTitle className="text-lg">Notes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-3">
               {notes.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No notes yet.</p>}
               {notes.map((note) => (
                 <div key={note.id} className="p-3 rounded-lg bg-muted/50 space-y-1">
