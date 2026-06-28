@@ -1,5 +1,5 @@
 // Deploy: supabase functions deploy generate-project-contract
-// Required secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Required secrets: SUPABASE_URL, ADMIN_SECRET_KEY
 // Storage bucket: project-contracts (public) — created automatically on first run
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -358,7 +358,7 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      Deno.env.get("ADMIN_SECRET_KEY")!,
       { auth: { persistSession: false } },
     );
 

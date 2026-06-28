@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const ADMIN_SECRET_KEY = Deno.env.get("ADMIN_SECRET_KEY") || "";
 
 // Rate limit configuration
 const RATE_LIMIT_MAX_REQUESTS = 10;
@@ -188,7 +188,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   // Initialize Supabase client with service role for database operations
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, ADMIN_SECRET_KEY);
 
   try {
     // Parse and validate request body

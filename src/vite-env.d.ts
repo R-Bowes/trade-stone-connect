@@ -14,6 +14,10 @@ interface ImportMeta {
 }
 
 interface Window {
+  gtag: (...args: any[]) => void;
+}
+
+interface Window {
   turnstile?: {
     render: (container: string | HTMLElement, options: {
       sitekey: string;

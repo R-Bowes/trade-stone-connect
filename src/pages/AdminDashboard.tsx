@@ -2,7 +2,6 @@ import { CSSProperties, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { supabase } from '@/integrations/supabase/client';
-import { adminDb } from '@/integrations/supabase/adminClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -215,7 +214,7 @@ export default function AdminDashboard() {
     if (activeTab !== 'broadcast') return;
     setBroadcastRecipientCount(null);
     const timer = setTimeout(async () => {
-      const db = adminDb as any;
+      const db = supabase as any;
       let query = db.from('profiles').select('id', { count: 'exact', head: true });
       if (broadcastAudienceType !== 'all') {
         const dbType = broadcastAudienceType === 'customers' ? 'personal' : broadcastAudienceType;
@@ -235,7 +234,7 @@ export default function AdminDashboard() {
 
   async function loadData() {
     setLoading(true);
-    const db = adminDb as any;
+    const db = supabase as any;
 
     const [
       profilesRes,
@@ -284,7 +283,7 @@ export default function AdminDashboard() {
 
     const p: Profile[] = profilesRes.data || [];
     if (!profilesRes.error && p.length === 0) {
-      console.warn('[Admin] profiles query returned 0 rows with no error — RLS may be blocking results. Ensure is_platform_admin() returns true for this user or set VITE_SUPABASE_SERVICE_ROLE_KEY.');
+      console.warn('[Admin] profiles query returned 0 rows with no error — RLS may be blocking results. Ensure is_platform_admin() returns true for this user.');
     }
     setProfiles(p);
     setContractors(p.filter((x: Profile) => x.user_type === 'contractor'));
@@ -320,7 +319,7 @@ export default function AdminDashboard() {
 
   async function logActivity(action: string, targetType: string, targetId: string, details?: Record<string, unknown>) {
     if (!adminId) return;
-    await (adminDb as any).from('admin_activity_log').insert({
+    await (supabase as any).from('admin_activity_log').insert({
       admin_id: adminId,
       action,
       target_type: targetType,
@@ -337,26 +336,26 @@ export default function AdminDashboard() {
   // ── Users ────────────────────────────────────────────────────────────────
 
   async function handleSuspend(id: string) {
-    await (adminDb as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
+    await (supabase as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
     await logActivity('suspend_user', 'user', id);
     loadData();
   }
 
   async function handleReinstate(id: string) {
-    await (adminDb as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
+    await (supabase as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
     await logActivity('reinstate_user', 'user', id);
     loadData();
   }
 
   async function handleVerifyContractor(id: string, current: boolean | null) {
-    await (adminDb as any).from('profiles').update({ is_verified: !current }).eq('id', id);
+    await (supabase as any).from('profiles').update({ is_verified: !current }).eq('id', id);
     await logActivity(current ? 'unverify_contractor' : 'verify_contractor', 'user', id);
     loadData();
   }
 
   async function handleEditProfile() {
     if (!editingProfile) return;
-    await (adminDb as any).from('profiles').update({
+    await (supabase as any).from('profiles').update({
       full_name: editFields.full_name,
       trades: editFields.trade ? [editFields.trade] : null,
       location: editFields.location || null,
@@ -369,7 +368,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteAccount(id: string) {
-    await (adminDb as any).from('profiles').update({
+    await (supabase as any).from('profiles').update({
       email: `deleted_${id}@tradestone.com`,
       full_name: 'Deleted Account',
       is_active: false,
@@ -387,9 +386,8 @@ export default function AdminDashboard() {
       setAdminActionError('Email and password are required.');
       return;
     }
-    // auth.admin.createUser requires service_role key. With the anon key this
-    // call will fail — create the auth user in the Supabase dashboard first,
-    // then it will be inserted into admin_users here.
+    // auth.admin.createUser is not available from the browser client.
+    // Create the auth user in the Supabase dashboard, then add their user_id to admin_users manually.
     const { data: authData, error: createError } = await (supabase as any).auth.admin.createUser({
       email: newAdminEmail,
       password: newAdminPassword,
@@ -403,7 +401,7 @@ export default function AdminDashboard() {
       );
       return;
     }
-    const { error: insertError } = await (adminDb as any).from('admin_users').insert({
+    const { error: insertError } = await (supabase as any).from('admin_users').insert({
       user_id: authData.user.id,
       email: newAdminEmail,
       role: newAdminRole,
@@ -426,7 +424,7 @@ export default function AdminDashboard() {
       alert('Cannot remove the last super admin.');
       return;
     }
-    await (adminDb as any).from('admin_users').delete().eq('id', id);
+    await (supabase as any).from('admin_users').delete().eq('id', id);
     await logActivity('remove_admin', 'admin', id, { email: target.email });
     setRemoveAdminId(null);
     loadData();
@@ -435,7 +433,7 @@ export default function AdminDashboard() {
   // ── Enquiries ────────────────────────────────────────────────────────────
 
   async function handleCancelEnquiry(id: string) {
-    await (adminDb as any).from('enquiries').update({ status: 'cancelled' }).eq('id', id);
+    await (supabase as any).from('enquiries').update({ status: 'cancelled' }).eq('id', id);
     await logActivity('cancel_enquiry', 'enquiry', id);
     setCancelEnquiryId(null);
     loadData();
@@ -443,7 +441,7 @@ export default function AdminDashboard() {
 
   async function handleReassignEnquiry() {
     if (!reassignModal || !reassignContractorId) return;
-    await (adminDb as any).from('enquiries').update({ contractor_id: reassignContractorId }).eq('id', reassignModal.id);
+    await (supabase as any).from('enquiries').update({ contractor_id: reassignContractorId }).eq('id', reassignModal.id);
     await logActivity('reassign_enquiry', 'enquiry', reassignModal.id, { new_contractor_id: reassignContractorId });
     setReassignModal(null);
     setReassignContractorId('');
@@ -453,14 +451,14 @@ export default function AdminDashboard() {
   // ── Jobs ─────────────────────────────────────────────────────────────────
 
   async function handleMarkJobComplete(id: string) {
-    await (adminDb as any).from('jobs').update({ status: 'completed' }).eq('id', id);
+    await (supabase as any).from('jobs').update({ status: 'completed' }).eq('id', id);
     await logActivity('mark_job_complete', 'job', id);
     setMarkCompleteJobId(null);
     loadData();
   }
 
   async function handleRaiseDispute(id: string) {
-    await (adminDb as any).from('disputes').insert({
+    await (supabase as any).from('disputes').insert({
       job_id: id,
       raised_by: adminId || null,
       status: 'open',
@@ -475,14 +473,14 @@ export default function AdminDashboard() {
   // ── Invoices ─────────────────────────────────────────────────────────────
 
   async function handleMarkInvoicePaid(id: string) {
-    await (adminDb as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
+    await (supabase as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
     await logActivity('mark_invoice_paid', 'invoice', id);
     setMarkPaidInvoiceId(null);
     loadData();
   }
 
   async function handleVoidInvoice(id: string) {
-    await (adminDb as any).from('invoices').update({ status: 'voided' }).eq('id', id);
+    await (supabase as any).from('invoices').update({ status: 'voided' }).eq('id', id);
     await logActivity('void_invoice', 'invoice', id);
     setVoidInvoiceId(null);
     loadData();
@@ -491,7 +489,7 @@ export default function AdminDashboard() {
   // ── Broadcast ────────────────────────────────────────────────────────────
 
   async function loadBroadcastHistory() {
-    const { data } = await (adminDb as any)
+    const { data } = await (supabase as any)
       .from('broadcast_emails')
       .select('id, subject, audience_type, audience_filters, recipient_count, scheduled_at, sent_at, created_at')
       .order('created_at', { ascending: false })
@@ -514,7 +512,7 @@ export default function AdminDashboard() {
     setBroadcastSending(true);
     setBroadcastMsg('');
     const ctaDest = CTA_DESTINATIONS.find(d => d.value === broadcastCtaDestination);
-    const { data: insertData, error: insertError } = await (adminDb as any)
+    const { data: insertData, error: insertError } = await (supabase as any)
       .from('broadcast_emails')
       .insert({
         subject: broadcastSubject,
@@ -552,7 +550,7 @@ export default function AdminDashboard() {
     const scheduledAt = broadcastScheduleTime
       ? `${broadcastScheduleDate}T${broadcastScheduleTime}:00`
       : `${broadcastScheduleDate}T09:00:00`;
-    const { error: insertError } = await (adminDb as any)
+    const { error: insertError } = await (supabase as any)
       .from('broadcast_emails')
       .insert({
         subject: broadcastSubject,
@@ -578,7 +576,7 @@ export default function AdminDashboard() {
   async function handleViewConversation(conv: Conversation) {
     setMessagesSlideOver(conv);
     setConvLoading(true);
-    const { data } = await (adminDb as any)
+    const { data } = await (supabase as any)
       .from('messages')
       .select('id, conversation_id, sender_id, content, created_at')
       .eq('conversation_id', conv.id)
@@ -601,7 +599,7 @@ export default function AdminDashboard() {
       { key: 'platform_email_address', value: platformEmailAddress },
     ];
     for (const u of updates) {
-      await (adminDb as any).from('platform_settings').upsert({
+      await (supabase as any).from('platform_settings').upsert({
         key: u.key,
         value: u.value,
         updated_at: new Date().toISOString(),
