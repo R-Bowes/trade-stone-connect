@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, CheckCircle, XCircle, Pause, Loader2 } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Pause, Loader2, Calendar } from "lucide-react";
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
 import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
@@ -13,11 +14,13 @@ import { format } from "date-fns";
 
 export function ReceivedQuotes() {
   const { quotes, loading, respondToQuote } = useReceivedQuotes();
-  const [messageDialog, setMessageDialog] = useState<{ open: boolean; quote: ReceivedQuote | null; action: string }>({
-    open: false, quote: null, action: "",
-  });
+  const [messageDialog, setMessageDialog] = useState<{
+    open: boolean;
+    quote: ReceivedQuote | null;
+    action: string;
+  }>({ open: false, quote: null, action: "" });
   const { toast } = useToast();
-  const [openNegotiationFor, setOpenNegotiationFor] = useState<string | null>(null);
+  const [scheduleQuote, setScheduleQuote] = useState<ReceivedQuote | null>(null);
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
   const handleAccept = async (quote: ReceivedQuote) => {
@@ -34,8 +37,8 @@ export function ReceivedQuotes() {
         description: "Now agree a schedule with your contractor to confirm the job.",
       });
 
-      // Auto-open schedule negotiation
-      setOpenNegotiationFor(quote.id);
+      // Open scheduling dialog immediately
+      setScheduleQuote(quote);
     } finally {
       setPendingIds((prev) => {
         const next = { ...prev };
@@ -52,7 +55,7 @@ export function ReceivedQuotes() {
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "reject", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
-      toast({ title: "Quote Rejected", description: "The contractor has been notified." });
+      toast({ title: "Quote rejected", description: "The contractor has been notified." });
     } finally {
       setPendingIds((prev) => {
         const next = { ...prev };
@@ -97,8 +100,17 @@ export function ReceivedQuotes() {
 
   const isResponding = (quote: ReceivedQuote) => quote.id in pendingIds;
 
+  const isAccepted = (quote: ReceivedQuote) =>
+    quote.recipient_response === "accepted" ||
+    quote.status === "accepted" ||
+    pendingIds[quote.id] === "accepted";
+
   if (loading) {
-    return <div className="flex justify-center items-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    return (
+      <div className="flex justify-center items-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
   }
 
   if (quotes.length === 0) {
@@ -107,7 +119,9 @@ export function ReceivedQuotes() {
         <CardContent className="p-8 text-center">
           <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No Quotes Received</h3>
-          <p className="text-muted-foreground">When contractors send you quotes, they'll appear here.</p>
+          <p className="text-muted-foreground">
+            When contractors send you quotes, they'll appear here.
+          </p>
         </CardContent>
       </Card>
     );
@@ -116,6 +130,7 @@ export function ReceivedQuotes() {
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-2xl font-bold">Received Quotes</h2>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -146,7 +161,9 @@ export function ReceivedQuotes() {
                   </TableCell>
                   <TableCell>{q.title}</TableCell>
                   <TableCell>{format(new Date(q.valid_until), "dd MMM yyyy")}</TableCell>
-                  <TableCell className="text-right font-bold">£{Number(q.total).toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-bold">
+                    £{Number(q.total).toFixed(2)}
+                  </TableCell>
                   <TableCell>{getResponseBadge(q)}</TableCell>
                   <TableCell className="text-right">
                     {isResponding(q) && (
@@ -154,26 +171,35 @@ export function ReceivedQuotes() {
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {canRespond(q) && (
+                    {canRespond(q) && !isResponding(q) && (
                       <div className="flex justify-end gap-1">
                         <Button size="sm" onClick={() => handleAccept(q)}>
                           <CheckCircle className="h-4 w-4 mr-1" />Accept
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleReject(q)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleReject(q)}
+                        >
                           <XCircle className="h-4 w-4 mr-1" />Reject
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleStall(q)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStall(q)}
+                        >
                           <Pause className="h-4 w-4 mr-1" />Stall
                         </Button>
                       </div>
                     )}
-                    {(q.recipient_response === "accepted" || q.status === "accepted" || pendingIds[q.id] === "accepted") && (
+                    {isAccepted(q) && !isResponding(q) && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setOpenNegotiationFor(openNegotiationFor === q.id ? null : q.id)}
+                        onClick={() => setScheduleQuote(q)}
                       >
-                        {openNegotiationFor === q.id ? "Hide Schedule" : "Agree Schedule"}
+                        <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                        Agree Schedule
                       </Button>
                     )}
                   </TableCell>
@@ -184,30 +210,40 @@ export function ReceivedQuotes() {
         </CardContent>
       </Card>
 
-      {/* Schedule negotiation — confirm/pay step lives inside here */}
-      {quotes
-        .filter((q) =>
-          (q.recipient_response === "accepted" || q.status === "accepted") &&
-          openNegotiationFor === q.id
-        )
-        .map((q) => (
-          <QuoteScheduleNegotiation
-            key={q.id}
-            quoteId={q.id}
-            contractorId={q.contractor_id}
-            mode="recipient"
-            quoteTotal={Number(q.total)}
-            quoteDepositAmount={(q as any).deposit_amount ? Number((q as any).deposit_amount) : null}
-            contractorName={q.contractor_name ?? "Contractor"}
-            onJobConfirmed={() => {
-              setOpenNegotiationFor(null);
-              toast({
-                title: "Job confirmed!",
-                description: "Your job has been created and the contractor has been notified.",
-              });
-            }}
-          />
-        ))}
+      {/* Schedule negotiation — modal dialog, no more scroll-to-bottom */}
+      <Dialog
+        open={!!scheduleQuote}
+        onOpenChange={(open) => { if (!open) setScheduleQuote(null); }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
+              Agree a schedule
+            </DialogTitle>
+          </DialogHeader>
+          {scheduleQuote && (
+            <QuoteScheduleNegotiation
+              quoteId={scheduleQuote.id}
+              contractorId={scheduleQuote.contractor_id}
+              mode="recipient"
+              quoteTotal={Number(scheduleQuote.total)}
+              quoteDepositAmount={
+                (scheduleQuote as any).deposit_amount
+                  ? Number((scheduleQuote as any).deposit_amount)
+                  : null
+              }
+              contractorName={scheduleQuote.contractor_name ?? "Contractor"}
+              onJobConfirmed={() => {
+                setScheduleQuote(null);
+                toast({
+                  title: "Job confirmed!",
+                  description: "Your job has been created and the contractor has been notified.",
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {messageDialog.quote && (
         <MessageDialog
@@ -215,7 +251,9 @@ export function ReceivedQuotes() {
           onClose={() => setMessageDialog({ open: false, quote: null, action: "" })}
           contractorId={messageDialog.quote.contractor_id}
           subject={`Quote ${messageDialog.quote.quote_number || messageDialog.quote.id} - ${
-            messageDialog.action === "accepted" ? "Accepted - Let's Schedule" : "Stalled - Discussion Needed"
+            messageDialog.action === "accepted"
+              ? "Accepted - Let's Schedule"
+              : "Stalled - Discussion Needed"
           }`}
           contextType="quote"
           contextId={messageDialog.quote.id}
