@@ -65,12 +65,12 @@ function ContractorAvailabilityPanel({ contractorId }: { contractorId: string })
   const rangeData = getAvailabilityForRange(days[0], days[days.length - 1]);
 
   const slotClass = (available: boolean, isJob: boolean) => {
-    if (isJob) return "bg-amber-50 text-amber-800 border border-amber-200";
-    if (available) return "bg-green-50 text-green-800 border border-green-200";
+  if (isJob) return "bg-amber-50 text-amber-800 border border-amber-200";
+  if (available) return "bg-slate-50 text-slate-600 border border-slate-200";
     return "bg-muted text-muted-foreground border border-border";
   };
 
-  const slotLabel = (available: boolean) => available ? "free" : "blocked";
+  const slotLabel = (available: boolean) => available ? "available" : "unavailable";
 
   if (loading) {
     return (
