@@ -551,7 +551,6 @@ const ContractorDashboard = () => {
                           </div>
                           <p className="text-muted-foreground mb-2">{enquiry.job_description}</p>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            {enquiry.customer_name && <span>From: {enquiry.customer_name}</span>}
                             {enquiry.location && <span>Location: {enquiry.location}</span>}
                             {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
                             {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
@@ -606,7 +605,6 @@ const ContractorDashboard = () => {
                   <table className="w-full text-sm">
                     <thead><tr className="border-b bg-muted/50">
                       <th className="text-left p-3 font-medium">Quote #</th>
-                      <th className="text-left p-3 font-medium">Client</th>
                       <th className="text-left p-3 font-medium">Total</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">Response</th>
@@ -618,7 +616,6 @@ const ContractorDashboard = () => {
                         <>
                           <tr key={iq.id} className="border-b hover:bg-muted/30">
                             <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
-                            <td className="p-3">{iq.client_name}</td>
                             <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
                             <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
                             <td className="p-3">{iq.recipient_response ? (

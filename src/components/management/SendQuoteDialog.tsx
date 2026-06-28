@@ -24,6 +24,7 @@ type Enquiry = {
   preferred_timeline: string | null;
   budget_range: string | null;
   status: string | null;
+  photo_urls: string[] | null;
 };
 
 type LineItem = {
@@ -223,6 +224,24 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
               {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
             </div>
+            {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-medium text-muted-foreground">Customer photos</p>
+                <div className="flex flex-wrap gap-2">
+                  {enquiry.photo_urls.slice(0, 4).map((path, i) => {
+                    const { data } = supabase.storage.from("enquiry-photos").getPublicUrl(path);
+                    return (
+                      <img
+                        key={path}
+                        src={data.publicUrl}
+                        alt={`Customer photo ${i + 1}`}
+                        className="h-16 w-16 rounded-md object-cover"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
