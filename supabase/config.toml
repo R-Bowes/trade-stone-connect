@@ -21,3 +21,7 @@ verify_jwt = false
 
 [functions.mark-overdue-invoices]
 verify_jwt = false
+
+[functions.sla-clock]
+# Internal/service-to-service — invoked on job create/approve and by a scheduled check, not by end users
+verify_jwt = false

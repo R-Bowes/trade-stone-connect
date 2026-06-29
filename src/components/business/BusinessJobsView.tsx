@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft, Briefcase } from "lucide-react";
+import { SlaStatusPill } from "@/components/SlaStatusPill";
+import { PriorityBadge } from "@/components/PriorityBadge";
 
 // Confirmed jobs.status values from migration 20260328170000
 const ALL_STATUSES = ["scheduled", "in_progress", "snagging", "complete", "cancelled"] as const;
@@ -30,11 +32,14 @@ interface JobRow {
   id: string;
   title: string;
   status: string;
+  priority: string | null;
   site_id: string | null;
   contractor_id: string | null;
   contract_value: number | null;
   sla_response_due: string | null;
   sla_resolution_due: string | null;
+  sla_completion_due: string | null;
+  sla_status: string | null;
   responded_at: string | null;
   created_at: string;
   site_name?: string | null;
@@ -48,24 +53,6 @@ interface Props {
 
 function fmt(iso: string) {
   return format(new Date(iso), "d MMM yyyy");
-}
-
-function slaIndicator(job: JobRow) {
-  const now = Date.now();
-  const responseDue = job.sla_response_due ? new Date(job.sla_response_due).getTime() : null;
-  const resolutionDue = job.sla_resolution_due ? new Date(job.sla_resolution_due).getTime() : null;
-  const responseBreached = responseDue && responseDue < now && !job.responded_at;
-  const resolutionBreached = resolutionDue && resolutionDue < now && job.status !== "complete" && job.status !== "cancelled";
-  const responseWarn = responseDue && responseDue < now + 86400000 * 2 && !job.responded_at && !responseBreached;
-  const resolutionWarn = resolutionDue && resolutionDue < now + 86400000 * 2 && job.status !== "complete" && !resolutionBreached;
-
-  if (responseBreached || resolutionBreached) {
-    return <span className="text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">SLA breached</span>;
-  }
-  if (responseWarn || resolutionWarn) {
-    return <span className="text-xs font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">SLA at risk</span>;
-  }
-  return null;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -91,8 +78,9 @@ function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
       <div className="space-y-1">
         <h2 className="font-heading text-2xl font-bold">{job.title}</h2>
         <div className="flex flex-wrap items-center gap-2">
+          <PriorityBadge priority={job.priority} full />
           <StatusBadge status={job.status} />
-          {slaIndicator(job)}
+          <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
         </div>
       </div>
 
@@ -155,7 +143,7 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
 
     const { data: jobRows } = await supabase
       .from("jobs")
-      .select("id, title, status, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, responded_at, created_at")
+      .select("id, title, status, priority, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, sla_completion_due, sla_status, responded_at, created_at")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
@@ -195,8 +183,42 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
     return true;
   });
 
+  // at_risk and breached jobs surface first by default
+  const SLA_SORT_RANK: Record<string, number> = { breached: 0, at_risk: 1 };
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    const rankA = SLA_SORT_RANK[a.sla_status ?? ""] ?? 2;
+    const rankB = SLA_SORT_RANK[b.sla_status ?? ""] ?? 2;
+    if (rankA !== rankB) return rankA - rankB;
+    return b.created_at.localeCompare(a.created_at);
+  });
+
+  const slaCounts = jobs.reduce(
+    (acc, j) => {
+      if (j.sla_status === "at_risk") acc.at_risk++;
+      else if (j.sla_status === "breached") acc.breached++;
+      else if (j.sla_status === "on_track") acc.on_track++;
+      return acc;
+    },
+    { at_risk: 0, breached: 0, on_track: 0 },
+  );
+
   return (
     <div className="p-6 space-y-4 max-w-5xl">
+
+      {/* SLA summary bar */}
+      {(slaCounts.at_risk > 0 || slaCounts.breached > 0 || slaCounts.on_track > 0) && (
+        <div className="flex items-center gap-4 text-sm rounded-md border bg-muted/30 px-4 py-2">
+          <span className={slaCounts.at_risk > 0 ? "font-medium text-amber-700" : "text-muted-foreground"}>
+            {slaCounts.at_risk} job{slaCounts.at_risk !== 1 ? "s" : ""} at risk
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className={slaCounts.breached > 0 ? "font-medium text-red-600" : "text-muted-foreground"}>
+            {slaCounts.breached} breached
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{slaCounts.on_track} on track</span>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3">
@@ -261,20 +283,23 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
           </CardHeader>
           <CardContent className="p-0">
             <div>
-              {filtered.map((job) => (
+              {sortedFiltered.map((job) => (
                 <button
                   key={job.id}
                   onClick={() => setSelected(job)}
                   className="w-full text-left flex items-center justify-between px-6 py-3 border-b last:border-0 hover:bg-muted/40 transition-colors gap-4"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{job.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[job.site_name, job.contractor_name].filter(Boolean).join(" · ") || "No site assigned"}
-                    </p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <PriorityBadge priority={job.priority} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{job.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {[job.site_name, job.contractor_name].filter(Boolean).join(" · ") || "No site assigned"}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {slaIndicator(job)}
+                    <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
                     <StatusBadge status={job.status} />
                   </div>
                 </button>

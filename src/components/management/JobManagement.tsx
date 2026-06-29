@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
+import { SlaStatusPill } from "@/components/SlaStatusPill";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -71,6 +72,8 @@ type JobCardData = {
   client_ts_code: string | null;
   quote_number: string | null;
   issued_quote_id: string | null;
+  sla_status: string | null;
+  sla_completion_due: string | null;
 };
 
 type TimesheetEntry = {
@@ -291,6 +294,8 @@ export function JobManagement() {
         location,
         customer_id,
         issued_quote_id,
+        sla_status,
+        sla_completion_due,
         client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
         quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, completion_time)
       `)
@@ -317,6 +322,8 @@ export function JobManagement() {
       client_ts_code: job.client?.ts_profile_code ?? null,
       quote_number: job.quote?.quote_number ?? null,
       issued_quote_id: job.issued_quote_id ?? null,
+      sla_status: job.sla_status ?? null,
+      sla_completion_due: job.sla_completion_due ?? null,
     })) as JobCardData[];
 
     setJobs(mapped);
@@ -672,6 +679,7 @@ export function JobManagement() {
                           {job.quote_number}
                         </span>
                       )}
+                      <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
                     </div>
                     <p className="text-sm text-muted-foreground">
                       <span>{job.client_name}</span>

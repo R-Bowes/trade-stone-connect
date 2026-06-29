@@ -22,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { PriorityBadge, PRIORITY_CONFIG } from "@/components/PriorityBadge";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,10 +64,17 @@ interface RequestRow {
   asset_id: string | null;
   contractor_id: string | null;
   status: string | null;
+  priority: string | null;
   created_at: string | null;
   site_name?: string;
   asset_name?: string;
   contractor_name?: string;
+}
+
+interface SlaRule {
+  priority: string;
+  response_hours: number;
+  resolution_hours: number;
 }
 
 interface Props {
@@ -107,6 +115,7 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
   const [assets, setAssets] = useState<Asset[]>([]);
   const [contractors, setContractors] = useState<PanelContractor[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [slaRules, setSlaRules] = useState<SlaRule[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -115,6 +124,7 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
   const [formContractorId, setFormContractorId] = useState("");
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formPriority, setFormPriority] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -171,10 +181,17 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
     );
     setContractors(hydrated);
 
-    // e. Existing requests for this company
+    // e. SLA rules for this company — used to show response/resolution targets per priority
+    const { data: slaRows } = await supabase
+      .from("sla_rules")
+      .select("priority, response_hours, resolution_hours")
+      .eq("company_id", companyId);
+    setSlaRules((slaRows ?? []) as SlaRule[]);
+
+    // f. Existing requests for this company
     const { data: reqData } = await supabase
       .from("enquiries")
-      .select("id, title, site_id, asset_id, contractor_id, status, created_at")
+      .select("id, title, site_id, asset_id, contractor_id, status, priority, created_at")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
@@ -204,11 +221,13 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
     setFormContractorId("");
     setFormTitle("");
     setFormDescription("");
+    setFormPriority("");
   };
 
   const handleSubmit = async () => {
     if (!formSiteId)           { toast({ title: "Site required",       variant: "destructive" }); return; }
     if (!formContractorId)     { toast({ title: "Contractor required", variant: "destructive" }); return; }
+    if (!formPriority)         { toast({ title: "Priority required",   variant: "destructive" }); return; }
     if (!formTitle.trim())     { toast({ title: "Title required",      variant: "destructive" }); return; }
     if (!formDescription.trim()) { toast({ title: "Description required", variant: "destructive" }); return; }
     if (!company)              { toast({ title: "Company data not loaded", variant: "destructive" }); return; }
@@ -232,6 +251,7 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
       job_description:  formDescription.trim(),
       location:         siteLocation(site),
       status:           "new",
+      priority:         formPriority,
     }).select("id").single();
 
     setSubmitting(false);
@@ -329,7 +349,10 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 space-y-1">
-                      <p className="font-semibold truncate">{req.title ?? "Untitled"}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold truncate">{req.title ?? "Untitled"}</p>
+                        <PriorityBadge priority={req.priority} />
+                      </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
                         <span>
                           <i className="ti ti-building-skyscraper mr-1 text-xs" />
@@ -447,7 +470,43 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
               </Select>
             </div>
 
-            {/* 4. Title */}
+            {/* 4. Priority */}
+            <div className="space-y-2">
+              <Label>
+                Priority <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formPriority}
+                onValueChange={setFormPriority}
+                disabled={submitting}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a priority..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRIORITY_CONFIG).map(([value, config]) => (
+                    <SelectItem key={value} value={value}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formPriority && (() => {
+                const rule = slaRules.find((r) => r.priority === formPriority);
+                return rule ? (
+                  <p className="text-xs text-muted-foreground">
+                    {PRIORITY_CONFIG[formPriority]?.label}: {rule.response_hours}hr response,{" "}
+                    {rule.resolution_hours}hr resolution
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No SLA policy configured for this priority yet.
+                  </p>
+                );
+              })()}
+            </div>
+
+            {/* 5. Title */}
             <div className="space-y-2">
               <Label>
                 Title <span className="text-destructive">*</span>
@@ -460,7 +519,7 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
               />
             </div>
 
-            {/* 5. Description */}
+            {/* 6. Description */}
             <div className="space-y-2">
               <Label>
                 Description <span className="text-destructive">*</span>
