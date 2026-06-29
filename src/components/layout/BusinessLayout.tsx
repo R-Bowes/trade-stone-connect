@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { value: "panel",      label: "Panel",      icon: "ti-users-group" },
       { value: "compliance", label: "Compliance", icon: "ti-shield-check" },
+      { value: "prequal",    label: "Prequalification", icon: "ti-clipboard-check" },
     ],
   },
   {
@@ -75,6 +76,7 @@ const VIEW_LABELS: Record<string, string> = {
   groups:     "Site Groups",
   panel:      "Contractor Panel",
   compliance: "Compliance",
+  prequal:    "Panel Compliance",
   invoices:   "Invoices",
   spend:      "Spend",
   messages:   "Messages",

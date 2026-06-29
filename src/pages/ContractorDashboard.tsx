@@ -37,9 +37,11 @@ import { StripeConnect } from "@/components/management/StripeConnect";
 import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
+import { ContractorPrequalStatus } from "@/components/contractor/ContractorPrequalStatus";
 import { ContractorServiceVisits } from "@/components/business/ContractorServiceVisits";
 import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
+import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -60,6 +62,9 @@ type EnquiryForDialog = {
   status: string | null;
 };
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
+// sla_status / sla_completion_due are not yet in the generated Database types
+// (pending migration 20260629130000_sla_clock.sql + a types regen) — extend locally.
+type JobWithSla = Job & { sla_status?: string | null; sla_completion_due?: string | null };
 
 interface UpcomingEvent {
   id: string;
@@ -193,7 +198,7 @@ const ContractorDashboard = () => {
           .gte('start_time', now.toISOString())
           .order('start_time', { ascending: true })
           .limit(5),
-        supabase.from('jobs').select('id, title, status, contract_value, start_date, end_date')
+        supabase.from('jobs').select('id, title, status, contract_value, start_date, end_date, sla_status, sla_completion_due')
           .eq('contractor_id', contractorId).in('status', ['active', 'in_progress', 'in-progress'])
           .order('created_at', { ascending: false }).limit(3),
         supabase.from('invoices').select('id, invoice_number, client_name, total, status, due_date, issued_date')
@@ -485,8 +490,11 @@ const ContractorDashboard = () => {
                             <p className="font-medium text-sm">{job.title}</p>
                             <p className="text-xs text-muted-foreground">{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</p>
                           </div>
-                          <div className="text-right">
-                            <Badge className={`text-xs ${getStatusColor(job.status || '')}`}>{job.status}</Badge>
+                          <div className="text-right space-y-1">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Badge className={`text-xs ${getStatusColor(job.status || '')}`}>{job.status}</Badge>
+                              <SlaStatusPill status={(job as JobWithSla).sla_status} completionDue={(job as JobWithSla).sla_completion_due} />
+                            </div>
                             {job.end_date && <p className="text-xs text-muted-foreground mt-1">Due {new Date(job.end_date).toLocaleDateString('en-GB')}</p>}
                           </div>
                         </div>
@@ -503,6 +511,13 @@ const ContractorDashboard = () => {
             <h2 className="font-heading text-2xl font-bold">Panel Invitations</h2>
             {profileId ? <PanelInvites profileId={profileId} /> : (
               <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load invites — profile not found.</p></CardContent></Card>
+            )}
+          </TabsContent>
+
+          {/* Panel Compliance Tab */}
+          <TabsContent value="panel-compliance">
+            {profileId ? <ContractorPrequalStatus profileId={profileId} /> : (
+              <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load panel compliance — profile not found.</p></CardContent></Card>
             )}
           </TabsContent>
 
@@ -673,7 +688,10 @@ const ContractorDashboard = () => {
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                           <CardDescription>{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</CardDescription>
                         </div>
-                        <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
+                          <SlaStatusPill status={(job as JobWithSla).sla_status} completionDue={(job as JobWithSla).sla_completion_due} />
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">

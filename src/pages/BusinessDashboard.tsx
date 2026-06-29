@@ -7,6 +7,7 @@ import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
+import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
 import { BusinessTeamView } from "@/components/business/BusinessTeamView";
 import { SiteGroupsView } from "@/components/business/SiteGroupsView";
@@ -229,7 +230,7 @@ const BusinessDashboard = () => {
     }
 
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "compliance", "team", "groups"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "compliance", "prequal", "team", "groups"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -301,6 +302,9 @@ const BusinessDashboard = () => {
 
       case "compliance":
         return <BusinessComplianceView companyId={companyId!} />;
+
+      case "prequal":
+        return <BusinessPrequalView companyId={companyId!} profileId={profileId} />;
 
       case "invoices":
         return (

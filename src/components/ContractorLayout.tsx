@@ -36,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "projects", label: "Projects", icon: "ti-folder" },
       { value: "contracts", label: "Contracts", icon: "ti-writing" },
       { value: "panel-invites", label: "Panel invites", icon: "ti-building" },
+      { value: "panel-compliance", label: "Panel compliance", icon: "ti-clipboard-check" },
     ],
   },
   {
@@ -75,6 +76,7 @@ const VIEW_LABELS: Record<string, string> = {
   projects: "Projects",
   contracts: "Contracts",
   "panel-invites": "Panel Invites",
+  "panel-compliance": "Panel Compliance",
   schedule: "Schedule",
   "service-visits": "Service Visits",
   team: "Team",
@@ -100,6 +102,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   projects: "Track multi-stage work, manage proposals and monitor budgets",
   contracts: "View contract terms, renewal dates and linked service visits",
   "panel-invites": "Accept or decline invitations to join a business's contractor panel",
+  "panel-compliance": "Documents required by your clients",
   schedule: "See what's coming up and block time off to manage your availability",
   "service-visits": "Log visit outcomes, upload photos and mark visits complete",
   team: "Add team members, set their role and daily rate",
