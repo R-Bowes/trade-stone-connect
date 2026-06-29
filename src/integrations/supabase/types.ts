@@ -612,11 +612,14 @@ export type Database = {
         Row: {
           added_by: string | null
           approved_at: string | null
+          can_receive_jobs: boolean
           company_id: string | null
           contractor_id: string | null
           created_at: string | null
           id: string
           notes: string | null
+          prequal_id: string | null
+          prequal_status: string
           status: string | null
           tier: string | null
           updated_at: string | null
@@ -624,11 +627,14 @@ export type Database = {
         Insert: {
           added_by?: string | null
           approved_at?: string | null
+          can_receive_jobs?: boolean
           company_id?: string | null
           contractor_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
+          prequal_id?: string | null
+          prequal_status?: string
           status?: string | null
           tier?: string | null
           updated_at?: string | null
@@ -636,11 +642,14 @@ export type Database = {
         Update: {
           added_by?: string | null
           approved_at?: string | null
+          can_receive_jobs?: boolean
           company_id?: string | null
           contractor_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
+          prequal_id?: string | null
+          prequal_status?: string
           status?: string | null
           tier?: string | null
           updated_at?: string | null
@@ -651,6 +660,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_panel_prequal_id_fkey"
+            columns: ["prequal_id"]
+            isOneToOne: false
+            referencedRelation: "panel_prequalification"
             referencedColumns: ["id"]
           },
         ]
@@ -1110,9 +1126,11 @@ export type Database = {
           customer_ts_code: string | null
           id: string
           job_description: string
+          job_type: string | null
           location: string
           photo_urls: string[] | null
           preferred_timeline: string | null
+          priority: string | null
           project_id: string | null
           site_id: string | null
           status: string | null
@@ -1134,9 +1152,11 @@ export type Database = {
           customer_ts_code?: string | null
           id?: string
           job_description: string
+          job_type?: string | null
           location: string
           photo_urls?: string[] | null
           preferred_timeline?: string | null
+          priority?: string | null
           project_id?: string | null
           site_id?: string | null
           status?: string | null
@@ -1158,9 +1178,11 @@ export type Database = {
           customer_ts_code?: string | null
           id?: string
           job_description?: string
+          job_type?: string | null
           location?: string
           photo_urls?: string[] | null
           preferred_timeline?: string | null
+          priority?: string | null
           project_id?: string | null
           site_id?: string | null
           status?: string | null
@@ -1605,6 +1627,7 @@ export type Database = {
           deposit_required: boolean | null
           description: string | null
           enquiry_id: string | null
+          estimated_duration_minutes: number | null
           id: string
           items: Json
           notes: string | null
@@ -1647,6 +1670,7 @@ export type Database = {
           deposit_required?: boolean | null
           description?: string | null
           enquiry_id?: string | null
+          estimated_duration_minutes?: number | null
           id?: string
           items?: Json
           notes?: string | null
@@ -1689,6 +1713,7 @@ export type Database = {
           deposit_required?: boolean | null
           description?: string | null
           enquiry_id?: string | null
+          estimated_duration_minutes?: number | null
           id?: string
           items?: Json
           notes?: string | null
@@ -1789,23 +1814,138 @@ export type Database = {
           },
         ]
       }
-      job_conversations: {
+      job_checklist_items: {
         Row: {
+          checked_at: string | null
+          checked_by: string | null
           created_at: string
           id: string
+          is_checked: boolean
+          is_contractor_added: boolean
+          item_text: string
           job_id: string
+          sort_order: number
+          stage: string
         }
         Insert: {
+          checked_at?: string | null
+          checked_by?: string | null
           created_at?: string
           id?: string
+          is_checked?: boolean
+          is_contractor_added?: boolean
+          item_text: string
           job_id: string
+          sort_order?: number
+          stage: string
         }
         Update: {
+          checked_at?: string | null
+          checked_by?: string | null
           created_at?: string
           id?: string
+          is_checked?: boolean
+          is_contractor_added?: boolean
+          item_text?: string
           job_id?: string
+          sort_order?: number
+          stage?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_checklist_items_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checklist_items_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checklist_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_checklist_templates: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          item_text: string
+          job_type: string
+          sort_order: number
+          stage: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          item_text: string
+          job_type: string
+          sort_order?: number
+          stage: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          item_text?: string
+          job_type?: string
+          sort_order?: number
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_checklist_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_conversations: {
+        Row: {
+          context: string
+          created_at: string
+          enquiry_id: string | null
+          id: string
+          job_id: string | null
+        }
+        Insert: {
+          context?: string
+          created_at?: string
+          enquiry_id?: string | null
+          id?: string
+          job_id?: string | null
+        }
+        Update: {
+          context?: string
+          created_at?: string
+          enquiry_id?: string | null
+          id?: string
+          job_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_conversations_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_conversations_job_id_fkey"
             columns: ["job_id"]
@@ -2299,20 +2439,26 @@ export type Database = {
           customer_id: string
           description: string | null
           end_date: string | null
+          expected_completion: string | null
           id: string
           issued_quote_id: string | null
           job_number: string | null
+          job_type: string | null
           location: string | null
           portfolio_approved: boolean | null
           priority: string | null
           project_id: string | null
           responded_at: string | null
+          scheduled_start: string | null
           signed_off_at: string | null
           signed_off_by: string | null
           site_id: string | null
+          sla_attendance_due: string | null
+          sla_completion_due: string | null
           sla_resolution_due: string | null
           sla_response_due: string | null
           sla_rule_id: string | null
+          sla_status: string | null
           start_date: string | null
           status: string
           title: string
@@ -2330,20 +2476,26 @@ export type Database = {
           customer_id: string
           description?: string | null
           end_date?: string | null
+          expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
           job_number?: string | null
+          job_type?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
           priority?: string | null
           project_id?: string | null
           responded_at?: string | null
+          scheduled_start?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
           site_id?: string | null
+          sla_attendance_due?: string | null
+          sla_completion_due?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
+          sla_status?: string | null
           start_date?: string | null
           status?: string
           title: string
@@ -2361,20 +2513,26 @@ export type Database = {
           customer_id?: string
           description?: string | null
           end_date?: string | null
+          expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
           job_number?: string | null
+          job_type?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
           priority?: string | null
           project_id?: string | null
           responded_at?: string | null
+          scheduled_start?: string | null
           signed_off_at?: string | null
           signed_off_by?: string | null
           site_id?: string | null
+          sla_attendance_due?: string | null
+          sla_completion_due?: string | null
           sla_resolution_due?: string | null
           sla_response_due?: string | null
           sla_rule_id?: string | null
+          sla_status?: string | null
           start_date?: string | null
           status?: string
           title?: string
@@ -2601,6 +2759,108 @@ export type Database = {
         }
         Relationships: []
       }
+      panel_prequalification: {
+        Row: {
+          company_id: string
+          contractor_id: string
+          created_at: string
+          employers_liability_expiry: string | null
+          employers_liability_verified: boolean
+          id: string
+          nda_signed: boolean | null
+          next_review_date: string | null
+          notes: string | null
+          overall_status: string
+          public_liability_expiry: string | null
+          public_liability_verified: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          site_induction_complete: boolean
+          terms_accepted: boolean
+          trade_cert_expiry: string | null
+          trade_cert_verified: boolean
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contractor_id: string
+          created_at?: string
+          employers_liability_expiry?: string | null
+          employers_liability_verified?: boolean
+          id?: string
+          nda_signed?: boolean | null
+          next_review_date?: string | null
+          notes?: string | null
+          overall_status?: string
+          public_liability_expiry?: string | null
+          public_liability_verified?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          site_induction_complete?: boolean
+          terms_accepted?: boolean
+          trade_cert_expiry?: string | null
+          trade_cert_verified?: boolean
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contractor_id?: string
+          created_at?: string
+          employers_liability_expiry?: string | null
+          employers_liability_verified?: boolean
+          id?: string
+          nda_signed?: boolean | null
+          next_review_date?: string | null
+          notes?: string | null
+          overall_status?: string
+          public_liability_expiry?: string | null
+          public_liability_verified?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          site_induction_complete?: boolean
+          terms_accepted?: boolean
+          trade_cert_expiry?: string | null
+          trade_cert_verified?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_prequalification_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
@@ -2711,6 +2971,81 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prequalification_documents: {
+        Row: {
+          created_at: string
+          document_type: string
+          expiry_date: string | null
+          file_name: string
+          file_url: string
+          id: string
+          prequal_id: string
+          uploaded_by: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_type: string
+          expiry_date?: string | null
+          file_name: string
+          file_url: string
+          id?: string
+          prequal_id: string
+          uploaded_by: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_type?: string
+          expiry_date?: string | null
+          file_name?: string
+          file_url?: string
+          id?: string
+          prequal_id?: string
+          uploaded_by?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prequalification_documents_prequal_id_fkey"
+            columns: ["prequal_id"]
+            isOneToOne: false
+            referencedRelation: "panel_prequalification"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4397,9 +4732,77 @@ export type Database = {
           },
         ]
       }
+      sla_clock_events: {
+        Row: {
+          actor_id: string | null
+          clock_target: string
+          event_type: string
+          id: string
+          job_id: string
+          occurred_at: string
+          reason: string | null
+          sla_rule_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          clock_target: string
+          event_type: string
+          id?: string
+          job_id: string
+          occurred_at?: string
+          reason?: string | null
+          sla_rule_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          clock_target?: string
+          event_type?: string
+          id?: string
+          job_id?: string
+          occurred_at?: string
+          reason?: string | null
+          sla_rule_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_clock_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sla_clock_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sla_clock_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sla_clock_events_sla_rule_id_fkey"
+            columns: ["sla_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sla_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sla_rules: {
         Row: {
+          alert_pct: number
           applies_to_trade: string | null
+          attendance_hours: number | null
+          business_hours_end: string | null
+          business_hours_only: boolean
+          business_hours_start: string | null
+          clock_pausable: boolean
           company_id: string | null
           created_at: string | null
           description: string | null
@@ -4412,7 +4815,13 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          alert_pct?: number
           applies_to_trade?: string | null
+          attendance_hours?: number | null
+          business_hours_end?: string | null
+          business_hours_only?: boolean
+          business_hours_start?: string | null
+          clock_pausable?: boolean
           company_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -4425,7 +4834,13 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          alert_pct?: number
           applies_to_trade?: string | null
+          attendance_hours?: number | null
+          business_hours_end?: string | null
+          business_hours_only?: boolean
+          business_hours_start?: string | null
+          clock_pausable?: boolean
           company_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -4814,7 +5229,9 @@ export type Database = {
           bio: string | null
           company_name: string | null
           completed_jobs: number | null
+          cover_url: string | null
           created_at: string | null
+          cta_label: string | null
           full_name: string | null
           hourly_rate: number | null
           id: string | null
@@ -4823,6 +5240,7 @@ export type Database = {
           is_verified: boolean | null
           location: string | null
           logo_url: string | null
+          profile_is_published: boolean | null
           rating: number | null
           review_count: number | null
           trades: string[] | null
@@ -4838,7 +5256,9 @@ export type Database = {
           bio?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          cover_url?: string | null
           created_at?: string | null
+          cta_label?: string | null
           full_name?: string | null
           hourly_rate?: number | null
           id?: string | null
@@ -4847,6 +5267,7 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
           trades?: string[] | null
@@ -4862,7 +5283,9 @@ export type Database = {
           bio?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          cover_url?: string | null
           created_at?: string | null
+          cta_label?: string | null
           full_name?: string | null
           hourly_rate?: number | null
           id?: string | null
@@ -4871,6 +5294,7 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
           trades?: string[] | null
