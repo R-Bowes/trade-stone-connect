@@ -89,7 +89,7 @@ function CheckoutForm({
           if (enq) { company_id = enq.company_id; site_id = enq.site_id; asset_id = enq.asset_id; }
         }
 
-        const { error: jobError } = await supabase.from("jobs").insert({
+        const { data: jobRow, error: jobError } = await supabase.from("jobs").insert({
           contractor_id: quote.contractor_id,
           customer_id: quote.recipient_id,
           issued_quote_id: quoteId,
@@ -100,7 +100,7 @@ function CheckoutForm({
           company_id,
           site_id,
           asset_id,
-        });
+        }).select("id").single();
 
         if (jobError) {
           console.error("Job creation failed", jobError);
@@ -111,6 +111,12 @@ function CheckoutForm({
           });
           setLoading(false);
           return;
+        }
+
+        if (!jobError && jobRow?.id && company_id) {
+          await supabase.functions.invoke("sla-clock", {
+            body: { action: "start", job_id: jobRow.id },
+          });
         }
       }
     } catch (err) {

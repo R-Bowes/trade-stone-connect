@@ -121,7 +121,7 @@ export function QuoteScheduleNegotiation({
       const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
       const startDate = confirmedProposal ? confirmedProposal.start_time.slice(0, 10) : null;
 
-      const { error: jobError } = await supabase.from("jobs").insert({
+      const { data: jobRow, error: jobError } = await supabase.from("jobs").insert({
         contractor_id: quote.contractor_id,
         customer_id: quote.recipient_id,
         issued_quote_id: quoteId,
@@ -133,8 +133,14 @@ export function QuoteScheduleNegotiation({
         company_id,
         site_id,
         asset_id,
-      });
+      }).select("id").single();
       if (jobError) throw jobError;
+
+      if (!jobError && jobRow?.id && company_id) {
+        await supabase.functions.invoke("sla-clock", {
+          body: { action: "start", job_id: jobRow.id },
+        });
+      }
 
       toast({ title: "Job confirmed" });
       onJobConfirmed?.();
