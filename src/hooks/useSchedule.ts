@@ -16,6 +16,8 @@ export interface ScheduleEvent {
   all_day: boolean;
   status: string;
   color: string | null;
+  job_id: string | null;
+  quote_id: string | null;
   created_at: string;
   updated_at: string;
 }

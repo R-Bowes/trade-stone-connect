@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, CalendarDays, MapPin, User, Phone, GripVertical } from "lucide-react";
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from "date-fns";
 import type { ScheduleEvent } from "@/hooks/useSchedule";
@@ -26,9 +27,27 @@ const statusStyles: Record<string, string> = {
   declined: "border-l-4 border-dashed opacity-30 line-through",
 };
 
+const statusLabel: Record<string, string> = {
+  scheduled: "Scheduled",
+  confirmed: "Confirmed",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  accepted: "Accepted",
+  proposed: "Proposed",
+  declined: "Declined",
+};
+
+function eventActionLabel(event: ScheduleEvent): "View Job" | "View Quote" | "Edit event" {
+  if (event.job_id) return "View Job";
+  if (event.quote_id) return "View Quote";
+  return "Edit event";
+}
+
 export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }: WeekCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [draggedEvent, setDraggedEvent] = useState<ScheduleEvent | null>(null);
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -176,10 +195,12 @@ export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }:
                     {/* Events */}
                     {dayEvents.map(event => {
                       const pos = getEventPosition(event);
+                      const isDraggable = !event.quote_id;
+                      const actionLabel = eventActionLabel(event);
                       return (
                         <div
                           key={event.id}
-                          className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs cursor-grab active:cursor-grabbing overflow-hidden ${statusStyles[event.status] || ""}`}
+                          className={`absolute left-1 right-1 rounded-md text-xs overflow-hidden ${statusStyles[event.status] || ""}`}
                           style={{
                             top: pos.top,
                             height: pos.height,
@@ -187,31 +208,76 @@ export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }:
                             borderLeftColor: event.color || "#e87722",
                             zIndex: 10,
                           }}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, event)}
-                          onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="flex items-center gap-1">
-                            <GripVertical className="h-3 w-3 opacity-40 flex-shrink-0" />
-                            <span className="font-medium truncate">{event.title}</span>
-                          </div>
-                          {pos.height > 40 && (
-                            <div className="text-muted-foreground mt-0.5">
-                              {format(new Date(event.start_time), "h:mm a")} - {format(new Date(event.end_time), "h:mm a")}
-                            </div>
-                          )}
-                          {pos.height > 60 && event.client_name && (
-                            <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
-                              <User className="h-3 w-3" />
-                              <span className="truncate">{event.client_name}</span>
-                            </div>
-                          )}
-                          {pos.height > 80 && event.location && (
-                            <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
-                              <MapPin className="h-3 w-3" />
-                              <span className="truncate">{event.location}</span>
-                            </div>
-                          )}
+                          <Popover
+                            open={openPopoverId === event.id}
+                            onOpenChange={(isOpen) => setOpenPopoverId(isOpen ? event.id : null)}
+                          >
+                            <PopoverTrigger asChild>
+                              <div className="px-2 py-1 cursor-pointer h-full w-full">
+                                <div className="flex items-center gap-1">
+                                  {isDraggable && (
+                                    <span
+                                      draggable
+                                      onDragStart={(e) => handleDragStart(e, event)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="cursor-grab active:cursor-grabbing flex-shrink-0"
+                                    >
+                                      <GripVertical className="h-3 w-3 opacity-40" />
+                                    </span>
+                                  )}
+                                  <span className="font-medium truncate">{event.title}</span>
+                                </div>
+                                {pos.height > 40 && (
+                                  <div className="text-muted-foreground mt-0.5">
+                                    {format(new Date(event.start_time), "h:mm a")} - {format(new Date(event.end_time), "h:mm a")}
+                                  </div>
+                                )}
+                                {pos.height > 60 && event.client_name && (
+                                  <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
+                                    <User className="h-3 w-3" />
+                                    <span className="truncate">{event.client_name}</span>
+                                  </div>
+                                )}
+                                {pos.height > 80 && event.location && (
+                                  <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="truncate">{event.location}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 text-sm space-y-2">
+                              <p className="font-semibold leading-tight">{event.title}</p>
+                              <Badge variant="outline" className="text-xs">
+                                {statusLabel[event.status] ?? event.status}
+                              </Badge>
+                              <p className="text-muted-foreground text-xs">
+                                {format(new Date(event.start_time), "d MMM yyyy")}<br />
+                                {format(new Date(event.start_time), "h:mm a")} – {format(new Date(event.end_time), "h:mm a")}
+                              </p>
+                              {event.client_name && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <User className="h-3 w-3 flex-shrink-0" />
+                                  <span>{event.client_name}</span>
+                                </div>
+                              )}
+                              {event.location && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                                  <span>{event.location}</span>
+                                </div>
+                              )}
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={() => { setOpenPopoverId(null); onEventClick(event); }}
+                              >
+                                {actionLabel}
+                              </Button>
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       );
                     })}

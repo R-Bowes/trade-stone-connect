@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,7 @@ export function ScheduleManagement() {
   const [defaultDate, setDefaultDate] = useState<Date | undefined>();
   const [acceptedQuotes, setAcceptedQuotes] = useState<AcceptedQuote[]>([]);
   const [contractorProfileId, setContractorProfileId] = useState("");
+  const navigate = useNavigate();
 
   const handleSlotClick = (date: Date) => {
     setEditingEvent(null);
@@ -35,6 +37,14 @@ export function ScheduleManagement() {
   };
 
   const handleEventClick = (event: ScheduleEvent) => {
+    if (event.job_id) {
+      navigate("/dashboard/contractor?view=jobs");
+      return;
+    }
+    if (event.quote_id) {
+      navigate("/dashboard/contractor?view=quote-scheduling");
+      return;
+    }
     setEditingEvent(event);
     setDefaultDate(undefined);
     setShowForm(true);
