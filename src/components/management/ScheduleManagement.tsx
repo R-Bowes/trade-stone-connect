@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +29,8 @@ export function ScheduleManagement() {
   const [acceptedQuotes, setAcceptedQuotes] = useState<AcceptedQuote[]>([]);
   const [contractorProfileId, setContractorProfileId] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const innerTab = searchParams.get("tab") ?? "calendar";
 
   const handleSlotClick = (date: Date) => {
     setEditingEvent(null);
@@ -42,7 +44,7 @@ export function ScheduleManagement() {
       return;
     }
     if (event.quote_id) {
-      navigate("/dashboard/contractor?view=quote-scheduling");
+      navigate("/dashboard/contractor?view=schedule&tab=quote-scheduling");
       return;
     }
     setEditingEvent(event);
@@ -110,7 +112,7 @@ export function ScheduleManagement() {
         </Button>
       </div>
 
-      <Tabs defaultValue="calendar">
+      <Tabs value={innerTab} onValueChange={(tab) => navigate(`/dashboard/contractor?view=schedule&tab=${tab}`)}>
         <TabsList>
           <TabsTrigger value="calendar" className="gap-1"><CalendarDays className="h-4 w-4" />Calendar</TabsTrigger>
           <TabsTrigger value="upcoming" className="gap-1"><List className="h-4 w-4" />Upcoming</TabsTrigger>
