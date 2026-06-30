@@ -21,12 +21,19 @@ import {
   CheckCircle,
   MapPin,
   ChevronLeft,
+  ChevronRight,
   Users,
   UserPlus,
   MessageCircle,
   MessageSquare,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 
@@ -255,6 +262,7 @@ export function JobManagement() {
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
   const navigate = useNavigate();
@@ -393,16 +401,46 @@ export function JobManagement() {
 
   useEffect(() => { loadJobs(); }, []);
 
-  const sortedJobs = useMemo(
-    () => [...jobs].sort((a, b) => {
-      const aCancelled = a.status === "cancelled" ? 1 : 0;
-      const bCancelled = b.status === "cancelled" ? 1 : 0;
-      if (aCancelled !== bCancelled) return aCancelled - bCancelled;
-      if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
-      if (a.start_date) return -1;
-      if (b.start_date) return 1;
-      return a.id.localeCompare(b.id);
-    }),
+  const activeJobs = useMemo(
+    () => jobs
+      .filter((j) => (["scheduled", "in_progress", "snagging"] as JobStatus[]).includes(j.status))
+      .sort((a, b) => {
+        const aIdx = STATUS_ORDER.indexOf(a.status as (typeof STATUS_ORDER)[number]);
+        const bIdx = STATUS_ORDER.indexOf(b.status as (typeof STATUS_ORDER)[number]);
+        if (aIdx !== bIdx) return aIdx - bIdx;
+        if (a.start_date && b.start_date) return a.start_date.localeCompare(b.start_date);
+        if (a.start_date) return -1;
+        if (b.start_date) return 1;
+        return a.id.localeCompare(b.id);
+      }),
+    [jobs],
+  );
+
+  const completedJobs = useMemo(
+    () => jobs
+      .filter((j) => j.status === "complete")
+      .sort((a, b) => {
+        const aDate = a.actual_end ?? a.start_date ?? "";
+        const bDate = b.actual_end ?? b.start_date ?? "";
+        if (aDate && bDate) return bDate.localeCompare(aDate);
+        if (bDate) return 1;
+        if (aDate) return -1;
+        return b.id.localeCompare(a.id);
+      }),
+    [jobs],
+  );
+
+  const cancelledJobs = useMemo(
+    () => jobs
+      .filter((j) => j.status === "cancelled")
+      .sort((a, b) => {
+        const aDate = a.actual_end ?? a.start_date ?? "";
+        const bDate = b.actual_end ?? b.start_date ?? "";
+        if (aDate && bDate) return bDate.localeCompare(aDate);
+        if (bDate) return 1;
+        if (aDate) return -1;
+        return b.id.localeCompare(a.id);
+      }),
     [jobs],
   );
 
@@ -644,88 +682,168 @@ export function JobManagement() {
     );
   }
 
+  const renderJobRow = (job: JobCardData) => (
+    <button
+      key={job.id}
+      type="button"
+      className={cn(
+        "w-full text-left flex items-center gap-3 px-4 py-3 bg-background hover:bg-muted/50 transition-colors",
+        job.status === "cancelled" && "opacity-60",
+      )}
+      onClick={() => setSelectedJobId(job.id)}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">{job.title}</span>
+          {job.quote_number && (
+            <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              {job.quote_number}
+            </span>
+          )}
+          {job.sla_status && (
+            <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-xs text-muted-foreground">{job.client_name}</span>
+          {job.client_ts_code && (
+            <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{job.client_ts_code}</span>
+          )}
+          <Badge
+            variant={job.status === "cancelled" ? "destructive" : job.status === "complete" ? "secondary" : "outline"}
+            className="text-[10px] px-1.5 py-0"
+            style={
+              job.status === "in_progress"
+                ? { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" }
+                : job.status === "snagging"
+                ? { backgroundColor: "#f59e0b", color: "#fff", borderColor: "#f59e0b" }
+                : job.status === "scheduled"
+                ? { backgroundColor: "#1e3a5f", color: "#fff", borderColor: "#1e3a5f" }
+                : undefined
+            }
+          >
+            {statusLabel[job.status]}
+          </Badge>
+        </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+    </button>
+  );
+
+  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
+  const dialogSnagItems = selectedJob ? snagItemsByJob[selectedJob.id] || [] : [];
+  const dialogOpenSnags = dialogSnagItems.filter((i) => !i.is_resolved).length;
+  const dialogAssignments = selectedJob ? assignmentsByJob[selectedJob.id] || [] : [];
+  const dialogAssignedIds = new Set(dialogAssignments.map((a) => a.team_member_id).filter(Boolean));
+  const dialogStatusIdx = selectedJob
+    ? STATUS_ORDER.indexOf(selectedJob.status as (typeof STATUS_ORDER)[number])
+    : -1;
+  const dialogNextStatus =
+    dialogStatusIdx >= 0 && dialogStatusIdx < STATUS_ORDER.length - 1
+      ? STATUS_ORDER[dialogStatusIdx + 1]
+      : null;
+  const dialogPrevStatus = dialogStatusIdx > 0 ? STATUS_ORDER[dialogStatusIdx - 1] : null;
+  const dialogIsSaving = selectedJob ? savingJobId === selectedJob.id : false;
+  const dialogIsAssigning = selectedJob ? assigningJobId === selectedJob.id : false;
+
   return (
     <>
-      <div className="space-y-4">
-        {sortedJobs.map((job) => {
-          const snagItems = snagItemsByJob[job.id] || [];
-          const openSnags = snagItems.filter((i) => !i.is_resolved).length;
-          const assignments = assignmentsByJob[job.id] || [];
-          const assignedIds = new Set(assignments.map((a) => a.team_member_id).filter(Boolean));
-          const statusIdx = STATUS_ORDER.indexOf(job.status as (typeof STATUS_ORDER)[number]);
-          const nextStatus = statusIdx >= 0 && statusIdx < STATUS_ORDER.length - 1
-            ? STATUS_ORDER[statusIdx + 1]
-            : null;
-          const prevStatus = statusIdx > 0 ? STATUS_ORDER[statusIdx - 1] : null;
-          const canProgress = !!nextStatus;
-          const canGoBack = !!prevStatus;
-          const isSaving = savingJobId === job.id;
-          const isAssigning = assigningJobId === job.id;
+      <div className="space-y-6">
+        <section>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Active</div>
+          {activeJobs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3">No active jobs.</p>
+          ) : (
+            <div className="divide-y rounded-lg border overflow-hidden">
+              {activeJobs.map((job) => renderJobRow(job))}
+            </div>
+          )}
+        </section>
 
-          return (
-            <Card
-              key={job.id}
-              className={cn("transition-opacity", job.status === "cancelled" && "opacity-60")}
-            >
-              <CardContent className="p-6 space-y-5">
-                <StepTracker currentStatus={job.status} />
+        {completedJobs.length > 0 && (
+          <section>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Completed</div>
+            <div className="divide-y rounded-lg border overflow-hidden">
+              {completedJobs.map((job) => renderJobRow(job))}
+            </div>
+          </section>
+        )}
+
+        {cancelledJobs.length > 0 && (
+          <section>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Cancelled</div>
+            <div className="divide-y rounded-lg border overflow-hidden">
+              {cancelledJobs.map((job) => renderJobRow(job))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) setSelectedJobId(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedJob && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selectedJob.title}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5">
+                <StepTracker currentStatus={selectedJob.status} />
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-lg leading-tight">{job.title}</h3>
-                      {job.quote_number && (
+                      <h3 className="font-semibold text-lg leading-tight">{selectedJob.title}</h3>
+                      {selectedJob.quote_number && (
                         <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {job.quote_number}
+                          {selectedJob.quote_number}
                         </span>
                       )}
-                      <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
+                      <SlaStatusPill status={selectedJob.sla_status} completionDue={selectedJob.sla_completion_due} />
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      <span>{job.client_name}</span>
-                      {job.client_ts_code && (
-                        <span className="ml-2 text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{job.client_ts_code}</span>
+                      <span>{selectedJob.client_name}</span>
+                      {selectedJob.client_ts_code && (
+                        <span className="ml-2 text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
                       )}
-                      {job.start_date
-                        ? ` • Started ${format(new Date(job.start_date), "dd MMM yyyy")}`
+                      {selectedJob.start_date
+                        ? ` • Started ${format(new Date(selectedJob.start_date), "dd MMM yyyy")}`
                         : ""}
                     </p>
-                    {job.location && (
+                    {selectedJob.location && (
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />{job.location}
+                        <MapPin className="h-3 w-3" />{selectedJob.location}
                       </p>
                     )}
                   </div>
-                  {job.status === "cancelled" && (
+                  {selectedJob.status === "cancelled" && (
                     <Badge variant="destructive">Cancelled</Badge>
                   )}
                 </div>
 
-                {(job.status === "in_progress" || job.status === "snagging" || job.status === "complete") && (
+                {(selectedJob.status === "in_progress" || selectedJob.status === "snagging" || selectedJob.status === "complete") && (
                   <JobTimer
-                    actualStart={job.actual_start}
-                    actualEnd={job.actual_end}
-                    estimatedCompletion={job.estimated_completion}
-                    status={job.status}
+                    actualStart={selectedJob.actual_start}
+                    actualEnd={selectedJob.actual_end}
+                    estimatedCompletion={selectedJob.estimated_completion}
+                    status={selectedJob.status}
                   />
                 )}
 
-                {/* Worker assignments */}
-                {job.status !== "cancelled" && (
+                {selectedJob.status !== "cancelled" && (
                   <div className="rounded-md border p-3 space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Users className="h-4 w-4" />
                       Workers assigned
                     </div>
-                    {assignments.length === 0 && teamMembers.length === 0 && (
+                    {dialogAssignments.length === 0 && teamMembers.length === 0 && (
                       <p className="text-xs text-muted-foreground">No team members added yet. Add team members in Team Management.</p>
                     )}
-                    {assignments.length === 0 && teamMembers.length > 0 && (
+                    {dialogAssignments.length === 0 && teamMembers.length > 0 && (
                       <p className="text-xs text-muted-foreground">No workers assigned. Select from your team below.</p>
                     )}
-                    {assignments.length > 0 && (
+                    {dialogAssignments.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {assignments.map((a) => {
+                        {dialogAssignments.map((a) => {
                           const member = teamMembers.find((m) => m.id === a.team_member_id);
                           if (!member) return null;
                           return (
@@ -734,8 +852,8 @@ export function JobManagement() {
                               <button
                                 type="button"
                                 className="ml-1 hover:text-destructive transition-colors"
-                                onClick={() => toggleAssignment(job.id, member.id)}
-                                disabled={isAssigning}
+                                onClick={() => toggleAssignment(selectedJob.id, member.id)}
+                                disabled={dialogIsAssigning}
                               >
                                 ×
                               </button>
@@ -747,13 +865,13 @@ export function JobManagement() {
                     {teamMembers.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {teamMembers
-                          .filter((m) => !assignedIds.has(m.id))
+                          .filter((m) => !dialogAssignedIds.has(m.id))
                           .map((m) => (
                             <button
                               key={m.id}
                               type="button"
-                              onClick={() => toggleAssignment(job.id, m.id)}
-                              disabled={isAssigning}
+                              onClick={() => toggleAssignment(selectedJob.id, m.id)}
+                              disabled={dialogIsAssigning}
                               className="text-xs px-2 py-0.5 rounded border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-[#f07820] hover:text-[#f07820] transition-colors flex items-center gap-1"
                             >
                               <UserPlus className="h-3 w-3" />
@@ -765,16 +883,16 @@ export function JobManagement() {
                   </div>
                 )}
 
-                {job.status === "snagging" && (
+                {selectedJob.status === "snagging" && (
                   <div className="rounded-md border p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Wrench className="h-4 w-4" />
                         Snag list
                       </div>
-                      {openSnags > 0 ? (
+                      {dialogOpenSnags > 0 ? (
                         <Badge variant="destructive" className="gap-1">
-                          <AlertTriangle className="h-3 w-3" /> {openSnags} open
+                          <AlertTriangle className="h-3 w-3" /> {dialogOpenSnags} open
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="gap-1">
@@ -786,19 +904,19 @@ export function JobManagement() {
                     <div className="flex gap-2">
                       <Input
                         placeholder="Add snag item"
-                        value={newSnagByJob[job.id] || ""}
+                        value={newSnagByJob[selectedJob.id] || ""}
                         onChange={(e) =>
-                          setNewSnagByJob((cur) => ({ ...cur, [job.id]: e.target.value }))
+                          setNewSnagByJob((cur) => ({ ...cur, [selectedJob.id]: e.target.value }))
                         }
                       />
-                      <Button type="button" onClick={() => addSnagItem(job.id)}>Add</Button>
+                      <Button type="button" onClick={() => addSnagItem(selectedJob.id)}>Add</Button>
                     </div>
 
-                    {snagItems.length === 0 ? (
+                    {dialogSnagItems.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No snag items yet.</p>
                     ) : (
                       <div className="space-y-2">
-                        {snagItems.map((item) => (
+                        {dialogSnagItems.map((item) => (
                           <label
                             key={item.id}
                             className="flex items-center gap-2 rounded-md border p-2 text-sm cursor-pointer"
@@ -806,7 +924,7 @@ export function JobManagement() {
                             <input
                               type="checkbox"
                               checked={item.is_resolved}
-                              onChange={(e) => toggleSnagResolved(job.id, item, e.target.checked)}
+                              onChange={(e) => toggleSnagResolved(selectedJob.id, item, e.target.checked)}
                             />
                             <span className={item.is_resolved ? "line-through text-muted-foreground" : ""}>
                               {item.title}
@@ -819,7 +937,7 @@ export function JobManagement() {
                 )}
 
                 {(() => {
-                  const entries = timesheetsByJob[job.id] || [];
+                  const entries = timesheetsByJob[selectedJob.id] || [];
                   if (entries.length === 0) return null;
                   const total = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
                   return (
@@ -833,28 +951,28 @@ export function JobManagement() {
                 })()}
 
                 <div className="flex flex-wrap gap-2">
-                  {canGoBack && job.status !== "cancelled" && (
+                  {dialogPrevStatus && selectedJob.status !== "cancelled" && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => moveToPrevStatus(job)}
-                      disabled={isSaving}
+                      onClick={() => moveToPrevStatus(selectedJob)}
+                      disabled={dialogIsSaving}
                     >
                       <ChevronLeft className="h-4 w-4 mr-1" />
                       Move back
                     </Button>
                   )}
-                  {canProgress && (
+                  {dialogNextStatus && (
                     <Button
-                      onClick={() => changeStatus(job, nextStatus!)}
-                      disabled={isSaving}
+                      onClick={() => changeStatus(selectedJob, dialogNextStatus)}
+                      disabled={dialogIsSaving}
                     >
-                      {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      {dialogIsSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                       Move to next stage
                     </Button>
                   )}
-                  {job.status === "complete" && (
-                    job.issued_quote_id && invoicedQuoteIds.has(job.issued_quote_id) ? (
+                  {selectedJob.status === "complete" && (
+                    selectedJob.issued_quote_id && invoicedQuoteIds.has(selectedJob.issued_quote_id) ? (
                       <Badge variant="secondary" className="gap-1">
                         <CheckCircle2 className="h-3 w-3" /> Invoice Sent
                       </Badge>
@@ -863,7 +981,7 @@ export function JobManagement() {
                         variant="outline"
                         onClick={async () => {
                           try {
-                            await buildInvoiceFromJob(job);
+                            await buildInvoiceFromJob(selectedJob);
                           } catch (error: any) {
                             toast({
                               title: "Invoice generation failed",
@@ -879,8 +997,7 @@ export function JobManagement() {
                   )}
                 </div>
 
-                {/* Message client button — navigates to Messages inbox */}
-                {job.status !== "cancelled" && (
+                {selectedJob.status !== "cancelled" && (
                   <div className="rounded-lg border p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -899,21 +1016,20 @@ export function JobManagement() {
                   </div>
                 )}
 
-                {/* Job photos */}
-                {contractorProfileId && job.status !== "cancelled" && (
+                {contractorProfileId && selectedJob.status !== "cancelled" && (
                   <div className="rounded-md border p-4">
                     <JobPhotosTab
-                      jobId={job.id}
+                      jobId={selectedJob.id}
                       contractorProfileId={contractorProfileId}
                       isContractor={true}
                     />
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <InvoiceFormDialog
         open={invoiceDialogOpen}
