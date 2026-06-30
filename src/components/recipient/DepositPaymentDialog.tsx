@@ -118,6 +118,22 @@ function CheckoutForm({
             body: { action: "start", job_id: jobRow.id },
           });
         }
+
+        if (jobRow?.id) {
+          const { data: confirmedEvent } = await supabase
+            .from("schedule_events")
+            .select("id")
+            .eq("quote_id", quoteId)
+            .eq("status", "accepted")
+            .maybeSingle();
+
+          if (confirmedEvent?.id) {
+            await supabase
+              .from("schedule_events")
+              .update({ job_id: jobRow.id })
+              .eq("id", confirmedEvent.id);
+          }
+        }
       }
     } catch (err) {
       console.error("Job creation error", err);

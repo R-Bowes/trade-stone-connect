@@ -136,6 +136,13 @@ export function QuoteScheduleNegotiation({
       }).select("id").single();
       if (jobError) throw jobError;
 
+      if (confirmedProposal?.id && jobRow?.id) {
+        await supabase
+          .from("schedule_events")
+          .update({ job_id: jobRow.id })
+          .eq("id", confirmedProposal.id);
+      }
+
       if (!jobError && jobRow?.id && company_id) {
         await supabase.functions.invoke("sla-clock", {
           body: { action: "start", job_id: jobRow.id },
