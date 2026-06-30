@@ -56,6 +56,7 @@ export function useSchedule() {
       .from("schedule_events")
       .select("*")
       .eq("contractor_id", profileRow?.id)
+      .neq("status", "declined")
       .order("start_time", { ascending: true });
 
     if (error) {

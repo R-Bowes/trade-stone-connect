@@ -21,6 +21,9 @@ const statusStyles: Record<string, string> = {
   in_progress: "border-l-4 opacity-90",
   completed: "border-l-4 opacity-60",
   cancelled: "border-l-4 opacity-40 line-through",
+  accepted: "border-l-4",
+  proposed: "border-l-4 border-dashed opacity-60",
+  declined: "border-l-4 border-dashed opacity-30 line-through",
 };
 
 export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }: WeekCalendarProps) {
