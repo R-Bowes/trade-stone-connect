@@ -142,10 +142,55 @@ export function TimesheetManagement() {
       const isContractor = jobRow.contractor_id === currentUserId;
       setIsContractorForSelectedJob(isContractor);
 
-      const [{ data: teamMembersData, error: teamErr }, { data: timesheetData, error: tsErr }, { data: profileRows, error: profileErr }] = await Promise.all([
+      // Every contractor needs a "self" team_members row so their own hours
+      // can be logged against timesheets.worker_id, which has an FK to
+      // team_members.id (not profiles.id). This row is flagged status:"self"
+      // and is_active:false so it stays out of the staff list and the job
+      // assignment dropdown. Looked up lazily, created once per contractor.
+      let selfTeamMemberId: string;
+
+      const { data: existingSelfRow, error: selfLookupErr } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("contractor_id", jobRow.contractor_id)
+        .eq("status", "self")
+        .maybeSingle();
+
+      if (selfLookupErr) throw selfLookupErr;
+
+      if (existingSelfRow?.id) {
+        selfTeamMemberId = existingSelfRow.id;
+      } else {
+        const { data: contractorProfileForSelf, error: contractorProfileErr } = await supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", jobRow.contractor_id)
+          .maybeSingle();
+
+        if (contractorProfileErr) throw contractorProfileErr;
+
+        const { data: newSelfRow, error: selfInsertErr } = await supabase
+          .from("team_members")
+          .insert({
+            contractor_id: jobRow.contractor_id,
+            profile_id: jobRow.contractor_id,
+            full_name: contractorProfileForSelf?.full_name || "Contractor",
+            email: contractorProfileForSelf?.email || "",
+            role: "Contractor",
+            is_active: false,
+            status: "self",
+          })
+          .select("id")
+          .single();
+
+        if (selfInsertErr) throw selfInsertErr;
+        selfTeamMemberId = newSelfRow.id;
+      }
+
+      const [{ data: teamMembersData, error: teamErr }, { data: timesheetData, error: tsErr }, { data: profilesData, error: profilesErr }] = await Promise.all([
         supabase
           .from("job_team_members")
-          .select("team_members!inner(user_id, full_name)")
+          .select("team_members!inner(id, full_name)")
           .eq("job_id", selectedJobId),
         supabase
           .from("timesheets")
@@ -161,18 +206,22 @@ export function TimesheetManagement() {
 
       if (teamErr) throw teamErr;
       if (tsErr) throw tsErr;
-      if (profileErr) throw profileErr;
+      if (profilesErr) throw profilesErr;
 
-      const contractorName = profileRows?.[0]?.full_name || "Contractor";
+      const contractorName = profilesData?.[0]?.full_name || "Contractor";
+
       const teamWorkerRows: WorkerRow[] = (teamMembersData || [])
         .map((row: any) => ({
-          workerId: row.team_members.user_id,
+          workerId: row.team_members.id,
           label: row.team_members.full_name || "Team member",
         }))
-        .filter((row: WorkerRow) => Boolean(row.workerId));
+        .filter((row: WorkerRow) => Boolean(row.workerId) && row.workerId !== selfTeamMemberId);
 
       const workerMap = new Map<string, WorkerRow>();
-      workerMap.set(jobRow.contractor_id, { workerId: jobRow.contractor_id, label: `${contractorName} (You${isContractor ? "" : " - contractor"})` });
+      workerMap.set(selfTeamMemberId, {
+        workerId: selfTeamMemberId,
+        label: `${contractorName} (You${isContractor ? "" : " - contractor"})`,
+      });
       teamWorkerRows.forEach((row) => workerMap.set(row.workerId, row));
 
       (timesheetData || []).forEach((row: any) => {

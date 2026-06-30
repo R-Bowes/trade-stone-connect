@@ -49,6 +49,7 @@ export function TeamManagement() {
         .from("team_members")
         .select("id, full_name, role, hourly_rate, is_active")
         .eq("contractor_id", profileRow?.id)
+        .neq("status", "self")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
