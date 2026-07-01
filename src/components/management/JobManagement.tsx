@@ -784,50 +784,70 @@ export function JobManagement() {
           {selectedJob && (
             <>
               <DialogHeader>
-                <DialogTitle>{selectedJob.title}</DialogTitle>
+                <div className="flex items-start justify-between gap-4">
+                  <DialogTitle className="leading-tight">{selectedJob.title}</DialogTitle>
+                  <Badge
+                    className="shrink-0 mt-0.5"
+                    variant={selectedJob.status === "cancelled" ? "destructive" : "secondary"}
+                    style={
+                      selectedJob.status === "in_progress"
+                        ? { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" }
+                        : selectedJob.status === "snagging"
+                        ? { backgroundColor: "#f59e0b", color: "#fff", borderColor: "#f59e0b" }
+                        : selectedJob.status === "complete"
+                        ? { backgroundColor: "#16a34a", color: "#fff", borderColor: "#16a34a" }
+                        : selectedJob.status === "scheduled"
+                        ? { backgroundColor: "#1e3a5f", color: "#fff", borderColor: "#1e3a5f" }
+                        : undefined
+                    }
+                  >
+                    {statusLabel[selectedJob.status]}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                  <span>{selectedJob.client_name}</span>
+                  {selectedJob.client_ts_code && (
+                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
+                  )}
+                  {selectedJob.location && (
+                    <span className="flex items-center gap-1 text-xs">
+                      <MapPin className="h-3 w-3" />{selectedJob.location}
+                    </span>
+                  )}
+                </div>
               </DialogHeader>
+
               <div className="space-y-5">
                 <StepTracker currentStatus={selectedJob.status} />
 
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-lg leading-tight">{selectedJob.title}</h3>
-                      {selectedJob.quote_number && (
-                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {selectedJob.quote_number}
-                        </span>
-                      )}
-                      <SlaStatusPill status={selectedJob.sla_status} completionDue={selectedJob.sla_completion_due} />
+                <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Started</div>
+                    <div className="font-medium">
+                      {selectedJob.start_date ? format(new Date(selectedJob.start_date), "dd MMM yyyy") : "—"}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      <span>{selectedJob.client_name}</span>
-                      {selectedJob.client_ts_code && (
-                        <span className="ml-2 text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
-                      )}
-                      {selectedJob.start_date
-                        ? ` • Started ${format(new Date(selectedJob.start_date), "dd MMM yyyy")}`
-                        : ""}
-                    </p>
-                    {selectedJob.location && (
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />{selectedJob.location}
-                      </p>
-                    )}
                   </div>
-                  {selectedJob.status === "cancelled" && (
-                    <Badge variant="destructive">Cancelled</Badge>
-                  )}
+                  <div>
+                    <div className="text-xs text-muted-foreground">Completed</div>
+                    <div className="font-medium">
+                      {selectedJob.actual_end ? format(new Date(selectedJob.actual_end), "dd MMM yyyy") : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Quote</div>
+                    <div className="font-medium font-mono">{selectedJob.quote_number ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Hours logged</div>
+                    <div className="font-medium">
+                      {(() => {
+                        const entries = timesheetsByJob[selectedJob.id] || [];
+                        const total = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
+                        return total === 0 ? "0h" : formatHours(total);
+                      })()}
+                    </div>
+                  </div>
                 </div>
-
-                {(selectedJob.status === "in_progress" || selectedJob.status === "snagging" || selectedJob.status === "complete") && (
-                  <JobTimer
-                    actualStart={selectedJob.actual_start}
-                    actualEnd={selectedJob.actual_end}
-                    estimatedCompletion={selectedJob.estimated_completion}
-                    status={selectedJob.status}
-                  />
-                )}
 
                 {selectedJob.status !== "cancelled" && (
                   <div className="rounded-md border p-3 space-y-2">
@@ -883,6 +903,15 @@ export function JobManagement() {
                   </div>
                 )}
 
+                {(selectedJob.status === "in_progress" || selectedJob.status === "snagging" || selectedJob.status === "complete") && (
+                  <JobTimer
+                    actualStart={selectedJob.actual_start}
+                    actualEnd={selectedJob.actual_end}
+                    estimatedCompletion={selectedJob.estimated_completion}
+                    status={selectedJob.status}
+                  />
+                )}
+
                 {selectedJob.status === "snagging" && (
                   <div className="rounded-md border p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -936,65 +965,53 @@ export function JobManagement() {
                   </div>
                 )}
 
-                {(() => {
-                  const entries = timesheetsByJob[selectedJob.id] || [];
-                  if (entries.length === 0) return null;
-                  const total = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
-                  return (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 shrink-0" />
-                      <span>
-                        <span className="font-medium text-foreground">{total}h</span> logged
-                      </span>
-                    </div>
-                  );
-                })()}
-
-                <div className="flex flex-wrap gap-2">
-                  {dialogPrevStatus && selectedJob.status !== "cancelled" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => moveToPrevStatus(selectedJob)}
-                      disabled={dialogIsSaving}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Move back
-                    </Button>
-                  )}
-                  {dialogNextStatus && (
-                    <Button
-                      onClick={() => changeStatus(selectedJob, dialogNextStatus)}
-                      disabled={dialogIsSaving}
-                    >
-                      {dialogIsSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Move to next stage
-                    </Button>
-                  )}
-                  {selectedJob.status === "complete" && (
-                    selectedJob.issued_quote_id && invoicedQuoteIds.has(selectedJob.issued_quote_id) ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Invoice Sent
-                      </Badge>
-                    ) : (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {dialogPrevStatus && selectedJob.status !== "cancelled" && (
                       <Button
                         variant="outline"
-                        onClick={async () => {
-                          try {
-                            await buildInvoiceFromJob(selectedJob);
-                          } catch (error: any) {
-                            toast({
-                              title: "Invoice generation failed",
-                              description: error?.message || "Could not pre-populate invoice from job data.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
+                        size="sm"
+                        onClick={() => moveToPrevStatus(selectedJob)}
+                        disabled={dialogIsSaving}
                       >
-                        Generate Invoice
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Move back
                       </Button>
-                    )
-                  )}
+                    )}
+                    {dialogNextStatus && (
+                      <Button
+                        onClick={() => changeStatus(selectedJob, dialogNextStatus)}
+                        disabled={dialogIsSaving}
+                      >
+                        {dialogIsSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                        Move to next stage
+                      </Button>
+                    )}
+                    {selectedJob.status === "complete" && (
+                      selectedJob.issued_quote_id && invoicedQuoteIds.has(selectedJob.issued_quote_id) ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Invoice Sent
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await buildInvoiceFromJob(selectedJob);
+                            } catch (error: any) {
+                              toast({
+                                title: "Invoice generation failed",
+                                description: error?.message || "Could not pre-populate invoice from job data.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          Generate Invoice
+                        </Button>
+                      )
+                    )}
+                  </div>
                 </div>
 
                 {selectedJob.status !== "cancelled" && (
