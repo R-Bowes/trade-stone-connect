@@ -28,11 +28,12 @@ import { format } from "date-fns";
 const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
   not_started: { label: "Not Started", icon: Clock, color: "bg-muted text-muted-foreground" },
   in_progress: { label: "In Progress", icon: PlayCircle, color: "bg-blue-100 text-blue-800" },
+  complete: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
   completed: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
 };
 
 export function ClientJobsView() {
-  const { jobs, loading } = useJobs("client");
+  const { jobs, loading, loadJobs } = useJobs("client");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   if (loading) {
@@ -40,7 +41,7 @@ export function ClientJobsView() {
   }
 
   if (selectedJob) {
-    return <ClientJobDetail job={selectedJob} onBack={() => setSelectedJob(null)} />;
+    return <ClientJobDetail job={selectedJob} onBack={() => { setSelectedJob(null); void loadJobs(); }} />;
   }
 
   return (
@@ -123,6 +124,24 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
     await submitReview(rating, reviewComment);
   };
 
+  const handleSignOff = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        signed_off_by: user.id,
+        signed_off_at: new Date().toISOString(),
+      })
+      .eq("id", job.id);
+    if (!error) {
+      toast({ title: "Job signed off", description: "You've confirmed this job is complete." });
+      onBack();
+    } else {
+      toast({ title: "Error", description: "Failed to sign off", variant: "destructive" });
+    }
+  };
+
   const handlePortfolioApproval = async (approved: boolean) => {
     const { error } = await supabase
       .from("jobs")
@@ -173,7 +192,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
 
       {/* Section Nav */}
       <div className="flex gap-2 flex-wrap">
-        {(["overview", "notes", "photos", "team", ...(job.status === "completed" ? ["review"] : [])] as const).map((section) => (
+        {(["overview", "notes", "photos", "team", ...(job.status === "complete" || job.status === "completed" ? ["review"] : [])] as const).map((section) => (
           <Button key={section} variant={activeSection === section ? "default" : "outline"} size="sm" onClick={() => setActiveSection(section as any)}>
             {section === "overview" && <Briefcase className="h-4 w-4 mr-1" />}
             {section === "notes" && <StickyNote className="h-4 w-4 mr-1" />}
@@ -263,7 +282,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
       )}
 
       {/* Review */}
-      {activeSection === "review" && job.status === "completed" && (
+      {activeSection === "review" && (job.status === "complete" || job.status === "completed") && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Review This Job</CardTitle>
@@ -334,6 +353,34 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
               <p className="font-semibold">{teamMembers.length} Team</p>
             </CardContent>
           </Card>
+          {(job.status === "complete" || job.status === "completed") && (
+            !job.signed_off_by ? (
+              <Card>
+                <CardContent className="p-6 space-y-3">
+                  <ShieldCheck className="h-8 w-8 text-primary" />
+                  <div>
+                    <p className="font-semibold">Sign off this job</p>
+                    <p className="text-sm text-muted-foreground">Confirm the work was completed to standard.</p>
+                  </div>
+                  <Button className="w-full text-white" style={{ backgroundColor: "#f07820" }} onClick={handleSignOff}>
+                    Sign off
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-6 space-y-2">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  <p className="font-semibold">Signed off</p>
+                  {job.signed_off_at && (
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(job.signed_off_at), "dd MMM yyyy 'at' HH:mm")}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          )}
         </div>
       )}
     </div>

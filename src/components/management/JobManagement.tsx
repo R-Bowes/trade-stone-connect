@@ -26,6 +26,8 @@ import {
   UserPlus,
   MessageCircle,
   MessageSquare,
+  Download,
+  ShieldCheck,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
+import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -81,6 +84,9 @@ type JobCardData = {
   issued_quote_id: string | null;
   sla_status: string | null;
   sla_completion_due: string | null;
+  contract_value: number;
+  signed_off_by: string | null;
+  signed_off_at: string | null;
 };
 
 type TimesheetEntry = {
@@ -304,6 +310,9 @@ export function JobManagement() {
         issued_quote_id,
         sla_status,
         sla_completion_due,
+        contract_value,
+        signed_off_by,
+        signed_off_at,
         client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
         quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, completion_time)
       `)
@@ -332,6 +341,9 @@ export function JobManagement() {
       issued_quote_id: job.issued_quote_id ?? null,
       sla_status: job.sla_status ?? null,
       sla_completion_due: job.sla_completion_due ?? null,
+      contract_value: job.contract_value ?? 0,
+      signed_off_by: job.signed_off_by ?? null,
+      signed_off_at: job.signed_off_at ?? null,
     })) as JobCardData[];
 
     setJobs(mapped);
@@ -1022,6 +1034,95 @@ export function JobManagement() {
                           Generate Invoice
                         </Button>
                       )
+                    )}
+                    {selectedJob.status === "complete" && (
+                      <div className="flex flex-col gap-1">
+                        <span title={!selectedJob.signed_off_by ? "Awaiting customer sign-off" : undefined}>
+                          <Button
+                            variant="outline"
+                            disabled={!selectedJob.signed_off_by}
+                            onClick={async () => {
+                              try {
+                                const { data: contractorProfile } = await supabase
+                                  .from("profiles")
+                                  .select("full_name, company_name, ts_profile_code, logo_url")
+                                  .eq("id", contractorProfileId!)
+                                  .maybeSingle();
+
+                                const { data: clientProfile } = await supabase
+                                  .from("profiles")
+                                  .select("full_name, ts_profile_code")
+                                  .eq("id", selectedJob.customer_id)
+                                  .maybeSingle();
+
+                                let invoiceData = null;
+                                if (selectedJob.issued_quote_id) {
+                                  const { data } = await supabase
+                                    .from("invoices")
+                                    .select("invoice_number, status, total, due_date, paid_date")
+                                    .eq("quote_id", selectedJob.issued_quote_id)
+                                    .maybeSingle();
+                                  invoiceData = data;
+                                }
+
+                                const entries = timesheetsByJob[selectedJob.id] || [];
+                                const totalHoursLogged = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
+
+                                const teamMembersList = dialogAssignments
+                                  .map((a) => teamMembers.find((m) => m.id === a.team_member_id))
+                                  .filter(Boolean)
+                                  .map((m) => ({ full_name: m!.full_name }));
+
+                                await generateJobRecordPdf({
+                                  job: {
+                                    id: selectedJob.id,
+                                    title: selectedJob.title,
+                                    status: selectedJob.status,
+                                    quote_number: selectedJob.quote_number,
+                                    location: selectedJob.location,
+                                    start_date: selectedJob.start_date,
+                                    actual_end: selectedJob.actual_end,
+                                    contract_value: selectedJob.contract_value,
+                                    signed_off_at: selectedJob.signed_off_at,
+                                  },
+                                  contractor: {
+                                    full_name: contractorProfile?.full_name ?? null,
+                                    company_name: (contractorProfile as any)?.company_name ?? null,
+                                    ts_profile_code: contractorProfile?.ts_profile_code ?? null,
+                                    logo_url: (contractorProfile as any)?.logo_url ?? null,
+                                  },
+                                  client: {
+                                    full_name: clientProfile?.full_name ?? selectedJob.client_name,
+                                    ts_profile_code: clientProfile?.ts_profile_code ?? selectedJob.client_ts_code,
+                                    location: selectedJob.location,
+                                  },
+                                  teamMembers: teamMembersList,
+                                  totalHoursLogged,
+                                  invoice: invoiceData ? {
+                                    invoice_number: (invoiceData as any).invoice_number ?? "—",
+                                    status: (invoiceData as any).status ?? "sent",
+                                    total: Number((invoiceData as any).total ?? 0),
+                                    due_date: (invoiceData as any).due_date ?? "",
+                                    paid_date: (invoiceData as any).paid_date ?? null,
+                                  } : null,
+                                });
+                              } catch (err: any) {
+                                toast({
+                                  title: "PDF generation failed",
+                                  description: err?.message || "Please try again.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-1.5" />
+                            Download job record
+                          </Button>
+                        </span>
+                        {!selectedJob.signed_off_by && (
+                          <p className="text-xs text-muted-foreground">Customer sign-off required to generate the job record.</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

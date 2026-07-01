@@ -14,8 +14,11 @@ export interface Job {
   status: string;
   start_date: string | null;
   end_date: string | null;
+  actual_end: string | null;
   contract_value: number;
   portfolio_approved: boolean;
+  signed_off_by: string | null;
+  signed_off_at: string | null;
   created_at: string;
   updated_at: string;
 }
