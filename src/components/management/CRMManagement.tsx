@@ -67,12 +67,15 @@ export function CRMManagement() {
       <ClientDetail
         client={freshClient}
         activities={crm.activities}
+        jobHistory={crm.jobHistory}
         onBack={() => setSelectedClient(null)}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAddActivity={crm.addActivity}
         onDeleteActivity={crm.deleteActivity}
         onFetchActivities={crm.fetchActivities}
+        onFetchJobHistory={crm.fetchJobHistory}
+        onLinkProfile={crm.linkProfile}
       />
     );
   }

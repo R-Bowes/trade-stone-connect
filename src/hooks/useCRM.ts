@@ -16,6 +16,18 @@ export interface CRMClient {
   total_revenue: number;
   created_at: string;
   updated_at: string;
+  profile_id: string | null;
+}
+
+export interface CRMJobHistory {
+  id: string;
+  title: string;
+  status: string;
+  start_date: string | null;
+  actual_end: string | null;
+  contract_value: number | null;
+  location: string | null;
+  quote_number: string | null;
 }
 
 export interface CRMActivity {
@@ -50,6 +62,7 @@ export type ActivityFormData = {
 export function useCRM() {
   const [clients, setClients] = useState<CRMClient[]>([]);
   const [activities, setActivities] = useState<CRMActivity[]>([]);
+  const [jobHistory, setJobHistory] = useState<CRMJobHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -192,9 +205,69 @@ export function useCRM() {
     return true;
   };
 
+  const fetchJobHistory = useCallback(async (profileId: string) => {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(`
+        id, title, status, start_date, actual_end,
+        contract_value, location,
+        issued_quotes!jobs_issued_quote_id_fkey(quote_number)
+      `)
+      .eq("customer_id", profileId)
+      .order("start_date", { ascending: false });
+
+    if (!error && data) {
+      setJobHistory(data.map((j: any) => ({
+        id: j.id,
+        title: j.title,
+        status: j.status,
+        start_date: j.start_date,
+        actual_end: j.actual_end,
+        contract_value: j.contract_value ?? null,
+        location: j.location ?? null,
+        quote_number: j.issued_quotes?.quote_number ?? null,
+      })));
+    }
+  }, []);
+
+  const linkProfile = async (clientId: string, email: string) => {
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id, ts_profile_code")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!profileRow?.id) {
+      toast({
+        title: "No account found",
+        description: "No TradeStone account matches this email address.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("crm_clients")
+      .update({ profile_id: profileRow.id })
+      .eq("id", clientId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to link account", variant: "destructive" });
+      return false;
+    }
+
+    toast({
+      title: "Account linked",
+      description: `Linked to ${profileRow.ts_profile_code}`,
+    });
+    await fetchClients();
+    return true;
+  };
+
   return {
     clients,
     activities,
+    jobHistory,
     loading,
     addClient,
     updateClient,
@@ -202,5 +275,7 @@ export function useCRM() {
     addActivity,
     deleteActivity,
     fetchActivities,
+    fetchJobHistory,
+    linkProfile,
   };
 }

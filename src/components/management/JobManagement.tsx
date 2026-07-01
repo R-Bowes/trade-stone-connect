@@ -417,16 +417,25 @@ export function JobManagement() {
   );
 
   const completedJobs = useMemo(
-    () => jobs
-      .filter((j) => j.status === "complete")
-      .sort((a, b) => {
-        const aDate = a.actual_end ?? a.start_date ?? "";
-        const bDate = b.actual_end ?? b.start_date ?? "";
-        if (aDate && bDate) return bDate.localeCompare(aDate);
-        if (bDate) return 1;
-        if (aDate) return -1;
-        return b.id.localeCompare(a.id);
-      }),
+    () => {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const cutoff = ninetyDaysAgo.toISOString().slice(0, 10);
+      return jobs
+        .filter((j) => {
+          if (j.status !== "complete") return false;
+          const dateStr = j.actual_end ?? j.start_date ?? "";
+          return dateStr >= cutoff;
+        })
+        .sort((a, b) => {
+          const aDate = a.actual_end ?? a.start_date ?? "";
+          const bDate = b.actual_end ?? b.start_date ?? "";
+          if (aDate && bDate) return bDate.localeCompare(aDate);
+          if (bDate) return 1;
+          if (aDate) return -1;
+          return b.id.localeCompare(a.id);
+        });
+    },
     [jobs],
   );
 
@@ -762,7 +771,10 @@ export function JobManagement() {
 
         {completedJobs.length > 0 && (
           <section>
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Completed</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Completed · last 90 days</span>
+              <span className="text-xs text-muted-foreground">({completedJobs.length})</span>
+            </div>
             <div className="divide-y rounded-lg border overflow-hidden">
               {completedJobs.map((job) => renderJobRow(job))}
             </div>
