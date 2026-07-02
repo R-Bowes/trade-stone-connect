@@ -14,6 +14,7 @@ import {
   Search, Send, CheckCircle, Loader2, Download
 } from "lucide-react";
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
+import { formatInvoiceRef } from "@/lib/documentRefs";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
@@ -54,7 +55,7 @@ export function InvoiceManagement() {
       const clientDisplay = clientTsCodeMap[inv.client_email] ?? inv.client_email;
       const matchesSearch = !search ||
         inv.client_name.toLowerCase().includes(search.toLowerCase()) ||
-        inv.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
+        String(inv.invoice_number ?? "").includes(search.toLowerCase()) ||
         inv.client_email.toLowerCase().includes(search.toLowerCase()) ||
         clientDisplay.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
@@ -210,7 +211,7 @@ export function InvoiceManagement() {
               <TableBody>
                 {filteredInvoices.map(inv => (
                   <TableRow key={inv.id}>
-                    <TableCell className="font-medium">{inv.invoice_number || "—"}</TableCell>
+                    <TableCell className="font-medium font-mono">{formatInvoiceRef(inv.invoice_number)}</TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">{inv.client_name}</p>

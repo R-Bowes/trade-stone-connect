@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export interface ReceivedQuote {
   id: string;
-  quote_number: string | null;
+  quote_number: number | null;
   title: string;
   description: string | null;
   client_name: string;

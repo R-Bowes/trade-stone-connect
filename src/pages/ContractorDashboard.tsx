@@ -43,9 +43,8 @@ import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
+import { formatQuoteRef, formatInvoiceRef } from "@/lib/documentRefs";
 
-type Quote = Database["public"]["Tables"]["quotes"]["Row"];
-type QuoteStatus = NonNullable<Quote["status"]>;
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 
 type EnquiryForDialog = {
@@ -88,7 +87,6 @@ const fmtDate = (iso: string) => {
 };
 
 const ContractorDashboard = () => {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
   const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | null>(null);
@@ -152,10 +150,6 @@ const ContractorDashboard = () => {
         setProfileIncomplete(true);
         setActiveTab("profile");
       }
-
-      const { data: quotesData, error: quotesError } = await supabase.from('quotes').select('*').eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
-      if (quotesError) console.error('Error loading quotes:', quotesError);
-      else setQuotes(quotesData || []);
 
       const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
         .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
@@ -262,17 +256,6 @@ const ContractorDashboard = () => {
     loadUserAndData();
   }, [navigate]);
 
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase.channel('new-quotes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quotes', filter: `contractor_id=eq.${user.id}` },
-        (payload) => {
-          setQuotes((prev) => [payload.new as Quote, ...prev]);
-          toast({ title: "New Quote Request!", description: `${(payload.new as Quote).customer_name} has sent a quote request.` });
-        }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, toast]);
-
   const reloadEnquiries = async () => {
     if (!user) return;
     const { data } = await supabase.from('enquiries')
@@ -283,17 +266,6 @@ const ContractorDashboard = () => {
 
   const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => { setActiveEnquiry(enquiry as EnquiryForDialog); setEnquiryDialog(dialog); };
   const closeEnquiryDialog = () => { setEnquiryDialog(null); setActiveEnquiry(null); };
-
-  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
-    try {
-      const { error } = await supabase.from('quotes').update({ status: newStatus }).eq('id', quoteId);
-      if (error) throw error;
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus } : q));
-      toast({ title: "Quote Updated", description: `Quote status updated to ${newStatus}` });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to update quote status", variant: "destructive" });
-    }
-  };
 
   const dashboardStats = [
     {
@@ -460,7 +432,9 @@ const ContractorDashboard = () => {
                       ) : recentInvoices.map((invoice) => (
                         <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
-                            <p className="font-medium text-sm">{invoice.invoice_number || `#${invoice.id?.slice(0, 8)}`}</p>
+                            <p className="font-medium text-sm font-mono">
+                            {invoice.invoice_number != null ? formatInvoiceRef(invoice.invoice_number) : `#${invoice.id?.slice(0, 8)}`}
+                          </p>
                             <p className="text-xs text-muted-foreground">{invoice.client_name}</p>
                           </div>
                           <div className="text-right">
@@ -635,7 +609,9 @@ const ContractorDashboard = () => {
                       {issuedQuotes.map((iq) => (
                         <>
                           <tr key={iq.id} className="border-b hover:bg-muted/30">
-                            <td className="p-3">{iq.quote_number || `#${iq.id.slice(0, 8)}`}</td>
+                            <td className="p-3 font-mono">
+                              {iq.quote_number != null ? formatQuoteRef(Number(iq.quote_number)) : `#${iq.id.slice(0, 8)}`}
+                            </td>
                             <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
                             <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
                             <td className="p-3">{iq.recipient_response ? (

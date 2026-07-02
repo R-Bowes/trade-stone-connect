@@ -47,10 +47,10 @@ serve(async () => {
         await resend.emails.send({
           from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
           to: [invoice.client_email],
-          subject: `Reminder: Invoice ${invoice.invoice_number ?? invoice.id} is overdue`,
+          subject: `Reminder: Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id} is overdue`,
           html: `
             <p>Hi ${invoice.client_name},</p>
-            <p>This is a reminder that invoice <strong>${invoice.invoice_number ?? invoice.id}</strong> was due on ${invoice.due_date}.</p>
+            <p>This is a reminder that invoice <strong>${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}</strong> was due on ${invoice.due_date}.</p>
             <p>You can pay now at: <a href="${publicUrl}/pay/${invoice.id}">${publicUrl}/pay/${invoice.id}</a></p>
           `,
         });

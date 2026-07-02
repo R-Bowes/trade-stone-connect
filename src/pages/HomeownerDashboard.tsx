@@ -18,6 +18,7 @@ import { HomeownerMessageInbox } from "@/components/homeowner/HomeownerMessageIn
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
+import { formatQuoteRef, formatInvoiceRef } from "@/lib/documentRefs";
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
@@ -34,12 +35,12 @@ interface PendingQuote {
   id: string;
   title: string;
   total: number;
-  quote_number: string | null;
+  quote_number: number | null;
 }
 
 interface PendingInvoice {
   id: string;
-  invoice_number: string | null;
+  invoice_number: number | null;
   total: number;
   due_date: string;
 }
@@ -176,8 +177,8 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">Quote: {q.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {q.quote_number && (
-                        <span className="font-mono mr-2">{q.quote_number}</span>
+                      {q.quote_number != null && (
+                        <span className="font-mono mr-2">{formatQuoteRef(q.quote_number)}</span>
                       )}
                       £{Number(q.total).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
                     </p>
@@ -197,7 +198,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">
-                      Invoice {inv.invoice_number ?? "—"}
+                      {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "Invoice —"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Due {format(new Date(inv.due_date), "d MMM yyyy")}

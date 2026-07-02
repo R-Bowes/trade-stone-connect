@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export interface ReceivedInvoice {
   id: string;
-  invoice_number: string | null;
+  invoice_number: number | null;
   client_name: string;
   client_email: string;
   contractor_id: string;

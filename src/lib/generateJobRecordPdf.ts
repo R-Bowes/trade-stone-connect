@@ -1,12 +1,13 @@
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { formatQuoteRef, formatInvoiceRef } from "@/lib/documentRefs";
 
 export async function generateJobRecordPdf(opts: {
   job: {
     id: string;
     title: string;
     status: string;
-    quote_number: string | null;
+    quote_number: number | null;
     location: string | null;
     start_date: string | null;
     actual_end: string | null;
@@ -27,7 +28,7 @@ export async function generateJobRecordPdf(opts: {
   teamMembers: { full_name: string }[];
   totalHoursLogged: number;
   invoice: {
-    invoice_number: string;
+    invoice_number: number;
     status: string;
     total: number;
     due_date: string;
@@ -82,12 +83,15 @@ export async function generateJobRecordPdf(opts: {
   const titleLines = doc.splitTextToSize(job.title, pageWidth / 2 - margin) as string[];
   doc.text(titleLines[0] || job.title, margin + 4, bandY + 22);
 
-  // Left: quote number in muted white
-  if (job.quote_number) {
+  // Left: quote reference in muted white
+  if (job.quote_number != null) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 200, 220);
-    doc.text(job.quote_number, margin + 4, bandY + 32);
+    doc.text(
+      formatQuoteRef(job.quote_number, { contractorCode: contractor.ts_profile_code ?? undefined }),
+      margin + 4, bandY + 32
+    );
   }
 
   // Right: status pill (white bg, navy text)
@@ -222,7 +226,10 @@ export async function generateJobRecordPdf(opts: {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(26, 39, 68);
-    doc.text(invoice.invoice_number, margin, yPos + 11);
+    doc.text(
+      formatInvoiceRef(invoice.invoice_number, { contractorCode: contractor.ts_profile_code ?? undefined }),
+      margin, yPos + 11
+    );
 
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);

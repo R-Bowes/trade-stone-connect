@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { format } from "date-fns";
+import { formatInvoiceRef, contractorCodeSuffix } from "@/lib/documentRefs";
 
 export interface ContractorProfile {
   full_name: string | null;
@@ -74,7 +75,12 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 100, 100);
-  doc.text(invoice.invoice_number || "—", pageWidth - margin, 28, { align: "right" });
+  doc.text(
+    formatInvoiceRef(invoice.invoice_number, {
+      contractorCode: contractor?.ts_profile_code ?? undefined,
+    }),
+    pageWidth - margin, 28, { align: "right" }
+  );
 
   // Status
   const statusText = invoice.status.toUpperCase();
@@ -205,5 +211,7 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
     { align: "center" }
   );
 
-  doc.save(`${invoice.invoice_number || "invoice"}.pdf`);
+  doc.save(
+    `${formatInvoiceRef(invoice.invoice_number, { contractorCode: contractor?.ts_profile_code ?? undefined })}.pdf`
+  );
 }

@@ -95,11 +95,7 @@ serve(async (req) => {
       : Math.round(totalPence * 0.25); // default 25% deposit
     const platformFee = Math.round(depositPence * PLATFORM_FEE_PERCENT);
 
-    // Create the invoice record
-    const contractorTsCode = contractor.ts_code ?? "TS-C-UNKNOWN";
-    const customerTsCode = customerProfile.ts_code ?? "TS-P-UNKNOWN";
-    const invoiceNumber = `INV-${contractorTsCode}-${customerTsCode}-${Date.now()}`;
-
+    // Create the invoice record (invoice_number assigned by DB trigger)
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
       .insert({
@@ -107,7 +103,6 @@ serve(async (req) => {
         client_id: customerProfile.id,
         client_email: authData.user.email,
         client_name: customerProfile.display_name ?? "Customer",
-        invoice_number: invoiceNumber,
         quote_id: quote.id,
         subtotal: Number(quote.total_amount),
         tax_amount: 0,

@@ -1,7 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -10,23 +8,20 @@ import { Progress } from "@/components/ui/progress";
 import {
   DollarSign,
   Users,
-  FileText, 
-  Calendar, 
-  TrendingUp, 
+  FileText,
+  Calendar,
+  TrendingUp,
   AlertCircle,
   CheckCircle2,
   Clock,
   Plus,
-  Eye,
   Download,
   Edit,
-  Send,
   Archive,
   Filter,
   MessageCircle,
   Star,
 } from "lucide-react";
-import type { User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
@@ -34,10 +29,6 @@ import { TeamManagement } from "@/components/management/TeamManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
-import type { Database } from "@/integrations/supabase/types";
-
-type Quote = Database["public"]["Tables"]["quotes"]["Row"];
-type QuoteStatus = NonNullable<Quote["status"]>;
 
 const businessManagementViews = [
   { value: "dashboard", label: "Dashboard" },
@@ -56,59 +47,6 @@ const businessManagementViews = [
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const loadUserAndQuotes = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      setUser(currentUser);
-
-      if (currentUser) {
-        const { data: quotesData, error } = await supabase
-          .from('quotes')
-          .select('*')
-          .eq('contractor_id', currentUser.id)
-          .order('created_at', { ascending: false });
-          
-        if (error) {
-          console.error('Error loading quotes:', error);
-        } else {
-          setQuotes(quotesData || []);
-        }
-      }
-    };
-
-    loadUserAndQuotes();
-  }, []);
-
-  const updateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
-    try {
-      const { error } = await supabase
-        .from('quotes')
-        .update({ status: newStatus })
-        .eq('id', quoteId);
-
-      if (error) throw error;
-
-      setQuotes(prev => prev.map(quote => 
-        quote.id === quoteId ? { ...quote, status: newStatus } : quote
-      ));
-
-      toast({
-        title: "Quote Updated",
-        description: `Quote status updated to ${newStatus}`,
-      });
-    } catch (error) {
-      console.error('Error updating quote status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update quote status",
-        variant: "destructive",
-      });
-    }
-  };
 
   const dashboardStats = [
     { title: "Monthly Revenue", value: "£12,450", change: "+15.3%", icon: DollarSign, trend: "up" },
@@ -117,19 +55,13 @@ const BusinessManagement = () => {
     { title: "Clients", value: "23", change: "+3 this month", icon: Users, trend: "up" },
   ];
 
-  const recentInvoices = [
-    { id: "INV-001", client: "Johnson Construction", amount: "£2,450", status: "paid", date: "2024-01-15", dueDate: "2024-01-30" },
-    { id: "INV-002", client: "Smith Renovations", amount: "£1,800", status: "pending", date: "2024-01-18", dueDate: "2024-02-02" },
-    { id: "INV-003", client: "Green Building Ltd", amount: "£950", status: "overdue", date: "2024-01-10", dueDate: "2024-01-25" },
-  ];
-
   const activeProjects = [
     { id: "PRJ-001", name: "Kitchen Renovation - Wilson Home", client: "Mrs. Wilson", progress: 75, deadline: "2024-02-15", value: "£4,500", status: "on-track" },
     { id: "PRJ-002", name: "Bathroom Remodel - Davis Property", client: "Davis Family", progress: 45, deadline: "2024-03-01", value: "£3,200", status: "at-risk" },
     { id: "PRJ-003", name: "Garage Extension - Brown House", client: "Mr. Brown", progress: 90, deadline: "2024-01-30", value: "£8,900", status: "ahead" },
   ];
 
-  const getStatusColor = (status: Quote["status"]) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "paid": return "bg-green-100 text-green-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
@@ -144,7 +76,7 @@ const BusinessManagement = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">
           <h1 className="font-heading text-3xl font-bold mb-2">Business Management</h1>
@@ -199,20 +131,7 @@ const BusinessManagement = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recentInvoices.slice(0, 3).map((invoice) => (
-                      <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{invoice.id}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.client}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">{invoice.amount}</p>
-                          <Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-sm text-muted-foreground text-center py-6">No invoices yet.</p>
                 </CardContent>
               </Card>
 
@@ -261,63 +180,14 @@ const BusinessManagement = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'pending').length}</p><p className="text-sm text-muted-foreground">Pending</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'viewed').length}</p><p className="text-sm text-muted-foreground">Viewed</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{quotes.filter(q => q.status === 'responded').length}</p><p className="text-sm text-muted-foreground">Responded</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{quotes.length}</p><p className="text-sm text-muted-foreground">Total Quotes</p></div></div></CardContent></Card>
-            </div>
-
-            <div className="space-y-4">
-              {quotes.length === 0 ? (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
-                    <p className="text-muted-foreground mb-4">Quote requests from potential customers will appear here.</p>
-                    <p className="text-sm text-muted-foreground">Share your TradeStone profile link to start receiving quote requests!</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                quotes.map((quote) => (
-                  <Card key={quote.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold">{quote.project_title}</h3>
-                            <Badge className={getStatusColor(quote.status)}>{quote.status}</Badge>
-                          </div>
-                          <p className="text-muted-foreground mb-2">{quote.project_description}</p>
-                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>From: {quote.customer_name}</span>
-                            {quote.customer_phone && <span>Phone: {quote.customer_phone}</span>}
-                            {quote.project_location && <span>Location: {quote.project_location}</span>}
-                            {quote.budget_range && <span>Budget: {quote.budget_range}</span>}
-                            {quote.timeline && <span>Timeline: {quote.timeline}</span>}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Received: {new Date(quote.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-2 md:min-w-[140px]">
-                          {quote.status === 'pending' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'viewed')}>
-                              Mark as Viewed
-                            </Button>
-                          )}
-                          {quote.status === 'viewed' && (
-                            <Button size="sm" onClick={() => updateQuoteStatus(quote.id, 'responded')}>
-                              Mark as Responded
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Quote Requests Yet</h3>
+                <p className="text-muted-foreground mb-4">Quote requests from potential customers will appear here.</p>
+                <p className="text-sm text-muted-foreground">Share your TradeStone profile link to start receiving quote requests!</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="invoices" className="space-y-6">
@@ -335,7 +205,7 @@ const BusinessManagement = () => {
                   <table className="w-full">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="text-left p-4">Invoice ID</th>
+                        <th className="text-left p-4">Invoice #</th>
                         <th className="text-left p-4">Client</th>
                         <th className="text-left p-4">Amount</th>
                         <th className="text-left p-4">Status</th>
@@ -344,22 +214,9 @@ const BusinessManagement = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentInvoices.map((invoice) => (
-                        <tr key={invoice.id} className="border-t">
-                          <td className="p-4 font-medium">{invoice.id}</td>
-                          <td className="p-4">{invoice.client}</td>
-                          <td className="p-4 font-medium">{invoice.amount}</td>
-                          <td className="p-4"><Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge></td>
-                          <td className="p-4">{invoice.dueDate}</td>
-                          <td className="p-4">
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm"><Eye className="h-4 w-4" /></Button>
-                              <Button variant="outline" size="sm"><Edit className="h-4 w-4" /></Button>
-                              <Button variant="outline" size="sm"><Send className="h-4 w-4" /></Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-sm text-muted-foreground">No invoices yet.</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -392,7 +249,6 @@ const BusinessManagement = () => {
                       <Progress value={project.progress} />
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1"><Eye className="h-4 w-4 mr-2" />View</Button>
                       <Button variant="outline" size="sm" className="flex-1"><Edit className="h-4 w-4 mr-2" />Edit</Button>
                     </div>
                   </CardContent>

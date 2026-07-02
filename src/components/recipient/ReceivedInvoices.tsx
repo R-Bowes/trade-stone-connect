@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { generateInvoicePdf, type ContractorProfile } from "@/lib/generateInvoicePdf";
+import { formatInvoiceRef } from "@/lib/documentRefs";
 
 export function ReceivedInvoices() {
   const { invoices, loading, respondToInvoice, refetch } = useReceivedInvoices();
@@ -156,7 +157,9 @@ export function ReceivedInvoices() {
             <TableBody>
               {invoices.map((inv) => (
                 <TableRow key={inv.id}>
-                  <TableCell className="font-medium">{inv.invoice_number || "—"}</TableCell>
+                  <TableCell className="font-medium font-mono">
+                    {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
+                  </TableCell>
                   <TableCell>{inv.client_name}</TableCell>
                   <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
                   <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
@@ -205,7 +208,7 @@ export function ReceivedInvoices() {
           open={messageDialog.open}
           onClose={() => setMessageDialog({ open: false, invoice: null })}
           contractorId={messageDialog.invoice.contractor_id}
-          subject={`Invoice ${messageDialog.invoice.invoice_number || messageDialog.invoice.id} - ${messageDialog.invoice.recipient_response === "stalled" ? "Stalled" : "Query"}`}
+          subject={`${messageDialog.invoice.invoice_number != null ? formatInvoiceRef(messageDialog.invoice.invoice_number) : messageDialog.invoice.id} - ${messageDialog.invoice.recipient_response === "stalled" ? "Stalled" : "Query"}`}
           contextType="invoice"
           contextId={messageDialog.invoice.id}
         />

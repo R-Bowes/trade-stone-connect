@@ -99,7 +99,7 @@ serve(async (req) => {
     const { error: notifError } = await supabase.from("notifications").insert({
       user_id: invoice.contractor_id,
       title: "Invoice paid",
-      message: `Invoice ${invoice.invoice_number ?? invoice.id} has been paid.`,
+      message: `Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id} has been paid.`,
       type: "invoice_response",
       reference_type: "invoice",
       reference_id: invoice.id,
@@ -123,9 +123,9 @@ serve(async (req) => {
       await resend.emails.send({
         from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
         to: [profile.email],
-        subject: `Payment received — ${invoice.invoice_number ?? invoice.id}`,
+        subject: `Payment received — ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}`,
         html: `
-          <p>Good news — your client has paid invoice <strong>${invoice.invoice_number ?? invoice.id}</strong>.</p>
+          <p>Good news — your client has paid invoice <strong>${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}</strong>.</p>
           <p>Amount received: <strong>£${Number(invoice.total).toFixed(2)}</strong></p>
           <p>The funds will be transferred to your account via Stripe.</p>
           <p>— TradeStone</p>

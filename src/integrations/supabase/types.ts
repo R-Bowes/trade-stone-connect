@@ -478,6 +478,39 @@ export type Database = {
           },
         ]
       }
+      contractor_counters: {
+        Row: {
+          contractor_id: string
+          entity: string
+          next_value: number
+        }
+        Insert: {
+          contractor_id: string
+          entity: string
+          next_value?: number
+        }
+        Update: {
+          contractor_id?: string
+          entity?: string
+          next_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_counters_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_counters_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_credentials: {
         Row: {
           contractor_id: string
@@ -1471,7 +1504,7 @@ export type Database = {
           deposit_paid_at: string | null
           due_date: string
           id: string
-          invoice_number: string | null
+          invoice_number: number
           issued_date: string
           items: Json
           job_id: string | null
@@ -1506,7 +1539,7 @@ export type Database = {
           deposit_paid_at?: string | null
           due_date: string
           id?: string
-          invoice_number?: string | null
+          invoice_number: number
           issued_date?: string
           items?: Json
           job_id?: string | null
@@ -1541,7 +1574,7 @@ export type Database = {
           deposit_paid_at?: string | null
           due_date?: string
           id?: string
-          invoice_number?: string | null
+          invoice_number?: number
           issued_date?: string
           items?: Json
           job_id?: string | null
@@ -1626,7 +1659,7 @@ export type Database = {
           notes: string | null
           parent_quote_id: string | null
           project_id: string | null
-          quote_number: string | null
+          quote_number: number
           recipient_id: string | null
           recipient_response: string | null
           rejected_at: string | null
@@ -1669,7 +1702,7 @@ export type Database = {
           notes?: string | null
           parent_quote_id?: string | null
           project_id?: string | null
-          quote_number?: string | null
+          quote_number: number
           recipient_id?: string | null
           recipient_response?: string | null
           rejected_at?: string | null
@@ -1712,7 +1745,7 @@ export type Database = {
           notes?: string | null
           parent_quote_id?: string | null
           project_id?: string | null
-          quote_number?: string | null
+          quote_number?: number
           recipient_id?: string | null
           recipient_response?: string | null
           rejected_at?: string | null
@@ -2435,7 +2468,7 @@ export type Database = {
           expected_completion: string | null
           id: string
           issued_quote_id: string | null
-          job_number: string | null
+          job_number: number
           job_type: string | null
           location: string | null
           portfolio_approved: boolean | null
@@ -2472,7 +2505,7 @@ export type Database = {
           expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
-          job_number?: string | null
+          job_number: number
           job_type?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
@@ -2509,7 +2542,7 @@ export type Database = {
           expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
-          job_number?: string | null
+          job_number?: number
           job_type?: string | null
           location?: string | null
           portfolio_approved?: boolean | null
@@ -5318,6 +5351,10 @@ export type Database = {
       is_company_member: { Args: { p_company_id: string }; Returns: boolean }
       is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      next_document_number: {
+        Args: { p_contractor_id: string; p_entity: string }
+        Returns: number
+      }
     }
     Enums: {
       asset_category:

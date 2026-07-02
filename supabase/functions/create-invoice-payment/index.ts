@@ -104,7 +104,7 @@ serve(async (req) => {
           price_data: {
             currency: "gbp",
             product_data: {
-              name: `Invoice ${invoice.invoice_number || invoice.id}`,
+              name: `Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}`,
               description: `Payment for invoice from TradeStone`,
             },
             unit_amount: amountInPence,

@@ -84,7 +84,7 @@ serve(async (req) => {
         .single();
 
       if (invoice) {
-        contextLabel = `Invoice ${invoice.invoice_number || context_id}`;
+        contextLabel = `Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : context_id}`;
         const { data: contractorProfile } = await supabase
           .from("profiles")
           .select("full_name, email")
@@ -101,7 +101,7 @@ serve(async (req) => {
         .single();
 
       if (quote) {
-        contextLabel = `Quote ${quote.quote_number || quote.title}`;
+        contextLabel = `Quote ${quote.quote_number != null ? `Q-${String(quote.quote_number).padStart(4, "0")}` : quote.title}`;
         const { data: contractorProfile } = await supabase
           .from("profiles")
           .select("full_name, email")

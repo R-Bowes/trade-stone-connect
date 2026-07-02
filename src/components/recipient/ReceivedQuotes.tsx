@@ -11,6 +11,7 @@ import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { formatQuoteRef } from "@/lib/documentRefs";
 
 export function ReceivedQuotes() {
   const { quotes, loading, respondToQuote } = useReceivedQuotes();
@@ -148,7 +149,11 @@ export function ReceivedQuotes() {
             <TableBody>
               {quotes.map((q) => (
                 <TableRow key={q.id}>
-                  <TableCell className="font-medium">{q.quote_number || "—"}</TableCell>
+                  <TableCell className="font-medium font-mono">
+                    {q.quote_number != null
+                      ? formatQuoteRef(q.quote_number, { contractorCode: q.contractor_ts_code ?? undefined })
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span>{q.contractor_name}</span>
@@ -250,7 +255,7 @@ export function ReceivedQuotes() {
           open={messageDialog.open}
           onClose={() => setMessageDialog({ open: false, quote: null, action: "" })}
           contractorId={messageDialog.quote.contractor_id}
-          subject={`Quote ${messageDialog.quote.quote_number || messageDialog.quote.id} - ${
+          subject={`${messageDialog.quote.quote_number != null ? formatQuoteRef(messageDialog.quote.quote_number, { contractorCode: messageDialog.quote.contractor_ts_code ?? undefined }) : messageDialog.quote.id} - ${
             messageDialog.action === "accepted"
               ? "Accepted - Let's Schedule"
               : "Stalled - Discussion Needed"

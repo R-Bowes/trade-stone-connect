@@ -39,6 +39,7 @@ import {
 import JobPhotosTab from "@/components/JobPhotosTab";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
+import { formatQuoteRef } from "@/lib/documentRefs";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -80,7 +81,7 @@ type JobCardData = {
   customer_id: string;
   client_name: string;
   client_ts_code: string | null;
-  quote_number: string | null;
+  quote_number: number | null;
   issued_quote_id: string | null;
   sla_status: string | null;
   sla_completion_due: string | null;
@@ -716,9 +717,9 @@ export function JobManagement() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{job.title}</span>
-          {job.quote_number && (
+          {job.quote_number != null && (
             <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              {job.quote_number}
+              {formatQuoteRef(job.quote_number)}
             </span>
           )}
           {job.sla_status && (
@@ -859,7 +860,7 @@ export function JobManagement() {
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Quote</div>
-                    <div className="font-medium font-mono">{selectedJob.quote_number ?? "—"}</div>
+                    <div className="font-medium font-mono">{selectedJob.quote_number != null ? formatQuoteRef(selectedJob.quote_number) : "—"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Hours logged</div>
@@ -1099,7 +1100,7 @@ export function JobManagement() {
                                   teamMembers: teamMembersList,
                                   totalHoursLogged,
                                   invoice: invoiceData ? {
-                                    invoice_number: (invoiceData as any).invoice_number ?? "—",
+                                    invoice_number: Number((invoiceData as any).invoice_number ?? 0),
                                     status: (invoiceData as any).status ?? "sent",
                                     total: Number((invoiceData as any).total ?? 0),
                                     due_date: (invoiceData as any).due_date ?? "",
