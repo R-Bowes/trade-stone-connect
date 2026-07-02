@@ -392,3 +392,26 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   name before accepting.
 - Scope the profiles SELECT policy down from `USING (true)` — ensure roster embed still works
   for fellow company members when policy is tightened.
+
+  ## Document reference system (quotes, jobs, invoices)
+
+- `issued_quotes.quote_number`, `jobs.job_number`, `invoices.invoice_number` are
+  `integer NOT NULL`, per-contractor sequential. Assigned by BEFORE INSERT triggers
+  via `contractor_counters` (atomic upsert — race-safe). NEVER generate document
+  numbers client-side; never include them in insert payloads.
+- `contractor_counters` has RLS enabled with no policies — written only by the
+  SECURITY DEFINER allocator `next_document_number()`. Do not add client policies.
+- Display strings are composed in the frontend via `src/lib/documentRefs.ts`
+  (`formatQuoteRef` / `formatJobRef` / `formatInvoiceRef`):
+  short form (`Q-0008`) in the contractor's own UI; full form (`Q-4AE203-0008`)
+  on customer-facing surfaces, PDFs, emails, Stripe metadata.
+- Quote revisions use `issued_quotes.version` (shown as `.{version}` when > 1).
+  There is no `revision` column.
+- Edge functions (Deno) duplicate the format inline — they cannot import from
+  `src/lib`. Any format change must be applied in BOTH `documentRefs.ts` and the
+  edge functions that build references.
+- The `quotes` table is LEGACY and empty — the live table is `issued_quotes`.
+  Never query or build against `quotes`.
+- Legacy string formats (`QTE-TS-C-...`, `INV-TS-C-...-TS-P-...`) and their
+  generator triggers are retired. If either pattern reappears in a grep, it's a
+  regression.
