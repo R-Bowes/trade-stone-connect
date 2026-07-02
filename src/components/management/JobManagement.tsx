@@ -24,10 +24,10 @@ import {
   ChevronRight,
   Users,
   UserPlus,
-  MessageCircle,
   MessageSquare,
   Download,
   ShieldCheck,
+  Camera,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
@@ -39,7 +39,7 @@ import {
 import JobPhotosTab from "@/components/JobPhotosTab";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
-import { formatQuoteRef } from "@/lib/documentRefs";
+import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -82,10 +82,13 @@ type JobCardData = {
   client_name: string;
   client_ts_code: string | null;
   quote_number: number | null;
+  quote_version: number | null;
   issued_quote_id: string | null;
   sla_status: string | null;
   sla_completion_due: string | null;
   contract_value: number;
+  job_number: number | null;
+  priority: string | null;
   signed_off_by: string | null;
   signed_off_at: string | null;
 };
@@ -270,6 +273,7 @@ export function JobManagement() {
   const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [showPhotos, setShowPhotos] = useState(false);
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
   const navigate = useNavigate();
@@ -312,10 +316,12 @@ export function JobManagement() {
         sla_status,
         sla_completion_due,
         contract_value,
+        job_number,
+        priority,
         signed_off_by,
         signed_off_at,
         client:profiles!jobs_customer_id_fkey(full_name, company_name, ts_profile_code),
-        quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, completion_time)
+        quote:issued_quotes!jobs_issued_quote_id_fkey(quote_number, version, completion_time)
       `)
       .eq("contractor_id", profileRow.id)
       .order("start_date", { ascending: true, nullsFirst: false });
@@ -339,10 +345,13 @@ export function JobManagement() {
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
       client_ts_code: job.client?.ts_profile_code ?? null,
       quote_number: job.quote?.quote_number ?? null,
+      quote_version: job.quote?.version ?? null,
       issued_quote_id: job.issued_quote_id ?? null,
       sla_status: job.sla_status ?? null,
       sla_completion_due: job.sla_completion_due ?? null,
       contract_value: job.contract_value ?? 0,
+      job_number: job.job_number ?? null,
+      priority: job.priority ?? null,
       signed_off_by: job.signed_off_by ?? null,
       signed_off_at: job.signed_off_at ?? null,
     })) as JobCardData[];
@@ -804,13 +813,34 @@ export function JobManagement() {
         )}
       </div>
 
-      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) setSelectedJobId(null); }}>
+      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) { setSelectedJobId(null); setShowPhotos(false); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedJob && (
             <>
               <DialogHeader>
                 <div className="flex items-start justify-between gap-4">
-                  <DialogTitle className="leading-tight">{selectedJob.title}</DialogTitle>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {selectedJob.job_number != null ? formatJobRef(selectedJob.job_number) : selectedJob.id.slice(0, 8)}
+                      {selectedJob.quote_number != null
+                        ? ` · from quote ${formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })}`
+                        : selectedJob.priority
+                        ? ` · SLA ${selectedJob.priority}`
+                        : ""}
+                    </p>
+                    <DialogTitle className="leading-tight">{selectedJob.title}</DialogTitle>
+                    <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                      <span>{selectedJob.client_name}</span>
+                      {selectedJob.client_ts_code && (
+                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
+                      )}
+                      {selectedJob.location && (
+                        <span className="flex items-center gap-1 text-xs">
+                          <MapPin className="h-3 w-3" />{selectedJob.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <Badge
                     className="shrink-0 mt-0.5"
                     variant={selectedJob.status === "cancelled" ? "destructive" : "secondary"}
@@ -829,65 +859,73 @@ export function JobManagement() {
                     {statusLabel[selectedJob.status]}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
-                  <span>{selectedJob.client_name}</span>
-                  {selectedJob.client_ts_code && (
-                    <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
-                  )}
-                  {selectedJob.location && (
-                    <span className="flex items-center gap-1 text-xs">
-                      <MapPin className="h-3 w-3" />{selectedJob.location}
-                    </span>
-                  )}
-                </div>
               </DialogHeader>
 
               <div className="space-y-5">
                 <StepTracker currentStatus={selectedJob.status} />
 
-                <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Started</div>
-                    <div className="font-medium">
-                      {selectedJob.start_date ? format(new Date(selectedJob.start_date), "dd MMM yyyy") : "—"}
+                {/* Key facts grid: 3 cols × 2 rows */}
+                {(() => {
+                  const entries = timesheetsByJob[selectedJob.id] || [];
+                  const totalHours = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
+                  return (
+                    <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Scheduled for</div>
+                        <div className="font-medium">
+                          {selectedJob.start_date ? format(new Date(selectedJob.start_date), "d MMM yyyy") : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Started</div>
+                        <div className="font-medium">
+                          {selectedJob.actual_start ? format(new Date(selectedJob.actual_start), "d MMM yyyy") : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Completed</div>
+                        <div className="font-medium">
+                          {selectedJob.actual_end ? format(new Date(selectedJob.actual_end), "d MMM yyyy") : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Value</div>
+                        <div className="font-medium font-mono">£{selectedJob.contract_value.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Hours logged</div>
+                        <div className="font-medium">{totalHours === 0 ? "0h" : formatHours(totalHours)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Origin</div>
+                        <div className="font-medium font-mono">
+                          {selectedJob.quote_number != null
+                            ? formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })
+                            : selectedJob.priority
+                            ? `SLA ${selectedJob.priority}`
+                            : "—"}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Completed</div>
-                    <div className="font-medium">
-                      {selectedJob.actual_end ? format(new Date(selectedJob.actual_end), "dd MMM yyyy") : "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Quote</div>
-                    <div className="font-medium font-mono">{selectedJob.quote_number != null ? formatQuoteRef(selectedJob.quote_number) : "—"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Hours logged</div>
-                    <div className="font-medium">
-                      {(() => {
-                        const entries = timesheetsByJob[selectedJob.id] || [];
-                        const total = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
-                        return total === 0 ? "0h" : formatHours(total);
-                      })()}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
+                {/* Workers */}
                 {selectedJob.status !== "cancelled" && (
                   <div className="rounded-md border p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Users className="h-4 w-4" />
-                      Workers assigned
-                    </div>
-                    {dialogAssignments.length === 0 && teamMembers.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No team members added yet. Add team members in Team Management.</p>
-                    )}
-                    {dialogAssignments.length === 0 && teamMembers.length > 0 && (
-                      <p className="text-xs text-muted-foreground">No workers assigned. Select from your team below.</p>
-                    )}
-                    {dialogAssignments.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
+                    {dialogAssignments.length === 0 ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          <Users className="h-4 w-4" />
+                          No workers assigned
+                        </span>
+                        {teamMembers.length === 0 && (
+                          <span className="text-xs text-muted-foreground">Add workers in Team Management</span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         {dialogAssignments.map((a) => {
                           const member = teamMembers.find((m) => m.id === a.team_member_id);
                           if (!member) return null;
@@ -899,16 +937,14 @@ export function JobManagement() {
                                 className="ml-1 hover:text-destructive transition-colors"
                                 onClick={() => toggleAssignment(selectedJob.id, member.id)}
                                 disabled={dialogIsAssigning}
-                              >
-                                ×
-                              </button>
+                              >×</button>
                             </Badge>
                           );
                         })}
                       </div>
                     )}
                     {teamMembers.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {teamMembers
                           .filter((m) => !dialogAssignedIds.has(m.id))
                           .map((m) => (
@@ -919,8 +955,7 @@ export function JobManagement() {
                               disabled={dialogIsAssigning}
                               className="text-xs px-2 py-0.5 rounded border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-[#f07820] hover:text-[#f07820] transition-colors flex items-center gap-1"
                             >
-                              <UserPlus className="h-3 w-3" />
-                              {m.full_name}
+                              <UserPlus className="h-3 w-3" />{m.full_name}
                             </button>
                           ))}
                       </div>
@@ -954,7 +989,6 @@ export function JobManagement() {
                         </Badge>
                       )}
                     </div>
-
                     <div className="flex gap-2">
                       <Input
                         placeholder="Add snag item"
@@ -965,7 +999,6 @@ export function JobManagement() {
                       />
                       <Button type="button" onClick={() => addSnagItem(selectedJob.id)}>Add</Button>
                     </div>
-
                     {dialogSnagItems.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No snag items yet.</p>
                     ) : (
@@ -990,8 +1023,41 @@ export function JobManagement() {
                   </div>
                 )}
 
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex flex-wrap gap-2">
+                {/* Footer */}
+                <div className="border-t pt-4 mt-4 flex items-center justify-between gap-2 flex-wrap">
+                  {/* Left: quiet utility actions */}
+                  <div className="flex gap-1">
+                    {selectedJob.status !== "cancelled" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => navigate("/dashboard/contractor?view=messages")}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        Message client
+                      </Button>
+                    )}
+                    {contractorProfileId && selectedJob.status !== "cancelled" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setShowPhotos((v) => !v)}
+                      >
+                        <Camera className="h-4 w-4 mr-1" />
+                        {showPhotos ? "Hide photos" : "Photos"}
+                      </Button>
+                    )}
+                  </div>
+                  {/* Right: status actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(selectedJob.status === "snagging" || selectedJob.status === "complete") && !selectedJob.signed_off_by && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Awaiting sign-off
+                      </span>
+                    )}
                     {dialogPrevStatus && selectedJob.status !== "cancelled" && (
                       <Button
                         variant="outline"
@@ -1003,13 +1069,18 @@ export function JobManagement() {
                         Move back
                       </Button>
                     )}
-                    {dialogNextStatus && (
+                    {dialogNextStatus && selectedJob.status !== "cancelled" && (
                       <Button
                         onClick={() => changeStatus(selectedJob, dialogNextStatus)}
                         disabled={dialogIsSaving}
+                        style={{ backgroundColor: "#f07820", color: "#fff" }}
                       >
                         {dialogIsSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                        Move to next stage
+                        {dialogNextStatus === "in_progress"
+                          ? "Start work"
+                          : dialogNextStatus === "snagging"
+                          ? "Final checks"
+                          : "Mark complete"}
                       </Button>
                     )}
                     {selectedJob.status === "complete" && (
@@ -1020,6 +1091,7 @@ export function JobManagement() {
                       ) : (
                         <Button
                           variant="outline"
+                          size="sm"
                           onClick={async () => {
                             try {
                               await buildInvoiceFromJob(selectedJob);
@@ -1037,117 +1109,95 @@ export function JobManagement() {
                       )
                     )}
                     {selectedJob.status === "complete" && (
-                      <div className="flex flex-col gap-1">
-                        <span title={!selectedJob.signed_off_by ? "Awaiting customer sign-off" : undefined}>
-                          <Button
-                            variant="outline"
-                            disabled={!selectedJob.signed_off_by}
-                            onClick={async () => {
-                              try {
-                                const { data: contractorProfile } = await supabase
-                                  .from("profiles")
-                                  .select("full_name, company_name, ts_profile_code, logo_url")
-                                  .eq("id", contractorProfileId!)
+                      <span title={!selectedJob.signed_off_by ? "Awaiting customer sign-off" : undefined}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!selectedJob.signed_off_by}
+                          onClick={async () => {
+                            try {
+                              const { data: contractorProfile } = await supabase
+                                .from("profiles")
+                                .select("full_name, company_name, ts_profile_code, logo_url")
+                                .eq("id", contractorProfileId!)
+                                .maybeSingle();
+
+                              const { data: clientProfile } = await supabase
+                                .from("profiles")
+                                .select("full_name, ts_profile_code")
+                                .eq("id", selectedJob.customer_id)
+                                .maybeSingle();
+
+                              let invoiceData = null;
+                              if (selectedJob.issued_quote_id) {
+                                const { data } = await supabase
+                                  .from("invoices")
+                                  .select("invoice_number, status, total, due_date, paid_date")
+                                  .eq("quote_id", selectedJob.issued_quote_id)
                                   .maybeSingle();
-
-                                const { data: clientProfile } = await supabase
-                                  .from("profiles")
-                                  .select("full_name, ts_profile_code")
-                                  .eq("id", selectedJob.customer_id)
-                                  .maybeSingle();
-
-                                let invoiceData = null;
-                                if (selectedJob.issued_quote_id) {
-                                  const { data } = await supabase
-                                    .from("invoices")
-                                    .select("invoice_number, status, total, due_date, paid_date")
-                                    .eq("quote_id", selectedJob.issued_quote_id)
-                                    .maybeSingle();
-                                  invoiceData = data;
-                                }
-
-                                const entries = timesheetsByJob[selectedJob.id] || [];
-                                const totalHoursLogged = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
-
-                                const teamMembersList = dialogAssignments
-                                  .map((a) => teamMembers.find((m) => m.id === a.team_member_id))
-                                  .filter(Boolean)
-                                  .map((m) => ({ full_name: m!.full_name }));
-
-                                await generateJobRecordPdf({
-                                  job: {
-                                    id: selectedJob.id,
-                                    title: selectedJob.title,
-                                    status: selectedJob.status,
-                                    quote_number: selectedJob.quote_number,
-                                    location: selectedJob.location,
-                                    start_date: selectedJob.start_date,
-                                    actual_end: selectedJob.actual_end,
-                                    contract_value: selectedJob.contract_value,
-                                    signed_off_at: selectedJob.signed_off_at,
-                                  },
-                                  contractor: {
-                                    full_name: contractorProfile?.full_name ?? null,
-                                    company_name: (contractorProfile as any)?.company_name ?? null,
-                                    ts_profile_code: contractorProfile?.ts_profile_code ?? null,
-                                    logo_url: (contractorProfile as any)?.logo_url ?? null,
-                                  },
-                                  client: {
-                                    full_name: clientProfile?.full_name ?? selectedJob.client_name,
-                                    ts_profile_code: clientProfile?.ts_profile_code ?? selectedJob.client_ts_code,
-                                    location: selectedJob.location,
-                                  },
-                                  teamMembers: teamMembersList,
-                                  totalHoursLogged,
-                                  invoice: invoiceData ? {
-                                    invoice_number: Number((invoiceData as any).invoice_number ?? 0),
-                                    status: (invoiceData as any).status ?? "sent",
-                                    total: Number((invoiceData as any).total ?? 0),
-                                    due_date: (invoiceData as any).due_date ?? "",
-                                    paid_date: (invoiceData as any).paid_date ?? null,
-                                  } : null,
-                                });
-                              } catch (err: any) {
-                                toast({
-                                  title: "PDF generation failed",
-                                  description: err?.message || "Please try again.",
-                                  variant: "destructive",
-                                });
+                                invoiceData = data;
                               }
-                            }}
-                          >
-                            <Download className="h-4 w-4 mr-1.5" />
-                            Download job record
-                          </Button>
-                        </span>
-                        {!selectedJob.signed_off_by && (
-                          <p className="text-xs text-muted-foreground">Customer sign-off required to generate the job record.</p>
-                        )}
-                      </div>
+
+                              const entries = timesheetsByJob[selectedJob.id] || [];
+                              const totalHoursLogged = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
+
+                              const teamMembersList = dialogAssignments
+                                .map((a) => teamMembers.find((m) => m.id === a.team_member_id))
+                                .filter(Boolean)
+                                .map((m) => ({ full_name: m!.full_name }));
+
+                              await generateJobRecordPdf({
+                                job: {
+                                  id: selectedJob.id,
+                                  title: selectedJob.title,
+                                  status: selectedJob.status,
+                                  quote_number: selectedJob.quote_number,
+                                  location: selectedJob.location,
+                                  start_date: selectedJob.start_date,
+                                  actual_end: selectedJob.actual_end,
+                                  contract_value: selectedJob.contract_value,
+                                  signed_off_at: selectedJob.signed_off_at,
+                                },
+                                contractor: {
+                                  full_name: contractorProfile?.full_name ?? null,
+                                  company_name: (contractorProfile as any)?.company_name ?? null,
+                                  ts_profile_code: contractorProfile?.ts_profile_code ?? null,
+                                  logo_url: (contractorProfile as any)?.logo_url ?? null,
+                                },
+                                client: {
+                                  full_name: clientProfile?.full_name ?? selectedJob.client_name,
+                                  ts_profile_code: clientProfile?.ts_profile_code ?? selectedJob.client_ts_code,
+                                  location: selectedJob.location,
+                                },
+                                teamMembers: teamMembersList,
+                                totalHoursLogged,
+                                invoice: invoiceData ? {
+                                  invoice_number: Number((invoiceData as any).invoice_number ?? 0),
+                                  status: (invoiceData as any).status ?? "sent",
+                                  total: Number((invoiceData as any).total ?? 0),
+                                  due_date: (invoiceData as any).due_date ?? "",
+                                  paid_date: (invoiceData as any).paid_date ?? null,
+                                } : null,
+                              });
+                            } catch (err: any) {
+                              toast({
+                                title: "PDF generation failed",
+                                description: err?.message || "Please try again.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Job record
+                        </Button>
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {selectedJob.status !== "cancelled" && (
-                  <div className="rounded-lg border p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium" style={{ fontFamily: "Lexend, sans-serif" }}>
-                        Job Messages
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => navigate("/dashboard/contractor?view=messages")}
-                      style={{ backgroundColor: "#f07820", color: "#fff" }}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-                      Message client
-                    </Button>
-                  </div>
-                )}
-
-                {contractorProfileId && selectedJob.status !== "cancelled" && (
+                {/* Expandable photos */}
+                {showPhotos && contractorProfileId && selectedJob.status !== "cancelled" && (
                   <div className="rounded-md border p-4">
                     <JobPhotosTab
                       jobId={selectedJob.id}
