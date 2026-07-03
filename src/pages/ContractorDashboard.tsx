@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +8,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
   Filter, MessageCircle, Star, Loader2,
-  ChevronDown, ChevronUp, RefreshCw, XCircle, MessageSquare,
+  XCircle, MessageSquare,
   AlertTriangle, Calendar, Wrench, UserCheck,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
@@ -32,6 +31,7 @@ import { FinancialsManagement } from "@/components/management/FinancialsManageme
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
+import { IssuedQuotes } from "@/components/management/IssuedQuotes";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { StripeConnect } from "@/components/management/StripeConnect";
 import { RejectDialog } from "@/components/management/RejectDialog";
@@ -43,7 +43,7 @@ import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
-import { formatQuoteRef, formatInvoiceRef } from "@/lib/documentRefs";
+import { formatInvoiceRef } from "@/lib/documentRefs";
 
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 
@@ -90,13 +90,11 @@ const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
   const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | null>(null);
-  const [issuedQuotes, setIssuedQuotes] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
-  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
   const [dashboardData, setDashboardData] = useState({
@@ -156,13 +154,6 @@ const ContractorDashboard = () => {
         .eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
       if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
       else setEnquiries(enquiriesData || []);
-
-      if (pid) {
-        const { data: issuedQuotesData } = await supabase.from('issued_quotes')
-          .select('id, quote_number, client_name, total, status, recipient_response, created_at')
-          .eq('contractor_id', pid).order('created_at', { ascending: false });
-        setIssuedQuotes(issuedQuotesData || []);
-      }
 
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -579,65 +570,7 @@ const ContractorDashboard = () => {
 
           {/* Issued Quotes Tab */}
           <TabsContent value="issued-quotes" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="font-heading text-2xl font-bold">Issued Quotes</h2>
-              <Button variant="outline" onClick={async () => {
-                if (!profileId) return;
-                const { data } = await supabase.from('issued_quotes').select('id, quote_number, client_name, total, status, recipient_response, created_at').eq('contractor_id', profileId).order('created_at', { ascending: false });
-                setIssuedQuotes(data || []);
-              }}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
-            </div>
-            {issuedQuotes.length === 0 ? (
-              <Card><CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
-                <p className="text-muted-foreground">Quotes you send to clients will appear here.</p>
-              </CardContent></Card>
-            ) : (
-              <Card><CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium">Quote #</th>
-                      <th className="text-left p-3 font-medium">Total</th>
-                      <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">Response</th>
-                      <th className="text-left p-3 font-medium">Date Sent</th>
-                      <th className="text-left p-3 font-medium">Schedule</th>
-                    </tr></thead>
-                    <tbody>
-                      {issuedQuotes.map((iq) => (
-                        <>
-                          <tr key={iq.id} className="border-b hover:bg-muted/30">
-                            <td className="p-3 font-mono">
-                              {iq.quote_number != null ? formatQuoteRef(Number(iq.quote_number)) : `#${iq.id.slice(0, 8)}`}
-                            </td>
-                            <td className="p-3">£{Number(iq.total ?? 0).toLocaleString('en-GB')}</td>
-                            <td className="p-3"><Badge className={getStatusColor(iq.status || '')}>{iq.status}</Badge></td>
-                            <td className="p-3">{iq.recipient_response ? (
-                              <Badge className={iq.recipient_response === 'accepted' ? 'bg-green-100 text-green-800' : iq.recipient_response === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>{iq.recipient_response}</Badge>
-                            ) : <span className="text-muted-foreground">—</span>}</td>
-                            <td className="p-3">{new Date(iq.created_at).toLocaleDateString('en-GB')}</td>
-                            <td className="p-3">{iq.recipient_response === 'accepted' && (
-                              <Button variant="ghost" size="sm" onClick={() => setExpandedQuoteId(expandedQuoteId === iq.id ? null : iq.id)}>
-                                {expandedQuoteId === iq.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                              </Button>
-                            )}</td>
-                          </tr>
-                          {expandedQuoteId === iq.id && (
-                            <tr key={`${iq.id}-schedule`}>
-                              <td colSpan={7} className="p-4 bg-muted/20">
-                                <QuoteScheduleNegotiation quoteId={iq.id} contractorId={profileId} mode="contractor" />
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent></Card>
-            )}
+            <IssuedQuotes profileId={profileId} />
           </TabsContent>
 
           <TabsContent value="invoices"><InvoiceManagement /></TabsContent>

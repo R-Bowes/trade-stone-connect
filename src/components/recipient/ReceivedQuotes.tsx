@@ -151,7 +151,7 @@ export function ReceivedQuotes() {
                 <TableRow key={q.id}>
                   <TableCell className="font-medium font-mono">
                     {q.quote_number != null
-                      ? formatQuoteRef(q.quote_number, { contractorCode: q.contractor_ts_code ?? undefined })
+                      ? formatQuoteRef(q.quote_number, { contractorCode: q.contractor_ts_code ?? undefined, version: q.version ?? 1 })
                       : "—"}
                   </TableCell>
                   <TableCell>
@@ -255,7 +255,7 @@ export function ReceivedQuotes() {
           open={messageDialog.open}
           onClose={() => setMessageDialog({ open: false, quote: null, action: "" })}
           contractorId={messageDialog.quote.contractor_id}
-          subject={`${messageDialog.quote.quote_number != null ? formatQuoteRef(messageDialog.quote.quote_number, { contractorCode: messageDialog.quote.contractor_ts_code ?? undefined }) : messageDialog.quote.id} - ${
+          subject={`${messageDialog.quote.quote_number != null ? formatQuoteRef(messageDialog.quote.quote_number, { contractorCode: messageDialog.quote.contractor_ts_code ?? undefined, version: messageDialog.quote.version ?? 1 }) : messageDialog.quote.id} - ${
             messageDialog.action === "accepted"
               ? "Accepted - Let's Schedule"
               : "Stalled - Discussion Needed"

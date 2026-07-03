@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 export interface ReceivedQuote {
   id: string;
   quote_number: number | null;
+  version: number | null;
   title: string;
   description: string | null;
   client_name: string;
@@ -71,12 +72,23 @@ export function useReceivedQuotes() {
       }
     }
 
+    const enriched = rawQuotes.map((q) => ({
+      ...q,
+      contractor_name: nameMap[q.contractor_id] ?? "Contractor",
+      contractor_ts_code: tsCodeMap[q.contractor_id] ?? null,
+    }));
+
+    // Keep only the latest version per quote_number; superseded versions are hidden
+    const latestMap = new Map<string, typeof enriched[0]>();
+    for (const q of enriched) {
+      const key = q.quote_number != null ? String(q.quote_number) : q.id;
+      const cur = latestMap.get(key);
+      if (!cur || (q.version ?? 1) > (cur.version ?? 1)) latestMap.set(key, q);
+    }
     setQuotes(
-      rawQuotes.map((q) => ({
-        ...q,
-        contractor_name: nameMap[q.contractor_id] ?? "Contractor",
-        contractor_ts_code: tsCodeMap[q.contractor_id] ?? null,
-      }))
+      Array.from(latestMap.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
     );
     setLoading(false);
   }, []);
