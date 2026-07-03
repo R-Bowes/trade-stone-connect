@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
+import { formatInvoiceRef } from "@/lib/documentRefs";
 
 type PublicInvoice = {
   id: string;
-  invoice_number: string | null;
+  invoice_number: number | null;
   client_name: string;
   due_date: string;
   status: string;
@@ -118,7 +119,7 @@ export default function PayInvoicePage() {
       <div className="mx-auto max-w-4xl grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Invoice {invoice.invoice_number ?? invoice.id}</CardTitle>
+            <CardTitle>{invoice.invoice_number != null ? formatInvoiceRef(invoice.invoice_number) : `Invoice ${invoice.id}`}</CardTitle>
             <CardDescription>
               {invoice.client_name} • Due {invoice.due_date}
             </CardDescription>

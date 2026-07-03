@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Loader2, CalendarDays, Clock, List, Handshake } from "lucide-react";
+import { formatQuoteRef } from "@/lib/documentRefs";
 import { useSchedule, type ScheduleEvent } from "@/hooks/useSchedule";
 import { WeekCalendar } from "./schedule/WeekCalendar";
 import { UpcomingEvents } from "./schedule/UpcomingEvents";
@@ -15,7 +16,7 @@ import { EventFormDialog } from "./schedule/EventFormDialog";
 
 interface AcceptedQuote {
   id: string;
-  quote_number: string | null;
+  quote_number: number | null;
   title: string;
   contractor_id: string;
   recipient_response: string | null;
@@ -147,7 +148,7 @@ export function ScheduleManagement() {
           )}
           {acceptedQuotes.map((quote) => (
             <div key={quote.id} className="space-y-2">
-              <p className="text-sm font-medium">{quote.quote_number || quote.id} · {quote.title}</p>
+              <p className="text-sm font-medium">{quote.quote_number != null ? formatQuoteRef(quote.quote_number) : quote.id} · {quote.title}</p>
               <QuoteScheduleNegotiation quoteId={quote.id} contractorId={quote.contractor_id} mode="contractor" />
             </div>
           ))}

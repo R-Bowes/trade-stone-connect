@@ -296,7 +296,7 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
       <Dialog open={!!previewInvoice} onOpenChange={v => !v && setPreviewInvoice(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Invoice {previewInvoice?.invoice_number}</DialogTitle>
+            <DialogTitle>{previewInvoice ? formatInvoiceRef(previewInvoice.invoice_number) : "Invoice"}</DialogTitle>
             <DialogDescription>Invoice details and line items</DialogDescription>
           </DialogHeader>
           {previewInvoice && (
@@ -313,7 +313,7 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Invoice #</p>
-                  <p className="font-semibold">{previewInvoice.invoice_number}</p>
+                  <p className="font-semibold font-mono">{formatInvoiceRef(previewInvoice.invoice_number)}</p>
                   <p className="text-sm text-muted-foreground mt-2">Issued: {format(new Date(previewInvoice.issued_date), "dd MMM yyyy")}</p>
                   <p className="text-sm text-muted-foreground">Due: {format(new Date(previewInvoice.due_date), "dd MMM yyyy")}</p>
                   <div className="mt-2">{getStatusBadge(previewInvoice)}</div>

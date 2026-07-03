@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
+import { formatInvoiceRef } from '@/lib/documentRefs';
 import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ type Invoice = {
   status: string;
   total_amount: number | null;
   created_at: string;
-  invoice_number: string | null;
+  invoice_number: number | null;
 };
 
 type Conversation = {
@@ -937,7 +938,7 @@ export default function AdminDashboard() {
                         <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ padding: '12px 16px' }}>
                             <span style={{ background: 'rgba(240,120,32,0.15)', border: '1px solid rgba(240,120,32,0.3)', color: '#f07820', fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-                              {inv.invoice_number || '—'}
+                              {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : '—'}
                             </span>
                           </td>
                           <td style={{ padding: '12px 16px' }}><span style={badge(inv.status)}>{inv.status || '—'}</span></td>

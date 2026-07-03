@@ -27,7 +27,7 @@ export interface CRMJobHistory {
   actual_end: string | null;
   contract_value: number | null;
   location: string | null;
-  quote_number: string | null;
+  quote_number: number | null;
 }
 
 export interface CRMActivity {

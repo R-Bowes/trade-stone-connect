@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Trash2, Mail, Phone, Building2, MapPin, Link } from "lucide-react";
+import { formatQuoteRef } from "@/lib/documentRefs";
 import { ActivityLog } from "./ActivityLog";
 import type { CRMClient, CRMActivity, CRMJobHistory, ActivityFormData } from "@/hooks/useCRM";
 
@@ -129,9 +130,9 @@ export function ClientDetail({ client, activities, jobHistory, onBack, onEdit, o
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">{job.title}</span>
-                        {job.quote_number && (
+                        {job.quote_number != null && (
                           <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {job.quote_number}
+                            {formatQuoteRef(job.quote_number)}
                           </span>
                         )}
                       </div>
