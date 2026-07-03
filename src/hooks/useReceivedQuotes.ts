@@ -26,6 +26,7 @@ export interface ReceivedQuote {
   notes: string | null;
   terms: string | null;
   created_at: string;
+  sent_at: string | null;
 }
 
 export function useReceivedQuotes() {
@@ -78,9 +79,11 @@ export function useReceivedQuotes() {
       contractor_ts_code: tsCodeMap[q.contractor_id] ?? null,
     }));
 
+    // Exclude unsent drafts — recipients only see quotes that have been sent
+    const sentQuotes = enriched.filter(q => q.sent_at != null);
     // Keep only the latest version per quote_number; superseded versions are hidden
     const latestMap = new Map<string, typeof enriched[0]>();
-    for (const q of enriched) {
+    for (const q of sentQuotes) {
       const key = q.quote_number != null ? String(q.quote_number) : q.id;
       const cur = latestMap.get(key);
       if (!cur || (q.version ?? 1) > (cur.version ?? 1)) latestMap.set(key, q);

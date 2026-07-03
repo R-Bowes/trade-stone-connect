@@ -581,6 +581,23 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   async function handleSendDraft() {
     if (!selectedQuote) return;
     setSaving(true);
+    if (selectedQuote.parent_quote_id) {
+      const { data: parent } = await supabase
+        .from("issued_quotes")
+        .select("status")
+        .eq("id", selectedQuote.parent_quote_id)
+        .single();
+      if (parent?.status === "accepted") {
+        toast({
+          title: "Cannot send revision",
+          description: "The original quote was accepted while this revision was in draft.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+      await supabase.from("issued_quotes").update({ status: "superseded" }).eq("id", selectedQuote.parent_quote_id);
+    }
     const { error } = await supabase
       .from("issued_quotes")
       .update({ sent_at: new Date().toISOString(), status: "sent" })
@@ -617,6 +634,23 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       deposit_amount: editData.deposit_required && editData.deposit_amount ? Number(editData.deposit_amount) : null,
     };
     if (send) {
+      if (selectedQuote.parent_quote_id) {
+        const { data: parent } = await supabase
+          .from("issued_quotes")
+          .select("status")
+          .eq("id", selectedQuote.parent_quote_id)
+          .single();
+        if (parent?.status === "accepted") {
+          toast({
+            title: "Cannot send revision",
+            description: "The original quote was accepted while this revision was in draft.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+        await supabase.from("issued_quotes").update({ status: "superseded" }).eq("id", selectedQuote.parent_quote_id);
+      }
       updates.sent_at = new Date().toISOString();
       updates.status = "sent";
     }
@@ -676,7 +710,6 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       setSaving(false);
       return;
     }
-    await supabase.from("issued_quotes").update({ status: "superseded" }).eq("id", selectedQuote.id);
     const fresh = await fetchQuotes();
     setSaving(false);
     const draftQuote = fresh.find(q => q.id === newRow.id) ?? normaliseRow({ ...newRow, version: newVersion } as Record<string, unknown>);
