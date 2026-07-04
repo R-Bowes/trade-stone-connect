@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -1674,7 +1699,7 @@ export type Database = {
           total: number
           updated_at: string
           valid_until: string
-          version: number | null
+          version: number
           viewed_at: string | null
         }
         Insert: {
@@ -1717,7 +1742,7 @@ export type Database = {
           total?: number
           updated_at?: string
           valid_until: string
-          version?: number | null
+          version?: number
           viewed_at?: string | null
         }
         Update: {
@@ -1760,7 +1785,7 @@ export type Database = {
           total?: number
           updated_at?: string
           valid_until?: string
-          version?: number | null
+          version?: number
           viewed_at?: string | null
         }
         Relationships: [
@@ -2461,6 +2486,8 @@ export type Database = {
           completed_at: string | null
           contract_value: number | null
           contractor_id: string
+          contractor_signed_off_at: string | null
+          contractor_signed_off_name: string | null
           created_at: string
           customer_id: string
           description: string | null
@@ -2498,6 +2525,8 @@ export type Database = {
           completed_at?: string | null
           contract_value?: number | null
           contractor_id: string
+          contractor_signed_off_at?: string | null
+          contractor_signed_off_name?: string | null
           created_at?: string
           customer_id: string
           description?: string | null
@@ -2535,6 +2564,8 @@ export type Database = {
           completed_at?: string | null
           contract_value?: number | null
           contractor_id?: string
+          contractor_signed_off_at?: string | null
+          contractor_signed_off_name?: string | null
           created_at?: string
           customer_id?: string
           description?: string | null
@@ -5138,6 +5169,7 @@ export type Database = {
       }
       timesheets: {
         Row: {
+          arrived_at: string | null
           contractor_id: string
           created_at: string
           date: string
@@ -5145,12 +5177,14 @@ export type Database = {
           hours: number
           id: string
           job_id: string | null
+          left_at: string | null
           project_name: string | null
           status: string
           updated_at: string
           worker_id: string | null
         }
         Insert: {
+          arrived_at?: string | null
           contractor_id: string
           created_at?: string
           date: string
@@ -5158,12 +5192,14 @@ export type Database = {
           hours: number
           id?: string
           job_id?: string | null
+          left_at?: string | null
           project_name?: string | null
           status?: string
           updated_at?: string
           worker_id?: string | null
         }
         Update: {
+          arrived_at?: string | null
           contractor_id?: string
           created_at?: string
           date?: string
@@ -5171,6 +5207,7 @@ export type Database = {
           hours?: number
           id?: string
           job_id?: string | null
+          left_at?: string | null
           project_name?: string | null
           status?: string
           updated_at?: string
@@ -5354,6 +5391,10 @@ export type Database = {
       next_document_number: {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
+      }
+      release_schedule_block: {
+        Args: { p_quote_id: string }
+        Returns: undefined
       }
     }
     Enums: {
@@ -5559,6 +5600,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       asset_category: [
