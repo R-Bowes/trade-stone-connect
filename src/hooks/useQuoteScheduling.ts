@@ -37,6 +37,15 @@ import { useToast } from "@/hooks/use-toast";
  *   so the DB triggers that look up the confirmed slot's start time for
  *   half-day availability blocking (block_date_on_job_confirmed,
  *   release_schedule_block) keep finding them.
+ *
+ * Fail-safe rule for every mutation below: the write that changes
+ * `schedule_events` state happens FIRST and its result is verified via
+ * `.select()` (supabase-js reports no error on an UPDATE that matches
+ * zero rows unless you ask for the affected rows back). Anything with a
+ * side effect that's hard to undo (releasing an availability block,
+ * notifying the other party) only runs after that verification passes.
+ * A step that can't be verified as succeeded is treated as failed, and
+ * the code errs toward leaving the calendar blocked rather than free.
  */
 const MAX_TURNS_PER_CYCLE = 2;
 export const POST_EXHAUSTION_TITLE = "Quote schedule proposal (agreed date)";
@@ -179,27 +188,32 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     return userId === contractorId ? recipientId : contractorId;
   }, [userId, contractorId, recipientId]);
 
+  // The contractor's public-facing name must come from public_pro_profiles
+  // (never raw `profiles` — see CLAUDE.md's data-layer rule); the recipient
+  // side has no such curated view, so raw `profiles.full_name` is correct
+  // there. Using raw `profiles` for a contractor was the bug that leaked
+  // the platform name instead of their business name.
   useEffect(() => {
     if (!otherPartyId) {
       setOtherPartyName(null);
       return;
     }
     let cancelled = false;
-    supabase
-      .from("profiles")
-      .select("full_name, company_name")
-      .eq("id", otherPartyId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) {
-          const row = data as { full_name: string | null; company_name: string | null } | null;
-          setOtherPartyName(row?.company_name || row?.full_name || null);
-        }
-      });
+    const otherPartyIsContractor = otherPartyId === contractorId;
+    const query = otherPartyIsContractor
+      ? supabase.from("public_pro_profiles").select("full_name, company_name").eq("user_id", otherPartyId).maybeSingle()
+      : supabase.from("profiles").select("full_name, company_name").eq("id", otherPartyId).maybeSingle();
+
+    query.then(({ data }) => {
+      if (!cancelled) {
+        const row = data as { full_name: string | null; company_name: string | null } | null;
+        setOtherPartyName(row?.company_name || row?.full_name || null);
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, [otherPartyId]);
+  }, [otherPartyId, contractorId]);
 
   const myTurnsUsed = turnsUsedFor(userId);
   const otherTurnsUsed = turnsUsedFor(otherPartyId);
@@ -339,9 +353,50 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     [contractorId, fetchData, quoteId, toast, userId],
   );
 
+  /** Declines a live post-exhaustion offer — returns both parties to the dead-end panel, grants no turns. */
+  const declinePostExhaustionProposal = useCallback(
+    async (proposalId: string) => {
+      const { data: updated, error } = await supabase
+        .from("schedule_events")
+        .update({ status: "declined", is_confirmed: false })
+        .eq("id", proposalId)
+        .eq("title", POST_EXHAUSTION_TITLE)
+        .eq("status", "proposed")
+        .select("id");
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to decline the date", variant: "destructive" });
+        throw error;
+      }
+      if (!updated || updated.length === 0) {
+        toast({
+          title: "Already handled",
+          description: "This proposal has already been responded to — refreshing.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
+
+      toast({ title: "Date declined", description: "Message the other party or propose one more date." });
+      await fetchData();
+    },
+    [fetchData, toast],
+  );
+
   const acceptProposal = useCallback(
     async (proposalId: string) => {
       if (!quoteId) return;
+
+      if (jobExists) {
+        toast({
+          title: "Job already created",
+          description: "Scheduling can no longer be changed here.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
 
       const { data: proposalData, error: proposalFetchError } = await supabase
         .from("schedule_events")
@@ -356,30 +411,74 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
       const confirmedDate = proposalData.start_time.slice(0, 10); // "YYYY-MM-DD"
 
-      const { error } = await supabase
+      // Verify the confirm write actually landed before doing anything that
+      // depends on it — an UPDATE that matches zero rows (e.g. the proposal
+      // was already superseded) reports no error unless we ask for rows back.
+      const { data: updated, error } = await supabase
         .from("schedule_events")
         .update({ status: "accepted", is_confirmed: true })
-        .eq("id", proposalId);
+        .eq("id", proposalId)
+        .eq("status", "proposed")
+        .select("id");
 
       if (error) {
         toast({ title: "Error", description: "Failed to accept proposal", variant: "destructive" });
         throw error;
       }
+      if (!updated || updated.length === 0) {
+        toast({
+          title: "Could not confirm",
+          description: "This date may have just changed — please try again.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
 
-      // Block the confirmed date immediately in contractor_availability_overrides.
-      // Don't wait for the job to exist — the customer hasn't clicked "Confirm Job" yet.
-      await supabase
+      // Half-day-aware availability block, matching the DB trigger's logic
+      // (block_date_on_job_confirmed): AM if the confirmed slot starts
+      // before noon UTC, PM otherwise, tighten-only on conflict (never
+      // flips a half that's already blocked back to available).
+      const startHourUtc = new Date(proposalData.start_time).getUTCHours();
+      const blockAm = startHourUtc < 12;
+      const blockPm = !blockAm;
+
+      const { data: existingOverride } = await supabase
         .from("contractor_availability_overrides")
-        .upsert(
-          {
-            contractor_id: contractorId,
-            date: confirmedDate,
-            am_available: false,
-            pm_available: false,
-            reason: "Auto-blocked: confirmed job",
-          },
-          { onConflict: "contractor_id,date" },
-        );
+        .select("am_available, pm_available, reason")
+        .eq("contractor_id", contractorId)
+        .eq("date", confirmedDate)
+        .maybeSingle();
+
+      const nextAm = (existingOverride?.am_available ?? true) && !blockAm;
+      const nextPm = (existingOverride?.pm_available ?? true) && !blockPm;
+
+      // NOTE: this write's RLS story is unverified against the live DB — the
+      // policy on this table predates the recipient-can-confirm flow (A3) and
+      // may still be contractor-only, in which case a recipient confirming a
+      // contractor's proposal would silently fail to block the calendar even
+      // though the schedule_events confirm above succeeded. Surface any
+      // failure here rather than staying silent about it; a follow-up
+      // migration (mirroring 20260704170000's schedule_events fix) would be
+      // needed if that turns out to be the case.
+      const { error: overrideError } = await supabase.from("contractor_availability_overrides").upsert(
+        {
+          contractor_id: contractorId,
+          date: confirmedDate,
+          am_available: nextAm,
+          pm_available: nextPm,
+          reason: existingOverride?.reason ?? "Auto-blocked: confirmed job",
+        },
+        { onConflict: "contractor_id,date" },
+      );
+      if (overrideError) {
+        console.error("Failed to block contractor availability for confirmed date", overrideError);
+        toast({
+          title: "Date confirmed, but the calendar block failed",
+          description: "Let the contractor know so they can block this date manually.",
+          variant: "destructive",
+        });
+      }
 
       // Also update start_date on the job if it already exists
       const { data: jobRow } = await supabase
@@ -400,8 +499,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         "schedule_accepted",
       );
 
-      // Decline all other proposals for this quote (not the post-exhaustion lane; there
-      // shouldn't be one live at confirm time, but keep the scope explicit).
+      // Decline all other proposals for this quote.
       await supabase
         .from("schedule_events")
         .update({ status: "declined", is_confirmed: false })
@@ -416,7 +514,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       });
       await fetchData();
     },
-    [contractorId, fetchData, notifyOtherParty, quoteId, toast],
+    [contractorId, fetchData, jobExists, notifyOtherParty, quoteId, toast],
   );
 
   /** B1/B2: un-confirm the agreed date and release its availability block. Does not reset turns. */
@@ -433,13 +531,27 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       return;
     }
 
-    const { error } = await supabase
+    // Un-confirm FIRST and verify it actually happened — only release the
+    // availability block once we know the event is genuinely un-confirmed.
+    const { data: updated, error } = await supabase
       .from("schedule_events")
       .update({ status: "declined", is_confirmed: false })
-      .eq("id", confirmedProposal.id);
+      .eq("id", confirmedProposal.id)
+      .eq("is_confirmed", true)
+      .select("id");
+
     if (error) {
       toast({ title: "Error", description: "Failed to release the confirmed date", variant: "destructive" });
       throw error;
+    }
+    if (!updated || updated.length === 0) {
+      toast({
+        title: "Error",
+        description: "Could not release the confirmed date — please refresh and try again.",
+        variant: "destructive",
+      });
+      await fetchData();
+      return; // Do not release the calendar block on an unverified write.
     }
 
     const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_quote_id: quoteId });
@@ -470,14 +582,28 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       return;
     }
 
-    const { error } = await supabase
+    // Decline every active proposal FIRST and verify at least one row was
+    // touched before releasing the block or recording the cancellation.
+    const { data: updated, error } = await supabase
       .from("schedule_events")
       .update({ status: "declined", is_confirmed: false })
       .eq("quote_id", quoteId)
-      .eq("event_type", PROPOSAL_EVENT_TYPE);
+      .eq("event_type", PROPOSAL_EVENT_TYPE)
+      .neq("status", "declined")
+      .select("id");
+
     if (error) {
       toast({ title: "Error", description: "Failed to cancel scheduling", variant: "destructive" });
       throw error;
+    }
+    if (!updated || updated.length === 0) {
+      toast({
+        title: "Nothing to cancel",
+        description: "Scheduling already has no active proposals.",
+        variant: "destructive",
+      });
+      await fetchData();
+      return;
     }
 
     const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_quote_id: quoteId });
@@ -532,6 +658,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     submitProposals,
     submitPostExhaustionProposal,
     acceptProposal,
+    declinePostExhaustionProposal,
     requestDifferentDate,
     cancelScheduling,
   };

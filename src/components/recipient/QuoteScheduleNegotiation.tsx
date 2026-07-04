@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, CheckCircle2, Loader2, MessageCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Loader2, MessageCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
+import { useSubmitGuard } from "@/hooks/useSubmitGuard";
 import { SlotPicker } from "./SlotPicker";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { MessageDialog } from "./MessageDialog";
@@ -60,22 +61,48 @@ export function QuoteScheduleNegotiation({
     submitProposals,
     submitPostExhaustionProposal,
     acceptProposal,
+    declinePostExhaustionProposal,
     requestDifferentDate,
     cancelScheduling,
   } = useQuoteScheduling(quoteId, contractorId);
 
-  const [confirmingJob, setConfirmingJob] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [showCounterPicker, setShowCounterPicker] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const { toast } = useToast();
 
-  const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
-  const fallbackOtherPartyName = mode === "contractor" ? "the customer" : contractorName ?? "the contractor";
-  const otherPartyLabel = otherPartyName ?? fallbackOtherPartyName;
+  const { pending: acceptPending, guard: guardAccept } = useSubmitGuard();
+  const { pending: declinePending, guard: guardDecline } = useSubmitGuard();
+  const { pending: backoutPending, guard: guardBackout } = useSubmitGuard();
+  const { pending: confirmJobPending, guard: guardConfirmJob } = useSubmitGuard();
 
-  const confirmJobDirectly = async () => {
-    setConfirmingJob(true);
+  const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
+  // The contractor's name is already correctly resolved via public_pro_profiles
+  // in the recipient-side prop chain (useReceivedQuotes.ts) — prefer it over
+  // the hook's own fetch for recipient mode so a stale/blank raw-profiles
+  // value can never leak the platform name into this copy instead.
+  const otherPartyLabel =
+    mode === "recipient"
+      ? contractorName ?? otherPartyName ?? "the contractor"
+      : otherPartyName ?? "the customer";
+
+  const handleAcceptProposal = guardAccept(async (proposalId: string) => {
+    await acceptProposal(proposalId);
+  });
+
+  const handleDeclinePostExhaustion = guardDecline(async (proposalId: string) => {
+    await declinePostExhaustionProposal(proposalId);
+  });
+
+  const handleRequestDifferentDate = guardBackout(async () => {
+    await requestDifferentDate();
+  });
+
+  const handleCancelScheduling = guardBackout(async () => {
+    await cancelScheduling();
+  });
+
+  const handleConfirmJobDirectly = guardConfirmJob(async () => {
     try {
       await createJobFromQuote(quoteId);
       toast({ title: "Job confirmed" });
@@ -83,10 +110,8 @@ export function QuoteScheduleNegotiation({
     } catch (err) {
       console.error(err);
       toast({ title: "Error", description: "Failed to confirm job", variant: "destructive" });
-    } finally {
-      setConfirmingJob(false);
     }
-  };
+  });
 
   const getAmPmLabel = (startIso: string) => {
     const h = new Date(startIso).getHours();
@@ -103,12 +128,17 @@ export function QuoteScheduleNegotiation({
 
   const backoutActions = !jobExists && (
     <div className="flex flex-wrap gap-2 pt-1">
-      <Button variant="outline" size="sm" onClick={() => void requestDifferentDate()}>
+      <Button variant="outline" size="sm" disabled={backoutPending} onClick={handleRequestDifferentDate}>
         {mode === "contractor" ? "Release this date" : "Request a different date"}
       </Button>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            disabled={backoutPending}
+          >
             Cancel scheduling
           </Button>
         </AlertDialogTrigger>
@@ -121,7 +151,9 @@ export function QuoteScheduleNegotiation({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep scheduling</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void cancelScheduling()}>Cancel scheduling</AlertDialogAction>
+            <AlertDialogAction disabled={backoutPending} onClick={handleCancelScheduling}>
+              Cancel scheduling
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -170,10 +202,21 @@ export function QuoteScheduleNegotiation({
               {otherPartyLabel} proposed: {format(new Date(postExhaustionProposal.start_time), "EEE d MMM yyyy")} ·{" "}
               {getAmPmLabel(postExhaustionProposal.start_time)}
             </p>
-            <Button size="sm" onClick={() => acceptProposal(postExhaustionProposal.id)}>
-              <CheckCircle2 className="h-4 w-4 mr-1" />
-              Confirm this date
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" disabled={acceptPending} onClick={() => handleAcceptProposal(postExhaustionProposal.id)}>
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Confirm this date
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={declinePending}
+                onClick={() => handleDeclinePostExhaustion(postExhaustionProposal.id)}
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Decline
+              </Button>
+            </div>
           </div>
         )}
 
@@ -230,12 +273,12 @@ export function QuoteScheduleNegotiation({
               <Button
                 className="w-full text-white font-semibold"
                 style={{ backgroundColor: "#f07820" }}
-                disabled={confirmingJob}
-                onClick={hasDeposit ? () => setDepositOpen(true) : confirmJobDirectly}
+                disabled={confirmJobPending}
+                onClick={hasDeposit ? () => setDepositOpen(true) : handleConfirmJobDirectly}
               >
                 {hasDeposit
                   ? `Approve & Pay £${quoteDepositAmount!.toFixed(2)} Deposit`
-                  : confirmingJob
+                  : confirmJobPending
                   ? "Confirming…"
                   : "Confirm Job"}
               </Button>
@@ -258,7 +301,7 @@ export function QuoteScheduleNegotiation({
               <p className="text-sm font-medium">
                 {format(new Date(p.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(p.start_time)}
               </p>
-              <Button size="sm" onClick={() => acceptProposal(p.id)}>
+              <Button size="sm" disabled={acceptPending} onClick={() => handleAcceptProposal(p.id)}>
                 <CheckCircle2 className="h-4 w-4 mr-1" />
                 Confirm this date
               </Button>

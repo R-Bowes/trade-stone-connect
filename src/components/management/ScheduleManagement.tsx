@@ -81,16 +81,36 @@ export function ScheduleManagement() {
 
       const { data, error } = await supabase
         .from("issued_quotes")
-        .select("id, quote_number, title, contractor_id, recipient_response, jobs(id)")
+        .select("id, quote_number, title, contractor_id, recipient_response")
         .eq("contractor_id", profileRow?.id)
         .eq("recipient_response", "accepted")
         .order("responded_at", { ascending: false });
 
+      // A job's issued_quote_id points to whichever *version's* row id was
+      // live when the job was created — not necessarily the row this query
+      // just fetched. Excluding by that row's own id (a per-row `jobs(id)`
+      // embed) misses older/newer sibling versions of the same quote_number
+      // that share no job link themselves. Resolve jobbed row ids to their
+      // quote_number instead, and exclude every row with that quote_number.
+      const { data: jobbedRows } = await supabase
+        .from("jobs")
+        .select("issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
+        .eq("contractor_id", profileRow?.id)
+        .neq("status", "cancelled")
+        .not("issued_quote_id", "is", null);
+
+      const jobbedQuoteNumbers = new Set(
+        ((jobbedRows as { issued_quotes: { quote_number: number | null } | null }[]) || [])
+          .map((j) => j.issued_quotes?.quote_number)
+          .filter((n): n is number => n != null),
+      );
+
       setContractorProfileId(profileRow?.id ?? "");
       if (!error) {
-        // A quote with a job already created is done negotiating — drop it from this list.
-        const withoutJob = ((data as (AcceptedQuote & { jobs: { id: string }[] | null })[]) || [])
-          .filter((q) => !q.jobs || q.jobs.length === 0);
+        // A quote_number with a job under ANY version is done negotiating — drop it from this list.
+        const withoutJob = ((data as AcceptedQuote[]) || []).filter(
+          (q) => q.quote_number == null || !jobbedQuoteNumbers.has(q.quote_number),
+        );
         setAcceptedQuotes(withoutJob);
       }
     };

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
+import { useSubmitGuard } from "@/hooks/useSubmitGuard";
 
 export type InvoiceFormInitialData = {
   client_name?: string;
@@ -58,7 +59,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: "", quantity: 1, unit_price: 0, total: 0 },
   ]);
-  const [saving, setSaving] = useState(false);
+  const { pending: saving, guard } = useSubmitGuard();
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   const commonItemTemplates: Array<Pick<InvoiceItem, "description" | "quantity" | "unit_price">> = [
@@ -148,7 +149,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
     return { valid: true, message: null };
   }, [clientName, clientEmail, dueDate, items]);
 
-  const handleSubmit = async (asDraft: boolean) => {
+  const handleSubmit = guard(async (asDraft: boolean) => {
     if (!canSubmit.valid) {
       setValidationMessage(canSubmit.message);
       return;
@@ -156,7 +157,6 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
 
     setValidationMessage(null);
 
-    setSaving(true);
     try {
       await onSave({
         client_name: clientName,
@@ -178,10 +178,8 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
       onClose();
     } catch (e) {
       console.error(e);
-    } finally {
-      setSaving(false);
     }
-  };
+  });
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
