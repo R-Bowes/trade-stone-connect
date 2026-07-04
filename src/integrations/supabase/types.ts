@@ -1973,6 +1973,7 @@ export type Database = {
           created_at: string
           enquiry_id: string | null
           id: string
+          issued_quote_id: string | null
           job_id: string | null
         }
         Insert: {
@@ -1980,6 +1981,7 @@ export type Database = {
           created_at?: string
           enquiry_id?: string | null
           id?: string
+          issued_quote_id?: string | null
           job_id?: string | null
         }
         Update: {
@@ -1987,6 +1989,7 @@ export type Database = {
           created_at?: string
           enquiry_id?: string | null
           id?: string
+          issued_quote_id?: string | null
           job_id?: string | null
         }
         Relationships: [
@@ -1995,6 +1998,13 @@ export type Database = {
             columns: ["enquiry_id"]
             isOneToOne: false
             referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_conversations_issued_quote_id_fkey"
+            columns: ["issued_quote_id"]
+            isOneToOne: false
+            referencedRelation: "issued_quotes"
             referencedColumns: ["id"]
           },
           {
@@ -5387,6 +5397,10 @@ export type Database = {
         | { Args: { p_user_type?: string }; Returns: string }
       is_company_member: { Args: { p_company_id: string }; Returns: boolean }
       is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
+      is_conversation_party: {
+        Args: { p_conversation_id: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
       next_document_number: {
         Args: { p_contractor_id: string; p_entity: string }
