@@ -1,16 +1,27 @@
-import { useMemo, useState } from "react";
-import { addDays, format, startOfToday } from "date-fns";
-import { CalendarClock, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarClock, CheckCircle2, Loader2, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
-import { useAvailability } from "@/hooks/useAvailability";
+import { SlotPicker } from "./SlotPicker";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
+import { MessageDialog } from "./MessageDialog";
 import { createJobFromQuote } from "@/lib/createJobFromQuote";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 
 interface QuoteScheduleNegotiationProps {
   quoteId: string;
@@ -22,8 +33,6 @@ interface QuoteScheduleNegotiationProps {
   onJobConfirmed?: () => void;
 }
 
-type SlotKey = string; // "yyyy-MM-dd-AM" | "yyyy-MM-dd-PM"
-
 export function QuoteScheduleNegotiation({
   quoteId,
   contractorId,
@@ -34,66 +43,36 @@ export function QuoteScheduleNegotiation({
   onJobConfirmed,
 }: QuoteScheduleNegotiationProps) {
   const {
-    proposals,
     userId,
-    hasConfirmedProposal,
+    otherPartyId,
+    otherPartyName,
+    jobExists,
     loading: proposalsLoading,
-    proposeDate,
+    hasConfirmedProposal,
+    confirmedProposal,
+    pendingFromOther,
+    pendingFromMe,
+    postExhaustionProposal,
+    myTurnsUsed,
+    myTurnsRemaining,
+    maxTurnsPerCycle,
+    bothExhausted,
+    submitProposals,
+    submitPostExhaustionProposal,
     acceptProposal,
+    requestDifferentDate,
+    cancelScheduling,
   } = useQuoteScheduling(quoteId, contractorId);
 
-  const { getAvailabilityForRange, loading: availabilityLoading } = useAvailability(contractorId);
-
-  const [selectedSlots, setSelectedSlots] = useState<Set<SlotKey>>(new Set());
-  const [saving, setSaving] = useState(false);
   const [confirmingJob, setConfirmingJob] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [showCounterPicker, setShowCounterPicker] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
   const { toast } = useToast();
 
   const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
-
-  // Build 14-day availability grid
-  const today = startOfToday();
-  const days = useMemo(
-    () => Array.from({ length: 14 }, (_, i) => addDays(today, i + 1)),
-    [today.toISOString()],
-  );
-  const rangeData = getAvailabilityForRange(days[0], days[days.length - 1]);
-
-  const toggleSlot = (key: SlotKey) => {
-    setSelectedSlots((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        if (next.size >= 3) {
-          toast({ title: "Maximum 3 slots", description: "Deselect one before adding another." });
-          return prev;
-        }
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
-  const submitSlots = async () => {
-    if (selectedSlots.size === 0) return;
-    setSaving(true);
-    try {
-      for (const key of Array.from(selectedSlots)) {
-        const dateStr = key.slice(0, 10);
-        const startHour = key.endsWith("AM") ? "09:00" : "13:00";
-        const endHour = key.endsWith("AM") ? "12:00" : "17:00";
-        const start = new Date(`${dateStr}T${startHour}`).toISOString();
-        const end = new Date(`${dateStr}T${endHour}`).toISOString();
-        await proposeDate({ startTime: start, endTime: end });
-      }
-      setSelectedSlots(new Set());
-      toast({ title: "Preferences sent", description: "The contractor will confirm one of your selected slots." });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const fallbackOtherPartyName = mode === "contractor" ? "the customer" : contractorName ?? "the contractor";
+  const otherPartyLabel = otherPartyName ?? fallbackOtherPartyName;
 
   const confirmJobDirectly = async () => {
     setConfirmingJob(true);
@@ -116,70 +95,238 @@ export function QuoteScheduleNegotiation({
     return format(new Date(startIso), "p");
   };
 
-  const loading = proposalsLoading || availabilityLoading;
+  const turnIndicator = (
+    <p className="text-xs text-muted-foreground">
+      Your proposals: {myTurnsUsed} of {maxTurnsPerCycle} used
+    </p>
+  );
 
-  // ── Contractor view ───────────────────────────────────────────────────────
-  if (mode === "contractor") {
-    const pending = proposals.filter((p) => p.status === "proposed" && !p.is_confirmed);
-    const confirmed = proposals.find((p) => p.is_confirmed || p.status === "accepted");
+  const backoutActions = !jobExists && (
+    <div className="flex flex-wrap gap-2 pt-1">
+      <Button variant="outline" size="sm" onClick={() => void requestDifferentDate()}>
+        {mode === "contractor" ? "Release this date" : "Request a different date"}
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+            Cancel scheduling
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel scheduling?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The quote stays accepted — you can restart scheduling any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep scheduling</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void cancelScheduling()}>Cancel scheduling</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 
-    return (
-      <Card className="border-dashed">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CalendarClock className="h-4 w-4" />
-            Schedule preferences from customer
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-            </div>
+  const messageDialog = otherPartyId && (
+    <MessageDialog
+      open={messageOpen}
+      onClose={() => setMessageOpen(false)}
+      contractorId={otherPartyId}
+      subject="Let's agree a date"
+      contextType="quote"
+      contextId={quoteId}
+    />
+  );
+
+  let body: JSX.Element;
+
+  if (proposalsLoading) {
+    body = (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  } else if (bothExhausted && !hasConfirmedProposal) {
+    // ── A4: dead-end panel — both parties out of turns, nothing confirmed ──
+    body = (
+      <>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+          <p className="text-sm font-semibold text-amber-900">You've each proposed twice</p>
+          <p className="text-sm text-amber-800">
+            Message {otherPartyLabel} to agree a date, or propose one final date below.
+          </p>
+          {otherPartyId && (
+            <Button size="sm" variant="outline" onClick={() => setMessageOpen(true)}>
+              <MessageCircle className="h-4 w-4 mr-1.5" />
+              Message {otherPartyLabel}
+            </Button>
           )}
+        </div>
 
-          {confirmed && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1">
-              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" /> Confirmed date
-              </p>
-              <p className="text-sm text-green-900 font-medium">
-                {format(new Date(confirmed.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(confirmed.start_time)}
-              </p>
-            </div>
-          )}
-
-          {!confirmed && pending.length === 0 && !loading && (
-            <p className="text-sm text-muted-foreground">
-              No date preferences received yet. The customer will select from your available slots.
+        {postExhaustionProposal && postExhaustionProposal.proposed_by !== userId && (
+          <div className="rounded-lg border p-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">
+              {otherPartyLabel} proposed: {format(new Date(postExhaustionProposal.start_time), "EEE d MMM yyyy")} ·{" "}
+              {getAmPmLabel(postExhaustionProposal.start_time)}
             </p>
-          )}
+            <Button size="sm" onClick={() => acceptProposal(postExhaustionProposal.id)}>
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              Confirm this date
+            </Button>
+          </div>
+        )}
 
-          {!confirmed && pending.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Customer&apos;s preferred slots — confirm one:</p>
-              {pending.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <p className="text-sm font-medium">
-                    {format(new Date(p.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(p.start_time)}
-                  </p>
-                  <Button size="sm" onClick={() => acceptProposal(p.id)}>
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    Confirm this date
-                  </Button>
-                </div>
-              ))}
+        {postExhaustionProposal && postExhaustionProposal.proposed_by === userId && (
+          <div className="rounded-lg border bg-muted/40 p-3">
+            <p className="text-sm">
+              Waiting for {otherPartyLabel} to confirm your proposed date (
+              {format(new Date(postExhaustionProposal.start_time), "EEE d MMM yyyy")} ·{" "}
+              {getAmPmLabel(postExhaustionProposal.start_time)}).
+            </p>
+          </div>
+        )}
+
+        {!postExhaustionProposal && (
+          <SlotPicker
+            contractorId={contractorId}
+            maxSlots={1}
+            helperText="Propose one final date to agree on."
+            submitLabel={() => "Propose agreed date"}
+            onSubmit={async (slots) => {
+              await submitPostExhaustionProposal(slots[0]);
+            }}
+          />
+        )}
+      </>
+    );
+  } else if (hasConfirmedProposal && confirmedProposal) {
+    // ── Confirmed state ──
+    body = (
+      <>
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1">
+          <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" /> Date confirmed
+          </p>
+          <p className="text-sm text-green-900 font-medium">
+            {format(new Date(confirmedProposal.start_time), "EEE d MMM yyyy")} ·{" "}
+            {getAmPmLabel(confirmedProposal.start_time)}
+          </p>
+        </div>
+
+        {mode === "recipient" && quoteTotal != null && (
+          <>
+            <Separator />
+            <div className="rounded-lg bg-muted/40 p-4 space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                Schedule agreed — ready to confirm the job
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {hasDeposit
+                  ? `A deposit of £${quoteDepositAmount!.toFixed(2)} is required to secure your booking.`
+                  : "No deposit required — confirm the job to get started."}
+              </p>
+              <Button
+                className="w-full text-white font-semibold"
+                style={{ backgroundColor: "#f07820" }}
+                disabled={confirmingJob}
+                onClick={hasDeposit ? () => setDepositOpen(true) : confirmJobDirectly}
+              >
+                {hasDeposit
+                  ? `Approve & Pay £${quoteDepositAmount!.toFixed(2)} Deposit`
+                  : confirmingJob
+                  ? "Confirming…"
+                  : "Confirm Job"}
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+
+        {backoutActions}
+      </>
+    );
+  } else if (pendingFromOther.length > 0) {
+    // ── Other party has proposed — confirm one, or counter if turns remain ──
+    body = (
+      <>
+        {turnIndicator}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{otherPartyLabel}&apos;s proposed slots:</p>
+          {pendingFromOther.map((p) => (
+            <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
+              <p className="text-sm font-medium">
+                {format(new Date(p.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(p.start_time)}
+              </p>
+              <Button size="sm" onClick={() => acceptProposal(p.id)}>
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Confirm this date
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        {myTurnsRemaining > 0 ? (
+          <div className="space-y-2">
+            {!showCounterPicker ? (
+              <Button variant="outline" size="sm" onClick={() => setShowCounterPicker(true)}>
+                Propose alternative dates
+              </Button>
+            ) : (
+              <SlotPicker
+                contractorId={contractorId}
+                maxSlots={3}
+                helperText="Select up to 3 alternative slots."
+                submitLabel={(count) => `Send ${count} alternative${count !== 1 ? "s" : ""}`}
+                onSubmit={async (slots) => {
+                  await submitProposals(slots);
+                  setShowCounterPicker(false);
+                }}
+              />
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            You've used both your proposal turns — confirm one of the dates above.
+          </p>
+        )}
+      </>
+    );
+  } else if (pendingFromMe.length > 0) {
+    // ── Waiting on my own proposal ──
+    body = (
+      <>
+        {turnIndicator}
+        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+          <p className="text-sm font-medium">Preferences sent — waiting for {otherPartyLabel} to respond</p>
+          <div className="space-y-1">
+            {pendingFromMe.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 text-sm">
+                <Badge variant="outline" className="font-normal">
+                  {format(new Date(p.start_time), "EEE d MMM")} · {getAmPmLabel(p.start_time)}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
+    );
+  } else {
+    // ── Nothing proposed yet ──
+    body = (
+      <>
+        {turnIndicator}
+        <SlotPicker
+          contractorId={contractorId}
+          maxSlots={3}
+          helperText={`Select up to 3 available slots. ${otherPartyLabel} will confirm one.`}
+          onSubmit={async (slots) => {
+            await submitProposals(slots);
+          }}
+        />
+      </>
     );
   }
-
-  // ── Customer / recipient view ─────────────────────────────────────────────
-  const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
-  const pendingProposals = proposals.filter((p) => p.status === "proposed" && !p.is_confirmed);
-  const alreadySubmitted = pendingProposals.length > 0;
 
   return (
     <>
@@ -187,153 +334,10 @@ export function QuoteScheduleNegotiation({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarClock className="h-4 w-4" />
-            Choose preferred dates
+            Schedule negotiation
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading availability...
-            </div>
-          )}
-
-          {/* Confirmed state */}
-          {confirmedProposal && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1">
-              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" /> Date confirmed by contractor
-              </p>
-              <p className="text-sm text-green-900 font-medium">
-                {format(new Date(confirmedProposal.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(confirmedProposal.start_time)}
-              </p>
-            </div>
-          )}
-
-          {/* Already submitted, waiting */}
-          {!confirmedProposal && alreadySubmitted && (
-            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
-              <p className="text-sm font-medium">Preferences sent — waiting for contractor to confirm</p>
-              <div className="space-y-1">
-                {pendingProposals.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 text-sm">
-                    <Badge variant="outline" className="font-normal">
-                      {format(new Date(p.start_time), "EEE d MMM")} · {getAmPmLabel(p.start_time)}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Slot picker — shown when no confirmed date and nothing submitted yet */}
-          {!confirmedProposal && !alreadySubmitted && !loading && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Select up to 3 available slots. The contractor will confirm one.
-              </p>
-              <div className="space-y-1">
-                {days.map((day) => {
-                  const dateStr = format(day, "yyyy-MM-dd");
-                  const dayData = rangeData[dateStr] ?? { amAvailable: false, pmAvailable: false };
-                  const amKey = `${dateStr}-AM`;
-                  const pmKey = `${dateStr}-PM`;
-                  const dayLabel = format(day, "EEE d MMM");
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-
-                  if (!dayData.amAvailable && !dayData.pmAvailable) {
-                    return (
-                      <div key={dateStr} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
-                        <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
-                        <span className="text-xs text-muted-foreground italic">
-                          {isWeekend ? "Weekend" : "Unavailable"}
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={dateStr} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
-                      <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
-                      <div className="flex gap-2">
-                        {dayData.amAvailable && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSlot(amKey)}
-                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
-                              selectedSlots.has(amKey)
-                                ? "bg-[#f07820] text-white border-[#f07820]"
-                                : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
-                            }`}
-                          >
-                            AM
-                          </button>
-                        )}
-                        {dayData.pmAvailable && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSlot(pmKey)}
-                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
-                              selectedSlots.has(pmKey)
-                                ? "bg-[#f07820] text-white border-[#f07820]"
-                                : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
-                            }`}
-                          >
-                            PM
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedSlots.size > 0 && (
-                <div className="pt-2 space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    {selectedSlots.size} of 3 slots selected
-                  </p>
-                  <Button
-                    size="sm"
-                    disabled={saving}
-                    onClick={submitSlots}
-                    className="w-full"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Send {selectedSlots.size} preference{selectedSlots.size !== 1 ? "s" : ""} to contractor
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Confirm / pay deposit — shown to customer only once schedule agreed */}
-          {hasConfirmedProposal && quoteTotal != null && (
-            <>
-              <Separator />
-              <div className="rounded-lg bg-muted/40 p-4 space-y-3">
-                <p className="text-sm font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  Schedule agreed — ready to confirm the job
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {hasDeposit
-                    ? `A deposit of £${quoteDepositAmount!.toFixed(2)} is required to secure your booking.`
-                    : "No deposit required — confirm the job to get started."}
-                </p>
-                <Button
-                  className="w-full text-white font-semibold"
-                  style={{ backgroundColor: "#f07820" }}
-                  disabled={confirmingJob}
-                  onClick={hasDeposit ? () => setDepositOpen(true) : confirmJobDirectly}
-                >
-                  {hasDeposit
-                    ? `Approve & Pay £${quoteDepositAmount!.toFixed(2)} Deposit`
-                    : confirmingJob ? "Confirming…" : "Confirm Job"}
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
+        <CardContent className="space-y-4">{body}</CardContent>
       </Card>
 
       {hasDeposit && depositOpen && quoteTotal != null && (
@@ -350,6 +354,8 @@ export function QuoteScheduleNegotiation({
           }}
         />
       )}
+
+      {messageDialog}
     </>
   );
 }

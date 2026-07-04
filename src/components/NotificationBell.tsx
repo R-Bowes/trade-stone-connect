@@ -28,6 +28,8 @@ function NotificationIcon({ type }: { type: string }) {
       return <MessageCircle className="h-4 w-4 text-primary shrink-0" />;
     case "schedule_accepted":
       return <CalendarClock className="h-4 w-4 text-primary shrink-0" />;
+    case "schedule_reopened":
+      return <CalendarClock className="h-4 w-4 text-destructive shrink-0" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
