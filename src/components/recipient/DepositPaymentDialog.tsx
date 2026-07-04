@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { createJobFromQuote } from "@/lib/createJobFromQuote";
 
 const stripePromise = loadStripe("pk_test_51T0jcrAB5s9xl5hIfwaVbwe5aSfpdC5DpsE4YmkhJUGSBVPIUVCPOnCK87pv0WKUBo0LUZoXcZfhsIglMsJFfUAK00QZD2E4Xn");
 
@@ -70,73 +71,16 @@ function CheckoutForm({
 
     // Payment succeeded — create the job
     try {
-      const { data: quote } = await supabase
-        .from("issued_quotes")
-        .select("contractor_id, recipient_id, title, client_address, enquiry_id")
-        .eq("id", quoteId)
-        .single();
-
-      if (quote) {
-        let company_id: string | null = null;
-        let site_id: string | null = null;
-        let asset_id: string | null = null;
-        if (quote.enquiry_id) {
-          const { data: enq } = await supabase
-            .from("enquiries")
-            .select("company_id, site_id, asset_id")
-            .eq("id", quote.enquiry_id)
-            .maybeSingle();
-          if (enq) { company_id = enq.company_id; site_id = enq.site_id; asset_id = enq.asset_id; }
-        }
-
-        const { data: jobRow, error: jobError } = await supabase.from("jobs").insert({
-          contractor_id: quote.contractor_id,
-          customer_id: quote.recipient_id,
-          issued_quote_id: quoteId,
-          title: quote.title,
-          location: quote.client_address ?? null,
-          status: "scheduled",
-          contract_value: totalAmount,
-          company_id,
-          site_id,
-          asset_id,
-        }).select("id").single();
-
-        if (jobError) {
-          console.error("Job creation failed", jobError);
-          toast({
-            title: "Payment taken but job creation failed",
-            description: "Please contact support with your quote reference.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-
-        if (!jobError && jobRow?.id && company_id) {
-          await supabase.functions.invoke("sla-clock", {
-            body: { action: "start", job_id: jobRow.id },
-          });
-        }
-
-        if (jobRow?.id) {
-          const { data: confirmedEvent } = await supabase
-            .from("schedule_events")
-            .select("id")
-            .eq("quote_id", quoteId)
-            .eq("status", "accepted")
-            .maybeSingle();
-
-          if (confirmedEvent?.id) {
-            await supabase
-              .from("schedule_events")
-              .update({ job_id: jobRow.id })
-              .eq("id", confirmedEvent.id);
-          }
-        }
-      }
+      await createJobFromQuote(quoteId);
     } catch (err) {
       console.error("Job creation error", err);
+      toast({
+        title: "Payment taken but job creation failed",
+        description: "Please contact support with your quote reference.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
     }
 
     toast({

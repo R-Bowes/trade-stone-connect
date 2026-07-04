@@ -81,14 +81,17 @@ export function ScheduleManagement() {
 
       const { data, error } = await supabase
         .from("issued_quotes")
-        .select("id, quote_number, title, contractor_id, recipient_response")
+        .select("id, quote_number, title, contractor_id, recipient_response, jobs(id)")
         .eq("contractor_id", profileRow?.id)
         .eq("recipient_response", "accepted")
         .order("responded_at", { ascending: false });
 
       setContractorProfileId(profileRow?.id ?? "");
       if (!error) {
-        setAcceptedQuotes((data as AcceptedQuote[]) || []);
+        // A quote with a job already created is done negotiating — drop it from this list.
+        const withoutJob = ((data as (AcceptedQuote & { jobs: { id: string }[] | null })[]) || [])
+          .filter((q) => !q.jobs || q.jobs.length === 0);
+        setAcceptedQuotes(withoutJob);
       }
     };
 

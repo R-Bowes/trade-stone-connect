@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
 import { useAvailability } from "@/hooks/useAvailability";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
-import { supabase } from "@/integrations/supabase/client";
+import { createJobFromQuote } from "@/lib/createJobFromQuote";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -98,57 +98,7 @@ export function QuoteScheduleNegotiation({
   const confirmJobDirectly = async () => {
     setConfirmingJob(true);
     try {
-      const { data: quote, error: quoteError } = await supabase
-        .from("issued_quotes")
-        .select("contractor_id, recipient_id, title, client_address, total, enquiry_id")
-        .eq("id", quoteId)
-        .single();
-      if (quoteError || !quote) throw quoteError ?? new Error("Quote not found");
-
-      let company_id: string | null = null;
-      let site_id: string | null = null;
-      let asset_id: string | null = null;
-      if (quote.enquiry_id) {
-        const { data: enq } = await supabase
-          .from("enquiries")
-          .select("company_id, site_id, asset_id")
-          .eq("id", quote.enquiry_id)
-          .maybeSingle();
-        if (enq) { company_id = enq.company_id; site_id = enq.site_id; asset_id = enq.asset_id; }
-      }
-
-      // Extract start_date from the confirmed proposal if one exists
-      const confirmedProposal = proposals.find((p) => p.is_confirmed || p.status === "accepted");
-      const startDate = confirmedProposal ? confirmedProposal.start_time.slice(0, 10) : null;
-
-      const { data: jobRow, error: jobError } = await supabase.from("jobs").insert({
-        contractor_id: quote.contractor_id,
-        customer_id: quote.recipient_id,
-        issued_quote_id: quoteId,
-        title: quote.title,
-        location: quote.client_address,
-        status: "scheduled",
-        contract_value: quote.total,
-        start_date: startDate,
-        company_id,
-        site_id,
-        asset_id,
-      }).select("id").single();
-      if (jobError) throw jobError;
-
-      if (confirmedProposal?.id && jobRow?.id) {
-        await supabase
-          .from("schedule_events")
-          .update({ job_id: jobRow.id })
-          .eq("id", confirmedProposal.id);
-      }
-
-      if (!jobError && jobRow?.id && company_id) {
-        await supabase.functions.invoke("sla-clock", {
-          body: { action: "start", job_id: jobRow.id },
-        });
-      }
-
+      await createJobFromQuote(quoteId);
       toast({ title: "Job confirmed" });
       onJobConfirmed?.();
     } catch (err) {

@@ -28,6 +28,7 @@ import {
   Download,
   ShieldCheck,
   Camera,
+  FileText,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
@@ -270,7 +271,7 @@ export function JobManagement() {
   const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
-  const [invoicedQuoteIds, setInvoicedQuoteIds] = useState<Set<string>>(new Set());
+  const [invoiceStatusByQuoteId, setInvoiceStatusByQuoteId] = useState<Record<string, string>>({});
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showPhotos, setShowPhotos] = useState(false);
@@ -411,11 +412,15 @@ export function JobManagement() {
     if (quoteIds.length > 0) {
       const { data: existingInvoices } = await supabase
         .from("invoices")
-        .select("quote_id")
+        .select("quote_id, status")
         .in("quote_id", quoteIds);
-      setInvoicedQuoteIds(new Set((existingInvoices || []).map((i: any) => i.quote_id).filter(Boolean)));
+      const statusMap: Record<string, string> = {};
+      for (const inv of existingInvoices || []) {
+        if ((inv as any).quote_id) statusMap[(inv as any).quote_id] = (inv as any).status;
+      }
+      setInvoiceStatusByQuoteId(statusMap);
     } else {
-      setInvoicedQuoteIds(new Set());
+      setInvoiceStatusByQuoteId({});
     }
 
     setLoading(false);
@@ -1083,12 +1088,28 @@ export function JobManagement() {
                           : "Mark complete"}
                       </Button>
                     )}
-                    {selectedJob.status === "complete" && (
-                      selectedJob.issued_quote_id && invoicedQuoteIds.has(selectedJob.issued_quote_id) ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Invoice Sent
-                        </Badge>
-                      ) : (
+                    {selectedJob.status === "complete" && (() => {
+                      const invoiceStatus = selectedJob.issued_quote_id
+                        ? invoiceStatusByQuoteId[selectedJob.issued_quote_id]
+                        : undefined;
+
+                      if (invoiceStatus === "draft") {
+                        return (
+                          <Badge variant="outline" className="gap-1">
+                            <FileText className="h-3 w-3" /> Invoice Drafted
+                          </Badge>
+                        );
+                      }
+
+                      if (invoiceStatus) {
+                        return (
+                          <Badge variant="secondary" className="gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Invoice Sent
+                          </Badge>
+                        );
+                      }
+
+                      return (
                         <Button
                           variant="outline"
                           size="sm"
@@ -1106,8 +1127,8 @@ export function JobManagement() {
                         >
                           Generate Invoice
                         </Button>
-                      )
-                    )}
+                      );
+                    })()}
                     {selectedJob.status === "complete" && (
                       <span title={!selectedJob.signed_off_by ? "Awaiting customer sign-off" : undefined}>
                         <Button

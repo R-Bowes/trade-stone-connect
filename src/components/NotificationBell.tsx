@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, Trash2, Briefcase, StickyNote, FileText, MessageCircle } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Briefcase, StickyNote, FileText, MessageCircle, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
+import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 
 function NotificationIcon({ type }: { type: string }) {
@@ -25,6 +26,8 @@ function NotificationIcon({ type }: { type: string }) {
       return <FileText className="h-4 w-4 text-secondary shrink-0" />;
     case "new_message":
       return <MessageCircle className="h-4 w-4 text-primary shrink-0" />;
+    case "schedule_accepted":
+      return <CalendarClock className="h-4 w-4 text-primary shrink-0" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
@@ -36,7 +39,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleClick = (notif: Notification) => {
+  const handleClick = async (notif: Notification) => {
     if (!notif.is_read) markAsRead(notif.id);
     if (notif.reference_type === "enquiry") {
       navigate("/dashboard/contractor");
@@ -46,6 +49,19 @@ export function NotificationBell() {
       navigate("/dashboard?view=invoices");
     } else if (notif.reference_type === "issued_quote" || notif.reference_type === "quote") {
       navigate("/dashboard");
+    } else if (notif.reference_type === "schedule_event" || notif.type === "schedule_accepted") {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = user
+        ? await supabase.from("profiles").select("user_type").eq("user_id", user.id).maybeSingle()
+        : { data: null };
+
+      if (profile?.user_type === "contractor") {
+        navigate("/dashboard/contractor?view=schedule&tab=quote-scheduling");
+      } else if (profile?.user_type === "business") {
+        navigate("/dashboard/business?view=approvals");
+      } else {
+        navigate("/dashboard/homeowner?view=quotes");
+      }
     } else if (notif.reference_type === "message") {
       navigate("/dashboard/business?view=messages");
     }
