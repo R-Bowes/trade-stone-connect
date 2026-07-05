@@ -315,10 +315,23 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         }
       }
 
+      // Only the customer→contractor direction is a silent handoff worth a
+      // notification — the contractor already sees their own proposal land
+      // in the recipient's UI live; this rider fills the reverse gap so it
+      // surfaces in the contractor's Work view without a page refresh.
+      if (otherPartyId === contractorId) {
+        await notifyOtherParty(
+          quoteId,
+          "New schedule proposal",
+          `${otherPartyName ?? "The client"} proposed ${slots.length} date${slots.length !== 1 ? "s" : ""} for scheduling`,
+          "schedule_proposed",
+        );
+      }
+
       toast({ title: "Dates proposed", description: "Waiting for the other party to respond." });
       await fetchData();
     },
-    [contractorId, fetchData, quoteId, toast, userId],
+    [contractorId, fetchData, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
   );
 
   /** Single-slot, post-exhaustion "agreed date" offer — confirmable, not counterable. */
@@ -352,10 +365,19 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         throw error;
       }
 
+      if (otherPartyId === contractorId) {
+        await notifyOtherParty(
+          quoteId,
+          "New schedule proposal",
+          `${otherPartyName ?? "The client"} proposed a final date for scheduling`,
+          "schedule_proposed",
+        );
+      }
+
       toast({ title: "Date proposed", description: "Waiting for the other party to confirm." });
       await fetchData();
     },
-    [contractorId, fetchData, quoteId, toast, userId],
+    [contractorId, fetchData, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
   );
 
   /**

@@ -9,7 +9,7 @@ import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
   Filter, MessageCircle, Star, Loader2,
   XCircle, MessageSquare,
-  AlertTriangle, Calendar, Wrench, UserCheck,
+  AlertTriangle, Wrench, UserCheck,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -43,9 +43,13 @@ import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
-import { formatInvoiceRef } from "@/lib/documentRefs";
-
-type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
+import { useContractorPipeline, type PipelineStage } from "@/hooks/useContractorPipeline";
+import { PipelineCard } from "@/components/contractor/work/PipelineCard";
+import { QuoteQuickViewDialog } from "@/components/contractor/work/QuoteQuickViewDialog";
+import { JobQuickViewDialog } from "@/components/contractor/work/JobQuickViewDialog";
+import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Inbox, CheckCircle2 } from "lucide-react";
 
 type EnquiryForDialog = {
   id: string;
@@ -65,27 +69,6 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 // (pending migration 20260629130000_sla_clock.sql + a types regen) — extend locally.
 type JobWithSla = Job & { sla_status?: string | null; sla_completion_due?: string | null };
 
-interface UpcomingEvent {
-  id: string;
-  type: 'schedule' | 'service_visit' | 'job';
-  title: string;
-  subtitle: string | null;
-  date: string;
-  status: string;
-  tab: string;
-}
-
-
-const fmtDate = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (d.toDateString() === today.toDateString()) return 'Today';
-  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-};
-
 const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
@@ -95,7 +78,12 @@ const ContractorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+
+  const { engagements, loading: pipelineLoading, refetch: refetchPipeline } = useContractorPipeline();
+  const [filterStage, setFilterStage] = useState<PipelineStage | null>(null);
+  const [quoteViewId, setQuoteViewId] = useState<string | null>(null);
+  const [jobViewId, setJobViewId] = useState<string | null>(null);
+  const [negotiationQuoteId, setNegotiationQuoteId] = useState<string | null>(null);
 
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
@@ -107,7 +95,6 @@ const ContractorDashboard = () => {
     panelCount: 0,
     upcomingVisits: 0,
   });
-  const [recentInvoices, setRecentInvoices] = useState<Partial<Invoice>[]>([]);
   const [activeJobs, setActiveJobs] = useState<Partial<Job>[]>([]);
 
   const { toast } = useToast();
@@ -129,6 +116,19 @@ const ContractorDashboard = () => {
   ], []);
 
   const { isActive: isTourActive, currentStep, totalSteps, step: currentTourStep, startTour, endTour, nextStep, prevStep } = useOnboardingTour(tourSteps);
+
+  const filteredEngagements = useMemo(
+    () => (filterStage ? engagements.filter((e) => e.stage === filterStage) : engagements),
+    [engagements, filterStage],
+  );
+  const needsYouEngagements = useMemo(
+    () => filteredEngagements.filter((e) => e.band === "needs_you"),
+    [filteredEngagements],
+  );
+  const waitingEngagements = useMemo(
+    () => filteredEngagements.filter((e) => e.band === "waiting"),
+    [filteredEngagements],
+  );
 
   useEffect(() => {
     const loadUserAndData = async () => {
@@ -162,14 +162,14 @@ const ContractorDashboard = () => {
       const contractorId = pid ?? currentUser.id;
 
       const [
-        paidInvoicesRes, pendingInvoicesRes, overdueInvoicesRes,
+        paidInvoicesRes, outstandingInvoicesRes, overdueInvoicesRes,
         activeJobsCountRes, crmClientsRes, panelRes, serviceVisitsRes,
-        scheduleEventsRes, activeJobsDataRes, recentInvoicesDataRes,
+        activeJobsDataRes,
       ] = await Promise.all([
         supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'paid').gte('paid_date', startOfMonth),
-        supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'pending'),
+        supabase.from('invoices').select('total').eq('contractor_id', contractorId).in('status', ['draft', 'sent']),
         supabase.from('invoices').select('id').eq('contractor_id', contractorId).eq('status', 'overdue'),
-        supabase.from('jobs').select('id').eq('contractor_id', contractorId).in('status', ['active', 'in_progress', 'in-progress']),
+        supabase.from('jobs').select('id').eq('contractor_id', contractorId).in('status', ['scheduled', 'in_progress', 'snagging']),
         supabase.from('crm_clients').select('id').eq('contractor_id', contractorId),
         supabase.from('contractor_panel').select('id').eq('contractor_id', contractorId).eq('status', 'approved'),
         supabase.from('service_visits').select('id, asset_id, scheduled_window_end, status, company_id')
@@ -178,23 +178,16 @@ const ContractorDashboard = () => {
           .gte('scheduled_window_end', now.toISOString())
           .order('scheduled_window_end', { ascending: true })
           .limit(5),
-        supabase.from('schedule_events').select('id, title, start_time, event_type, client_name, status')
-          .eq('contractor_id', contractorId)
-          .gte('start_time', now.toISOString())
-          .order('start_time', { ascending: true })
-          .limit(5),
         supabase.from('jobs').select('id, title, status, contract_value, start_date, end_date, sla_status, sla_completion_due')
-          .eq('contractor_id', contractorId).in('status', ['active', 'in_progress', 'in-progress'])
+          .eq('contractor_id', contractorId).in('status', ['scheduled', 'in_progress', 'snagging'])
           .order('created_at', { ascending: false }).limit(3),
-        supabase.from('invoices').select('id, invoice_number, client_name, total, status, due_date, issued_date')
-          .eq('contractor_id', contractorId).order('created_at', { ascending: false }).limit(3),
       ]);
 
       setDashboardData({
         monthlyRevenue: paidInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
         activeJobs: activeJobsCountRes.data?.length ?? 0,
-        pendingInvoicesTotal: pendingInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
-        pendingInvoicesCount: pendingInvoicesRes.data?.length ?? 0,
+        pendingInvoicesTotal: outstandingInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
+        pendingInvoicesCount: outstandingInvoicesRes.data?.length ?? 0,
         overdueInvoicesCount: overdueInvoicesRes.data?.length ?? 0,
         clientCount: crmClientsRes.data?.length ?? 0,
         panelCount: panelRes.data?.length ?? 0,
@@ -202,45 +195,6 @@ const ContractorDashboard = () => {
       });
 
       setActiveJobs(activeJobsDataRes.data || []);
-      setRecentInvoices(recentInvoicesDataRes.data || []);
-
-      // Build upcoming events list — merge schedule events + service visits
-      const events: UpcomingEvent[] = [];
-
-      // Schedule events
-      for (const ev of scheduleEventsRes.data ?? []) {
-        events.push({
-          id: ev.id,
-          type: 'schedule',
-          title: ev.title,
-          subtitle: ev.client_name,
-          date: ev.start_time,
-          status: ev.status,
-          tab: 'schedule',
-        });
-      }
-
-      // Service visits — hydrate asset names
-      if (serviceVisitsRes.data?.length) {
-        const assetIds = [...new Set(serviceVisitsRes.data.map(v => v.asset_id))];
-        const { data: assetsData } = await supabase.from('assets').select('id, name').in('id', assetIds);
-        for (const v of serviceVisitsRes.data) {
-          const assetName = assetsData?.find(a => a.id === v.asset_id)?.name ?? 'Service Visit';
-          events.push({
-            id: v.id,
-            type: 'service_visit',
-            title: assetName,
-            subtitle: `Due by ${new Date(v.scheduled_window_end).toLocaleDateString('en-GB')}`,
-            date: v.scheduled_window_end,
-            status: v.status,
-            tab: 'service-visits',
-          });
-        }
-      }
-
-      // Sort chronologically and take top 7
-      events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setUpcomingEvents(events.slice(0, 7));
 
       setLoading(false);
     };
@@ -254,6 +208,8 @@ const ContractorDashboard = () => {
       .eq('contractor_id', user.id).order('created_at', { ascending: false });
     setEnquiries(data || []);
   };
+
+  const reloadEnquiriesAndPipeline = () => { reloadEnquiries(); refetchPipeline(); };
 
   const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => { setActiveEnquiry(enquiry as EnquiryForDialog); setEnquiryDialog(dialog); };
   const closeEnquiryDialog = () => { setEnquiryDialog(null); setActiveEnquiry(null); };
@@ -273,7 +229,7 @@ const ContractorDashboard = () => {
       change: "Currently in progress",
       icon: FileText,
       trend: "up",
-      onClick: () => setActiveTab("jobs"),
+      onClick: () => setFilterStage((prev) => (prev === "job" ? null : "job")),
     },
     {
       title: "Invoices",
@@ -281,7 +237,7 @@ const ContractorDashboard = () => {
       change: `${dashboardData.pendingInvoicesCount} pending${dashboardData.overdueInvoicesCount > 0 ? ` · ${dashboardData.overdueInvoicesCount} overdue` : ''}`,
       icon: dashboardData.overdueInvoicesCount > 0 ? AlertTriangle : Clock,
       trend: dashboardData.overdueInvoicesCount > 0 ? "danger" : "warning",
-      onClick: () => setActiveTab("invoices"),
+      onClick: () => setFilterStage((prev) => (prev === "invoice" ? null : "invoice")),
     },
     {
       title: "Clients",
@@ -323,14 +279,6 @@ const ContractorDashboard = () => {
     }
   };
 
-  const getEventTypeConfig = (type: UpcomingEvent['type']) => {
-    switch (type) {
-      case 'service_visit': return { label: 'Service Visit', colour: 'bg-orange-100 text-orange-800', icon: Wrench };
-      case 'schedule': return { label: 'Scheduled', colour: 'bg-blue-100 text-blue-800', icon: Calendar };
-      case 'job': return { label: 'Job', colour: 'bg-green-100 text-green-800', icon: FileText };
-    }
-  };
-
   if (loading || !profileId) {
     return (
       <ContractorLayout>
@@ -369,106 +317,68 @@ const ContractorDashboard = () => {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Upcoming events */}
-              <Card className="lg:col-span-1">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span className="flex items-center gap-2"><Calendar className="h-4 w-4" />Upcoming</span>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("schedule")}>View all</Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {upcomingEvents.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">Nothing scheduled</p>
+            {filterStage && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Filtering pipeline to <span className="font-medium capitalize">{filterStage}</span> engagements</span>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setFilterStage(null)}>Clear filter</Button>
+              </div>
+            )}
+
+            {pipelineLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : (
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Needs you</h3>
+                  {needsYouEngagements.length === 0 ? (
+                    <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
+                      <CheckCircle2 className="h-8 w-8 text-green-500" />
+                      <p className="text-sm text-muted-foreground">Nothing needs you right now.</p>
+                    </CardContent></Card>
                   ) : (
                     <div className="space-y-3">
-                      {upcomingEvents.map(event => {
-                        const cfg = getEventTypeConfig(event.type);
-                        const Icon = cfg.icon;
-                        return (
-                          <div key={`${event.type}-${event.id}`}
-                            className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors"
-                            onClick={() => setActiveTab(event.tab)}>
-                            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                              <Icon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{event.title}</p>
-                              {event.subtitle && <p className="text-xs text-muted-foreground truncate">{event.subtitle}</p>}
-                              <p className="text-xs text-primary font-medium mt-0.5">{fmtDate(event.date)}</p>
-                            </div>
-                            <Badge className={`text-xs shrink-0 ${cfg.colour}`}>{cfg.label}</Badge>
-                          </div>
-                        );
-                      })}
+                      {needsYouEngagements.map((e) => (
+                        <PipelineCard
+                          key={e.key}
+                          engagement={e}
+                          contractorId={profileId!}
+                          onOpenQuote={setQuoteViewId}
+                          onOpenJob={setJobViewId}
+                          onOpenNegotiation={setNegotiationQuoteId}
+                          onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
+                          onRefetch={refetchPipeline}
+                        />
+                      ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
 
-              {/* Recent invoices + Active jobs */}
-              <div className="lg:col-span-2 space-y-6">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center justify-between">
-                      Recent Invoices
-                      <Button variant="outline" size="sm" onClick={() => setActiveTab("invoices")}><Plus className="h-4 w-4 mr-2" />New</Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Waiting on others</h3>
+                  {waitingEngagements.length === 0 ? (
+                    <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
+                      <Inbox className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Nothing waiting on others.</p>
+                    </CardContent></Card>
+                  ) : (
                     <div className="space-y-3">
-                      {recentInvoices.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">No invoices yet</p>
-                      ) : recentInvoices.map((invoice) => (
-                        <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium text-sm font-mono">
-                            {invoice.invoice_number != null ? formatInvoiceRef(invoice.invoice_number) : `#${invoice.id?.slice(0, 8)}`}
-                          </p>
-                            <p className="text-xs text-muted-foreground">{invoice.client_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium text-sm">£{Number(invoice.total ?? 0).toLocaleString('en-GB')}</p>
-                            <Badge className={`text-xs ${getStatusColor(invoice.status || '')}`}>{invoice.status}</Badge>
-                          </div>
-                        </div>
+                      {waitingEngagements.map((e) => (
+                        <PipelineCard
+                          key={e.key}
+                          engagement={e}
+                          contractorId={profileId!}
+                          onOpenQuote={setQuoteViewId}
+                          onOpenJob={setJobViewId}
+                          onOpenNegotiation={setNegotiationQuoteId}
+                          onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
+                          onRefetch={refetchPipeline}
+                        />
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center justify-between">
-                      Active Jobs
-                      <Button variant="outline" size="sm" onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New</Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {activeJobs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">No active jobs yet</p>
-                      ) : activeJobs.map((job) => (
-                        <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium text-sm">{job.title}</p>
-                            <p className="text-xs text-muted-foreground">{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</p>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Badge className={`text-xs ${getStatusColor(job.status || '')}`}>{job.status}</Badge>
-                              <SlaStatusPill status={(job as JobWithSla).sla_status} completionDue={(job as JobWithSla).sla_completion_due} />
-                            </div>
-                            {job.end_date && <p className="text-xs text-muted-foreground mt-1">Due {new Date(job.end_date).toLocaleDateString('en-GB')}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </TabsContent>
 
           {/* Panel Invites Tab */}
@@ -559,13 +469,6 @@ const ContractorDashboard = () => {
                 ))}
               </div>
             )}
-            {activeEnquiry && (
-              <>
-                <SendQuoteDialog open={enquiryDialog === 'quote'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
-                <RespondDialog open={enquiryDialog === 'respond'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
-                <RejectDialog open={enquiryDialog === 'reject'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiries} />
-              </>
-            )}
           </TabsContent>
 
           {/* Issued Quotes Tab */}
@@ -635,6 +538,34 @@ const ContractorDashboard = () => {
           </TabsContent>
           <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
+
+        {activeEnquiry && (
+          <>
+            <SendQuoteDialog open={enquiryDialog === 'quote'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
+            <RespondDialog open={enquiryDialog === 'respond'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
+            <RejectDialog open={enquiryDialog === 'reject'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
+          </>
+        )}
+
+        <QuoteQuickViewDialog quoteId={quoteViewId} open={!!quoteViewId} onClose={() => setQuoteViewId(null)} />
+        <JobQuickViewDialog
+          jobId={jobViewId}
+          open={!!jobViewId}
+          onClose={() => setJobViewId(null)}
+          onChanged={refetchPipeline}
+        />
+        {negotiationQuoteId && profileId && (
+          <Dialog open onOpenChange={(o) => { if (!o) { setNegotiationQuoteId(null); refetchPipeline(); } }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <QuoteScheduleNegotiation
+                quoteId={negotiationQuoteId}
+                contractorId={profileId}
+                mode="contractor"
+                onJobConfirmed={() => { setNegotiationQuoteId(null); refetchPipeline(); }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
 
         <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />
       </div>

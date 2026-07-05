@@ -30,6 +30,10 @@ function NotificationIcon({ type }: { type: string }) {
       return <CalendarClock className="h-4 w-4 text-primary shrink-0" />;
     case "schedule_reopened":
       return <CalendarClock className="h-4 w-4 text-destructive shrink-0" />;
+    case "schedule_proposed":
+      return <CalendarClock className="h-4 w-4 text-secondary shrink-0" />;
+    case "job_confirmed":
+      return <Briefcase className="h-4 w-4 text-primary shrink-0" />;
     default:
       return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
@@ -43,7 +47,9 @@ export function NotificationBell() {
 
   const handleClick = async (notif: Notification) => {
     if (!notif.is_read) markAsRead(notif.id);
-    if (notif.reference_type === "enquiry") {
+    if (notif.type === "schedule_proposed" || notif.type === "job_confirmed") {
+      navigate("/dashboard/contractor");
+    } else if (notif.reference_type === "enquiry") {
       navigate("/dashboard/contractor");
     } else if (notif.reference_type === "job") {
       navigate("/dashboard");

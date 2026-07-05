@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 export async function createJobFromQuote(quoteId: string): Promise<{ jobId: string }> {
   const { data: quote, error: quoteError } = await supabase
     .from("issued_quotes")
-    .select("contractor_id, recipient_id, title, client_address, total, enquiry_id")
+    .select("contractor_id, recipient_id, title, client_name, client_address, total, enquiry_id")
     .eq("id", quoteId)
     .single();
   if (quoteError || !quote) throw quoteError ?? new Error("Quote not found");
@@ -70,6 +70,19 @@ export async function createJobFromQuote(quoteId: string): Promise<{ jobId: stri
       body: { action: "start", job_id: jobRow.id },
     });
   }
+
+  // Silent handoff: job creation happens on the recipient's confirm/pay-deposit
+  // action, so the contractor has no other signal it happened until they next
+  // load the dashboard — surface it via the Work view's notification bell.
+  await supabase.from("notifications").insert({
+    user_id: quote.contractor_id,
+    title: "Job confirmed",
+    message: `${quote.client_name} confirmed the job for "${quote.title}"`,
+    type: "job_confirmed",
+    reference_type: "job",
+    reference_id: jobRow!.id,
+    is_read: false,
+  });
 
   return { jobId: jobRow!.id };
 }
