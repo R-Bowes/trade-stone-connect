@@ -68,7 +68,12 @@ export function useReceivedQuotes() {
         .select("user_id, full_name, company_name, ts_profile_code")
         .in("user_id", contractorIds);
       for (const p of proProfiles || []) {
-        nameMap[p.user_id] = (p as any).company_name || (p as any).full_name || "Contractor";
+        // Guard against the platform's own name leaking through as a contractor's
+        // display name — never a legitimate business/personal name value.
+        const candidates = [(p as any).company_name, (p as any).full_name].filter(
+          (n): n is string => !!n && n.trim().toLowerCase() !== "tradestone",
+        );
+        nameMap[p.user_id] = candidates[0] || "Contractor";
         if ((p as any).ts_profile_code) tsCodeMap[p.user_id] = (p as any).ts_profile_code;
       }
     }

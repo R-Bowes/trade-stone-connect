@@ -61,7 +61,7 @@ export function QuoteScheduleNegotiation({
     submitProposals,
     submitPostExhaustionProposal,
     acceptProposal,
-    declinePostExhaustionProposal,
+    declineProposal,
     requestDifferentDate,
     cancelScheduling,
   } = useQuoteScheduling(quoteId, contractorId);
@@ -90,8 +90,8 @@ export function QuoteScheduleNegotiation({
     await acceptProposal(proposalId);
   });
 
-  const handleDeclinePostExhaustion = guardDecline(async (proposalId: string) => {
-    await declinePostExhaustionProposal(proposalId);
+  const handleDeclineProposal = guardDecline(async (proposalId: string) => {
+    await declineProposal(proposalId);
   });
 
   const handleRequestDifferentDate = guardBackout(async () => {
@@ -196,6 +196,37 @@ export function QuoteScheduleNegotiation({
           )}
         </div>
 
+        {/* A live ordinary proposal from the other party's final turn is still
+            confirmable/declinable even once both parties are exhausted — it
+            must never be hidden behind the dead-end panel. */}
+        {pendingFromOther.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{otherPartyLabel}&apos;s proposed slots:</p>
+            {pendingFromOther.map((p) => (
+              <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
+                <p className="text-sm font-medium">
+                  {format(new Date(p.start_time), "EEE d MMM yyyy")} · {getAmPmLabel(p.start_time)}
+                </p>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" disabled={acceptPending} onClick={() => handleAcceptProposal(p.id)}>
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Confirm this date
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={declinePending}
+                    onClick={() => handleDeclineProposal(p.id)}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {postExhaustionProposal && postExhaustionProposal.proposed_by !== userId && (
           <div className="rounded-lg border p-3 flex items-center justify-between gap-3">
             <p className="text-sm font-medium">
@@ -211,7 +242,7 @@ export function QuoteScheduleNegotiation({
                 size="sm"
                 variant="outline"
                 disabled={declinePending}
-                onClick={() => handleDeclinePostExhaustion(postExhaustionProposal.id)}
+                onClick={() => handleDeclineProposal(postExhaustionProposal.id)}
               >
                 <XCircle className="h-4 w-4 mr-1" />
                 Decline

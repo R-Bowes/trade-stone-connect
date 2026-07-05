@@ -207,7 +207,12 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     query.then(({ data }) => {
       if (!cancelled) {
         const row = data as { full_name: string | null; company_name: string | null } | null;
-        setOtherPartyName(row?.company_name || row?.full_name || null);
+        // Guard against the platform's own name leaking through as a contractor's
+        // display name — never a legitimate business/personal name value.
+        const candidates = [row?.company_name, row?.full_name].filter(
+          (n): n is string => !!n && n.trim().toLowerCase() !== "tradestone",
+        );
+        setOtherPartyName(candidates[0] ?? null);
       }
     });
     return () => {
@@ -353,14 +358,19 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     [contractorId, fetchData, quoteId, toast, userId],
   );
 
-  /** Declines a live post-exhaustion offer — returns both parties to the dead-end panel, grants no turns. */
-  const declinePostExhaustionProposal = useCallback(
+  /**
+   * Declines any live proposal — a post-exhaustion offer (returns both
+   * parties to the dead-end panel, grants no turns) or an ordinary proposal
+   * still sitting unconfirmed once both parties are already exhausted
+   * (turns are already spent either way; declining just clears it so the
+   * dead-end panel's own messaging/post-exhaustion path takes over).
+   */
+  const declineProposal = useCallback(
     async (proposalId: string) => {
       const { data: updated, error } = await supabase
         .from("schedule_events")
         .update({ status: "declined", is_confirmed: false })
         .eq("id", proposalId)
-        .eq("title", POST_EXHAUSTION_TITLE)
         .eq("status", "proposed")
         .select("id");
 
@@ -521,6 +531,12 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
   const requestDifferentDate = useCallback(async () => {
     if (!quoteId || !confirmedProposal) return;
 
+    // Captured before the un-confirm write below — release_schedule_block
+    // takes the schedule_events row id directly (migration 20260705140000),
+    // since a confirmed-row lookup keyed on the quote would come up empty
+    // once the event is already un-confirmed.
+    const confirmedEventId = confirmedProposal.id;
+
     if (jobExists) {
       toast({
         title: "Job already created",
@@ -536,7 +552,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     const { data: updated, error } = await supabase
       .from("schedule_events")
       .update({ status: "declined", is_confirmed: false })
-      .eq("id", confirmedProposal.id)
+      .eq("id", confirmedEventId)
       .eq("is_confirmed", true)
       .select("id");
 
@@ -554,11 +570,11 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       return; // Do not release the calendar block on an unverified write.
     }
 
-    const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_quote_id: quoteId });
+    const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_event_id: confirmedEventId });
     if (rpcError) console.error("release_schedule_block failed", rpcError);
 
     await notifyOtherParty(
-      confirmedProposal.id,
+      confirmedEventId,
       "Schedule reopened",
       "The other party asked to pick a different date",
       "schedule_reopened",
@@ -571,6 +587,11 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
   /** B1: full restart — declines every proposal and marks a fresh cycle boundary. */
   const cancelScheduling = useCallback(async () => {
     if (!quoteId || !contractorId || !userId) return;
+
+    // Captured before the bulk un-confirm below — release_schedule_block now
+    // takes a schedule_events row id (migration 20260705140000). If nothing
+    // was confirmed there's nothing to release; the decline-all still proceeds.
+    const confirmedEventId = confirmedProposal?.id ?? null;
 
     if (jobExists) {
       toast({
@@ -606,8 +627,10 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       return;
     }
 
-    const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_quote_id: quoteId });
-    if (rpcError) console.error("release_schedule_block failed", rpcError);
+    if (confirmedEventId) {
+      const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_event_id: confirmedEventId });
+      if (rpcError) console.error("release_schedule_block failed", rpcError);
+    }
 
     // Marker row so turn-counting resets for the next cycle (see comment block above).
     const { error: markerError } = await supabase.from("schedule_events").insert({
@@ -634,7 +657,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
     toast({ title: "Scheduling cancelled", description: "You can start again whenever you're ready." });
     await fetchData();
-  }, [contractorId, fetchData, jobExists, notifyOtherParty, quoteId, toast, userId]);
+  }, [confirmedProposal, contractorId, fetchData, jobExists, notifyOtherParty, quoteId, toast, userId]);
 
   return {
     proposals,
@@ -658,7 +681,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     submitProposals,
     submitPostExhaustionProposal,
     acceptProposal,
-    declinePostExhaustionProposal,
+    declineProposal,
     requestDifferentDate,
     cancelScheduling,
   };
