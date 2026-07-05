@@ -403,7 +403,7 @@ export function useContractorPipeline() {
             stageLabel: "Complete",
             reference: formatJobRef(job.job_number),
             band: "needs_you",
-            action: needsSignOff ? "Sign off" : "Invoice?",
+            action: needsSignOff ? "Add your sign-off" : "Create invoice",
             sinceIso: needsSignOff ? job.completed_at ?? job.updated_at : job.contractor_signed_off_at!,
             overdue: false,
             slaStatus: job.sla_status,
@@ -426,7 +426,12 @@ export function useContractorPipeline() {
           stageLabel: JOB_STAGE_LABELS[job.status] ?? job.status,
           reference: formatJobRef(job.job_number),
           band: "needs_you",
-          action: job.status === "snagging" ? "Resolve snags" : "Progress job",
+          action:
+            job.status === "snagging"
+              ? "Resolve snags"
+              : job.status === "in_progress"
+                ? "Update progress"
+                : "Start job",
           sinceIso: job.created_at,
           overdue: false,
           slaStatus: job.sla_status,

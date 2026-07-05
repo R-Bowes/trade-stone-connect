@@ -221,7 +221,7 @@ const ContractorDashboard = () => {
       change: "Paid invoices this month",
       icon: DollarSign,
       trend: "up",
-      onClick: () => setActiveTab("invoices"),
+      onClick: () => setFilterStage((prev) => (prev === "invoice" ? null : "invoice")),
     },
     {
       title: "Active Jobs",
