@@ -741,7 +741,7 @@ export default function HomeownerDashboard() {
       case "enquiries":
         return (
           <div className="p-6">
-            <EnquiryList profileId={profileId} myUserId={userId} />
+            <EnquiryList profileId={profileId} />
           </div>
         );
 

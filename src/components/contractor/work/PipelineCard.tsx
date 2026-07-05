@@ -9,30 +9,40 @@ import { InlineConfirmDate } from "./InlineConfirmDate";
 interface PipelineCardProps {
   engagement: PipelineEngagement;
   contractorId: string;
-  onOpenQuote: (quoteId: string) => void;
-  onOpenJob: (jobId: string) => void;
-  onOpenNegotiation: (quoteId: string) => void;
+  onOpenThread: (engagement: PipelineEngagement) => void;
   onOpenEnquiry: (engagement: PipelineEngagement, dialog: "quote" | "reject" | "respond") => void;
   onRefetch: () => void;
 }
 
+// NEEDS_YOU primary action = orange fill, consistently, across every stage.
+const PRIMARY_STYLE = { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" };
+
 export function PipelineCard({
   engagement: e,
   contractorId,
-  onOpenQuote,
-  onOpenJob,
-  onOpenNegotiation,
+  onOpenThread,
   onOpenEnquiry,
   onRefetch,
 }: PipelineCardProps) {
   const waitingSince = formatDistanceToNow(new Date(e.sinceIso), { addSuffix: true });
+  const isPrimary = e.band === "needs_you";
+
+  const stop = (fn: () => void) => (ev: React.MouseEvent) => {
+    ev.stopPropagation();
+    fn();
+  };
 
   const primaryAction = () => {
     if (e.stage === "enquiry") return null; // three explicit buttons instead
     if (e.stage === "quote_sent") {
       return (
-        <Button size="sm" variant="outline" onClick={() => onOpenQuote(e.quoteId!)}>
-          View quote
+        <Button
+          size="sm"
+          variant={isPrimary ? "default" : "outline"}
+          style={isPrimary ? PRIMARY_STYLE : undefined}
+          onClick={stop(() => onOpenThread(e))}
+        >
+          {isPrimary ? "Revise or follow up" : "View quote"}
         </Button>
       );
     }
@@ -46,21 +56,31 @@ export function PipelineCard({
               proposalId={e.confirmableProposalId}
               onDone={onRefetch}
             />
-            <Button size="sm" variant="outline" onClick={() => onOpenNegotiation(e.quoteId!)}>
+            <Button size="sm" variant="outline" onClick={stop(() => onOpenThread(e))}>
               Counter
             </Button>
           </div>
         );
       }
       return (
-        <Button size="sm" variant="outline" onClick={() => onOpenNegotiation(e.quoteId!)}>
+        <Button
+          size="sm"
+          variant={isPrimary ? "default" : "outline"}
+          style={isPrimary ? PRIMARY_STYLE : undefined}
+          onClick={stop(() => onOpenThread(e))}
+        >
           Open scheduling
         </Button>
       );
     }
     if (e.stage === "job" || e.stage === "invoice") {
       return (
-        <Button size="sm" variant="outline" onClick={() => onOpenJob(e.jobId!)}>
+        <Button
+          size="sm"
+          variant={isPrimary ? "default" : "outline"}
+          style={isPrimary ? PRIMARY_STYLE : undefined}
+          onClick={stop(() => onOpenThread(e))}
+        >
           Open job
         </Button>
       );
@@ -69,7 +89,10 @@ export function PipelineCard({
   };
 
   return (
-    <Card className={e.band === "needs_you" ? "border-amber-200" : undefined}>
+    <Card
+      className={`cursor-pointer hover:shadow-md transition-shadow ${e.band === "needs_you" ? "border-amber-200" : ""}`}
+      onClick={() => onOpenThread(e)}
+    >
       <CardContent className="p-4 flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -90,9 +113,9 @@ export function PipelineCard({
         <div className="flex items-center gap-2 shrink-0">
           {e.stage === "enquiry" ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => onOpenEnquiry(e, "quote")}>Send quote</Button>
-              <Button size="sm" variant="outline" onClick={() => onOpenEnquiry(e, "respond")}>Request info</Button>
-              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => onOpenEnquiry(e, "reject")}>
+              <Button size="sm" style={PRIMARY_STYLE} onClick={stop(() => onOpenEnquiry(e, "quote"))}>Send quote</Button>
+              <Button variant="outline" size="sm" onClick={stop(() => onOpenEnquiry(e, "respond"))}>Request info</Button>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={stop(() => onOpenEnquiry(e, "reject"))}>
                 Decline
               </Button>
             </div>

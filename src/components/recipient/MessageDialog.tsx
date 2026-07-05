@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
 
 interface MessageDialogProps {
   open: boolean;
@@ -15,7 +16,13 @@ interface MessageDialogProps {
   contextId: string;
 }
 
-export function MessageDialog({ open, onClose, contractorId, subject, contextType, contextId }: MessageDialogProps) {
+/**
+ * Writes to job_conversations/job_messages — the only messaging system.
+ * `subject`/`contractorId` are kept as props for callers that still build
+ * them (contractorId isn't needed for the write itself: job_conversations
+ * context columns resolve the parties via RLS, not a stored recipient).
+ */
+export function MessageDialog({ open, onClose, subject, contextType, contextId }: MessageDialogProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const { toast } = useToast();
@@ -28,44 +35,44 @@ export function MessageDialog({ open, onClose, contractorId, subject, contextTyp
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get user's profile to determine type
       const { data: profile } = await supabase
         .from("profiles")
-        .select("user_type")
+        .select("id, user_type")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+      if (!profile?.id) throw new Error("Profile not found");
 
-      // Create conversation linked to the invoice/quote
-      const conversationData: any = {
-        initiator_id: user.id,
-        recipient_id: contractorId,
-        subject: subject,
-        initiator_type: profile?.user_type || "personal",
-      };
+      let jobId: string | null = null;
+      let quoteId: string | null = null;
 
-      if (contextType === "invoice") {
-        // No direct invoice link on conversations, use subject reference
-      } else if (contextType === "quote") {
-        conversationData.issued_quote_id = contextId;
+      if (contextType === "quote") {
+        quoteId = contextId;
+        const { data: jobRow } = await supabase
+          .from("jobs")
+          .select("id")
+          .eq("issued_quote_id", contextId)
+          .neq("status", "cancelled")
+          .maybeSingle();
+        if (jobRow?.id) jobId = jobRow.id;
+      } else {
+        const { data: invoiceRow } = await supabase
+          .from("invoices")
+          .select("job_id, quote_id")
+          .eq("id", contextId)
+          .maybeSingle();
+        jobId = invoiceRow?.job_id ?? null;
+        quoteId = invoiceRow?.quote_id ?? null;
       }
 
-      const { data: conversation, error: convError } = await supabase
-        .from("conversations")
-        .insert(conversationData)
-        .select()
-        .single();
+      const conversationId = await getOrCreateEngagementConversation({ jobId, quoteId });
 
-      if (convError) throw convError;
-
-      // Send the first message
-      const { error: msgError } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          sender_id: user.id,
-          content: message.trim(),
-        });
-
+      const { error: msgError } = await supabase.from("job_messages").insert({
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        sender_role: profile.user_type || "personal",
+        content: message.trim(),
+        message_type: "message",
+      });
       if (msgError) throw msgError;
 
       // Notify both parties via edge function
@@ -99,7 +106,7 @@ export function MessageDialog({ open, onClose, contractorId, subject, contextTyp
         <DialogHeader>
           <DialogTitle>Send Message</DialogTitle>
           <DialogDescription>
-            This will create a conversation with the contractor. You can continue messaging in your Messages tab.
+            This will start a conversation ({subject}). You can continue messaging in your Messages tab.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

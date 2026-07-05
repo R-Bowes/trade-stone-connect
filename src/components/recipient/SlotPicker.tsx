@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvailability } from "@/hooks/useAvailability";
+
+const WINDOW_DAYS = 42; // 6 weeks
+const PAGE_DAYS = 14; // 2-week page, matching the original single-page window
 
 type SlotKey = string; // "yyyy-MM-dd-AM" | "yyyy-MM-dd-PM"
 
@@ -38,13 +41,16 @@ export function SlotPicker({ contractorId, maxSlots, onSubmit, helperText, submi
   const { getAvailabilityForRange, loading } = useAvailability(contractorId);
   const [selectedSlots, setSelectedSlots] = useState<Set<SlotKey>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageCount = WINDOW_DAYS / PAGE_DAYS;
 
   const today = startOfToday();
-  const days = useMemo(
-    () => Array.from({ length: 14 }, (_, i) => addDays(today, i + 1)),
+  const allDays = useMemo(
+    () => Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + 1)),
     [today.toISOString()],
   );
-  const rangeData = getAvailabilityForRange(days[0], days[days.length - 1]);
+  const days = allDays.slice(page * PAGE_DAYS, (page + 1) * PAGE_DAYS);
+  const rangeData = getAvailabilityForRange(allDays[0], allDays[allDays.length - 1]);
 
   const toggleSlot = (key: SlotKey) => {
     setSelectedSlots((prev) => {
@@ -81,6 +87,36 @@ export function SlotPicker({ contractorId, maxSlots, onSubmit, helperText, submi
   return (
     <div className="space-y-3">
       {helperText && <p className="text-sm text-muted-foreground">{helperText}</p>}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">
+          {format(days[0], "d MMM")} – {format(days[days.length - 1], "d MMM")}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            disabled={page === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Week {page * 2 + 1}–{page * 2 + 2} of {pageCount * 2}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            disabled={page >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
       <div className="space-y-1">
         {days.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd");

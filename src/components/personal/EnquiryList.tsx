@@ -32,8 +32,6 @@ type Message = {
 
 type ConversationWithMessages = {
   id: string;
-  subject: string;
-  last_message_at: string | null;
   messages: Message[];
 };
 
@@ -144,11 +142,10 @@ function ContractorAvailabilityPanel({ contractorId }: { contractorId: string })
 
 interface EnquiryListProps {
   profileId: string;
-  myUserId: string;
   refreshKey?: number;
 }
 
-export function EnquiryList({ profileId, myUserId, refreshKey = 0 }: EnquiryListProps) {
+export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,28 +183,36 @@ export function EnquiryList({ profileId, myUserId, refreshKey = 0 }: EnquiryList
     if (!enquiry.contractor_id) return;
 
     setConvLoading(true);
+    // job_conversations/job_messages — the only messaging system. Keyed
+    // directly on this enquiry's id, unlike the legacy conversations table's
+    // loose initiator/recipient match (which could surface a conversation
+    // with a different contractor entirely).
     const { data: convData } = await supabase
-      .from("conversations")
-      .select("id, subject, last_message_at")
-      .or(`initiator_id.eq.${profileId},recipient_id.eq.${profileId}`)
-      .order("last_message_at", { ascending: false })
-      .limit(1)
+      .from("job_conversations")
+      .select("id")
+      .eq("enquiry_id", enquiry.id)
       .maybeSingle();
 
     if (!convData) { setConvLoading(false); return; }
 
     const { data: msgData } = await supabase
-      .from("messages")
+      .from("job_messages")
       .select("id, content, created_at, sender_id")
       .eq("conversation_id", convData.id)
       .order("created_at", { ascending: true });
 
     setConversation({
-      ...convData,
-      messages: (msgData ?? []).map((m) => ({ ...m, is_mine: m.sender_id === myUserId })),
+      id: convData.id,
+      messages: (msgData ?? []).map((m) => ({
+        id: m.id,
+        content: m.content,
+        created_at: m.created_at,
+        sender_id: m.sender_id,
+        is_mine: m.sender_id === profileId,
+      })),
     });
     setConvLoading(false);
-  }, [profileId, myUserId]);
+  }, [profileId]);
 
   // Detail view
   if (selected) {

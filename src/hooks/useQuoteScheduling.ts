@@ -449,6 +449,13 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         return;
       }
 
+      // Reached via the single-slot dead-end picker, which is also where a
+      // backout re-proposal lands if the party was already exhausted before
+      // releasing a confirmed date (release -> un-confirm -> still
+      // bothExhausted -> dead-end panel). Tag it 'backout' in that case so
+      // it isn't miscounted as a genuine final offer.
+      const isBackout = backoutPendingRef.current;
+      const turnKind: TurnKind = isBackout ? "backout" : "post_exhaustion";
       const batchId = crypto.randomUUID();
 
       await supabase
@@ -456,7 +463,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         .update({ status: "declined", is_confirmed: false })
         .eq("quote_id", quoteId)
         .eq("event_type", PROPOSAL_EVENT_TYPE)
-        .eq("turn_kind", "post_exhaustion")
+        .in("turn_kind", ["post_exhaustion", "backout"])
         .eq("status", "proposed");
 
       const { error } = await supabase.from("schedule_events").insert({
@@ -472,13 +479,15 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         is_confirmed: false,
         all_day: false,
         cycle: currentCycle,
-        turn_kind: "post_exhaustion",
+        turn_kind: turnKind,
         batch_id: batchId,
       });
       if (error) {
         toast({ title: "Error", description: "Failed to propose a date", variant: "destructive" });
         throw error;
       }
+
+      setBackoutPending(false);
 
       if (otherPartyId === contractorId) {
         await notifyOtherParty(
@@ -492,7 +501,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       toast({ title: "Date proposed", description: "Waiting for the other party to confirm." });
       await fetchData();
     },
-    [contractorId, currentCycle, fetchData, jobExists, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
+    [contractorId, currentCycle, fetchData, jobExists, notifyOtherParty, otherPartyId, otherPartyName, quoteId, setBackoutPending, toast, userId],
   );
 
   /**

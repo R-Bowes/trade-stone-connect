@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
 
 type Enquiry = {
   id: string;
@@ -49,52 +50,23 @@ export function RejectDialog({ open, onOpenChange, enquiry, onSuccess }: RejectD
         .eq("id", enquiry.id);
       if (enquiryError) throw enquiryError;
 
-      // If a reason was given, save it to messages so the customer can see it.
+      // If a reason was given, save it to the enquiry's thread so the
+      // customer can see it — job_conversations/job_messages, the only
+      // messaging system.
       if (reason.trim()) {
-        // conversations.recipient_id references profiles.user_id,
-        // but enquiry.customer_id is profiles.id — look up the auth user_id.
-        let recipientId: string | null = null;
-        if (enquiry.customer_id) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("user_id")
-            .eq("id", enquiry.customer_id)
-            .maybeSingle();
-          recipientId = profile?.user_id ?? null;
-        }
-
-        let conversationId: string;
-        const { data: existing } = await supabase
-          .from("conversations")
-          .select("id")
-          .eq("initiator_id", user.id)
-          .eq("recipient_id", recipientId)
-          .limit(1)
+        const { data: contractorProfile } = await supabase
+          .from("profiles")
+          .select("id, user_type")
+          .eq("user_id", user.id)
           .maybeSingle();
 
-        if (existing) {
-          conversationId = existing.id;
-        } else {
-          const { data: newConv, error: convError } = await supabase
-            .from("conversations")
-            .insert({
-              initiator_id: user.id,
-              initiator_type: "contractor",
-              recipient_id: recipientId,
-              subject: `Re: ${enquiry.job_description.slice(0, 80)}`,
-              quote_id: null,
-            })
-            .select("id")
-            .single();
-
-          if (convError) throw convError;
-          conversationId = newConv.id;
-        }
-
-        await supabase.from("messages").insert({
+        const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiry.id });
+        await supabase.from("job_messages").insert({
           conversation_id: conversationId,
-          sender_id: user.id,
+          sender_id: contractorProfile?.id ?? enquiry.contractor_id,
+          sender_role: contractorProfile?.user_type || "contractor",
           content: `Decline reason: ${reason.trim()}`,
+          message_type: "message",
         });
       }
 

@@ -5,7 +5,8 @@ export interface JobConversation {
   id: string;
   job_id: string | null;
   enquiry_id: string | null;
-  context: "job" | "enquiry";
+  issued_quote_id: string | null;
+  context: "job" | "enquiry" | "quote";
   job_title: string;
   job_status: string;
   contractor_id: string;
@@ -104,8 +105,37 @@ export function useConversations() {
         .map((c: any) => ({ ...c, _enquiry: enquiryMap.get(c.enquiry_id) }));
     }
 
-    // ── 3. Merge all conversations ──────────────────────────────────────────
-    const allConvs = [...jobConvData, ...relevantEnquiryConvs];
+    // ── 3. Quote-stage conversations ─────────────────────────────────────────
+    // job_id = null, enquiry_id = null, issued_quote_id set — pre-job
+    // scheduling-negotiation threads.
+    const { data: quoteConvData } = await supabase
+      .from("job_conversations")
+      .select("id, job_id, enquiry_id, issued_quote_id, context, created_at")
+      .eq("context", "quote")
+      .is("job_id", null);
+
+    const quoteIds = (quoteConvData || [])
+      .map((c) => c.issued_quote_id)
+      .filter((id): id is string => !!id);
+
+    let relevantQuoteConvs: ((typeof quoteConvData)[number] & { _quote?: { id: string; title: string; contractor_id: string; recipient_id: string | null } })[] = [];
+    if (quoteIds.length > 0) {
+      const { data: quotes } = await supabase
+        .from("issued_quotes")
+        .select("id, title, contractor_id, recipient_id")
+        .in("id", quoteIds)
+        .or(`contractor_id.eq.${profileId},recipient_id.eq.${profileId}`);
+
+      const relevantQuoteIds = new Set((quotes || []).map((q) => q.id));
+      const quoteMap = new Map((quotes || []).map((q) => [q.id, q]));
+
+      relevantQuoteConvs = (quoteConvData || [])
+        .filter((c) => c.issued_quote_id && relevantQuoteIds.has(c.issued_quote_id))
+        .map((c) => ({ ...c, _quote: quoteMap.get(c.issued_quote_id!) }));
+    }
+
+    // ── 4. Merge all conversations ──────────────────────────────────────────
+    const allConvs = [...jobConvData, ...relevantEnquiryConvs, ...relevantQuoteConvs];
 
     if (allConvs.length === 0) {
       setConversations([]);
@@ -115,7 +145,7 @@ export function useConversations() {
 
     const convIds = allConvs.map((c: any) => c.id);
 
-    // ── 4. Fetch messages for all conversations ─────────────────────────────
+    // ── 5. Fetch messages for all conversations ─────────────────────────────
     const { data: msgData } = await (supabase as any)
       .from("job_messages")
       .select("id, conversation_id, content, created_at, sender_id, read_at")
@@ -137,22 +167,39 @@ export function useConversations() {
       }
     }
 
-    // ── 5. Map to JobConversation ───────────────────────────────────────────
+    // ── 6. Map to JobConversation ───────────────────────────────────────────
     const mapped: JobConversation[] = allConvs.map((conv: any) => {
       const latest = latestByConv.get(conv.id);
-      const isJobConv = conv.context !== "enquiry" && conv.job_id;
 
-      if (isJobConv) {
+      if (conv.context === "job" && conv.job_id) {
         const job = jobMap.get(conv.job_id);
         return {
           id: conv.id,
           job_id: conv.job_id,
           enquiry_id: conv.enquiry_id ?? null,
+          issued_quote_id: null,
           context: "job" as const,
           job_title: job?.title ?? "Unknown job",
           job_status: job?.status ?? "unknown",
           contractor_id: job?.contractor_id ?? "",
           customer_id: job?.customer_id ?? "",
+          latest_message: latest?.content ?? null,
+          latest_message_at: latest?.created_at ?? null,
+          unread_count: unreadByConv.get(conv.id) ?? 0,
+          created_at: conv.created_at,
+        };
+      } else if (conv.context === "quote") {
+        const quote = conv._quote;
+        return {
+          id: conv.id,
+          job_id: null,
+          enquiry_id: null,
+          issued_quote_id: conv.issued_quote_id ?? null,
+          context: "quote" as const,
+          job_title: quote?.title ?? "Quote",
+          job_status: "quote",
+          contractor_id: quote?.contractor_id ?? "",
+          customer_id: quote?.recipient_id ?? "",
           latest_message: latest?.content ?? null,
           latest_message_at: latest?.created_at ?? null,
           unread_count: unreadByConv.get(conv.id) ?? 0,
@@ -165,6 +212,7 @@ export function useConversations() {
           id: conv.id,
           job_id: null,
           enquiry_id: conv.enquiry_id ?? null,
+          issued_quote_id: null,
           context: "enquiry" as const,
           job_title: enquiry?.title ?? "Enquiry",
           job_status: "enquiry",

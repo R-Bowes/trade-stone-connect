@@ -136,13 +136,15 @@ export function BusinessMessageInbox({
               </div>
               <span className="text-xs text-muted-foreground truncate leading-tight">{conv.job_title}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-  {conv.job_status !== "enquiry" && statusPill(conv.job_status)}
+  {conv.context === "job" && statusPill(conv.job_status)}
   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
     conv.context === "enquiry"
       ? "bg-blue-50 text-blue-700"
-      : "bg-orange-50 text-orange-700"
+      : conv.context === "quote"
+        ? "bg-purple-50 text-purple-700"
+        : "bg-orange-50 text-orange-700"
   }`}>
-    {conv.context === "enquiry" ? "Enquiry" : "Job"}
+    {conv.context === "enquiry" ? "Enquiry" : conv.context === "quote" ? "Quote" : "Job"}
   </span>
 </div>
               {conv.latest_message && (
@@ -175,7 +177,7 @@ export function BusinessMessageInbox({
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">{selectedConv.job_title}</span>
-                  {statusPill(selectedConv.job_status)}
+                  {selectedConv.context === "job" && statusPill(selectedConv.job_status)}
                 </div>
               </div>
             </div>

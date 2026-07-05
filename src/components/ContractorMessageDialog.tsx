@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
 
 interface ContractorMessageDialogProps {
   open: boolean;
@@ -19,14 +20,13 @@ interface ContractorMessageDialogProps {
   contractorLocation: string;
 }
 
-function isMissingRelationError(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  const msg = (error.message || "").toLowerCase();
-  if (error.code === "42P01" || error.code === "PGRST205") return true;
-  if (msg.includes("does not exist") || msg.includes("schema cache")) return true;
-  return false;
-}
-
+/**
+ * First contact from a contractor's public profile, before any enquiry
+ * exists — creates the enquiry (the only "context" a fresh message can
+ * attach to) and seeds its job_conversations/job_messages thread with the
+ * message, rather than writing to the legacy conversations/messages tables
+ * (which have no reader — a message "sent" there was a silent dead end).
+ */
 export function ContractorMessageDialog({
   open,
   onOpenChange,
@@ -47,49 +47,59 @@ export function ContractorMessageDialog({
     }
   }, [open]);
 
-  const insertEnquiryFallback = async (userId: string, text: string, location: string) => {
-    const { data: senderProfile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const { data: contractorProfile } = await supabase
-      .from("profiles")
-      .select("id, user_id")
-      .eq("user_id", recipientUserId)
-      .maybeSingle();
+  const handleSend = async () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
 
-    const { error: errDashboard } = await supabase.from("enquiries").insert({
-      homeowner_id: userId,
-      contractor_id: recipientUserId,
-      title: "Message",
-      description: text,
-      location,
-      status: "message",
-    });
-    if (!errDashboard) return;
+    setSending(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error("Not authenticated");
 
-    if (senderProfile?.id && contractorProfile?.id) {
-      const { data: enquiryRow, error: errTypes } = await supabase
+      const { data: senderProfile } = await supabase
+        .from("profiles")
+        .select("id, user_type")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!senderProfile?.id) throw new Error("Profile not found");
+
+      const { data: contractorProfile } = await supabase
+        .from("profiles")
+        .select("id, user_id")
+        .eq("user_id", recipientUserId)
+        .maybeSingle();
+      if (!contractorProfile?.id) throw new Error("Contractor profile not found");
+
+      const location = contractorLocation.trim() || "General";
+
+      const { data: enquiryRow, error: enquiryError } = await supabase
         .from("enquiries")
         .insert({
           customer_id: senderProfile.id,
           contractor_id: contractorProfile.id,
-          job_description: text,
+          job_description: trimmed,
           location,
           status: "new",
         })
         .select("id")
         .single();
+      if (enquiryError) throw enquiryError;
 
-      if (errTypes) throw errTypes;
+      const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiryRow.id });
+      const { error: msgError } = await supabase.from("job_messages").insert({
+        conversation_id: conversationId,
+        sender_id: senderProfile.id,
+        sender_role: senderProfile.user_type || "personal",
+        content: trimmed,
+        message_type: "message",
+      });
+      if (msgError) throw msgError;
 
-      // Notify the contractor via in-app notification and email.
-      if (contractorProfile.user_id && enquiryRow?.id) {
+      if (contractorProfile.user_id) {
         await supabase.from("notifications").insert({
           user_id: contractorProfile.user_id,
           title: "New enquiry received",
-          message: `A customer sent an enquiry: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`,
+          message: `A customer sent an enquiry: ${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}`,
           type: "enquiry",
           reference_id: enquiryRow.id,
           reference_type: "enquiry",
@@ -100,60 +110,7 @@ export function ContractorMessageDialog({
           .invoke("notify-contractor", { body: { enquiry_id: enquiryRow.id } })
           .catch(console.error);
       }
-      return;
-    }
 
-    throw errDashboard;
-  };
-
-  const handleSend = async () => {
-    const trimmed = message.trim();
-    if (!trimmed) return;
-
-    setSending(true);
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error("Not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const location = contractorLocation.trim() || "General";
-
-      const { data: conversation, error: convError } = await supabase
-        .from("conversations")
-        .insert({
-          initiator_id: user.id,
-          recipient_id: recipientUserId,
-          subject: `Message — ${contractorName}`,
-          initiator_type: profile?.user_type || "personal",
-        })
-        .select("id")
-        .single();
-
-      if (!convError && conversation?.id) {
-        const { error: msgError } = await supabase.from("messages").insert({
-          conversation_id: conversation.id,
-          sender_id: user.id,
-          content: trimmed,
-        });
-
-        if (!msgError) {
-          setSuccess(true);
-          return;
-        }
-        if (!isMissingRelationError(msgError)) throw msgError;
-      } else if (convError && !isMissingRelationError(convError)) {
-        throw convError;
-      }
-
-      await insertEnquiryFallback(user.id, trimmed, location);
       setSuccess(true);
     } catch (e) {
       console.error("Send message failed:", e);

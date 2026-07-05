@@ -30,7 +30,12 @@ export function InlineConfirmDate({
   });
 
   return (
-    <Button size="sm" disabled={loading || pending || jobExists} onClick={handleConfirm}>
+    <Button
+      size="sm"
+      style={{ backgroundColor: "#f07820", color: "#fff" }}
+      disabled={loading || pending || jobExists}
+      onClick={handleConfirm}
+    >
       {pending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
       Confirm date
     </Button>

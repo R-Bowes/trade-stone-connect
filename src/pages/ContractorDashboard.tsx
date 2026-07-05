@@ -43,12 +43,9 @@ import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
-import { useContractorPipeline, type PipelineStage } from "@/hooks/useContractorPipeline";
+import { useContractorPipeline, type PipelineEngagement, type PipelineStage } from "@/hooks/useContractorPipeline";
 import { PipelineCard } from "@/components/contractor/work/PipelineCard";
-import { QuoteQuickViewDialog } from "@/components/contractor/work/QuoteQuickViewDialog";
-import { JobQuickViewDialog } from "@/components/contractor/work/JobQuickViewDialog";
-import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { EngagementThread } from "@/components/contractor/thread/EngagementThread";
 import { Inbox, CheckCircle2 } from "lucide-react";
 
 type EnquiryForDialog = {
@@ -81,9 +78,7 @@ const ContractorDashboard = () => {
 
   const { engagements, loading: pipelineLoading, refetch: refetchPipeline } = useContractorPipeline();
   const [filterStage, setFilterStage] = useState<PipelineStage | null>(null);
-  const [quoteViewId, setQuoteViewId] = useState<string | null>(null);
-  const [jobViewId, setJobViewId] = useState<string | null>(null);
-  const [negotiationQuoteId, setNegotiationQuoteId] = useState<string | null>(null);
+  const [openEngagement, setOpenEngagement] = useState<PipelineEngagement | null>(null);
 
   const [dashboardData, setDashboardData] = useState({
     monthlyRevenue: 0,
@@ -121,10 +116,16 @@ const ContractorDashboard = () => {
     () => (filterStage ? engagements.filter((e) => e.stage === filterStage) : engagements),
     [engagements, filterStage],
   );
-  const needsYouEngagements = useMemo(
-    () => filteredEngagements.filter((e) => e.band === "needs_you"),
-    [filteredEngagements],
-  );
+  const needsYouEngagements = useMemo(() => {
+    // Stage-weighted: scheduling/enquiry engagements are quick, high-value
+    // touches — they float above aged jobs even if a job has been sitting
+    // longer. Sort is stable, so ties keep the hook's oldest-first order.
+    const stageWeight: Record<string, number> = { enquiry: 0, scheduling: 0, quote_sent: 1, job: 2, invoice: 2 };
+    return filteredEngagements
+      .filter((e) => e.band === "needs_you")
+      .slice()
+      .sort((a, b) => (stageWeight[a.stage] ?? 1) - (stageWeight[b.stage] ?? 1));
+  }, [filteredEngagements]);
   const waitingEngagements = useMemo(
     () => filteredEngagements.filter((e) => e.band === "waiting"),
     [filteredEngagements],
@@ -342,9 +343,7 @@ const ContractorDashboard = () => {
                           key={e.key}
                           engagement={e}
                           contractorId={profileId!}
-                          onOpenQuote={setQuoteViewId}
-                          onOpenJob={setJobViewId}
-                          onOpenNegotiation={setNegotiationQuoteId}
+                          onOpenThread={setOpenEngagement}
                           onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
                           onRefetch={refetchPipeline}
                         />
@@ -367,9 +366,7 @@ const ContractorDashboard = () => {
                           key={e.key}
                           engagement={e}
                           contractorId={profileId!}
-                          onOpenQuote={setQuoteViewId}
-                          onOpenJob={setJobViewId}
-                          onOpenNegotiation={setNegotiationQuoteId}
+                          onOpenThread={setOpenEngagement}
                           onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
                           onRefetch={refetchPipeline}
                         />
@@ -547,24 +544,14 @@ const ContractorDashboard = () => {
           </>
         )}
 
-        <QuoteQuickViewDialog quoteId={quoteViewId} open={!!quoteViewId} onClose={() => setQuoteViewId(null)} />
-        <JobQuickViewDialog
-          jobId={jobViewId}
-          open={!!jobViewId}
-          onClose={() => setJobViewId(null)}
-          onChanged={refetchPipeline}
-        />
-        {negotiationQuoteId && profileId && (
-          <Dialog open onOpenChange={(o) => { if (!o) { setNegotiationQuoteId(null); refetchPipeline(); } }}>
-            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-              <QuoteScheduleNegotiation
-                quoteId={negotiationQuoteId}
-                contractorId={profileId}
-                mode="contractor"
-                onJobConfirmed={() => { setNegotiationQuoteId(null); refetchPipeline(); }}
-              />
-            </DialogContent>
-          </Dialog>
+        {profileId && (
+          <EngagementThread
+            engagement={openEngagement}
+            contractorId={profileId}
+            open={!!openEngagement}
+            onClose={() => setOpenEngagement(null)}
+            onChanged={refetchPipeline}
+          />
         )}
 
         <OnboardingTour isActive={isTourActive} step={currentTourStep} currentStep={currentStep} totalSteps={totalSteps} onNext={nextStep} onPrev={prevStep} onSkip={() => endTour(true)} />
