@@ -4237,11 +4237,13 @@ export type Database = {
       schedule_events: {
         Row: {
           all_day: boolean
+          batch_id: string | null
           client_name: string | null
           client_phone: string | null
           color: string | null
           contractor_id: string
           created_at: string
+          cycle: number
           description: string | null
           end_time: string
           event_type: string
@@ -4254,15 +4256,18 @@ export type Database = {
           start_time: string
           status: string
           title: string
+          turn_kind: string
           updated_at: string
         }
         Insert: {
           all_day?: boolean
+          batch_id?: string | null
           client_name?: string | null
           client_phone?: string | null
           color?: string | null
           contractor_id: string
           created_at?: string
+          cycle?: number
           description?: string | null
           end_time: string
           event_type?: string
@@ -4275,15 +4280,18 @@ export type Database = {
           start_time: string
           status?: string
           title: string
+          turn_kind?: string
           updated_at?: string
         }
         Update: {
           all_day?: boolean
+          batch_id?: string | null
           client_name?: string | null
           client_phone?: string | null
           color?: string | null
           contractor_id?: string
           created_at?: string
+          cycle?: number
           description?: string | null
           end_time?: string
           event_type?: string
@@ -4296,6 +4304,7 @@ export type Database = {
           start_time?: string
           status?: string
           title?: string
+          turn_kind?: string
           updated_at?: string
         }
         Relationships: [
@@ -5407,7 +5416,7 @@ export type Database = {
         Returns: number
       }
       release_schedule_block: {
-        Args: { p_quote_id: string }
+        Args: { p_event_id: string }
         Returns: undefined
       }
     }
