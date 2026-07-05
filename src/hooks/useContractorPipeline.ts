@@ -15,8 +15,6 @@ export type PipelineBand = "needs_you" | "waiting";
 export type PipelineStage = "enquiry" | "quote_sent" | "scheduling" | "job" | "invoice";
 
 const PROPOSAL_EVENT_TYPE = "quote_proposal";
-const CANCELLED_MARKER_EVENT_TYPE = "scheduling_cancelled";
-const POST_EXHAUSTION_TITLE = "Quote schedule proposal (agreed date)";
 const REJECTED_QUOTE_GRACE_DAYS = 14;
 
 // Shape RespondDialog / RejectDialog / SendQuoteDialog already expect —
@@ -124,10 +122,10 @@ interface RawScheduleEvent {
   id: string;
   quote_id: string | null;
   event_type: string;
-  title: string;
   status: string;
   is_confirmed: boolean | null;
   proposed_by: string | null;
+  cycle: number;
   created_at: string;
   updated_at: string;
 }
@@ -146,14 +144,11 @@ function resolveSchedulingSubstate(
   sinceIso: string;
   confirmableProposalId: string | null;
 } {
-  const proposals = events.filter((e) => e.event_type === PROPOSAL_EVENT_TYPE);
-  const markers = events.filter((e) => e.event_type === CANCELLED_MARKER_EVENT_TYPE);
-  const lastCancelledAt = markers.length
-    ? markers.reduce((max, m) => (m.created_at > max ? m.created_at : max), markers[0].created_at)
-    : null;
-  const currentCycle = proposals.filter(
-    (p) => p.title !== POST_EXHAUSTION_TITLE && (!lastCancelledAt || p.created_at > lastCancelledAt),
-  );
+  // Cycle now reads directly off the `cycle` column (bumped by
+  // cancelScheduling's marker row) — no more inferring cycle boundaries from
+  // marker created_at timestamps.
+  const currentCycle = events.length ? Math.max(...events.map((e) => e.cycle)) : 1;
+  const proposals = events.filter((e) => e.event_type === PROPOSAL_EVENT_TYPE && e.cycle === currentCycle);
 
   const confirmed = proposals.find((p) => p.is_confirmed || p.status === "accepted") ?? null;
   if (confirmed) {
@@ -165,7 +160,7 @@ function resolveSchedulingSubstate(
     };
   }
 
-  const pendingFromOther = currentCycle.filter(
+  const pendingFromOther = proposals.filter(
     (p) => p.status === "proposed" && !p.is_confirmed && p.proposed_by !== contractorId,
   );
   if (pendingFromOther.length > 0) {
@@ -178,7 +173,7 @@ function resolveSchedulingSubstate(
     };
   }
 
-  const pendingFromMe = currentCycle.filter(
+  const pendingFromMe = proposals.filter(
     (p) => p.status === "proposed" && !p.is_confirmed && p.proposed_by === contractorId,
   );
   if (pendingFromMe.length > 0) {
@@ -290,7 +285,7 @@ export function useContractorPipeline() {
     const scheduleEventsRes = schedulingQuoteIds.length
       ? await supabase
           .from("schedule_events")
-          .select("id, quote_id, event_type, title, status, is_confirmed, proposed_by, created_at, updated_at")
+          .select("id, quote_id, event_type, status, is_confirmed, proposed_by, cycle, created_at, updated_at")
           .in("quote_id", schedulingQuoteIds)
       : { data: [] as RawScheduleEvent[] };
     const scheduleEvents = (scheduleEventsRes.data as RawScheduleEvent[]) ?? [];

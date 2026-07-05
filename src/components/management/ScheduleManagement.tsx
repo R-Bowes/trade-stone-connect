@@ -88,22 +88,37 @@ export function ScheduleManagement() {
 
       // A job's issued_quote_id points to whichever *version's* row id was
       // live when the job was created — not necessarily the row this query
-      // just fetched. Excluding by that row's own id (a per-row `jobs(id)`
-      // embed) misses older/newer sibling versions of the same quote_number
-      // that share no job link themselves. Resolve jobbed row ids to their
-      // quote_number instead, and exclude every row with that quote_number.
+      // just fetched. Excluding by that row's own id misses older/newer
+      // sibling versions of the same quote_number that share no job link
+      // themselves. Resolve jobbed row ids to their quote_number instead,
+      // and exclude every row with that quote_number.
+      //
+      // Plain two-query client-side join rather than a `!fkey_name` embed —
+      // the embed silently returns null (failing open, showing nothing
+      // excluded) if the guessed constraint name doesn't match the live
+      // schema, which is exactly how Q-0001/Q-0003/Q-0007/Q-0010 kept
+      // rendering live panels despite already having jobs.
       const { data: jobbedRows } = await supabase
         .from("jobs")
-        .select("issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
+        .select("issued_quote_id")
         .eq("contractor_id", profileRow?.id)
         .neq("status", "cancelled")
         .not("issued_quote_id", "is", null);
 
-      const jobbedQuoteNumbers = new Set(
-        ((jobbedRows as { issued_quotes: { quote_number: number | null } | null }[]) || [])
-          .map((j) => j.issued_quotes?.quote_number)
-          .filter((n): n is number => n != null),
-      );
+      const jobbedQuoteIds = [
+        ...new Set((jobbedRows ?? []).map((j) => j.issued_quote_id).filter((id): id is string => id != null)),
+      ];
+
+      const jobbedQuoteNumbers = new Set<number>();
+      if (jobbedQuoteIds.length) {
+        const { data: jobbedQuoteRows } = await supabase
+          .from("issued_quotes")
+          .select("quote_number")
+          .in("id", jobbedQuoteIds);
+        for (const row of jobbedQuoteRows ?? []) {
+          if (row.quote_number != null) jobbedQuoteNumbers.add(row.quote_number);
+        }
+      }
 
       setContractorProfileId(profileRow?.id ?? "");
       if (!error) {

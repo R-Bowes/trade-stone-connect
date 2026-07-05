@@ -1,42 +1,42 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 /**
- * Turn-counting / negotiation-cycle model — no schema change is available,
- * so both are approximated using existing, unconstrained columns already on
- * `schedule_events` rather than new ones:
+ * Turn-counting / negotiation-cycle model — backed by real columns on
+ * `schedule_events` (migration 20260705160000_schedule_turn_columns.sql):
+ * `cycle` (integer, bumped on cancellation), `turn_kind`
+ * ('negotiation' | 'post_exhaustion' | 'backout' | 'marker'), and
+ * `batch_id` (one uuid per submission of 1-3 slots).
  *
- * - A "turn" is one submission batch (1-3 slots sent in a single request).
- *   Turns are counted as the number of DISTINCT `created_at` values,
- *   truncated to the minute, among a party's own
- *   `event_type = 'quote_proposal'` rows for the quote. Every slot in one
- *   batch is inserted in the same request, so they land in the same
- *   minute and count as a single turn. Each party is capped at
- *   MAX_TURNS_PER_CYCLE (2).
+ * - A "turn" is one submission batch. `batch_id` is generated client-side
+ *   (one per call to submitProposals) and stamped on every row inserted in
+ *   that call, so turn count = COUNT(DISTINCT batch_id) among a party's own
+ *   `turn_kind = 'negotiation'` rows in the current cycle. Each party is
+ *   capped at MAX_TURNS_PER_CYCLE (2).
  *
- * - "Cancel scheduling" must hand both parties fresh turns. There is no
- *   cycle/version column to bump, so cancellation inserts a marker row on
- *   `schedule_events` with `event_type = 'scheduling_cancelled'` (a value
- *   no CHECK constraint restricts) instead of a real proposal. Turn
- *   counting only considers proposal rows created AFTER the most recent
- *   such marker for the quote — anything before it belonged to a prior,
- *   cancelled cycle and no longer counts.
- *   Limitation: this resets turns correctly on an explicit cancellation,
- *   but the DB has no way to distinguish "declined because the other
- *   party countered" (should still count towards the limit) from
- *   "declined because of cancellation" by inspecting `status` alone —
- *   that ambiguity is exactly why the reset is keyed off the marker row
- *   rather than off `status = 'declined'`.
+ * - "Cancel scheduling" hands both parties fresh turns by bumping `cycle`:
+ *   the marker row (`event_type = 'scheduling_cancelled'`, `turn_kind =
+ *   'marker'`, still written for compatibility with anything keying off
+ *   that event_type) gets `cycle = current + 1`, and every proposal
+ *   submitted afterwards carries that new cycle. Turn counting reads
+ *   `cycle` directly — no more inferring cycle boundaries from a marker
+ *   row's `created_at`.
  *
- * - Post-exhaustion single-date proposals must not consume or grant
- *   turns. They're tagged with a distinct `title`
- *   (POST_EXHAUSTION_TITLE) instead of a new column, and are excluded
- *   from both the turn count and the "current cycle" proposal history.
- *   `event_type` is deliberately left as 'quote_proposal' for these rows
- *   so the DB triggers that look up the confirmed slot's start time for
+ * - Post-exhaustion single-date proposals (`turn_kind = 'post_exhaustion'`)
+ *   and backout re-proposals (`turn_kind = 'backout'`, entered via "Request
+ *   a different date" / "Release this date") are exempt from both the turn
+ *   count and the 2-turn cap. `event_type` is left as 'quote_proposal' for
+ *   both so the DB triggers that look up the confirmed slot's start time for
  *   half-day availability blocking (block_date_on_job_confirmed,
- *   release_schedule_block) keep finding them.
+ *   release_schedule_block) keep finding them. `title` is display-only —
+ *   nothing here branches on it.
+ *
+ * - The cap is enforced at every submission entry point: the UI gates
+ *   rendering of the negotiation picker (see QuoteScheduleNegotiation.tsx),
+ *   and submitProposals itself refuses a 'negotiation' insert once the
+ *   submitting party is already at cap, as a backstop regardless of which
+ *   UI path called it.
  *
  * Fail-safe rule for every mutation below: the write that changes
  * `schedule_events` state happens FIRST and its result is verified via
@@ -46,11 +46,18 @@ import { useToast } from "@/hooks/use-toast";
  * notifying the other party) only runs after that verification passes.
  * A step that can't be verified as succeeded is treated as failed, and
  * the code errs toward leaving the calendar blocked rather than free.
+ *
+ * jobExists is any-version-aware: it checks whether a live job exists for
+ * ANY version of this quote's quote_number, not just this exact row id — a
+ * quote revised after job creation, or a job created against a sibling
+ * version, must still be recognised as "already jobbed" so every action
+ * below refuses to run against a stale panel.
  */
 const MAX_TURNS_PER_CYCLE = 2;
-export const POST_EXHAUSTION_TITLE = "Quote schedule proposal (agreed date)";
 const CANCELLED_MARKER_EVENT_TYPE = "scheduling_cancelled";
 const PROPOSAL_EVENT_TYPE = "quote_proposal";
+
+type TurnKind = "negotiation" | "post_exhaustion" | "backout" | "marker";
 
 export interface QuoteScheduleProposal {
   id: string;
@@ -64,7 +71,11 @@ export interface QuoteScheduleProposal {
   is_confirmed: boolean | null;
   proposed_by: string | null;
   created_at: string;
+  updated_at: string;
   event_type: string;
+  cycle: number;
+  turn_kind: TurnKind;
+  batch_id: string | null;
 }
 
 export interface ContractorAvailabilitySlot {
@@ -86,6 +97,22 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
   const [otherPartyName, setOtherPartyName] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // One-shot flag: the submission immediately following a confirmed-date
+  // release ("Request a different date" / "Release this date") is a
+  // 'backout' re-proposal, exempt from the cap. Tracked as a ref for
+  // synchronous reads inside submitProposals, mirrored into state so the
+  // UI can gate picker rendering off it too.
+  const backoutPendingRef = useRef(false);
+  const [awaitingBackoutResubmission, setAwaitingBackoutResubmissionState] = useState(false);
+  const setBackoutPending = useCallback((value: boolean) => {
+    backoutPendingRef.current = value;
+    setAwaitingBackoutResubmissionState(value);
+  }, []);
+
+  useEffect(() => {
+    setBackoutPending(false);
+  }, [quoteId, contractorId, setBackoutPending]);
+
   const fetchData = useCallback(async () => {
     if (!quoteId || !contractorId) {
       setRawEvents([]);
@@ -102,12 +129,11 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       { data: eventsData, error: eventsError },
       { data: availabilityData, error: availabilityError },
       { data: quoteData },
-      { data: jobData },
     ] = await Promise.all([
       supabase
         .from("schedule_events")
         .select(
-          "id, quote_id, contractor_id, title, description, start_time, end_time, status, is_confirmed, proposed_by, created_at, event_type",
+          "id, quote_id, contractor_id, title, description, start_time, end_time, status, is_confirmed, proposed_by, created_at, updated_at, event_type, cycle, turn_kind, batch_id",
         )
         .eq("quote_id", quoteId)
         .order("start_time", { ascending: true }),
@@ -116,13 +142,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         .select("id, contractor_id, day_of_week, start_time, end_time, is_available")
         .eq("contractor_id", contractorId)
         .order("day_of_week", { ascending: true }),
-      supabase.from("issued_quotes").select("recipient_id").eq("id", quoteId).maybeSingle(),
-      supabase
-        .from("jobs")
-        .select("id")
-        .eq("issued_quote_id", quoteId)
-        .neq("status", "cancelled")
-        .maybeSingle(),
+      supabase.from("issued_quotes").select("recipient_id, quote_number").eq("id", quoteId).maybeSingle(),
     ]);
 
     if (eventsError) {
@@ -140,7 +160,38 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     }
 
     setRecipientId(quoteData?.recipient_id ?? null);
-    setJobExists(!!jobData);
+
+    // Any-version job check (see file header) — resolve every sibling
+    // version's row id for this quote_number, then look for a live job
+    // against any of them, rather than just this exact quoteId.
+    let jobFound = false;
+    if (quoteData?.quote_number != null) {
+      const { data: siblingRows } = await supabase
+        .from("issued_quotes")
+        .select("id")
+        .eq("contractor_id", contractorId)
+        .eq("quote_number", quoteData.quote_number);
+      const siblingIds = (siblingRows ?? []).map((r) => r.id);
+      if (siblingIds.length) {
+        const { data: jobRows } = await supabase
+          .from("jobs")
+          .select("id")
+          .in("issued_quote_id", siblingIds)
+          .neq("status", "cancelled")
+          .limit(1);
+        jobFound = !!jobRows?.length;
+      }
+    } else {
+      const { data: jobRow } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("issued_quote_id", quoteId)
+        .neq("status", "cancelled")
+        .maybeSingle();
+      jobFound = !!jobRow;
+    }
+    setJobExists(jobFound);
+
     setLoading(false);
   }, [contractorId, quoteId, toast]);
 
@@ -154,31 +205,30 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     [rawEvents],
   );
 
-  const lastCancelledAt = useMemo(() => {
-    const markers = rawEvents.filter((e) => e.event_type === CANCELLED_MARKER_EVENT_TYPE);
-    if (!markers.length) return null;
-    return markers.reduce((max, m) => (m.created_at > max ? m.created_at : max), markers[0].created_at);
-  }, [rawEvents]);
+  // Current cycle = MAX(cycle) across every event for the quote (1 if none
+  // yet) — read directly off the column bumped by cancelScheduling's marker.
+  const currentCycle = useMemo(
+    () => (rawEvents.length ? rawEvents.reduce((max, e) => Math.max(max, e.cycle), 1) : 1),
+    [rawEvents],
+  );
 
-  // Proposals that count toward the current cycle's turn limit — excludes
-  // post-exhaustion offers and anything from a cycle a cancellation ended.
+  // Proposals in the active cycle — prior-cycle rows are already declined
+  // by cancelScheduling's bulk decline, but scope explicitly since `cycle`
+  // (not `status`) is the source of truth for "current".
   const currentCycleProposals = useMemo(
-    () =>
-      proposals.filter(
-        (p) => p.title !== POST_EXHAUSTION_TITLE && (!lastCancelledAt || p.created_at > lastCancelledAt),
-      ),
-    [proposals, lastCancelledAt],
+    () => proposals.filter((p) => p.cycle === currentCycle),
+    [proposals, currentCycle],
   );
 
   const turnsUsedFor = useCallback(
     (profileId: string | null) => {
       if (!profileId) return 0;
-      const minutes = new Set(
+      const batchIds = new Set(
         currentCycleProposals
-          .filter((p) => p.proposed_by === profileId)
-          .map((p) => Math.floor(new Date(p.created_at).getTime() / 60000)),
+          .filter((p) => p.turn_kind === "negotiation" && p.proposed_by === profileId && p.batch_id)
+          .map((p) => p.batch_id as string),
       );
-      return minutes.size;
+      return batchIds.size;
     },
     [currentCycleProposals],
   );
@@ -220,44 +270,50 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     };
   }, [otherPartyId, contractorId]);
 
-  const myTurnsUsed = turnsUsedFor(userId);
-  const otherTurnsUsed = turnsUsedFor(otherPartyId);
+  // Clamped defensively — turns should never exceed the cap once counted
+  // off real batch_id rows, but a stale/anomalous row must never render as
+  // "3 of 2" in the UI.
+  const myTurnsUsed = Math.min(turnsUsedFor(userId), MAX_TURNS_PER_CYCLE);
+  const otherTurnsUsed = Math.min(turnsUsedFor(otherPartyId), MAX_TURNS_PER_CYCLE);
   const myTurnsRemaining = Math.max(0, MAX_TURNS_PER_CYCLE - myTurnsUsed);
   const bothExhausted = myTurnsUsed >= MAX_TURNS_PER_CYCLE && otherTurnsUsed >= MAX_TURNS_PER_CYCLE;
 
   const confirmedProposal = useMemo(
-    () => proposals.find((p) => p.is_confirmed || p.status === "accepted") ?? null,
-    [proposals],
+    () => currentCycleProposals.find((p) => p.is_confirmed || p.status === "accepted") ?? null,
+    [currentCycleProposals],
   );
   const hasConfirmedProposal = !!confirmedProposal;
 
   const pendingFromOther = useMemo(
     () =>
-      proposals.filter(
+      currentCycleProposals.filter(
         (p) =>
           p.status === "proposed" &&
           !p.is_confirmed &&
           p.proposed_by !== userId &&
-          p.title !== POST_EXHAUSTION_TITLE,
+          p.turn_kind !== "post_exhaustion",
       ),
-    [proposals, userId],
+    [currentCycleProposals, userId],
   );
 
   const pendingFromMe = useMemo(
     () =>
-      proposals.filter(
+      currentCycleProposals.filter(
         (p) =>
           p.status === "proposed" &&
           !p.is_confirmed &&
           p.proposed_by === userId &&
-          p.title !== POST_EXHAUSTION_TITLE,
+          p.turn_kind !== "post_exhaustion",
       ),
-    [proposals, userId],
+    [currentCycleProposals, userId],
   );
 
   const postExhaustionProposal = useMemo(
-    () => proposals.find((p) => p.title === POST_EXHAUSTION_TITLE && p.status === "proposed" && !p.is_confirmed) ?? null,
-    [proposals],
+    () =>
+      currentCycleProposals.find(
+        (p) => p.turn_kind === "post_exhaustion" && p.status === "proposed" && !p.is_confirmed,
+      ) ?? null,
+    [currentCycleProposals],
   );
 
   const notifyOtherParty = useCallback(
@@ -285,6 +341,32 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     async (slots: { startTime: string; endTime: string }[]) => {
       if (!quoteId || !contractorId || !userId || slots.length === 0) return;
 
+      if (jobExists) {
+        toast({
+          title: "Job already created",
+          description: "Scheduling can no longer be changed here.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
+
+      const turnKind: TurnKind = backoutPendingRef.current ? "backout" : "negotiation";
+
+      // Backstop cap check — the UI must not render a picker that reaches
+      // here at cap, but this refuses the insert regardless of which path
+      // called it.
+      if (turnKind === "negotiation" && turnsUsedFor(userId) >= MAX_TURNS_PER_CYCLE) {
+        toast({
+          title: "Turn limit reached",
+          description: "You've used both your proposal turns for this cycle.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const batchId = crypto.randomUUID();
+
       // Supersede whatever the other party currently has pending.
       await supabase
         .from("schedule_events")
@@ -292,7 +374,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         .eq("quote_id", quoteId)
         .eq("event_type", PROPOSAL_EVENT_TYPE)
         .eq("status", "proposed")
-        .neq("title", POST_EXHAUSTION_TITLE)
+        .neq("turn_kind", "post_exhaustion")
         .neq("proposed_by", userId);
 
       for (const slot of slots) {
@@ -308,12 +390,17 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
           proposed_by: userId,
           is_confirmed: false,
           all_day: false,
+          cycle: currentCycle,
+          turn_kind: turnKind,
+          batch_id: batchId,
         });
         if (error) {
           toast({ title: "Error", description: "Failed to propose date", variant: "destructive" });
           throw error;
         }
       }
+
+      setBackoutPending(false);
 
       // Only the customer→contractor direction is a silent handoff worth a
       // notification — the contractor already sees their own proposal land
@@ -331,7 +418,20 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       toast({ title: "Dates proposed", description: "Waiting for the other party to respond." });
       await fetchData();
     },
-    [contractorId, fetchData, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
+    [
+      contractorId,
+      currentCycle,
+      fetchData,
+      jobExists,
+      notifyOtherParty,
+      otherPartyId,
+      otherPartyName,
+      quoteId,
+      setBackoutPending,
+      toast,
+      turnsUsedFor,
+      userId,
+    ],
   );
 
   /** Single-slot, post-exhaustion "agreed date" offer — confirmable, not counterable. */
@@ -339,18 +439,30 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     async (slot: { startTime: string; endTime: string }) => {
       if (!quoteId || !contractorId || !userId) return;
 
+      if (jobExists) {
+        toast({
+          title: "Job already created",
+          description: "Scheduling can no longer be changed here.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
+
+      const batchId = crypto.randomUUID();
+
       await supabase
         .from("schedule_events")
         .update({ status: "declined", is_confirmed: false })
         .eq("quote_id", quoteId)
         .eq("event_type", PROPOSAL_EVENT_TYPE)
-        .eq("title", POST_EXHAUSTION_TITLE)
+        .eq("turn_kind", "post_exhaustion")
         .eq("status", "proposed");
 
       const { error } = await supabase.from("schedule_events").insert({
         contractor_id: contractorId,
         quote_id: quoteId,
-        title: POST_EXHAUSTION_TITLE,
+        title: "Quote schedule proposal (agreed date)",
         description: null,
         event_type: PROPOSAL_EVENT_TYPE,
         start_time: slot.startTime,
@@ -359,6 +471,9 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
         proposed_by: userId,
         is_confirmed: false,
         all_day: false,
+        cycle: currentCycle,
+        turn_kind: "post_exhaustion",
+        batch_id: batchId,
       });
       if (error) {
         toast({ title: "Error", description: "Failed to propose a date", variant: "destructive" });
@@ -377,7 +492,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       toast({ title: "Date proposed", description: "Waiting for the other party to confirm." });
       await fetchData();
     },
-    [contractorId, fetchData, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
+    [contractorId, currentCycle, fetchData, jobExists, notifyOtherParty, otherPartyId, otherPartyName, quoteId, toast, userId],
   );
 
   /**
@@ -389,6 +504,16 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
    */
   const declineProposal = useCallback(
     async (proposalId: string) => {
+      if (jobExists) {
+        toast({
+          title: "Job already created",
+          description: "Scheduling can no longer be changed here.",
+          variant: "destructive",
+        });
+        await fetchData();
+        return;
+      }
+
       const { data: updated, error } = await supabase
         .from("schedule_events")
         .update({ status: "declined", is_confirmed: false })
@@ -413,7 +538,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       toast({ title: "Date declined", description: "Message the other party or propose one more date." });
       await fetchData();
     },
-    [fetchData, toast],
+    [fetchData, jobExists, toast],
   );
 
   const acceptProposal = useCallback(
@@ -595,6 +720,10 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     const { error: rpcError } = await supabase.rpc("release_schedule_block", { p_event_id: confirmedEventId });
     if (rpcError) console.error("release_schedule_block failed", rpcError);
 
+    // The next submission from either party is a 'backout' re-proposal —
+    // exempt from the cap (see file header).
+    setBackoutPending(true);
+
     await notifyOtherParty(
       confirmedEventId,
       "Schedule reopened",
@@ -604,7 +733,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
     toast({ title: "Date released", description: "Choose a new date to continue scheduling." });
     await fetchData();
-  }, [confirmedProposal, fetchData, jobExists, notifyOtherParty, quoteId, toast]);
+  }, [confirmedProposal, fetchData, jobExists, notifyOtherParty, quoteId, setBackoutPending, toast]);
 
   /** B1: full restart — declines every proposal and marks a fresh cycle boundary. */
   const cancelScheduling = useCallback(async () => {
@@ -654,7 +783,11 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       if (rpcError) console.error("release_schedule_block failed", rpcError);
     }
 
-    // Marker row so turn-counting resets for the next cycle (see comment block above).
+    setBackoutPending(false);
+
+    // Marker row bumps the cycle — turn counts for the new cycle start at 0
+    // for both parties, since turnsUsedFor reads `cycle` directly rather
+    // than inferring a boundary from this row's created_at.
     const { error: markerError } = await supabase.from("schedule_events").insert({
       contractor_id: contractorId,
       quote_id: quoteId,
@@ -667,6 +800,8 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       proposed_by: userId,
       is_confirmed: false,
       all_day: false,
+      cycle: currentCycle + 1,
+      turn_kind: "marker",
     });
     if (markerError) console.error("Failed to record scheduling cancellation marker", markerError);
 
@@ -679,7 +814,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
     toast({ title: "Scheduling cancelled", description: "You can start again whenever you're ready." });
     await fetchData();
-  }, [confirmedProposal, contractorId, fetchData, jobExists, notifyOtherParty, quoteId, toast, userId]);
+  }, [confirmedProposal, contractorId, currentCycle, fetchData, jobExists, notifyOtherParty, quoteId, setBackoutPending, toast, userId]);
 
   return {
     proposals,
@@ -699,6 +834,7 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
     myTurnsRemaining,
     maxTurnsPerCycle: MAX_TURNS_PER_CYCLE,
     bothExhausted,
+    awaitingBackoutResubmission,
     refetch: fetchData,
     submitProposals,
     submitPostExhaustionProposal,

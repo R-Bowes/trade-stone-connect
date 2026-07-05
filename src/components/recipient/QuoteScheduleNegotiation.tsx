@@ -58,6 +58,7 @@ export function QuoteScheduleNegotiation({
     myTurnsRemaining,
     maxTurnsPerCycle,
     bothExhausted,
+    awaitingBackoutResubmission,
     submitProposals,
     submitPostExhaustionProposal,
     acceptProposal,
@@ -386,18 +387,27 @@ export function QuoteScheduleNegotiation({
       </>
     );
   } else {
-    // ── Nothing proposed yet ──
+    // ── Nothing proposed yet ── also reached right after a backout release
+    // ("Request a different date" / "Release this date"), in which case the
+    // next submission is exempt from the cap — otherwise this is an ordinary
+    // fresh negotiation and must not render the picker once out of turns.
     body = (
       <>
         {turnIndicator}
-        <SlotPicker
-          contractorId={contractorId}
-          maxSlots={3}
-          helperText={`Select up to 3 available slots. ${otherPartyLabel} will confirm one.`}
-          onSubmit={async (slots) => {
-            await submitProposals(slots);
-          }}
-        />
+        {myTurnsRemaining > 0 || awaitingBackoutResubmission ? (
+          <SlotPicker
+            contractorId={contractorId}
+            maxSlots={3}
+            helperText={`Select up to 3 available slots. ${otherPartyLabel} will confirm one.`}
+            onSubmit={async (slots) => {
+              await submitProposals(slots);
+            }}
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            You've used both your proposal turns — message {otherPartyLabel} to continue.
+          </p>
+        )}
       </>
     );
   }
