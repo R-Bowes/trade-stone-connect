@@ -1162,6 +1162,75 @@ export type Database = {
           },
         ]
       }
+      engagement_notes: {
+        Row: {
+          content: string
+          contractor_id: string
+          created_at: string
+          enquiry_id: string | null
+          id: string
+          issued_quote_id: string | null
+          job_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          contractor_id: string
+          created_at?: string
+          enquiry_id?: string | null
+          id?: string
+          issued_quote_id?: string | null
+          job_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          contractor_id?: string
+          created_at?: string
+          enquiry_id?: string | null
+          id?: string
+          issued_quote_id?: string | null
+          job_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_issued_quote_id_fkey"
+            columns: ["issued_quote_id"]
+            isOneToOne: false
+            referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enquiries: {
         Row: {
           additional_details: string | null
