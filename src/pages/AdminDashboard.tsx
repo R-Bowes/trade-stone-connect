@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { formatInvoiceRef } from '@/lib/documentRefs';
 import { supabase } from '@/integrations/supabase/client';
+import { CONTRACTOR_TRADES } from '@/constants/trades';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,10 +114,6 @@ const CTA_DESTINATIONS = [
   { value: 'jobs',        label: 'View jobs',          url: 'https://tradesltd.co.uk/jobs' },
   { value: 'marketplace', label: 'Visit marketplace',  url: 'https://tradesltd.co.uk/marketplace' },
   { value: 'invoices',    label: 'View invoices',      url: 'https://tradesltd.co.uk/invoices' },
-] as const;
-
-const BROADCAST_TRADES = [
-  'Plumber', 'Electrician', 'Builder', 'Carpenter', 'Decorator', 'Roofer', 'General builder',
 ] as const;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -1176,7 +1173,7 @@ export default function AdminDashboard() {
                                 <label style={labelS}>Trade</label>
                                 <select value={broadcastTrade} onChange={e => setBroadcastTrade(e.target.value)} style={{ ...inputS, cursor: 'pointer' }}>
                                   <option value="">All trades</option>
-                                  {BROADCAST_TRADES.map(t => <option key={t} value={t}>{t}</option>)}
+                                  {CONTRACTOR_TRADES.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                               </div>
                               <div>

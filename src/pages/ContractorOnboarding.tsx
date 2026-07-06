@@ -17,6 +17,7 @@ const ContractorOnboarding = () => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [tradeSearch, setTradeSearch] = useState("");
 
   const [form, setForm] = useState({
     account_type: "",
@@ -110,6 +111,8 @@ const ContractorOnboarding = () => {
     }
   };
 
+  const filteredTrades = TRADES.filter((t) => t.toLowerCase().includes(tradeSearch.toLowerCase()));
+
   return (
     <div className="min-h-screen bg-[#F7F4EF] flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
@@ -196,8 +199,17 @@ const ContractorOnboarding = () => {
               <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-3 block">
                 Trades <span className="text-[#E8640A]">*</span>
               </Label>
-              <div className="flex flex-wrap gap-2 mb-5">
-                {TRADES.map((t) => (
+              <Input
+                placeholder="Search trades..."
+                value={tradeSearch}
+                onChange={(e) => setTradeSearch(e.target.value)}
+                className="mb-3"
+              />
+              <div className="flex flex-wrap gap-2 mb-5 max-h-48 overflow-y-auto">
+                {filteredTrades.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-1">No trades match your search</p>
+                )}
+                {filteredTrades.map((t) => (
                   <button
                     key={t}
                     type="button"
