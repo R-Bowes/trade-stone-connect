@@ -206,12 +206,17 @@ export function useContractorPipeline() {
   const [engagements, setEngagements] = useState<PipelineEngagement[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPipeline = useCallback(async () => {
-    setLoading(true);
+  // `silent` powers the tab-focus-return refresh below: fresh data is
+  // fetched, but `loading` never flips, so the card list isn't swapped for
+  // a spinner mid-visit — stale cards stay mounted (same `key`s) and just
+  // re-render with new props once `setEngagements` resolves.
+  const fetchPipeline = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setEngagements([]);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -223,7 +228,7 @@ export function useContractorPipeline() {
     const contractorId = profileRow?.id;
     if (!contractorId) {
       setEngagements([]);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -518,11 +523,27 @@ export function useContractorPipeline() {
 
     out.sort((a, b) => new Date(a.sinceIso).getTime() - new Date(b.sinceIso).getTime());
     setEngagements(out);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchPipeline();
+  }, [fetchPipeline]);
+
+  // Fresh data on tab-focus-return is desirable, but must never re-arm the
+  // loading gate — that would swap the card list for a spinner and undo
+  // whatever the contractor was mid-way through reading. `key={e.key}` on
+  // each PipelineCard (see ContractorDashboard.tsx) is already a stable
+  // per-engagement id rather than an array index, so replacing `engagements`
+  // in place reconciles onto the same DOM nodes without a remount.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchPipeline({ silent: true });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [fetchPipeline]);
 
   return { engagements, loading, refetch: fetchPipeline };
