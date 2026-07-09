@@ -6,7 +6,7 @@ import { useMessages } from "@/hooks/useMessages";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Loader2, MessageSquare, Send } from "lucide-react";
 
 interface BusinessMessageInboxProps {
   profileId: string;
@@ -38,7 +38,7 @@ export function BusinessMessageInbox({
   // Maps profile id → display name for the OTHER party in each conversation
   const [otherPartyNames, setOtherPartyNames] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { messages, loading: msgsLoading, sendMessage, markAllRead } =
     useMessages(selectedId, senderRole);
@@ -78,7 +78,8 @@ export function BusinessMessageInbox({
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
@@ -96,9 +97,9 @@ export function BusinessMessageInbox({
   const selectedConv = conversations.find((c) => c.id === selectedId) ?? null;
 
   return (
-    <div className="flex border rounded-lg overflow-hidden bg-background" style={{ minHeight: 600 }}>
+    <div className="flex h-full min-h-0 border rounded-lg overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className="flex flex-col border-r bg-muted/20 shrink-0 overflow-y-auto" style={{ width: 260 }}>
+      <div className={`${selectedId ? "hidden md:flex" : "flex"} flex-col border-r bg-muted/20 shrink-0 overflow-y-auto w-full md:w-[260px]`}>
         <div className="px-4 py-3 border-b" style={{ fontFamily: "Lexend, sans-serif" }}>
           <h3 className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>Messages</h3>
         </div>
@@ -161,7 +162,7 @@ export function BusinessMessageInbox({
       </div>
 
       {/* Chat area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className={`${selectedId ? "flex" : "hidden md:flex"} flex-col flex-1 overflow-hidden min-h-0`}>
         {!selectedConv ? (
           <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
             <MessageSquare className="h-10 w-10 opacity-25" />
@@ -170,7 +171,15 @@ export function BusinessMessageInbox({
         ) : (
           <>
             {/* Header */}
-            <div className="px-5 py-3 border-b flex items-center gap-2" style={{ fontFamily: "Lexend, sans-serif" }}>
+            <div className="px-5 py-3 border-b flex items-center gap-2 shrink-0" style={{ fontFamily: "Lexend, sans-serif" }}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="md:hidden shrink-0 -ml-1 p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Back to conversations"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>
                   {getOtherPartyName(selectedConv)}
@@ -183,7 +192,7 @@ export function BusinessMessageInbox({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
               {msgsLoading && (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -227,11 +236,10 @@ export function BusinessMessageInbox({
                   </div>
                 );
               })}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
-            <div className="px-4 py-3 border-t flex items-center gap-2">
+            <div className="px-4 py-3 border-t flex items-center gap-2 shrink-0">
               <Input
                 placeholder="Type a message..."
                 value={input}

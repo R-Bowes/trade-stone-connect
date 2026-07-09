@@ -498,7 +498,7 @@ export default function HomeownerDashboard() {
 
       case "messages":
   return (
-    <div className="p-6">
+    <div className="h-full min-h-0 flex flex-col p-6">
       <HomeownerMessageInbox profileId={profileId} />
     </div>
   );

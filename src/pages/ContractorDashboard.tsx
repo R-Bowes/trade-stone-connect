@@ -421,8 +421,12 @@ const ContractorDashboard = () => {
   return (
     <HelpSystemProvider profileId={profileId} role="contractor">
     <ContractorLayout>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+      <div className={activeTab === "messages" ? "h-full min-h-0 flex flex-col" : "container mx-auto px-4 py-8 max-w-7xl"}>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className={activeTab === "messages" ? "h-full min-h-0 flex flex-col flex-1" : "space-y-8"}
+        >
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
@@ -528,8 +532,8 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="messages" className="space-y-6">
-  <div>
+          <TabsContent value="messages" className="h-full min-h-0 flex flex-col gap-6">
+  <div className="shrink-0">
     <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
       Messages
     </h2>
@@ -537,7 +541,11 @@ const ContractorDashboard = () => {
       All conversations with your clients in one place
     </p>
   </div>
-  {profileId && <BusinessMessageInbox profileId={profileId} senderRole="contractor" />}
+  {profileId && (
+    <div className="flex-1 min-h-0">
+      <BusinessMessageInbox profileId={profileId} senderRole="contractor" />
+    </div>
+  )}
 </TabsContent>
 
           {/* Enquiries Tab */}
