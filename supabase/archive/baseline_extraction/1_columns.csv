@@ -1,0 +1,377 @@
+table_name,ordinal_position,column_name,data_type,is_nullable,column_default,is_identity,identity_generation,is_generated,generation_expression
+admin_users,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+admin_users,2,user_id,uuid,NO,null,NO,null,NEVER,null
+admin_users,3,email,text,NO,null,NO,null,NEVER,null
+admin_users,4,full_name,text,YES,null,NO,null,NEVER,null
+admin_users,5,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+admin_users,6,role,text,NO,'admin'::text,NO,null,NEVER,null
+assets,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+assets,2,site_id,uuid,NO,null,NO,null,NEVER,null
+assets,3,company_id,uuid,NO,null,NO,null,NEVER,null
+assets,4,name,text,NO,null,NO,null,NEVER,null
+assets,5,category,asset_category,NO,null,NO,null,NEVER,null
+assets,6,description,text,YES,null,NO,null,NEVER,null
+assets,7,make,text,YES,null,NO,null,NEVER,null
+assets,8,model,text,YES,null,NO,null,NEVER,null
+assets,9,serial_number,text,YES,null,NO,null,NEVER,null
+assets,10,install_date,date,YES,null,NO,null,NEVER,null
+assets,11,is_active,boolean,YES,true,NO,null,NEVER,null
+assets,12,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+assets,13,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+assets,14,location_note,text,YES,null,NO,null,NEVER,null
+assets,15,warranty_expiry,date,YES,null,NO,null,NEVER,null
+assets,16,last_serviced,date,YES,null,NO,null,NEVER,null
+assets,17,next_service_due,date,YES,null,NO,null,NEVER,null
+assets,18,status,text,NO,'operational'::text,NO,null,NEVER,null
+assets,19,reference,text,YES,null,NO,null,NEVER,null
+broadcast_emails,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+broadcast_emails,2,subject,text,NO,null,NO,null,NEVER,null
+broadcast_emails,3,body,text,NO,null,NO,null,NEVER,null
+broadcast_emails,4,cta_label,text,YES,null,NO,null,NEVER,null
+broadcast_emails,5,cta_url,text,YES,null,NO,null,NEVER,null
+broadcast_emails,6,audience_type,text,NO,null,NO,null,NEVER,null
+broadcast_emails,7,audience_filters,jsonb,YES,null,NO,null,NEVER,null
+broadcast_emails,8,recipient_count,integer,YES,null,NO,null,NEVER,null
+broadcast_emails,9,scheduled_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+broadcast_emails,10,sent_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+broadcast_emails,11,created_by,uuid,YES,null,NO,null,NEVER,null
+broadcast_emails,12,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+companies,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+companies,2,name,text,NO,null,NO,null,NEVER,null
+companies,3,email,text,YES,null,NO,null,NEVER,null
+companies,4,phone,text,YES,null,NO,null,NEVER,null
+companies,5,address,text,YES,null,NO,null,NEVER,null
+companies,6,city,text,YES,null,NO,null,NEVER,null
+companies,7,postcode,text,YES,null,NO,null,NEVER,null
+companies,8,industry,text,YES,null,NO,null,NEVER,null
+companies,9,company_size,text,YES,null,NO,null,NEVER,null
+companies,10,owner_id,uuid,NO,null,NO,null,NEVER,null
+companies,11,logo_url,text,YES,null,NO,null,NEVER,null
+companies,12,website,text,YES,null,NO,null,NEVER,null
+companies,13,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+companies,14,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+companies,15,address_line1,text,YES,null,NO,null,NEVER,null
+companies,16,address_line2,text,YES,null,NO,null,NEVER,null
+companies,17,contact_email,text,YES,null,NO,null,NEVER,null
+companies,18,contact_phone,text,YES,null,NO,null,NEVER,null
+companies,19,sourcing_policy,text,NO,'approved'::text,NO,null,NEVER,null
+compliance_items,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+compliance_items,2,contractor_id,uuid,YES,null,NO,null,NEVER,null
+compliance_items,3,type,text,NO,null,NO,null,NEVER,null
+compliance_items,4,name,text,NO,null,NO,null,NEVER,null
+compliance_items,5,reference_number,text,YES,null,NO,null,NEVER,null
+compliance_items,6,issuing_body,text,YES,null,NO,null,NEVER,null
+compliance_items,7,issued_date,date,YES,null,NO,null,NEVER,null
+compliance_items,8,expiry_date,date,NO,null,NO,null,NEVER,null
+compliance_items,9,document_url,text,YES,null,NO,null,NEVER,null
+compliance_items,10,status,text,YES,'valid'::text,NO,null,NEVER,null
+compliance_items,11,alert_sent,boolean,YES,false,NO,null,NEVER,null
+compliance_items,12,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+compliance_items,13,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_availability_overrides,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+contractor_availability_overrides,2,contractor_id,uuid,NO,null,NO,null,NEVER,null
+contractor_availability_overrides,3,date,date,NO,null,NO,null,NEVER,null
+contractor_availability_overrides,4,am_available,boolean,NO,false,NO,null,NEVER,null
+contractor_availability_overrides,5,pm_available,boolean,NO,false,NO,null,NEVER,null
+contractor_availability_overrides,6,reason,text,YES,null,NO,null,NEVER,null
+contractor_availability_overrides,7,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_credentials,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+contractor_credentials,2,contractor_id,uuid,NO,null,NO,null,NEVER,null
+contractor_credentials,3,name,text,NO,null,NO,null,NEVER,null
+contractor_credentials,4,issuer,text,YES,null,NO,null,NEVER,null
+contractor_credentials,5,reference_number,text,YES,null,NO,null,NEVER,null
+contractor_credentials,6,verified,boolean,YES,false,NO,null,NEVER,null
+contractor_credentials,7,display_order,integer,YES,0,NO,null,NEVER,null
+contractor_credentials,8,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_credentials,9,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_panel,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+contractor_panel,2,company_id,uuid,YES,null,NO,null,NEVER,null
+contractor_panel,3,contractor_id,uuid,YES,null,NO,null,NEVER,null
+contractor_panel,4,status,text,YES,'pending'::text,NO,null,NEVER,null
+contractor_panel,5,tier,text,YES,'approved'::text,NO,null,NEVER,null
+contractor_panel,6,added_by,uuid,YES,null,NO,null,NEVER,null
+contractor_panel,7,approved_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+contractor_panel,8,notes,text,YES,null,NO,null,NEVER,null
+contractor_panel,9,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_panel,10,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+contractor_panel,11,prequal_id,uuid,YES,null,NO,null,NEVER,null
+contractor_panel,12,prequal_status,text,NO,'not_started'::text,NO,null,NEVER,null
+contractor_panel,13,can_receive_jobs,boolean,NO,true,NO,null,NEVER,null
+enquiry_measurements,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+enquiry_measurements,2,enquiry_id,uuid,NO,null,NO,null,NEVER,null
+enquiry_measurements,3,label,text,NO,null,NO,null,NEVER,null
+enquiry_measurements,4,value,text,NO,null,NO,null,NEVER,null
+enquiry_measurements,5,unit,text,YES,null,NO,null,NEVER,null
+enquiry_measurements,6,sort_order,integer,YES,0,NO,null,NEVER,null
+enquiry_measurements,7,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+favourites,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+favourites,2,user_id,uuid,YES,null,NO,null,NEVER,null
+favourites,3,contractor_id,uuid,YES,null,NO,null,NEVER,null
+favourites,4,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+gdpr_erasure_log,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+gdpr_erasure_log,2,user_id,uuid,NO,null,NO,null,NEVER,null
+gdpr_erasure_log,3,requested_at,timestamp with time zone,NO,null,NO,null,NEVER,null
+gdpr_erasure_log,4,completed_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+gdpr_erasure_log,5,performed_by,uuid,YES,null,NO,null,NEVER,null
+gdpr_erasure_log,6,notes,text,YES,null,NO,null,NEVER,null
+gdpr_erasure_log,7,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+job_assignments,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+job_assignments,2,job_id,uuid,NO,null,NO,null,NEVER,null
+job_assignments,3,team_member_id,uuid,YES,null,NO,null,NEVER,null
+job_assignments,4,is_contractor,boolean,NO,false,NO,null,NEVER,null
+job_assignments,5,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+job_conversations,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+job_conversations,2,job_id,uuid,YES,null,NO,null,NEVER,null
+job_conversations,3,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+job_conversations,4,enquiry_id,uuid,YES,null,NO,null,NEVER,null
+job_conversations,5,context,text,NO,'job'::text,NO,null,NEVER,null
+job_conversations,6,issued_quote_id,uuid,YES,null,NO,null,NEVER,null
+job_message_notifications,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+job_message_notifications,2,message_id,uuid,NO,null,NO,null,NEVER,null
+job_message_notifications,3,recipient_id,uuid,NO,null,NO,null,NEVER,null
+job_message_notifications,4,notified_via_email,boolean,NO,false,NO,null,NEVER,null
+job_message_notifications,5,notified_via_inapp,boolean,NO,false,NO,null,NEVER,null
+job_message_notifications,6,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+job_messages,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+job_messages,2,conversation_id,uuid,NO,null,NO,null,NEVER,null
+job_messages,3,sender_id,uuid,NO,null,NO,null,NEVER,null
+job_messages,4,sender_role,text,NO,null,NO,null,NEVER,null
+job_messages,5,content,text,NO,null,NO,null,NEVER,null
+job_messages,6,message_type,text,NO,'message'::text,NO,null,NEVER,null
+job_messages,7,read_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+job_messages,8,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+job_scheduling_proposals,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+job_scheduling_proposals,2,quote_id,uuid,YES,null,NO,null,NEVER,null
+job_scheduling_proposals,3,proposed_by,uuid,YES,null,NO,null,NEVER,null
+job_scheduling_proposals,4,proposed_dates,date[],NO,null,NO,null,NEVER,null
+job_scheduling_proposals,5,status,text,NO,'pending'::text,NO,null,NEVER,null
+job_scheduling_proposals,6,confirmed_date,date,YES,null,NO,null,NEVER,null
+job_scheduling_proposals,7,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+job_scheduling_proposals,8,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+payments,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+payments,2,job_id,uuid,YES,null,NO,null,NEVER,null
+payments,3,invoice_id,uuid,YES,null,NO,null,NEVER,null
+payments,4,payer_id,uuid,YES,null,NO,null,NEVER,null
+payments,5,payee_id,uuid,YES,null,NO,null,NEVER,null
+payments,6,amount,"numeric(10,2)",NO,null,NO,null,NEVER,null
+payments,7,platform_fee,"numeric(10,2)",YES,null,NO,null,NEVER,null
+payments,8,stripe_payment_intent_id,text,YES,null,NO,null,NEVER,null
+payments,9,stripe_transfer_id,text,YES,null,NO,null,NEVER,null
+payments,10,status,text,YES,'pending'::text,NO,null,NEVER,null
+payments,11,escrow_released_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+payments,12,released_by,uuid,YES,null,NO,null,NEVER,null
+payments,13,notes,text,YES,null,NO,null,NEVER,null
+payments,14,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+payments,15,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+payments,16,project_id,uuid,YES,null,NO,null,NEVER,null
+payments,17,type,text,YES,'balance'::text,NO,null,NEVER,null
+payments,18,contractor_payout,numeric,YES,null,NO,null,NEVER,null
+profile_widgets,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+profile_widgets,2,contractor_id,uuid,NO,null,NO,null,NEVER,null
+profile_widgets,3,widget_key,text,NO,null,NO,null,NEVER,null
+profile_widgets,4,is_enabled,boolean,NO,true,NO,null,NEVER,null
+profile_widgets,5,display_order,integer,NO,0,NO,null,NEVER,null
+profile_widgets,6,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+profile_widgets,7,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+profile_widgets,8,section_instance_id,uuid,YES,gen_random_uuid(),NO,null,NEVER,null
+profile_widgets,9,section_ref_id,uuid,YES,null,NO,null,NEVER,null
+profile_widgets,10,meta,jsonb,YES,'{}'::jsonb,NO,null,NEVER,null
+profile_widgets,11,is_published,boolean,NO,false,NO,null,NEVER,null
+profile_widgets,12,published_order,integer,YES,null,NO,null,NEVER,null
+profile_widgets,13,label,text,YES,null,NO,null,NEVER,null
+project_change_requests,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_change_requests,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_change_requests,3,submitted_by,uuid,NO,null,NO,null,NEVER,null
+project_change_requests,4,description,text,NO,null,NO,null,NEVER,null
+project_change_requests,5,cost_impact,numeric,YES,null,NO,null,NEVER,null
+project_change_requests,6,timeline_impact_days,integer,YES,null,NO,null,NEVER,null
+project_change_requests,7,status,text,NO,'pending'::text,NO,null,NEVER,null
+project_change_requests,8,informal_acknowledged,boolean,YES,false,NO,null,NEVER,null
+project_change_requests,9,client_response,text,YES,null,NO,null,NEVER,null
+project_change_requests,10,responded_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+project_change_requests,11,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_change_requests,12,updated_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_contracts,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_contracts,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_contracts,3,version,integer,NO,1,NO,null,NEVER,null
+project_contracts,4,document_url,text,YES,null,NO,null,NEVER,null
+project_contracts,5,triggered_by,text,NO,null,NO,null,NEVER,null
+project_contracts,6,change_request_id,uuid,YES,null,NO,null,NEVER,null
+project_contracts,7,signed_by_client,boolean,NO,false,NO,null,NEVER,null
+project_contracts,8,signed_by_contractor,boolean,NO,false,NO,null,NEVER,null
+project_contracts,9,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_events,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_events,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_events,3,actor_id,uuid,NO,null,NO,null,NEVER,null
+project_events,4,event_type,text,NO,null,NO,null,NEVER,null
+project_events,5,payload,jsonb,YES,'{}'::jsonb,NO,null,NEVER,null
+project_events,6,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_jobs,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_jobs,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_jobs,3,job_id,uuid,NO,null,NO,null,NEVER,null
+project_jobs,4,phase_title,text,YES,null,NO,null,NEVER,null
+project_jobs,5,phase_order,integer,YES,null,NO,null,NEVER,null
+project_jobs,6,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_members,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_members,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_members,3,profile_id,uuid,NO,null,NO,null,NEVER,null
+project_members,4,role,text,NO,'contractor'::text,NO,null,NEVER,null
+project_members,5,status,text,NO,'active'::text,NO,null,NEVER,null
+project_members,6,joined_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+project_notes,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_notes,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_notes,3,author_id,uuid,NO,null,NO,null,NEVER,null
+project_notes,4,visibility,text,NO,'shared'::text,NO,null,NEVER,null
+project_notes,5,body,text,NO,null,NO,null,NEVER,null
+project_notes,6,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_notes,7,updated_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_proposals,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_proposals,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_proposals,3,contractor_id,uuid,NO,null,NO,null,NEVER,null
+project_proposals,4,status,text,NO,'submitted'::text,NO,null,NEVER,null
+project_proposals,5,phases,jsonb,YES,null,NO,null,NEVER,null
+project_proposals,6,total_cost,numeric,YES,null,NO,null,NEVER,null
+project_proposals,7,timeline_start,date,YES,null,NO,null,NEVER,null
+project_proposals,8,timeline_end,date,YES,null,NO,null,NEVER,null
+project_proposals,9,materials_responsibility,text,YES,null,NO,null,NEVER,null
+project_proposals,10,payment_terms,text,YES,null,NO,null,NEVER,null
+project_proposals,11,rejection_reason,text,YES,null,NO,null,NEVER,null
+project_proposals,12,rejection_scores,jsonb,YES,null,NO,null,NEVER,null
+project_proposals,13,weighted_score,numeric,YES,null,NO,null,NEVER,null
+project_proposals,14,version,integer,NO,1,NO,null,NEVER,null
+project_proposals,15,submitted_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+project_proposals,16,updated_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_qanda,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_qanda,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_qanda,3,asked_by,uuid,NO,null,NO,null,NEVER,null
+project_qanda,4,question,text,NO,null,NO,null,NEVER,null
+project_qanda,5,answer,text,YES,null,NO,null,NEVER,null
+project_qanda,6,is_public,boolean,NO,false,NO,null,NEVER,null
+project_qanda,7,asked_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_qanda,8,answered_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+project_sign_offs,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_sign_offs,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_sign_offs,3,stage,text,NO,null,NO,null,NEVER,null
+project_sign_offs,4,signed_off_by,uuid,NO,null,NO,null,NEVER,null
+project_sign_offs,5,snag_notes,text,YES,null,NO,null,NEVER,null
+project_sign_offs,6,retention_released,boolean,NO,false,NO,null,NEVER,null
+project_sign_offs,7,signed_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_sign_offs,8,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_snags,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_snags,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_snags,3,raised_by,uuid,NO,null,NO,null,NEVER,null
+project_snags,4,description,text,NO,null,NO,null,NEVER,null
+project_snags,5,status,text,NO,'open'::text,NO,null,NEVER,null
+project_snags,6,resolved_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+project_snags,7,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_snags,8,updated_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+project_updates,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+project_updates,2,project_id,uuid,NO,null,NO,null,NEVER,null
+project_updates,3,posted_by,uuid,NO,null,NO,null,NEVER,null
+project_updates,4,update_type,text,NO,null,NO,null,NEVER,null
+project_updates,5,content,text,YES,null,NO,null,NEVER,null
+project_updates,6,media_url,text,YES,null,NO,null,NEVER,null
+project_updates,7,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+projects,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+projects,2,posted_by,uuid,NO,null,NO,null,NEVER,null
+projects,3,title,text,NO,null,NO,null,NEVER,null
+projects,4,description,text,YES,null,NO,null,NEVER,null
+projects,5,address_line_1,text,YES,null,NO,null,NEVER,null
+projects,6,address_line_2,text,YES,null,NO,null,NEVER,null
+projects,7,city,text,YES,null,NO,null,NEVER,null
+projects,8,postcode,text,YES,null,NO,null,NEVER,null
+projects,9,trade_categories,text[],YES,null,NO,null,NEVER,null
+projects,10,tender_status,text,NO,'draft'::text,NO,null,NEVER,null
+projects,11,created_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+projects,12,updated_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+projects,13,account_type,text,NO,'personal'::text,NO,null,NEVER,null
+projects,14,visibility,text,NO,'open'::text,NO,null,NEVER,null
+projects,15,lead_contractor_id,uuid,YES,null,NO,null,NEVER,null
+projects,16,budget,numeric,YES,null,NO,null,NEVER,null
+projects,17,budget_revised,numeric,YES,null,NO,null,NEVER,null
+projects,18,budget_visible_to_contractors,boolean,YES,true,NO,null,NEVER,null
+projects,19,deposit_required,boolean,YES,false,NO,null,NEVER,null
+projects,20,deposit_amount,numeric,YES,null,NO,null,NEVER,null
+projects,21,deposit_percentage,numeric,YES,null,NO,null,NEVER,null
+projects,22,retention_percentage,numeric,YES,null,NO,null,NEVER,null
+projects,23,scoring_criteria,jsonb,YES,null,NO,null,NEVER,null
+projects,24,proposal_deadline,timestamp with time zone,YES,null,NO,null,NEVER,null
+projects,25,qanda_public,boolean,YES,false,NO,null,NEVER,null
+proposal_attachments,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+proposal_attachments,2,proposal_id,uuid,NO,null,NO,null,NEVER,null
+proposal_attachments,3,file_name,text,NO,null,NO,null,NEVER,null
+proposal_attachments,4,file_url,text,NO,null,NO,null,NEVER,null
+proposal_attachments,5,uploaded_at,timestamp with time zone,NO,now(),NO,null,NEVER,null
+service_contracts,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+service_contracts,2,company_id,uuid,NO,null,NO,null,NEVER,null
+service_contracts,3,contractor_id,uuid,NO,null,NO,null,NEVER,null
+service_contracts,4,site_id,uuid,YES,null,NO,null,NEVER,null
+service_contracts,5,title,text,NO,null,NO,null,NEVER,null
+service_contracts,6,description,text,YES,null,NO,null,NEVER,null
+service_contracts,7,start_date,date,NO,null,NO,null,NEVER,null
+service_contracts,8,end_date,date,NO,null,NO,null,NEVER,null
+service_contracts,9,annual_value,"numeric(10,2)",YES,null,NO,null,NEVER,null
+service_contracts,10,status,service_contract_status,YES,'draft'::service_contract_status,NO,null,NEVER,null
+service_contracts,11,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_contracts,12,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_documents,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+service_documents,2,visit_id,uuid,NO,null,NO,null,NEVER,null
+service_documents,3,uploaded_by,uuid,NO,null,NO,null,NEVER,null
+service_documents,4,document_name,text,NO,null,NO,null,NEVER,null
+service_documents,5,document_url,text,NO,null,NO,null,NEVER,null
+service_documents,6,document_type,service_document_type,YES,'other'::service_document_type,NO,null,NEVER,null
+service_documents,7,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_schedules,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+service_schedules,2,contract_id,uuid,NO,null,NO,null,NEVER,null
+service_schedules,3,asset_id,uuid,NO,null,NO,null,NEVER,null
+service_schedules,4,frequency,service_frequency,NO,null,NO,null,NEVER,null
+service_schedules,5,last_completed_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+service_schedules,6,next_due_at,timestamp with time zone,NO,null,NO,null,NEVER,null
+service_schedules,7,notice_days,integer,YES,14,NO,null,NEVER,null
+service_schedules,8,is_active,boolean,YES,true,NO,null,NEVER,null
+service_schedules,9,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_schedules,10,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_visits,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+service_visits,2,schedule_id,uuid,NO,null,NO,null,NEVER,null
+service_visits,3,asset_id,uuid,NO,null,NO,null,NEVER,null
+service_visits,4,contractor_id,uuid,NO,null,NO,null,NEVER,null
+service_visits,5,company_id,uuid,NO,null,NO,null,NEVER,null
+service_visits,6,scheduled_window_start,timestamp with time zone,NO,null,NO,null,NEVER,null
+service_visits,7,scheduled_window_end,timestamp with time zone,NO,null,NO,null,NEVER,null
+service_visits,8,confirmed_date,timestamp with time zone,YES,null,NO,null,NEVER,null
+service_visits,9,completed_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+service_visits,10,status,service_visit_status,YES,'scheduled'::service_visit_status,NO,null,NEVER,null
+service_visits,11,notes,text,YES,null,NO,null,NEVER,null
+service_visits,12,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+service_visits,13,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+sla_breaches,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+sla_breaches,2,job_id,uuid,YES,null,NO,null,NEVER,null
+sla_breaches,3,sla_rule_id,uuid,YES,null,NO,null,NEVER,null
+sla_breaches,4,company_id,uuid,YES,null,NO,null,NEVER,null
+sla_breaches,5,contractor_id,uuid,YES,null,NO,null,NEVER,null
+sla_breaches,6,breach_type,text,YES,null,NO,null,NEVER,null
+sla_breaches,7,due_at,timestamp with time zone,NO,null,NO,null,NEVER,null
+sla_breaches,8,breached_at,timestamp with time zone,NO,null,NO,null,NEVER,null
+sla_breaches,9,minutes_overdue,integer,YES,null,NO,null,NEVER,null
+sla_breaches,10,acknowledged,boolean,YES,false,NO,null,NEVER,null
+sla_breaches,11,acknowledged_at,timestamp with time zone,YES,null,NO,null,NEVER,null
+sla_breaches,12,acknowledged_by,uuid,YES,null,NO,null,NEVER,null
+sla_breaches,13,notes,text,YES,null,NO,null,NEVER,null
+sla_breaches,14,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+sla_rules,1,id,uuid,NO,gen_random_uuid(),NO,null,NEVER,null
+sla_rules,2,company_id,uuid,YES,null,NO,null,NEVER,null
+sla_rules,3,name,text,NO,null,NO,null,NEVER,null
+sla_rules,4,priority,text,NO,null,NO,null,NEVER,null
+sla_rules,5,description,text,YES,null,NO,null,NEVER,null
+sla_rules,6,response_hours,integer,NO,null,NO,null,NEVER,null
+sla_rules,7,resolution_hours,integer,NO,null,NO,null,NEVER,null
+sla_rules,8,applies_to_trade,text,YES,null,NO,null,NEVER,null
+sla_rules,9,is_active,boolean,YES,true,NO,null,NEVER,null
+sla_rules,10,created_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+sla_rules,11,updated_at,timestamp with time zone,YES,now(),NO,null,NEVER,null
+sla_rules,12,attendance_hours,integer,YES,null,NO,null,NEVER,null
+sla_rules,13,clock_pausable,boolean,NO,true,NO,null,NEVER,null
+sla_rules,14,alert_pct,integer,NO,75,NO,null,NEVER,null
+sla_rules,15,business_hours_only,boolean,NO,false,NO,null,NEVER,null
+sla_rules,16,business_hours_start,time without time zone,YES,'08:00:00'::time without time zone,NO,null,NEVER,null
+sla_rules,17,business_hours_end,time without time zone,YES,'18:00:00'::time without time zone,NO,null,NEVER,null

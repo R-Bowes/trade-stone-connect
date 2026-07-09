@@ -1,0 +1,53 @@
+table_name,index_name,definition,indisunique,indisprimary
+admin_users,admin_users_pkey,CREATE UNIQUE INDEX admin_users_pkey ON public.admin_users USING btree (id),true,true
+admin_users,admin_users_user_id_key,CREATE UNIQUE INDEX admin_users_user_id_key ON public.admin_users USING btree (user_id),true,false
+assets,assets_pkey,CREATE UNIQUE INDEX assets_pkey ON public.assets USING btree (id),true,true
+assets,idx_assets_company_id,CREATE INDEX idx_assets_company_id ON public.assets USING btree (company_id),false,false
+assets,idx_assets_site_id,CREATE INDEX idx_assets_site_id ON public.assets USING btree (site_id),false,false
+broadcast_emails,broadcast_emails_pkey,CREATE UNIQUE INDEX broadcast_emails_pkey ON public.broadcast_emails USING btree (id),true,true
+companies,companies_pkey,CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id),true,true
+companies,idx_companies_owner_id,CREATE INDEX idx_companies_owner_id ON public.companies USING btree (owner_id),false,false
+compliance_items,compliance_items_pkey,CREATE UNIQUE INDEX compliance_items_pkey ON public.compliance_items USING btree (id),true,true
+contractor_availability_overrides,contractor_availability_overrides_contractor_id_date_key,"CREATE UNIQUE INDEX contractor_availability_overrides_contractor_id_date_key ON public.contractor_availability_overrides USING btree (contractor_id, date)",true,false
+contractor_availability_overrides,contractor_availability_overrides_pkey,CREATE UNIQUE INDEX contractor_availability_overrides_pkey ON public.contractor_availability_overrides USING btree (id),true,true
+contractor_credentials,contractor_credentials_pkey,CREATE UNIQUE INDEX contractor_credentials_pkey ON public.contractor_credentials USING btree (id),true,true
+contractor_panel,contractor_panel_company_id_contractor_id_key,"CREATE UNIQUE INDEX contractor_panel_company_id_contractor_id_key ON public.contractor_panel USING btree (company_id, contractor_id)",true,false
+contractor_panel,contractor_panel_pkey,CREATE UNIQUE INDEX contractor_panel_pkey ON public.contractor_panel USING btree (id),true,true
+contractor_panel,idx_contractor_panel_prequal,CREATE INDEX idx_contractor_panel_prequal ON public.contractor_panel USING btree (prequal_id),false,false
+enquiry_measurements,enquiry_measurements_pkey,CREATE UNIQUE INDEX enquiry_measurements_pkey ON public.enquiry_measurements USING btree (id),true,true
+favourites,favourites_pkey,CREATE UNIQUE INDEX favourites_pkey ON public.favourites USING btree (id),true,true
+favourites,favourites_user_id_contractor_id_key,"CREATE UNIQUE INDEX favourites_user_id_contractor_id_key ON public.favourites USING btree (user_id, contractor_id)",true,false
+gdpr_erasure_log,gdpr_erasure_log_pkey,CREATE UNIQUE INDEX gdpr_erasure_log_pkey ON public.gdpr_erasure_log USING btree (id),true,true
+job_assignments,job_assignments_pkey,CREATE UNIQUE INDEX job_assignments_pkey ON public.job_assignments USING btree (id),true,true
+job_conversations,idx_job_conversations_enquiry,CREATE INDEX idx_job_conversations_enquiry ON public.job_conversations USING btree (enquiry_id) WHERE (enquiry_id IS NOT NULL),false,false
+job_conversations,job_conversations_job_id_key,CREATE UNIQUE INDEX job_conversations_job_id_key ON public.job_conversations USING btree (job_id),true,false
+job_conversations,job_conversations_pkey,CREATE UNIQUE INDEX job_conversations_pkey ON public.job_conversations USING btree (id),true,true
+job_message_notifications,idx_job_messages_notifications_recipient,CREATE INDEX idx_job_messages_notifications_recipient ON public.job_message_notifications USING btree (recipient_id),false,false
+job_message_notifications,job_message_notifications_pkey,CREATE UNIQUE INDEX job_message_notifications_pkey ON public.job_message_notifications USING btree (id),true,true
+job_messages,idx_job_messages_conversation,"CREATE INDEX idx_job_messages_conversation ON public.job_messages USING btree (conversation_id, created_at)",false,false
+job_messages,job_messages_pkey,CREATE UNIQUE INDEX job_messages_pkey ON public.job_messages USING btree (id),true,true
+job_scheduling_proposals,job_scheduling_proposals_pkey,CREATE UNIQUE INDEX job_scheduling_proposals_pkey ON public.job_scheduling_proposals USING btree (id),true,true
+payments,payments_pkey,CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (id),true,true
+profile_widgets,profile_widgets_contractor_instance_unique,"CREATE UNIQUE INDEX profile_widgets_contractor_instance_unique ON public.profile_widgets USING btree (contractor_id, section_instance_id)",true,false
+profile_widgets,profile_widgets_pkey,CREATE UNIQUE INDEX profile_widgets_pkey ON public.profile_widgets USING btree (id),true,true
+project_change_requests,project_change_requests_pkey,CREATE UNIQUE INDEX project_change_requests_pkey ON public.project_change_requests USING btree (id),true,true
+project_contracts,project_contracts_pkey,CREATE UNIQUE INDEX project_contracts_pkey ON public.project_contracts USING btree (id),true,true
+project_events,project_events_pkey,CREATE UNIQUE INDEX project_events_pkey ON public.project_events USING btree (id),true,true
+project_jobs,project_jobs_pkey,CREATE UNIQUE INDEX project_jobs_pkey ON public.project_jobs USING btree (id),true,true
+project_members,project_members_pkey,CREATE UNIQUE INDEX project_members_pkey ON public.project_members USING btree (id),true,true
+project_members,project_members_project_id_profile_id_key,"CREATE UNIQUE INDEX project_members_project_id_profile_id_key ON public.project_members USING btree (project_id, profile_id)",true,false
+project_notes,project_notes_pkey,CREATE UNIQUE INDEX project_notes_pkey ON public.project_notes USING btree (id),true,true
+project_proposals,project_proposals_pkey,CREATE UNIQUE INDEX project_proposals_pkey ON public.project_proposals USING btree (id),true,true
+project_qanda,project_qanda_pkey,CREATE UNIQUE INDEX project_qanda_pkey ON public.project_qanda USING btree (id),true,true
+project_sign_offs,project_sign_offs_pkey,CREATE UNIQUE INDEX project_sign_offs_pkey ON public.project_sign_offs USING btree (id),true,true
+project_snags,project_snags_pkey,CREATE UNIQUE INDEX project_snags_pkey ON public.project_snags USING btree (id),true,true
+project_updates,project_updates_pkey,CREATE UNIQUE INDEX project_updates_pkey ON public.project_updates USING btree (id),true,true
+projects,projects_pkey,CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id),true,true
+proposal_attachments,proposal_attachments_pkey,CREATE UNIQUE INDEX proposal_attachments_pkey ON public.proposal_attachments USING btree (id),true,true
+service_contracts,service_contracts_pkey,CREATE UNIQUE INDEX service_contracts_pkey ON public.service_contracts USING btree (id),true,true
+service_documents,service_documents_pkey,CREATE UNIQUE INDEX service_documents_pkey ON public.service_documents USING btree (id),true,true
+service_schedules,service_schedules_pkey,CREATE UNIQUE INDEX service_schedules_pkey ON public.service_schedules USING btree (id),true,true
+service_visits,service_visits_pkey,CREATE UNIQUE INDEX service_visits_pkey ON public.service_visits USING btree (id),true,true
+sla_breaches,sla_breaches_pkey,CREATE UNIQUE INDEX sla_breaches_pkey ON public.sla_breaches USING btree (id),true,true
+sla_rules,idx_sla_rules_company_id,CREATE INDEX idx_sla_rules_company_id ON public.sla_rules USING btree (company_id),false,false
+sla_rules,sla_rules_pkey,CREATE UNIQUE INDEX sla_rules_pkey ON public.sla_rules USING btree (id),true,true

@@ -113,6 +113,35 @@ legitimate service visits should already be in `contractor_panel`.
   guaranteed equal to a user id, the two-step pattern becomes mandatory again
   for that policy.
 
+### Deliberately public / known-broad RLS policies (reviewed, not bugs)
+
+Found during the baseline-migration audit (see
+`20260709140000_baseline_dashboard_created_tables.sql` and
+`supabase/archive/baseline_extraction/`). These are broad on purpose — do not
+"fix" them without checking the public-facing feature they back first:
+
+- **`contractor_credentials`** — "Anyone can read credentials" is
+  `USING (true)`, no role restriction (includes anon). Intentional: these are
+  the displayed credential badges on public contractor profile pages.
+- **`profile_widgets`** — "Anyone can read profile widgets" is `USING (true)`,
+  no role restriction. Intentional: public profile canvas content.
+- **`contractor_availability_overrides`** — "Authenticated users read
+  overrides" is `USING (auth.role() = 'authenticated')`, so any logged-in user
+  can read every contractor's override rows, including the free-text `reason`
+  column. This is broader than a per-contractor scope and the `reason` field
+  is flagged for future scoping (e.g. restrict to the contractor themselves
+  plus parties with a live/confirmed booking) — not fixed here because the
+  booking-slot picker's current behaviour depends on the broad read. Revisit
+  under LATER.md before adding any free-text field here that could carry PII
+  beyond a scheduling note.
+
+Two policies that were NOT in this category — genuinely broken, fixed in
+`20260709170000_security_fix_notifications_and_gdpr_log.sql`:
+`job_message_notifications` ("System can insert notifications" was
+`WITH CHECK (true)` with no ownership tie — no trigger backs this table, so it
+was a real open write) and `gdpr_erasure_log` ("Only admins can view erasure
+log" checked `performed_by = auth.uid()`, not an actual admin role).
+
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
 - `useAvailability(contractorId)` — read-only, safe for public pages; takes `profiles.id`.

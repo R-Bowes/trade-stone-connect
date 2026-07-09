@@ -1,0 +1,9 @@
+table_name,trigger_name,action_timing,event_manipulation,action_statement
+assets,assets_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at()
+project_change_requests,update_project_change_requests_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at_column()
+project_proposals,update_project_proposals_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at_column()
+project_snags,update_project_snags_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at_column()
+projects,update_projects_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at_column()
+service_contracts,service_contracts_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at()
+service_schedules,service_schedules_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at()
+service_visits,service_visits_updated_at,BEFORE,UPDATE,EXECUTE FUNCTION update_updated_at()

@@ -1,0 +1,309 @@
+schemaname,table_name,policyname,permissive,roles,cmd,using_expr,with_check_expr
+public,admin_users,Admin users can read own record,PERMISSIVE,{public},SELECT,(user_id = auth.uid()),null
+public,assets,Assets accessible by company owner,PERMISSIVE,{public},ALL,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,assets,Assets readable by contractor via visit,PERMISSIVE,{public},SELECT,"(id IN ( SELECT service_visits.asset_id
+   FROM service_visits
+  WHERE (service_visits.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,assets,assets_delete,PERMISSIVE,{authenticated},DELETE,can_access_site(site_id),null
+public,assets,assets_insert,PERMISSIVE,{authenticated},INSERT,null,can_access_site(site_id)
+public,assets,assets_select,PERMISSIVE,{authenticated},SELECT,can_access_site(site_id),null
+public,assets,assets_update,PERMISSIVE,{authenticated},UPDATE,can_access_site(site_id),can_access_site(site_id)
+public,companies,Companies deletable by owner,PERMISSIVE,{public},DELETE,"(owner_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,companies,Companies editable by owner,PERMISSIVE,{public},UPDATE,"(owner_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,companies,Companies insertable by owner,PERMISSIVE,{public},INSERT,null,"(owner_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,companies,Companies readable,PERMISSIVE,{authenticated},SELECT,is_company_member(id),null
+public,companies,Companies readable by panel contractors,PERMISSIVE,{authenticated},SELECT,"(id IN ( SELECT cp.company_id
+   FROM (contractor_panel cp
+     JOIN profiles p ON ((p.id = cp.contractor_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,compliance_items,Compliance items visible to panel companies,PERMISSIVE,{public},SELECT,"(contractor_id IN ( SELECT cp.contractor_id
+   FROM (contractor_panel cp
+     JOIN profiles p ON ((p.id = cp.contractor_id)))
+  WHERE ((p.user_id = auth.uid()) AND (cp.status = 'approved'::text))))",null
+public,compliance_items,compliance_delete,PERMISSIVE,{public},DELETE,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,compliance_items,compliance_insert,PERMISSIVE,{public},INSERT,null,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,compliance_items,compliance_select,PERMISSIVE,{public},SELECT,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,contractor_availability_overrides,Authenticated users read overrides,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,contractor_availability_overrides,Contractors manage own overrides,PERMISSIVE,{public},ALL,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))","(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,contractor_availability_overrides,Recipients can block dates for confirmed proposals,PERMISSIVE,{public},INSERT,null,"(EXISTS ( SELECT 1
+   FROM (schedule_events se
+     JOIN issued_quotes q ON ((q.id = se.quote_id)))
+  WHERE ((se.contractor_id = contractor_availability_overrides.contractor_id) AND ((se.start_time)::date = contractor_availability_overrides.date) AND (se.event_type = 'quote_proposal'::text) AND (se.is_confirmed = true) AND (q.recipient_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))))"
+public,contractor_availability_overrides,Recipients can update blocks for confirmed proposals,PERMISSIVE,{public},UPDATE,"(EXISTS ( SELECT 1
+   FROM (schedule_events se
+     JOIN issued_quotes q ON ((q.id = se.quote_id)))
+  WHERE ((se.contractor_id = contractor_availability_overrides.contractor_id) AND ((se.start_time)::date = contractor_availability_overrides.date) AND (se.event_type = 'quote_proposal'::text) AND (se.is_confirmed = true) AND (q.recipient_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))))",null
+public,contractor_credentials,Anyone can read credentials,PERMISSIVE,{public},SELECT,true,null
+public,contractor_credentials,Contractors manage own credentials,PERMISSIVE,{public},ALL,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))","(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,contractor_panel,Panel deletable by company owner,PERMISSIVE,{public},DELETE,"(added_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,contractor_panel,Panel insertable by company owner,PERMISSIVE,{public},INSERT,null,"(added_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,contractor_panel,Panel updatable by contractor,PERMISSIVE,{public},UPDATE,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))","(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,contractor_panel,Panel visible to company owner,PERMISSIVE,{public},SELECT,"((added_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))) OR (contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))))",null
+public,contractor_panel,Panel visible to contractor,PERMISSIVE,{public},SELECT,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,enquiry_measurements,enquiry_measurements_delete,PERMISSIVE,{public},DELETE,"(enquiry_id IN ( SELECT enquiries.id
+   FROM enquiries
+  WHERE (enquiries.customer_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,enquiry_measurements,enquiry_measurements_insert,PERMISSIVE,{public},INSERT,null,"(enquiry_id IN ( SELECT enquiries.id
+   FROM enquiries
+  WHERE (enquiries.customer_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))"
+public,enquiry_measurements,enquiry_measurements_select,PERMISSIVE,{public},SELECT,"(enquiry_id IN ( SELECT enquiries.id
+   FROM enquiries
+  WHERE ((enquiries.customer_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))) OR (enquiries.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))))",null
+public,enquiry_measurements,enquiry_measurements_update,PERMISSIVE,{public},UPDATE,"(enquiry_id IN ( SELECT enquiries.id
+   FROM enquiries
+  WHERE (enquiries.customer_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,favourites,Users can manage own favourites,PERMISSIVE,{public},ALL,(auth.uid() = user_id),null
+public,gdpr_erasure_log,Only admins can view erasure log,PERMISSIVE,{public},SELECT,(auth.uid() = performed_by),null
+public,job_assignments,Contractors manage their own job assignments,PERMISSIVE,{public},ALL,"(job_id IN ( SELECT jobs.id
+   FROM jobs
+  WHERE (jobs.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,job_conversations,Participants can insert conversations,PERMISSIVE,{public},INSERT,null,"(((job_id IS NOT NULL) AND (job_id IN ( SELECT j.id
+   FROM (jobs j
+     JOIN profiles p ON (((p.id = j.contractor_id) OR (p.id = j.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((enquiry_id IS NOT NULL) AND (enquiry_id IN ( SELECT e.id
+   FROM (enquiries e
+     JOIN profiles p ON (((p.id = e.contractor_id) OR (p.id = e.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((issued_quote_id IS NOT NULL) AND (issued_quote_id IN ( SELECT q.id
+   FROM (issued_quotes q
+     JOIN profiles p ON (((p.id = q.contractor_id) OR (p.id = q.recipient_id))))
+  WHERE (p.user_id = auth.uid())))))"
+public,job_conversations,Participants can update their conversations,PERMISSIVE,{public},UPDATE,"(((job_id IS NOT NULL) AND (job_id IN ( SELECT j.id
+   FROM (jobs j
+     JOIN profiles p ON (((p.id = j.contractor_id) OR (p.id = j.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((enquiry_id IS NOT NULL) AND (enquiry_id IN ( SELECT e.id
+   FROM (enquiries e
+     JOIN profiles p ON (((p.id = e.contractor_id) OR (p.id = e.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((issued_quote_id IS NOT NULL) AND (issued_quote_id IN ( SELECT q.id
+   FROM (issued_quotes q
+     JOIN profiles p ON (((p.id = q.contractor_id) OR (p.id = q.recipient_id))))
+  WHERE (p.user_id = auth.uid())))))",null
+public,job_conversations,Participants can view their conversations,PERMISSIVE,{public},SELECT,"(((job_id IS NOT NULL) AND (job_id IN ( SELECT j.id
+   FROM (jobs j
+     JOIN profiles p ON (((p.id = j.contractor_id) OR (p.id = j.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((enquiry_id IS NOT NULL) AND (enquiry_id IN ( SELECT e.id
+   FROM (enquiries e
+     JOIN profiles p ON (((p.id = e.contractor_id) OR (p.id = e.customer_id))))
+  WHERE (p.user_id = auth.uid())))) OR ((issued_quote_id IS NOT NULL) AND (issued_quote_id IN ( SELECT q.id
+   FROM (issued_quotes q
+     JOIN profiles p ON (((p.id = q.contractor_id) OR (p.id = q.recipient_id))))
+  WHERE (p.user_id = auth.uid())))))",null
+public,job_conversations,admin_select_job_conversations,PERMISSIVE,{public},SELECT,is_platform_admin(),null
+public,job_message_notifications,Recipients can view their notifications,PERMISSIVE,{public},SELECT,"(recipient_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,job_message_notifications,System can insert notifications,PERMISSIVE,{public},INSERT,null,true
+public,job_messages,Participants can mark messages as read,PERMISSIVE,{public},UPDATE,is_conversation_party(conversation_id),null
+public,job_messages,Participants can send messages,PERMISSIVE,{public},INSERT,null,"((sender_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))) AND is_conversation_party(conversation_id))"
+public,job_messages,Participants can view messages in their conversations,PERMISSIVE,{public},SELECT,is_conversation_party(conversation_id),null
+public,job_messages,admin_select_job_messages,PERMISSIVE,{public},SELECT,is_platform_admin(),null
+public,job_scheduling_proposals,Contractor can manage proposals on their quotes,PERMISSIVE,{public},ALL,"(quote_id IN ( SELECT issued_quotes.id
+   FROM issued_quotes
+  WHERE (issued_quotes.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,job_scheduling_proposals,Customer can manage proposals on their quotes,PERMISSIVE,{public},ALL,"(quote_id IN ( SELECT issued_quotes.id
+   FROM issued_quotes
+  WHERE (issued_quotes.recipient_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,payments,Payments insertable by payer,PERMISSIVE,{public},INSERT,null,(auth.uid() = payer_id)
+public,payments,Payments visible to payee,PERMISSIVE,{public},SELECT,(auth.uid() = payee_id),null
+public,payments,Payments visible to payer,PERMISSIVE,{public},SELECT,(auth.uid() = payer_id),null
+public,profile_widgets,Anyone can read profile widgets,PERMISSIVE,{public},SELECT,true,null
+public,profile_widgets,Contractors manage own widgets,PERMISSIVE,{public},ALL,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))","(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,project_events,project_events_insert,PERMISSIVE,{public},INSERT,null,"(actor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,project_events,project_events_select,PERMISSIVE,{public},SELECT,"((project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))) OR (project_id IN ( SELECT project_members.project_id
+   FROM project_members
+  WHERE (project_members.profile_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))))",null
+public,project_members,project_members_insert,PERMISSIVE,{public},INSERT,null,"(project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))"
+public,project_members,project_members_select,PERMISSIVE,{public},SELECT,"((project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))) OR (profile_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))))",null
+public,project_members,project_members_update,PERMISSIVE,{public},UPDATE,"(project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,project_notes,project_notes_delete,PERMISSIVE,{public},DELETE,"(author_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,project_notes,project_notes_insert,PERMISSIVE,{public},INSERT,null,"((author_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))) AND ((project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))) OR (project_id IN ( SELECT project_members.project_id
+   FROM project_members
+  WHERE (project_members.profile_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))))"
+public,project_notes,project_notes_select,PERMISSIVE,{public},SELECT,"(((project_id IN ( SELECT projects.id
+   FROM projects
+  WHERE (projects.posted_by IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))) AND (visibility = ANY (ARRAY['shared'::text, 'customer_only'::text]))) OR ((project_id IN ( SELECT project_members.project_id
+   FROM project_members
+  WHERE (project_members.profile_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid()))))) AND (visibility = ANY (ARRAY['shared'::text, 'contractor_only'::text]))) OR (author_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid()))))",null
+public,project_notes,project_notes_update,PERMISSIVE,{public},UPDATE,"(author_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,projects,projects_contractor_select,PERMISSIVE,{public},SELECT,"(id IN ( SELECT enquiries.project_id
+   FROM enquiries
+  WHERE (enquiries.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,projects,projects_customer_all,PERMISSIVE,{public},ALL,"(posted_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))","(posted_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))"
+public,service_contracts,Service contracts accessible by company owner,PERMISSIVE,{public},ALL,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,service_contracts,Service contracts readable by contractor,PERMISSIVE,{public},SELECT,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,service_contracts,Service contracts readable by contractor via visit,PERMISSIVE,{public},SELECT,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,service_documents,Service documents accessible by contractor,PERMISSIVE,{public},ALL,"(uploaded_by IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,service_documents,Service documents readable by company owner,PERMISSIVE,{public},SELECT,"(visit_id IN ( SELECT sv.id
+   FROM ((service_visits sv
+     JOIN companies c ON ((c.id = sv.company_id)))
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,service_schedules,Service schedules accessible by company owner,PERMISSIVE,{public},ALL,"(contract_id IN ( SELECT sc.id
+   FROM ((service_contracts sc
+     JOIN companies c ON ((c.id = sc.company_id)))
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,service_schedules,Service schedules readable by contractor,PERMISSIVE,{public},SELECT,"(contract_id IN ( SELECT service_contracts.id
+   FROM service_contracts
+  WHERE (service_contracts.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,service_schedules,Service schedules readable by contractor via visit,PERMISSIVE,{public},SELECT,"(id IN ( SELECT service_visits.schedule_id
+   FROM service_visits
+  WHERE (service_visits.contractor_id IN ( SELECT profiles.id
+           FROM profiles
+          WHERE (profiles.user_id = auth.uid())))))",null
+public,service_visits,Service visits accessible by company owner,PERMISSIVE,{public},ALL,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,service_visits,Service visits accessible by contractor,PERMISSIVE,{public},ALL,"(contractor_id IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.user_id = auth.uid())))",null
+public,sla_breaches,Breaches visible to company owner,PERMISSIVE,{public},SELECT,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,sla_breaches,Breaches visible to contractor,PERMISSIVE,{public},SELECT,(auth.uid() = contractor_id),null
+public,sla_rules,SLA rules deletable by company owner,PERMISSIVE,{public},DELETE,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,sla_rules,SLA rules insertable by company owner,PERMISSIVE,{public},INSERT,null,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))"
+public,sla_rules,SLA rules updatable by company owner,PERMISSIVE,{authenticated},UPDATE,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))","(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))"
+public,sla_rules,SLA rules visible to company owner,PERMISSIVE,{public},SELECT,"(company_id IN ( SELECT c.id
+   FROM (companies c
+     JOIN profiles p ON ((p.id = c.owner_id)))
+  WHERE (p.user_id = auth.uid())))",null
+public,sla_rules,SLA rules visible to panel contractors,PERMISSIVE,{public},SELECT,"(company_id IN ( SELECT cp.company_id
+   FROM (contractor_panel cp
+     JOIN profiles p ON ((p.id = cp.contractor_id)))
+  WHERE ((p.user_id = auth.uid()) AND (cp.status = 'approved'::text))))",null

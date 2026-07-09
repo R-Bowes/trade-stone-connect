@@ -1,0 +1,145 @@
+table_name,conname,constraint_type,definition
+admin_users,admin_users_user_id_fkey,FOREIGN KEY,FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+admin_users,admin_users_pkey,PRIMARY KEY,PRIMARY KEY (id)
+admin_users,admin_users_user_id_key,UNIQUE,UNIQUE (user_id)
+assets,assets_status_check,CHECK,"CHECK ((status = ANY (ARRAY['operational'::text, 'faulty'::text, 'decommissioned'::text])))"
+assets,assets_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+assets,assets_site_id_fkey,FOREIGN KEY,FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+assets,assets_pkey,PRIMARY KEY,PRIMARY KEY (id)
+broadcast_emails,broadcast_emails_created_by_fkey,FOREIGN KEY,FOREIGN KEY (created_by) REFERENCES auth.users(id)
+broadcast_emails,broadcast_emails_pkey,PRIMARY KEY,PRIMARY KEY (id)
+companies,companies_company_size_check,CHECK,"CHECK ((company_size = ANY (ARRAY['1-10'::text, '11-50'::text, '51-200'::text, '201-500'::text, '500+'::text])))"
+companies,companies_sourcing_policy_check,CHECK,"CHECK ((sourcing_policy = ANY (ARRAY['approved'::text, 'one_off'::text, 'unrestricted'::text])))"
+companies,companies_owner_id_fkey,FOREIGN KEY,FOREIGN KEY (owner_id) REFERENCES auth.users(id)
+companies,companies_pkey,PRIMARY KEY,PRIMARY KEY (id)
+compliance_items,compliance_items_status_check,CHECK,"CHECK ((status = ANY (ARRAY['valid'::text, 'expiring_soon'::text, 'expired'::text])))"
+compliance_items,compliance_items_type_check,CHECK,"CHECK ((type = ANY (ARRAY['public_liability'::text, 'employers_liability'::text, 'professional_indemnity'::text, 'gas_safe'::text, 'niceic'::text, 'napit'::text, 'chas'::text, 'constructionline'::text, 'dbs_check'::text, 'rams'::text, 'other'::text])))"
+compliance_items,compliance_items_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES auth.users(id) ON DELETE CASCADE
+compliance_items,compliance_items_pkey,PRIMARY KEY,PRIMARY KEY (id)
+contractor_availability_overrides,contractor_availability_overrides_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+contractor_availability_overrides,contractor_availability_overrides_pkey,PRIMARY KEY,PRIMARY KEY (id)
+contractor_availability_overrides,contractor_availability_overrides_contractor_id_date_key,UNIQUE,"UNIQUE (contractor_id, date)"
+contractor_credentials,contractor_credentials_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id) ON DELETE CASCADE
+contractor_credentials,contractor_credentials_pkey,PRIMARY KEY,PRIMARY KEY (id)
+contractor_panel,contractor_panel_prequal_status_check,CHECK,"CHECK ((prequal_status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'approved'::text, 'lapsed'::text])))"
+contractor_panel,contractor_panel_status_check,CHECK,"CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'suspended'::text, 'removed'::text])))"
+contractor_panel,contractor_panel_tier_check,CHECK,"CHECK ((tier = ANY (ARRAY['preferred'::text, 'approved'::text, 'probationary'::text])))"
+contractor_panel,contractor_panel_added_by_fkey,FOREIGN KEY,FOREIGN KEY (added_by) REFERENCES auth.users(id)
+contractor_panel,contractor_panel_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+contractor_panel,contractor_panel_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES auth.users(id) ON DELETE CASCADE
+contractor_panel,contractor_panel_prequal_id_fkey,FOREIGN KEY,FOREIGN KEY (prequal_id) REFERENCES panel_prequalification(id) ON DELETE SET NULL
+contractor_panel,contractor_panel_pkey,PRIMARY KEY,PRIMARY KEY (id)
+contractor_panel,contractor_panel_company_id_contractor_id_key,UNIQUE,"UNIQUE (company_id, contractor_id)"
+enquiry_measurements,enquiry_measurements_enquiry_id_fkey,FOREIGN KEY,FOREIGN KEY (enquiry_id) REFERENCES enquiries(id) ON DELETE CASCADE
+enquiry_measurements,enquiry_measurements_pkey,PRIMARY KEY,PRIMARY KEY (id)
+favourites,favourites_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id) DEFERRABLE INITIALLY DEFERRED
+favourites,favourites_user_id_fkey,FOREIGN KEY,FOREIGN KEY (user_id) REFERENCES profiles(id) DEFERRABLE INITIALLY DEFERRED
+favourites,favourites_pkey,PRIMARY KEY,PRIMARY KEY (id)
+favourites,favourites_user_id_contractor_id_key,UNIQUE,"UNIQUE (user_id, contractor_id)"
+gdpr_erasure_log,gdpr_erasure_log_performed_by_fkey,FOREIGN KEY,FOREIGN KEY (performed_by) REFERENCES auth.users(id)
+gdpr_erasure_log,gdpr_erasure_log_pkey,PRIMARY KEY,PRIMARY KEY (id)
+job_assignments,job_assignments_job_id_fkey,FOREIGN KEY,FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+job_assignments,job_assignments_team_member_id_fkey,FOREIGN KEY,FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE
+job_assignments,job_assignments_pkey,PRIMARY KEY,PRIMARY KEY (id)
+job_conversations,job_conversations_context_check,CHECK,"CHECK ((context = ANY (ARRAY['enquiry'::text, 'job'::text, 'quote'::text])))"
+job_conversations,job_conversations_single_context,CHECK,CHECK ((((((job_id IS NOT NULL))::integer + ((enquiry_id IS NOT NULL))::integer) + ((issued_quote_id IS NOT NULL))::integer) = 1))
+job_conversations,job_conversations_enquiry_id_fkey,FOREIGN KEY,FOREIGN KEY (enquiry_id) REFERENCES enquiries(id) ON DELETE SET NULL
+job_conversations,job_conversations_issued_quote_id_fkey,FOREIGN KEY,FOREIGN KEY (issued_quote_id) REFERENCES issued_quotes(id)
+job_conversations,job_conversations_job_id_fkey,FOREIGN KEY,FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+job_conversations,job_conversations_pkey,PRIMARY KEY,PRIMARY KEY (id)
+job_conversations,job_conversations_job_id_key,UNIQUE,UNIQUE (job_id)
+job_message_notifications,job_message_notifications_message_id_fkey,FOREIGN KEY,FOREIGN KEY (message_id) REFERENCES job_messages(id) ON DELETE CASCADE
+job_message_notifications,job_message_notifications_recipient_id_fkey,FOREIGN KEY,FOREIGN KEY (recipient_id) REFERENCES profiles(id) ON DELETE CASCADE
+job_message_notifications,job_message_notifications_pkey,PRIMARY KEY,PRIMARY KEY (id)
+job_messages,job_messages_message_type_check,CHECK,"CHECK ((message_type = ANY (ARRAY['message'::text, 'milestone'::text])))"
+job_messages,job_messages_sender_role_check,CHECK,"CHECK ((sender_role = ANY (ARRAY['business'::text, 'contractor'::text, 'personal'::text])))"
+job_messages,job_messages_conversation_id_fkey,FOREIGN KEY,FOREIGN KEY (conversation_id) REFERENCES job_conversations(id) ON DELETE CASCADE
+job_messages,job_messages_sender_id_fkey,FOREIGN KEY,FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE
+job_messages,job_messages_pkey,PRIMARY KEY,PRIMARY KEY (id)
+job_scheduling_proposals,job_scheduling_proposals_proposed_by_fkey,FOREIGN KEY,FOREIGN KEY (proposed_by) REFERENCES profiles(id)
+job_scheduling_proposals,job_scheduling_proposals_quote_id_fkey,FOREIGN KEY,FOREIGN KEY (quote_id) REFERENCES issued_quotes(id) ON DELETE CASCADE
+job_scheduling_proposals,job_scheduling_proposals_pkey,PRIMARY KEY,PRIMARY KEY (id)
+payments,payments_status_check,CHECK,"CHECK ((status = ANY (ARRAY['pending'::text, 'held_in_escrow'::text, 'released'::text, 'refunded'::text, 'failed'::text, 'disputed'::text])))"
+payments,payments_invoice_id_fkey,FOREIGN KEY,FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+payments,payments_job_id_fkey,FOREIGN KEY,FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+payments,payments_payee_id_fkey,FOREIGN KEY,FOREIGN KEY (payee_id) REFERENCES auth.users(id)
+payments,payments_payer_id_fkey,FOREIGN KEY,FOREIGN KEY (payer_id) REFERENCES auth.users(id)
+payments,payments_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id)
+payments,payments_released_by_fkey,FOREIGN KEY,FOREIGN KEY (released_by) REFERENCES auth.users(id)
+payments,payments_pkey,PRIMARY KEY,PRIMARY KEY (id)
+profile_widgets,profile_widgets_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id) ON DELETE CASCADE
+profile_widgets,profile_widgets_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_change_requests,project_change_requests_status_check,CHECK,"CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))"
+project_change_requests,project_change_requests_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_change_requests,project_change_requests_submitted_by_fkey,FOREIGN KEY,FOREIGN KEY (submitted_by) REFERENCES profiles(id)
+project_change_requests,project_change_requests_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_contracts,project_contracts_triggered_by_check,CHECK,"CHECK ((triggered_by = ANY (ARRAY['accepted_proposal'::text, 'change_request'::text])))"
+project_contracts,project_contracts_change_request_id_fkey,FOREIGN KEY,FOREIGN KEY (change_request_id) REFERENCES project_change_requests(id)
+project_contracts,project_contracts_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_contracts,project_contracts_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_events,project_events_actor_id_fkey,FOREIGN KEY,FOREIGN KEY (actor_id) REFERENCES profiles(id)
+project_events,project_events_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_events,project_events_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_jobs,project_jobs_job_id_fkey,FOREIGN KEY,FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+project_jobs,project_jobs_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_jobs,project_jobs_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_members,project_members_profile_id_fkey,FOREIGN KEY,FOREIGN KEY (profile_id) REFERENCES profiles(id)
+project_members,project_members_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_members,project_members_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_members,project_members_project_id_profile_id_key,UNIQUE,"UNIQUE (project_id, profile_id)"
+project_notes,project_notes_author_id_fkey,FOREIGN KEY,FOREIGN KEY (author_id) REFERENCES profiles(id)
+project_notes,project_notes_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_notes,project_notes_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_proposals,project_proposals_materials_responsibility_check,CHECK,"CHECK ((materials_responsibility = ANY (ARRAY['contractor'::text, 'client'::text, 'mixed'::text])))"
+project_proposals,project_proposals_status_check,CHECK,"CHECK ((status = ANY (ARRAY['submitted'::text, 'withdrawn'::text, 'rejected'::text, 'accepted'::text])))"
+project_proposals,project_proposals_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id)
+project_proposals,project_proposals_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_proposals,project_proposals_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_qanda,project_qanda_asked_by_fkey,FOREIGN KEY,FOREIGN KEY (asked_by) REFERENCES profiles(id)
+project_qanda,project_qanda_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_qanda,project_qanda_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_sign_offs,project_sign_offs_stage_check,CHECK,"CHECK ((stage = ANY (ARRAY['practical_completion'::text, 'final'::text])))"
+project_sign_offs,project_sign_offs_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_sign_offs,project_sign_offs_signed_off_by_fkey,FOREIGN KEY,FOREIGN KEY (signed_off_by) REFERENCES profiles(id)
+project_sign_offs,project_sign_offs_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_snags,project_snags_status_check,CHECK,"CHECK ((status = ANY (ARRAY['open'::text, 'in_progress'::text, 'resolved'::text])))"
+project_snags,project_snags_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_snags,project_snags_raised_by_fkey,FOREIGN KEY,FOREIGN KEY (raised_by) REFERENCES profiles(id)
+project_snags,project_snags_pkey,PRIMARY KEY,PRIMARY KEY (id)
+project_updates,project_updates_update_type_check,CHECK,"CHECK ((update_type = ANY (ARRAY['progress'::text, 'site_note'::text, 'photo'::text, 'document'::text])))"
+project_updates,project_updates_posted_by_fkey,FOREIGN KEY,FOREIGN KEY (posted_by) REFERENCES profiles(id)
+project_updates,project_updates_project_id_fkey,FOREIGN KEY,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+project_updates,project_updates_pkey,PRIMARY KEY,PRIMARY KEY (id)
+projects,projects_account_type_check,CHECK,"CHECK ((account_type = ANY (ARRAY['personal'::text, 'contractor'::text, 'business'::text])))"
+projects,projects_tender_status_check,CHECK,"CHECK ((tender_status = ANY (ARRAY['draft'::text, 'open'::text, 'closed'::text, 'awarded'::text, 'in_delivery'::text, 'completed'::text])))"
+projects,projects_visibility_check,CHECK,"CHECK ((visibility = ANY (ARRAY['open'::text, 'restricted'::text])))"
+projects,projects_customer_id_fkey,FOREIGN KEY,FOREIGN KEY (posted_by) REFERENCES profiles(id)
+projects,projects_lead_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (lead_contractor_id) REFERENCES profiles(id)
+projects,projects_pkey,PRIMARY KEY,PRIMARY KEY (id)
+proposal_attachments,proposal_attachments_proposal_id_fkey,FOREIGN KEY,FOREIGN KEY (proposal_id) REFERENCES project_proposals(id) ON DELETE CASCADE
+proposal_attachments,proposal_attachments_pkey,PRIMARY KEY,PRIMARY KEY (id)
+service_contracts,service_contracts_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+service_contracts,service_contracts_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id)
+service_contracts,service_contracts_site_id_fkey,FOREIGN KEY,FOREIGN KEY (site_id) REFERENCES sites(id)
+service_contracts,service_contracts_pkey,PRIMARY KEY,PRIMARY KEY (id)
+service_documents,service_documents_uploaded_by_fkey,FOREIGN KEY,FOREIGN KEY (uploaded_by) REFERENCES profiles(id)
+service_documents,service_documents_visit_id_fkey,FOREIGN KEY,FOREIGN KEY (visit_id) REFERENCES service_visits(id) ON DELETE CASCADE
+service_documents,service_documents_pkey,PRIMARY KEY,PRIMARY KEY (id)
+service_schedules,service_schedules_asset_id_fkey,FOREIGN KEY,FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+service_schedules,service_schedules_contract_id_fkey,FOREIGN KEY,FOREIGN KEY (contract_id) REFERENCES service_contracts(id) ON DELETE CASCADE
+service_schedules,service_schedules_pkey,PRIMARY KEY,PRIMARY KEY (id)
+service_visits,service_visits_asset_id_fkey,FOREIGN KEY,FOREIGN KEY (asset_id) REFERENCES assets(id)
+service_visits,service_visits_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id)
+service_visits,service_visits_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES profiles(id)
+service_visits,service_visits_schedule_id_fkey,FOREIGN KEY,FOREIGN KEY (schedule_id) REFERENCES service_schedules(id) ON DELETE CASCADE
+service_visits,service_visits_pkey,PRIMARY KEY,PRIMARY KEY (id)
+sla_breaches,sla_breaches_breach_type_check,CHECK,"CHECK ((breach_type = ANY (ARRAY['response'::text, 'resolution'::text])))"
+sla_breaches,sla_breaches_acknowledged_by_fkey,FOREIGN KEY,FOREIGN KEY (acknowledged_by) REFERENCES auth.users(id)
+sla_breaches,sla_breaches_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id)
+sla_breaches,sla_breaches_contractor_id_fkey,FOREIGN KEY,FOREIGN KEY (contractor_id) REFERENCES auth.users(id)
+sla_breaches,sla_breaches_job_id_fkey,FOREIGN KEY,FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+sla_breaches,sla_breaches_sla_rule_id_fkey,FOREIGN KEY,FOREIGN KEY (sla_rule_id) REFERENCES sla_rules(id)
+sla_breaches,sla_breaches_pkey,PRIMARY KEY,PRIMARY KEY (id)
+sla_rules,sla_rules_priority_check,CHECK,"CHECK ((priority = ANY (ARRAY['P1'::text, 'P2'::text, 'P3'::text, 'P4'::text])))"
+sla_rules,sla_rules_company_id_fkey,FOREIGN KEY,FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+sla_rules,sla_rules_pkey,PRIMARY KEY,PRIMARY KEY (id)
