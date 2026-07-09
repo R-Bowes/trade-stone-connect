@@ -57,13 +57,18 @@ type Invoice = {
 
 type Conversation = {
   id: string;
-  initiator_id: string;
-  recipient_id: string;
-  subject: string;
+  context: string;
   created_at: string;
-  last_message_at: string | null;
-  messages: { id: string; sender_id: string; content: string; created_at: string }[];
+  job_messages: { id: string; sender_id: string; content: string; created_at: string }[];
 };
+
+function conversationParticipantIds(conv: Conversation): string[] {
+  return Array.from(new Set((conv.job_messages || []).map(m => m.sender_id)));
+}
+
+function conversationContextLabel(context: string): string {
+  return context.charAt(0).toUpperCase() + context.slice(1) + ' conversation';
+}
 
 type Message = {
   id: string;
@@ -256,8 +261,8 @@ export default function AdminDashboard() {
       db.from('invoices')
         .select('id, status, total_amount, created_at, invoice_number')
         .order('created_at', { ascending: false }),
-      db.from('conversations')
-        .select('id, initiator_id, recipient_id, subject, created_at, last_message_at, messages(id, sender_id, content, created_at)')
+      db.from('job_conversations')
+        .select('id, context, created_at, job_messages(id, sender_id, content, created_at)')
         .order('created_at', { ascending: false })
         .limit(200),
       db.from('admin_users')
@@ -575,7 +580,7 @@ export default function AdminDashboard() {
     setMessagesSlideOver(conv);
     setConvLoading(true);
     const { data } = await (supabase as any)
-      .from('messages')
+      .from('job_messages')
       .select('id, conversation_id, sender_id, content, created_at')
       .eq('conversation_id', conv.id)
       .order('created_at', { ascending: true });
@@ -969,28 +974,28 @@ export default function AdminDashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                        {['Participants', 'Subject', 'Last Message', 'Created', 'Action'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                        {['Participants', 'Context', 'Last Message', 'Created', 'Action'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {conversations.map(conv => {
-                        const msgs = conv.messages || [];
+                        const msgs = conv.job_messages || [];
+                        const participantIds = conversationParticipantIds(conv);
                         const lastMsg = msgs.length > 0
                           ? [...msgs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
                           : null;
                         return (
                           <tr key={conv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                             <td style={{ padding: '12px 16px' }}>
-                              <div style={{ fontSize: 13, color: '#e8eef4' }}>
-                                {profileMap[conv.initiator_id] || conv.initiator_id.slice(0, 8)}
-                              </div>
-                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                                + {profileMap[conv.recipient_id] || conv.recipient_id.slice(0, 8)}
-                              </div>
+                              {participantIds.length > 0 ? participantIds.map((id, i) => (
+                                <div key={id} style={{ fontSize: i === 0 ? 13 : 12, color: i === 0 ? '#e8eef4' : 'rgba(255,255,255,0.4)', marginTop: i === 0 ? 0 : 2 }}>
+                                  {i === 0 ? '' : '+ '}{profileMap[id] || id.slice(0, 8)}
+                                </div>
+                              )) : <span style={{ color: 'rgba(255,255,255,0.25)' }}>—</span>}
                             </td>
                             <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', maxWidth: 180 }}>
                               <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {conv.subject || '—'}
+                                {conversationContextLabel(conv.context)}
                               </span>
                             </td>
                             <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.5)', maxWidth: 240, fontSize: 13 }}>
@@ -1670,12 +1675,12 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, flexShrink: 0 }}>
               <div>
                 <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>
-                  {messagesSlideOver.subject || 'Conversation'}
+                  {conversationContextLabel(messagesSlideOver.context)}
                 </h2>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-                  {profileMap[messagesSlideOver.initiator_id] || messagesSlideOver.initiator_id.slice(0, 8)}
-                  <span style={{ margin: '0 6px', color: 'rgba(255,255,255,0.2)' }}>↔</span>
-                  {profileMap[messagesSlideOver.recipient_id] || messagesSlideOver.recipient_id.slice(0, 8)}
+                  {conversationParticipantIds(messagesSlideOver)
+                    .map(id => profileMap[id] || id.slice(0, 8))
+                    .join(' ↔ ')}
                 </div>
               </div>
               <button onClick={() => { setMessagesSlideOver(null); setConversationMessages([]); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 20, cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}>✕</button>
