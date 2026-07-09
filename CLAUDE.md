@@ -81,6 +81,38 @@ own RLS policies query back to `companies`. Contractor reads of company rows are
 covered by "Companies readable by panel contractors" instead. Any contractor with
 legitimate service visits should already be in `contractor_panel`.
 
+### RLS / PostgREST failure modes
+
+- **STABLE helper functions are blind to same-statement inserts.** A `STABLE`
+  self-referential helper used in a SELECT policy takes a snapshot and will
+  not see rows inserted earlier in the same statement (the RETURNING/snapshot
+  issue). Never use a STABLE self-referential helper in a SELECT policy that
+  must see rows inserted in the same statement — use SECURITY DEFINER or
+  inline the check instead. (Origin: `job_conversations` SELECT policy bug.)
+- **Zero-row RLS UPDATEs fail silently.** PostgREST returns success with no
+  rows affected when an RLS policy blocks the update — there is no error to
+  catch. Every claimed RLS fix must be verified with SQL evidence showing the
+  row actually changed, not just that the client call returned 200.
+- **Bad FK-hint embeds fail silently.** A PostgREST embed referencing a wrong
+  or stale FK hint returns an empty embed with no error. Verify embed hints
+  against actual FK names in the live schema before trusting a query.
+- **Two-party tables need write policies for both parties.** Any table
+  written by two different parties (e.g. `schedule_events`,
+  `contractor_availability_overrides`) needs explicit write policies for BOTH
+  parties — the recipient's write path is never automatic just because the
+  initiator's is covered.
+- **`profiles.id == profiles.user_id` is enforced by `CHECK (id = user_id)`
+  with `user_id NOT NULL`** — under this constraint the two columns are
+  interchangeable, and direct `auth.uid()` comparison against profiles-keyed
+  columns is the house pattern (see RLS section above). HISTORICAL CONTEXT, do
+  not delete: before this CHECK existed, policies comparing `auth.uid()`
+  directly against profiles FK columns caused real bugs, and the defensive
+  two-step lookup (`id IN (SELECT id FROM profiles WHERE user_id =
+  auth.uid())`) was mandatory. If the CHECK constraint is ever relaxed, or a
+  policy targets a table whose FK references a profile id that is NOT
+  guaranteed equal to a user id, the two-step pattern becomes mandatory again
+  for that policy.
+
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
 - `useAvailability(contractorId)` — read-only, safe for public pages; takes `profiles.id`.
@@ -261,6 +293,8 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   pg_policies / counts) only. This rule was breached twice (accept_business_invite
   RPC and prevent_last_owner_removal trigger applied via editor), requiring drift
   repair migration 20260613XXXXXX_b2b_invite_accept_modes.
+- **Migration git ritual**: run `git status` after every migration push; every
+  migration file must be explicitly committed.
 
 ## Stack
 - Frontend: React/TypeScript, Vite, shadcn/ui, Tailwind
