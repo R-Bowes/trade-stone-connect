@@ -1,0 +1,108 @@
+{
+  "_note": "Paper-trail export of the 3 legacy conversations/messages rows with no structured mapping to job_conversations (no issued_quote_id, no enquiry_id column on the legacy table). Exported before Defect-4 Step D dropped the legacy conversations/messages/quotes tables. See CLAUDE.md 'Document reference system' section for context on the messaging migration.",
+  "exported_at": "2026-07-08",
+  "conversations": [
+    {
+      "id": "b7273c4e-5ad3-4efb-8ed3-36038ef8dcf9",
+      "initiator_id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b",
+      "recipient_id": "f8170b1d-f105-44e8-b32c-f2b637480243",
+      "contract_id": null,
+      "quote_id": null,
+      "issued_quote_id": null,
+      "subject": "Message — Pro Test User",
+      "initiator_type": "contractor",
+      "is_archived_initiator": false,
+      "is_archived_recipient": false,
+      "last_message_at": "2026-04-03T18:48:12.417558+00:00",
+      "created_at": "2026-04-03T18:48:12.302057+00:00",
+      "updated_at": "2026-04-03T18:48:12.417558+00:00",
+      "_participants": {
+        "initiator": { "id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b", "full_name": "Richard Bowes", "ts_profile_code": "TS-C-4AE203", "user_type": "contractor" },
+        "recipient": { "id": "f8170b1d-f105-44e8-b32c-f2b637480243", "full_name": "Pro Test User", "ts_profile_code": "TS-C-FAAFFC", "user_type": "contractor" }
+      },
+      "_disposition": "No new-world home — contractor-to-contractor exchange, no job/enquiry/quote context is possible for this pairing under the current data model."
+    },
+    {
+      "id": "a178f775-cb66-4fb5-9d8f-7657b757546c",
+      "initiator_id": "3001dd57-f160-42a9-8133-1d94918996b0",
+      "recipient_id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b",
+      "contract_id": null,
+      "quote_id": null,
+      "issued_quote_id": null,
+      "subject": "Quote QTE-TS-C-4AE203-00021 - Accepted - Let's Schedule",
+      "initiator_type": "personal",
+      "is_archived_initiator": false,
+      "is_archived_recipient": false,
+      "last_message_at": "2026-06-28T11:49:59.283+00:00",
+      "created_at": "2026-04-12T11:39:27.848016+00:00",
+      "updated_at": "2026-06-28T11:50:00.143531+00:00",
+      "_participants": {
+        "initiator": { "id": "3001dd57-f160-42a9-8133-1d94918996b0", "full_name": "Test Customer", "ts_profile_code": "TS-P-76159D", "user_type": "personal" },
+        "recipient": { "id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b", "full_name": "Richard Bowes", "ts_profile_code": "TS-C-4AE203", "user_type": "contractor" }
+      },
+      "_disposition": "No new-world home — subject references the retired legacy quote-number format (\"00021\"), not resolvable to any live issued_quotes row; no other structured FK present."
+    },
+    {
+      "id": "d3453982-10b1-4f29-ad95-76163df5dbe0",
+      "initiator_id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b",
+      "recipient_id": "3001dd57-f160-42a9-8133-1d94918996b0",
+      "contract_id": null,
+      "quote_id": null,
+      "issued_quote_id": null,
+      "subject": "Re: TEST. 28/06/2026",
+      "initiator_type": "contractor",
+      "is_archived_initiator": false,
+      "is_archived_recipient": false,
+      "last_message_at": "2026-06-28T11:45:59.053+00:00",
+      "created_at": "2026-06-28T11:18:12.085367+00:00",
+      "updated_at": "2026-06-28T11:45:59.15147+00:00",
+      "_participants": {
+        "initiator": { "id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b", "full_name": "Richard Bowes", "ts_profile_code": "TS-C-4AE203", "user_type": "contractor" },
+        "recipient": { "id": "3001dd57-f160-42a9-8133-1d94918996b0", "full_name": "Test Customer", "ts_profile_code": "TS-P-76159D", "user_type": "personal" }
+      },
+      "_disposition": "No new-world home — no issued_quote_id, no enquiry_id column exists on the legacy table to fall back on."
+    }
+  ],
+  "messages": [
+    {
+      "id": "8e456a16-0cc5-4c06-99a0-e72814dfc835",
+      "conversation_id": "b7273c4e-5ad3-4efb-8ed3-36038ef8dcf9",
+      "sender_id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b",
+      "content": "TEST",
+      "read_at": null,
+      "created_at": "2026-04-03T18:48:12.417558+00:00"
+    },
+    {
+      "id": "65381054-65dc-44e3-9697-35fccd3f6e34",
+      "conversation_id": "a178f775-cb66-4fb5-9d8f-7657b757546c",
+      "sender_id": "3001dd57-f160-42a9-8133-1d94918996b0",
+      "content": "Test",
+      "read_at": null,
+      "created_at": "2026-04-12T11:39:27.937615+00:00"
+    },
+    {
+      "id": "4706e179-b785-464b-a2de-d2ddef2f6ddf",
+      "conversation_id": "a178f775-cb66-4fb5-9d8f-7657b757546c",
+      "sender_id": "3001dd57-f160-42a9-8133-1d94918996b0",
+      "content": "hello",
+      "read_at": null,
+      "created_at": "2026-06-28T11:50:00.044957+00:00"
+    },
+    {
+      "id": "75caf7b2-1dd1-4558-af85-c39333c67995",
+      "conversation_id": "d3453982-10b1-4f29-ad95-76163df5dbe0",
+      "sender_id": "425b9477-5d1b-4a31-b7f0-a91a31f5a99b",
+      "content": "Thanks for sending over, more info please",
+      "read_at": null,
+      "created_at": "2026-06-28T11:18:12.187433+00:00"
+    },
+    {
+      "id": "64519df2-674b-4ec2-af26-884f97950559",
+      "conversation_id": "d3453982-10b1-4f29-ad95-76163df5dbe0",
+      "sender_id": "3001dd57-f160-42a9-8133-1d94918996b0",
+      "content": "Hello",
+      "read_at": null,
+      "created_at": "2026-06-28T11:45:59.060438+00:00"
+    }
+  ]
+}
