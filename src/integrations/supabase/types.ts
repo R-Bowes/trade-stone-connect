@@ -933,76 +933,6 @@ export type Database = {
           },
         ]
       }
-      conversations: {
-        Row: {
-          contract_id: string | null
-          created_at: string
-          id: string
-          initiator_id: string
-          initiator_type: string
-          is_archived_initiator: boolean
-          is_archived_recipient: boolean
-          issued_quote_id: string | null
-          last_message_at: string | null
-          quote_id: string | null
-          recipient_id: string
-          subject: string
-          updated_at: string
-        }
-        Insert: {
-          contract_id?: string | null
-          created_at?: string
-          id?: string
-          initiator_id: string
-          initiator_type: string
-          is_archived_initiator?: boolean
-          is_archived_recipient?: boolean
-          issued_quote_id?: string | null
-          last_message_at?: string | null
-          quote_id?: string | null
-          recipient_id: string
-          subject: string
-          updated_at?: string
-        }
-        Update: {
-          contract_id?: string | null
-          created_at?: string
-          id?: string
-          initiator_id?: string
-          initiator_type?: string
-          is_archived_initiator?: boolean
-          is_archived_recipient?: boolean
-          issued_quote_id?: string | null
-          last_message_at?: string | null
-          quote_id?: string | null
-          recipient_id?: string
-          subject?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "contracts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversations_issued_quote_id_fkey"
-            columns: ["issued_quote_id"]
-            isOneToOne: false
-            referencedRelation: "issued_quotes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversations_quote_id_fkey"
-            columns: ["quote_id"]
-            isOneToOne: false
-            referencedRelation: "quotes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       crm_activities: {
         Row: {
           activity_date: string
@@ -2821,41 +2751,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      messages: {
-        Row: {
-          content: string
-          conversation_id: string
-          created_at: string
-          id: string
-          read_at: string | null
-          sender_id: string
-        }
-        Insert: {
-          content: string
-          conversation_id: string
-          created_at?: string
-          id?: string
-          read_at?: string | null
-          sender_id: string
-        }
-        Update: {
-          content?: string
-          conversation_id?: string
-          created_at?: string
-          id?: string
-          read_at?: string | null
-          sender_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
           },
         ]
       }
