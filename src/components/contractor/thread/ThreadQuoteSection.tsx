@@ -115,7 +115,7 @@ export function ThreadQuoteSection({
       )}
 
       <div className="flex justify-end pt-2 border-t">
-        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/contractor?view=issued-quotes")}>
+        <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard/contractor?view=issued-quotes&quote=${quote.id}`)}>
           {quote.status === "sent" || quote.status === "rejected" ? "Revise in Issued Quotes" : "Manage in Issued Quotes"}
         </Button>
       </div>

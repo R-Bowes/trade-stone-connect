@@ -43,7 +43,8 @@ import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { Database } from "@/integrations/supabase/types";
-import { useContractorPipeline, type PipelineEngagement, type PipelineStage } from "@/hooks/useContractorPipeline";
+import { useContractorPipeline, type PipelineEngagement, type PipelineEnquiryRef, type PipelineStage } from "@/hooks/useContractorPipeline";
+import { formatQuoteRef } from "@/lib/documentRefs";
 import { PipelineCard } from "@/components/contractor/work/PipelineCard";
 import { EngagementThread } from "@/components/contractor/thread/EngagementThread";
 import { Inbox, CheckCircle2 } from "lucide-react";
@@ -94,7 +95,7 @@ const ContractorDashboard = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("view") ?? "dashboard";
   const setActiveTab = (tab: string) => navigate(`/dashboard/contractor?view=${tab}`);
 
@@ -130,6 +131,133 @@ const ContractorDashboard = () => {
     () => filteredEngagements.filter((e) => e.band === "waiting"),
     [filteredEngagements],
   );
+
+  // Deep-link from Issued Quotes' "Open thread" button (?thread=<quoteId>).
+  // Resolved by quote_number, not the exact version id clicked — a card's
+  // quoteId is the *governing* version (job's quote / accepted / latest
+  // non-draft), which can differ from whichever version was on screen in
+  // Issued Quotes. Same positional-versioning trap as Defects 1/2, so this
+  // matches on the sibling group rather than an exact id.
+  useEffect(() => {
+    const threadQuoteId = searchParams.get("thread");
+    if (!threadQuoteId || !profileId || pipelineLoading) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data: clicked } = await supabase
+        .from("issued_quotes")
+        .select("id, quote_number, contractor_id")
+        .eq("id", threadQuoteId)
+        .maybeSingle();
+      if (cancelled || !clicked) return;
+
+      const { data: siblings } = await supabase
+        .from("issued_quotes")
+        .select("id, version, status, client_name, recipient_id, enquiry_id, created_at")
+        .eq("quote_number", clicked.quote_number)
+        .eq("contractor_id", clicked.contractor_id);
+      if (cancelled || !siblings || siblings.length === 0) return;
+
+      const siblingIds = new Set(siblings.map((s) => s.id));
+
+      // Prefer the card built on the exact version clicked — a quote_number
+      // group can now carry two live cards (the governing card plus its
+      // unsent draft-revision card, see Defect 1), so matching on the group
+      // alone is ambiguous about which one the user meant. Only fall back to
+      // "any card in the group" when the clicked version isn't itself a
+      // card's quoteId — e.g. a superseded sibling like Q-0011 v1, where the
+      // group's only live card is built on the governing v2.
+      const liveMatch =
+        engagements.find((e) => e.quoteId === clicked.id) ??
+        engagements.find((e) => e.quoteId && siblingIds.has(e.quoteId));
+      if (liveMatch) {
+        setOpenEngagement(liveMatch);
+        setSearchParams((prev) => { prev.delete("thread"); return prev; }, { replace: true });
+        return;
+      }
+
+      // No live card (rejected past grace, paid-and-done, lapsed/archived,
+      // or a job whose invoice is settled) — still must be reachable.
+      // Resolve governing precedence the same way the pipeline hook does:
+      // job's quote > accepted version > latest non-draft version.
+      const { data: job } = await supabase
+        .from("jobs")
+        .select("id, status, company_id, issued_quote_id, sla_status, sla_completion_due")
+        .in("issued_quote_id", Array.from(siblingIds))
+        .neq("status", "cancelled")
+        .maybeSingle();
+
+      const jobQuote = job ? siblings.find((s) => s.id === job.issued_quote_id) : undefined;
+      const acceptedVersion = siblings
+        .filter((s) => s.status === "accepted")
+        .reduce<typeof siblings[number] | undefined>((a, b) => (!a || b.version > a.version ? b : a), undefined);
+      const nonDraft = siblings.filter((s) => s.status !== "draft");
+      const latestNonDraft = nonDraft.length ? nonDraft.reduce((a, b) => (b.version > a.version ? b : a)) : undefined;
+      const clickedSibling = siblings.find((s) => s.id === clicked.id);
+      const governing = jobQuote ?? acceptedVersion ?? latestNonDraft ?? clickedSibling ?? siblings[0];
+
+      // enquiry_id via the group's anchor, not raw off whichever version was
+      // clicked. The Defect-2 backfill made every sibling agree, but resolve
+      // defensively rather than trust one specific row — feeding this into
+      // enquiryRef gives getOrCreateEngagementConversation a real fallback
+      // (job/quote checked first) so a conversation started at the enquiry
+      // stage, before this quote existed, is found instead of forked.
+      const resolvedEnquiryId = siblings.find((s) => s.enquiry_id)?.enquiry_id ?? null;
+
+      let clientCode: string | null = null;
+      if (governing.recipient_id) {
+        const { data: profileRow } = await supabase
+          .from("profiles")
+          .select("ts_profile_code")
+          .eq("id", governing.recipient_id)
+          .maybeSingle();
+        clientCode = profileRow?.ts_profile_code ?? null;
+      }
+      if (cancelled) return;
+
+      const enquiryRef: PipelineEnquiryRef | null = resolvedEnquiryId
+        ? {
+            id: resolvedEnquiryId,
+            contractor_id: null,
+            customer_id: null,
+            customer_name: null,
+            customer_email: null,
+            customer_phone: null,
+            job_description: "",
+            location: "",
+            preferred_timeline: null,
+            budget_range: null,
+            status: null,
+          }
+        : null;
+
+      const synthetic: PipelineEngagement = {
+        key: `deeplink:${governing.id}`,
+        clientName: governing.client_name,
+        clientCode,
+        companyId: job?.company_id ?? null,
+        stage: job ? "job" : governing.status === "accepted" ? "scheduling" : "quote_sent",
+        stageLabel: job ? "Archived job" : governing.status === "accepted" ? "Scheduling" : "Archived quote",
+        reference: formatQuoteRef(clicked.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
+        band: "waiting",
+        action: "",
+        sinceIso: governing.created_at,
+        overdue: false,
+        slaStatus: job?.sla_status ?? null,
+        slaCompletionDue: job?.sla_completion_due ?? null,
+        enquiryRef,
+        quoteId: governing.id,
+        jobId: job?.id ?? null,
+        invoiceId: null,
+        confirmableProposalId: null,
+      };
+
+      setOpenEngagement(synthetic);
+      setSearchParams((prev) => { prev.delete("thread"); return prev; }, { replace: true });
+    })();
+
+    return () => { cancelled = true; };
+  }, [searchParams, profileId, pipelineLoading, engagements, setSearchParams]);
 
   useEffect(() => {
     const loadUserAndData = async () => {

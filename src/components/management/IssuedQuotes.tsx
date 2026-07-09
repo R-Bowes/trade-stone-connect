@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2 } from "lucide-react";
+import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatQuoteRef } from "@/lib/documentRefs";
 
@@ -43,6 +44,7 @@ interface IssuedQuote {
   deposit_required: boolean | null;
   deposit_amount: number | null;
   parent_quote_id: string | null;
+  enquiry_id: string | null;
   recipient_response: string | null;
   notes: string | null;
   terms: string | null;
@@ -119,6 +121,7 @@ function normaliseRow(q: Record<string, unknown>): IssuedQuote {
     deposit_required: q.deposit_required as boolean | null,
     deposit_amount: q.deposit_amount as number | null,
     parent_quote_id: q.parent_quote_id as string | null,
+    enquiry_id: q.enquiry_id as string | null,
     recipient_response: q.recipient_response as string | null,
     notes: q.notes as string | null,
     terms: q.terms as string | null,
@@ -135,6 +138,7 @@ function QuoteDetailPanel({
   onSend,
   onRevise,
   onSelectVersion,
+  onOpenThread,
 }: {
   quote: IssuedQuote;
   versionChain: IssuedQuote[];
@@ -143,6 +147,7 @@ function QuoteDetailPanel({
   onSend: () => void;
   onRevise: () => void;
   onSelectVersion: (q: IssuedQuote) => void;
+  onOpenThread: (quoteId: string) => void;
 }) {
   const eyebrow = quote.version > 1
     ? `${formatQuoteRef(quote.quote_number)} · v${quote.version}`
@@ -279,6 +284,9 @@ function QuoteDetailPanel({
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button variant="outline" size="sm" onClick={() => onOpenThread(quote.id)}>
+            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />Open thread
+          </Button>
           {isDraft && (
             <>
               <Button variant="outline" size="sm" onClick={onEdit}>
@@ -521,6 +529,8 @@ function QuoteEditPanel({
 // ─── Main component ─────────────────────────────────────────────────────────────
 
 export function IssuedQuotes({ profileId }: { profileId: string | null }) {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [allQuotes, setAllQuotes] = useState<IssuedQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuote, setSelectedQuote] = useState<IssuedQuote | null>(null);
@@ -543,7 +553,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("issued_quotes")
-      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, parent_quote_id, recipient_response, notes, terms")
+      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, parent_quote_id, enquiry_id, recipient_response, notes, terms")
       .eq("contractor_id", profileId)
       .order("created_at", { ascending: false });
     const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>)) : [];
@@ -553,6 +563,19 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   }, [profileId]);
 
   useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
+
+  // Deep-link from EngagementThread's "Manage in Issued Quotes" — auto-select
+  // the exact version referenced (not just the quote_number's latest row).
+  // Cleared only once resolved, so a slow load can't race the clear away.
+  useEffect(() => {
+    const quoteParam = searchParams.get("quote");
+    if (!quoteParam || loading) return;
+    const found = allQuotes.find((q) => q.id === quoteParam);
+    if (found) {
+      setSelectedQuote(found);
+      setSearchParams((prev) => { prev.delete("quote"); return prev; }, { replace: true });
+    }
+  }, [searchParams, loading, allQuotes, setSearchParams]);
 
   function openQuote(q: IssuedQuote) {
     setSelectedQuote(q);
@@ -689,6 +712,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
         quote_number: selectedQuote.quote_number,
         version: newVersion,
         parent_quote_id: selectedQuote.id,
+        enquiry_id: selectedQuote.enquiry_id,
         title: selectedQuote.title,
         client_name: selectedQuote.client_name,
         client_email: selectedQuote.client_email,
@@ -799,6 +823,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
               onSend={handleSendDraft}
               onRevise={handleRevise}
               onSelectVersion={(q) => { setSelectedQuote(q); setEditMode(false); setEditData(null); }}
+              onOpenThread={(quoteId) => navigate(`/dashboard/contractor?view=dashboard&thread=${quoteId}`)}
             />
           )}
           {selectedQuote && editMode && editData && (

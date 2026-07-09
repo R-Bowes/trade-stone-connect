@@ -266,7 +266,9 @@ export function useContractorPipeline() {
 
     // Which quotes are still candidates for the 'scheduling' stage (accepted,
     // no live job for any version of that quote_number) — only those need
-    // schedule_events.
+    // schedule_events. Selected by the accepted version itself, not by
+    // version rank — an unrelated newer draft/rejected sibling must not hide
+    // the accepted version that's actually driving scheduling.
     const quoteById = new Map(rawQuotes.map((q) => [q.id, q]));
     const jobByQuoteId = new Map<string, RawJob>();
     for (const job of rawJobs) {
@@ -279,13 +281,14 @@ export function useContractorPipeline() {
     const hasJobForNumber = (quoteNumber: number) =>
       (quotesByNumber.get(quoteNumber) ?? []).some((q) => jobByQuoteId.has(q.id));
 
-    const schedulingQuoteIds = rawQuotes
-      .filter((q) => {
-        const versions = quotesByNumber.get(q.quote_number) ?? [];
-        const latest = versions.reduce((a, b) => (b.version > a.version ? b : a));
-        return latest.id === q.id && latest.status === "accepted" && !hasJobForNumber(q.quote_number);
-      })
-      .map((q) => q.id);
+    const schedulingQuoteIds: string[] = [];
+    for (const [quoteNumber, versions] of quotesByNumber) {
+      if (hasJobForNumber(quoteNumber)) continue;
+      const acceptedVersion = versions
+        .filter((v) => v.status === "accepted")
+        .reduce<RawQuote | undefined>((a, b) => (!a || b.version > a.version ? b : a), undefined);
+      if (acceptedVersion) schedulingQuoteIds.push(acceptedVersion.id);
+    }
 
     const scheduleEventsRes = schedulingQuoteIds.length
       ? await supabase
@@ -356,22 +359,42 @@ export function useContractorPipeline() {
 
     // ---- quote_sent / scheduling / job / invoice stages, per quote_number ----
     for (const [quoteNumber, versions] of quotesByNumber) {
-      const latest = versions.reduce((a, b) => (b.version > a.version ? b : a));
       const job = versions.map((v) => jobByQuoteId.get(v.id)).find((j): j is RawJob => !!j);
-      const clientProfile = latest.recipient_id ? profileById.get(latest.recipient_id) : undefined;
+      const jobQuote = job ? versions.find((v) => v.id === job.issued_quote_id) : undefined;
+      const acceptedVersion = versions
+        .filter((v) => v.status === "accepted")
+        .reduce<RawQuote | undefined>((a, b) => (!a || b.version > a.version ? b : a), undefined);
+      const nonDraftVersions = versions.filter((v) => v.status !== "draft");
+      const latestNonDraft = nonDraftVersions.length
+        ? nonDraftVersions.reduce((a, b) => (b.version > a.version ? b : a))
+        : undefined;
+      const latestVersion = versions.reduce((a, b) => (b.version > a.version ? b : a));
+
+      // Semantic selector, not version-rank: the version governing the
+      // engagement's stage is whichever already has a job, else whichever is
+      // currently accepted, else the newest non-draft version for display.
+      // Picking by raw "highest version wins" let any unrelated newer
+      // draft/expired/rejected/superseded sibling mask a live job or an
+      // accepted-but-unscheduled version — this closes that whole class
+      // rather than just the single unsent-draft instance.
+      const governing = jobQuote ?? acceptedVersion ?? latestNonDraft;
+
+      const clientProfile = governing?.recipient_id ? profileById.get(governing.recipient_id) : undefined;
       const clientCode = clientProfile?.ts_profile_code ?? null;
 
-      if (job) {
+      let skipDraftCard = false;
+
+      if (job && jobQuote) {
         const liveInvoice = (invoicesByJobId.get(job.id) ?? [])
           .filter((i) => i.status !== "void")
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-        if (liveInvoice) {
-          if (liveInvoice.status === "paid") continue; // paid-and-done — excluded entirely
-
+        if (liveInvoice?.status === "paid") {
+          skipDraftCard = true; // paid-and-done — excluded entirely
+        } else if (liveInvoice) {
           out.push({
             key: `invoice:${liveInvoice.id}`,
-            clientName: liveInvoice.client_name || latest.client_name,
+            clientName: liveInvoice.client_name || jobQuote.client_name,
             clientCode,
             companyId: job.company_id,
             stage: "invoice",
@@ -384,19 +407,16 @@ export function useContractorPipeline() {
             slaStatus: job.sla_status,
             slaCompletionDue: job.sla_completion_due,
             enquiryRef: null,
-            quoteId: latest.id,
+            quoteId: jobQuote.id,
             jobId: job.id,
             invoiceId: liveInvoice.id,
             confirmableProposalId: null,
           });
-          continue;
-        }
-
-        if (job.status === "complete") {
+        } else if (job.status === "complete") {
           const needsSignOff = !job.contractor_signed_off_at;
           out.push({
             key: `job:${job.id}`,
-            clientName: latest.client_name,
+            clientName: jobQuote.client_name,
             clientCode,
             companyId: job.company_id,
             stage: "job",
@@ -409,57 +429,53 @@ export function useContractorPipeline() {
             slaStatus: job.sla_status,
             slaCompletionDue: job.sla_completion_due,
             enquiryRef: null,
-            quoteId: latest.id,
+            quoteId: jobQuote.id,
             jobId: job.id,
             invoiceId: null,
             confirmableProposalId: null,
           });
-          continue;
+        } else {
+          out.push({
+            key: `job:${job.id}`,
+            clientName: jobQuote.client_name,
+            clientCode,
+            companyId: job.company_id,
+            stage: "job",
+            stageLabel: JOB_STAGE_LABELS[job.status] ?? job.status,
+            reference: formatJobRef(job.job_number),
+            band: "needs_you",
+            action:
+              job.status === "snagging"
+                ? "Resolve snags"
+                : job.status === "in_progress"
+                  ? "Update progress"
+                  : "Start job",
+            sinceIso: job.created_at,
+            overdue: false,
+            slaStatus: job.sla_status,
+            slaCompletionDue: job.sla_completion_due,
+            enquiryRef: null,
+            quoteId: jobQuote.id,
+            jobId: job.id,
+            invoiceId: null,
+            confirmableProposalId: null,
+          });
         }
-
-        out.push({
-          key: `job:${job.id}`,
-          clientName: latest.client_name,
-          clientCode,
-          companyId: job.company_id,
-          stage: "job",
-          stageLabel: JOB_STAGE_LABELS[job.status] ?? job.status,
-          reference: formatJobRef(job.job_number),
-          band: "needs_you",
-          action:
-            job.status === "snagging"
-              ? "Resolve snags"
-              : job.status === "in_progress"
-                ? "Update progress"
-                : "Start job",
-          sinceIso: job.created_at,
-          overdue: false,
-          slaStatus: job.sla_status,
-          slaCompletionDue: job.sla_completion_due,
-          enquiryRef: null,
-          quoteId: latest.id,
-          jobId: job.id,
-          invoiceId: null,
-          confirmableProposalId: null,
-        });
-        continue;
-      }
-
-      // No job yet — quote_sent or scheduling.
-      if (latest.status === "accepted") {
+      } else if (governing?.status === "accepted") {
+        // No job yet — scheduling, driven by the accepted version.
         const substate = resolveSchedulingSubstate(
-          eventsByQuoteId.get(latest.id) ?? [],
+          eventsByQuoteId.get(governing.id) ?? [],
           contractorId,
-          latest.accepted_at ?? latest.created_at,
+          governing.accepted_at ?? governing.created_at,
         );
         out.push({
-          key: `scheduling:${latest.id}`,
-          clientName: latest.client_name,
+          key: `scheduling:${governing.id}`,
+          clientName: governing.client_name,
           clientCode,
           companyId: null,
           stage: "scheduling",
           stageLabel: "Scheduling",
-          reference: formatQuoteRef(latest.quote_number, { version: latest.version > 1 ? latest.version : undefined }),
+          reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
           band: substate.band,
           action: substate.action,
           sinceIso: substate.sinceIso,
@@ -467,43 +483,43 @@ export function useContractorPipeline() {
           slaStatus: null,
           slaCompletionDue: null,
           enquiryRef: null,
-          quoteId: latest.id,
+          quoteId: governing.id,
           jobId: null,
           invoiceId: null,
           confirmableProposalId: substate.confirmableProposalId,
         });
-      } else if (latest.status === "sent") {
+      } else if (governing?.status === "sent") {
         out.push({
-          key: `quote:${latest.id}`,
-          clientName: latest.client_name,
+          key: `quote:${governing.id}`,
+          clientName: governing.client_name,
           clientCode,
           companyId: null,
           stage: "quote_sent",
           stageLabel: "Quote sent",
-          reference: formatQuoteRef(latest.quote_number, { version: latest.version > 1 ? latest.version : undefined }),
+          reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
           band: "waiting",
           action: "Awaiting client response",
-          sinceIso: latest.sent_at ?? latest.created_at,
+          sinceIso: governing.sent_at ?? governing.created_at,
           overdue: false,
           slaStatus: null,
           slaCompletionDue: null,
           enquiryRef: null,
-          quoteId: latest.id,
+          quoteId: governing.id,
           jobId: null,
           invoiceId: null,
           confirmableProposalId: null,
         });
-      } else if (latest.status === "rejected") {
-        const since = latest.rejected_at ?? latest.responded_at ?? latest.updated_at;
+      } else if (governing?.status === "rejected") {
+        const since = governing.rejected_at ?? governing.responded_at ?? governing.updated_at;
         if (daysSince(since) <= REJECTED_QUOTE_GRACE_DAYS) {
           out.push({
-            key: `quote:${latest.id}`,
-            clientName: latest.client_name,
+            key: `quote:${governing.id}`,
+            clientName: governing.client_name,
             clientCode,
             companyId: null,
             stage: "quote_sent",
             stageLabel: "Quote declined",
-            reference: formatQuoteRef(latest.quote_number, { version: latest.version > 1 ? latest.version : undefined }),
+            reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
             band: "needs_you",
             action: "Revise or follow up",
             sinceIso: since,
@@ -511,14 +527,40 @@ export function useContractorPipeline() {
             slaStatus: null,
             slaCompletionDue: null,
             enquiryRef: null,
-            quoteId: latest.id,
+            quoteId: governing.id,
             jobId: null,
             invoiceId: null,
             confirmableProposalId: null,
           });
         }
       }
-      // draft / expired / superseded latest versions: no engagement.
+      // else governing is undefined: every version is an unsent draft — no
+      // engagement, same as before.
+
+      // An unsent draft revision beyond whatever's governing the engagement
+      // gets its own card so it can't mask the governing stage above it.
+      if (!skipDraftCard && governing && latestVersion.status === "draft" && latestVersion.id !== governing.id) {
+        out.push({
+          key: `draft:${latestVersion.id}`,
+          clientName: latestVersion.client_name,
+          clientCode,
+          companyId: null,
+          stage: "quote_sent",
+          stageLabel: "Draft revision",
+          reference: formatQuoteRef(latestVersion.quote_number, { version: latestVersion.version }),
+          band: "needs_you",
+          action: "Send revised quote",
+          sinceIso: latestVersion.created_at,
+          overdue: false,
+          slaStatus: null,
+          slaCompletionDue: null,
+          enquiryRef: null,
+          quoteId: latestVersion.id,
+          jobId: null,
+          invoiceId: null,
+          confirmableProposalId: null,
+        });
+      }
     }
 
     out.sort((a, b) => new Date(a.sinceIso).getTime() - new Date(b.sinceIso).getTime());
