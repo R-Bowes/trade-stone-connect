@@ -263,6 +263,32 @@ export type Database = {
         }
         Relationships: []
       }
+      business_counters: {
+        Row: {
+          company_id: string
+          entity: string
+          next_value: number
+        }
+        Insert: {
+          company_id: string
+          entity: string
+          next_value?: number
+        }
+        Update: {
+          company_id?: string
+          entity?: string
+          next_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_counters_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_members: {
         Row: {
           accepted_at: string | null
@@ -350,6 +376,7 @@ export type Database = {
           address_line1: string | null
           address_line2: string | null
           city: string | null
+          company_code: string
           company_size: string | null
           contact_email: string | null
           contact_phone: string | null
@@ -371,6 +398,7 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
+          company_code: string
           company_size?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -392,6 +420,7 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
+          company_code?: string
           company_size?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -5251,6 +5280,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      next_business_document_number: {
+        Args: { p_company_id: string; p_entity: string }
+        Returns: number
+      }
       next_document_number: {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
