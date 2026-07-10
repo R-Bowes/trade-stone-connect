@@ -532,20 +532,8 @@ const ContractorDashboard = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="messages" className="h-full min-h-0 flex flex-col gap-6">
-  <div className="shrink-0">
-    <h2 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
-      Messages
-    </h2>
-    <p className="text-muted-foreground text-sm mt-1">
-      All conversations with your clients in one place
-    </p>
-  </div>
-  {profileId && (
-    <div className="flex-1 min-h-0">
-      <BusinessMessageInbox profileId={profileId} senderRole="contractor" />
-    </div>
-  )}
+          <TabsContent value="messages" className="h-full min-h-0">
+  {profileId && <BusinessMessageInbox profileId={profileId} senderRole="contractor" />}
 </TabsContent>
 
           {/* Enquiries Tab */}
