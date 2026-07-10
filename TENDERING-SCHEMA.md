@@ -179,7 +179,11 @@ answered_by NULL → profiles, answered_at NULL, created_at)
 - RLS: business sees all for their tenders. Contractor sees own questions
   always; OTHER bidders' questions ONLY once answered (unanswered pool
   would leak who's bidding — sealed principle). Asker identity never
-  rendered to other contractors (UI anonymises; business sees asker).
+  rendered to other contractors — data-layer anonymised via the
+  tender_clarifications_for_contractor view (20260710170000): base-table
+  contractor SELECT is own-rows-only, and the contractor UI reads the view
+  exclusively (asked_by is NULLed for any row that isn't the viewer's own).
+  Business sees asker via the base table, unchanged.
 - This is the ONLY mid-tender channel. No private business↔bidder chat
   during the window, by design. Post-award, engagement messaging takes over.
 
