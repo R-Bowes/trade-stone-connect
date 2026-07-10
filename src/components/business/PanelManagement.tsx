@@ -110,8 +110,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       .insert({
         owner_id: profileId,
         name: profile?.company_name || profile?.full_name || "My Business",
-        email: profile?.email,
-        phone: profile?.phone,
+        contact_email: profile?.email,
+        contact_phone: profile?.phone,
         city: profile?.location,
       })
       .select("id")
