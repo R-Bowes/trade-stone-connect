@@ -5055,6 +5055,378 @@ export type Database = {
           },
         ]
       }
+      tender_documents: {
+        Row: {
+          addendum_id: string | null
+          created_at: string
+          file_path: string
+          id: string
+          label: string | null
+          tender_id: string
+          uploaded_by: string
+        }
+        Insert: {
+          addendum_id?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          label?: string | null
+          tender_id: string
+          uploaded_by: string
+        }
+        Update: {
+          addendum_id?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          label?: string | null
+          tender_id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_documents_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_evaluation_criteria: {
+        Row: {
+          id: string
+          label: string
+          tender_id: string
+          weight: number | null
+        }
+        Insert: {
+          id?: string
+          label: string
+          tender_id: string
+          weight?: number | null
+        }
+        Update: {
+          id?: string
+          label?: string
+          tender_id?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_evaluation_criteria_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_invitations: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          declined_reason: string | null
+          id: string
+          invited_by: string
+          is_incumbent: boolean
+          responded_at: string | null
+          status: string
+          tender_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          declined_reason?: string | null
+          id?: string
+          invited_by: string
+          is_incumbent?: boolean
+          responded_at?: string | null
+          status?: string
+          tender_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          declined_reason?: string | null
+          id?: string
+          invited_by?: string
+          is_incumbent?: boolean
+          responded_at?: string | null
+          status?: string
+          tender_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_prequal_requirements: {
+        Row: {
+          detail: Json | null
+          id: string
+          kind: string
+          mandatory: boolean
+          tender_id: string
+        }
+        Insert: {
+          detail?: Json | null
+          id?: string
+          kind: string
+          mandatory: boolean
+          tender_id: string
+        }
+        Update: {
+          detail?: Json | null
+          id?: string
+          kind?: string
+          mandatory?: boolean
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_prequal_requirements_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_response_requirements: {
+        Row: {
+          config: Json | null
+          id: string
+          kind: string
+          tender_id: string
+        }
+        Insert: {
+          config?: Json | null
+          id?: string
+          kind: string
+          tender_id: string
+        }
+        Update: {
+          config?: Json | null
+          id?: string
+          kind?: string
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_response_requirements_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_sites: {
+        Row: {
+          id: string
+          site_id: string
+          tender_id: string
+        }
+        Insert: {
+          id?: string
+          site_id: string
+          tender_id: string
+        }
+        Update: {
+          id?: string
+          site_id?: string
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_sites_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenders: {
+        Row: {
+          awarded_at: string | null
+          bid_validity_days: number
+          bid_visibility: string
+          budget_max: number | null
+          budget_min: number | null
+          budget_visible: boolean
+          cancelled_reason: string | null
+          closed_at: string | null
+          company_id: string
+          contract_start_date: string | null
+          contract_term_months: number | null
+          created_at: string
+          created_by: string
+          distribution: string
+          formal_procurement: boolean
+          id: string
+          project_id: string | null
+          published_at: string | null
+          response_deadline: string | null
+          scope_description: string | null
+          site_visit_required: boolean
+          status: string
+          tender_number: string
+          tender_type: string
+          title: string
+          trade_categories: string[]
+          tupe_applies: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          bid_validity_days?: number
+          bid_visibility?: string
+          budget_max?: number | null
+          budget_min?: number | null
+          budget_visible?: boolean
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          company_id: string
+          contract_start_date?: string | null
+          contract_term_months?: number | null
+          created_at?: string
+          created_by: string
+          distribution?: string
+          formal_procurement?: boolean
+          id?: string
+          project_id?: string | null
+          published_at?: string | null
+          response_deadline?: string | null
+          scope_description?: string | null
+          site_visit_required?: boolean
+          status?: string
+          tender_number: string
+          tender_type: string
+          title: string
+          trade_categories: string[]
+          tupe_applies?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          awarded_at?: string | null
+          bid_validity_days?: number
+          bid_visibility?: string
+          budget_max?: number | null
+          budget_min?: number | null
+          budget_visible?: boolean
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          company_id?: string
+          contract_start_date?: string | null
+          contract_term_months?: number | null
+          created_at?: string
+          created_by?: string
+          distribution?: string
+          formal_procurement?: boolean
+          id?: string
+          project_id?: string | null
+          published_at?: string | null
+          response_deadline?: string | null
+          scope_description?: string | null
+          site_visit_required?: boolean
+          status?: string
+          tender_number?: string
+          tender_type?: string
+          title?: string
+          trade_categories?: string[]
+          tupe_applies?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       timesheets: {
         Row: {
           arrived_at: string | null
@@ -5268,6 +5640,10 @@ export type Database = {
       auth_user_company_ids: { Args: never; Returns: string[] }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_sla_breaches: { Args: never; Returns: undefined }
+      contractor_can_view_tender: {
+        Args: { p_tender_id: string }
+        Returns: boolean
+      }
       generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
       generate_ts_profile_code:
@@ -5292,6 +5668,8 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: undefined
       }
+      tender_company_id: { Args: { p_tender_id: string }; Returns: string }
+      tender_id_from_storage_path: { Args: { p_name: string }; Returns: string }
     }
     Enums: {
       asset_category:
