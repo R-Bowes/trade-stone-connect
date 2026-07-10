@@ -14,6 +14,16 @@ Conventions (inherited, non-negotiable):
   no UPDATE/DELETE policies at all.
 - State transitions with consequences run through SECURITY DEFINER functions,
   not raw UPDATEs.
+- Numbering convention split, deliberate: party-coded document families
+  (T-/TA-/TE-) store the full composed string in the number column itself,
+  because they cross a party boundary at creation — a tender number is seen
+  by a different company than the one whose counter produced it, an
+  application number by the business that receives it — so the identifier
+  must be globally unique and self-identifying without a join back to the
+  issuing party. Intra-contractor families (Q-/J-/INV-, per CLAUDE.md's
+  document reference system) stay integer + render-time composition via
+  documentRefs.ts, because they're only ever read in the context of the
+  contractor that issued them — no cross-party join problem to solve.
 
 ---
 
@@ -28,23 +38,36 @@ Conventions (inherited, non-negotiable):
   BEFORE tendering UI reads company details. Also inspect sourcing_policy
   values; tender distribution default may read from it.
 
-### business_counters  (NEW)
-| column           | type    | notes                          |
-|------------------|---------|--------------------------------|
-| company_id       | uuid PK | → companies(id)                |
-| tender_counter   | int     | NOT NULL DEFAULT 0             |
-| engagement_counter | int   | NOT NULL DEFAULT 0             |
+### business_counters  (NEW — BUILT, see 20260710130000)
+| column     | type    | notes                                          |
+|------------|---------|------------------------------------------------|
+| company_id | uuid    | NOT NULL → companies(id) ON DELETE CASCADE      |
+| entity     | text    | NOT NULL CHECK IN ('tender','engagement')       |
+| next_value | int     | NOT NULL DEFAULT 1                              |
+| —          | —       | PRIMARY KEY (company_id, entity)                |
 
+- Entity-row shape (mirrors contractor_counters), not the fixed
+  tender_counter/engagement_counter columns originally floated here.
+  Amended after build: the fixed-column shape can't be addressed by a
+  single `RETURNING` without CASE-branching per column, and the entity-row
+  shape extends cleanly if a third business entity type ever appears.
 - RLS enabled, ZERO policies. Written only by allocator. (Same pattern as
   contractor_counters — documented in CLAUDE.md.)
 
-### Allocator
-- Extend next_document_number() or sibling next_business_document_number()
-  — Claude Code inspects existing signature before choosing. Atomic
-  UPDATE ... RETURNING. 
+### Allocator (BUILT, see 20260710130000)
+- Sibling function chosen over extending next_document_number(): different
+  table shape (business_counters keys on company_id, not contractor_id) and
+  different FK domain (companies vs profiles). next_business_document_number
+  (p_company_id, p_entity) — same atomic INSERT ... ON CONFLICT DO UPDATE ...
+  RETURNING idiom as next_document_number(), same REVOKE ALL FROM PUBLIC,
+  anon, authenticated.
+- Application counter (`TA-{contractor_code}-NNNN`) is contractor-keyed —
+  same FK domain as quote/job/invoice — so it reuses contractor_counters
+  and next_document_number() unchanged. Amended after build: no new column
+  was added; contractor_counters.entity CHECK was extended to include
+  'application', consistent with the existing entity-row design.
 - Formats: tender `T-{company_code}-NNNN`, engagement `TE-{company_code}-NNNN`,
-  application `TA-{contractor_code}-NNNN` (contractor_counters gains a column).
-  Zero-padded to 4.
+  application `TA-{contractor_code}-NNNN`. Zero-padded to 4.
 
 ---
 
@@ -104,18 +127,33 @@ RLS/reporting join sites properly; lots (deferred) hang off per-site groupings.
 (id, tender_id, uploaded_by, file_path, label, addendum_id uuid NULL
 → tender_addenda) — addendum attachments live here via the nullable link.
 
-### RLS — tenders and satellites
-- Business (ALL): company_id IN (SELECT company_id FROM business_members
-  WHERE profile_id IN (SELECT id FROM profiles WHERE user_id = auth.uid()))
-  — role/threshold gating on publish/award deferred to roles chunk;
-  member-wide first.
+### RLS — tenders and satellites (BUILT, see 20260710150000)
+- Business (ALL): `is_company_member(company_id)` — the SECURITY DEFINER
+  helper from the B2B foundation (20260612120000), not the raw subquery
+  originally drafted here. Amended after build: reusing the helper matches
+  every other business-tier policy in the codebase (sites, assets,
+  companies, enquiries, jobs) instead of introducing a second form of the
+  same check. Role/threshold gating on publish/award still deferred to the
+  roles chunk; member-wide first.
 - Contractor (SELECT only): status != 'draft' AND (invited via
-  tender_invitations OR distribution = 'open').
+  tender_invitations OR distribution = 'open'). Built as a SECURITY
+  DEFINER helper `contractor_can_view_tender(p_tender_id)` (table
+  allowlist: tenders, tender_invitations only) so the same predicate isn't
+  duplicated across tenders + 5 satellite tables. Satellite business-side
+  policies use a second helper, `tender_company_id(p_tender_id)` (allowlist:
+  tenders only), so they can call `is_company_member(tender_company_id(...))`
+  without re-deriving company_id per table.
   LOCKED DECISION (Option B): trade matching is a QUERY-LAYER relevance
   filter, NOT in RLS. Open tenders are public to contractors by design.
   If a credential-gated visibility class is ever required, it enters RLS
   as its own explicit clause at that point.
 - Contractors never write to tenders or satellites.
+- tender_invitations pulled forward from chunk 3 in the chunk-2 migration:
+  the contractor SELECT policy on tenders/satellites depends on it existing.
+  Its own RLS (business ALL via the same tender_company_id/is_company_member
+  pair; contractor SELECT own row; contractor UPDATE own row constrained to
+  WITH CHECK status = 'declined') was built now too — see chunk 3 for the
+  narrative version of this table.
 
 ---
 
