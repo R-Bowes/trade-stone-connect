@@ -5055,6 +5055,244 @@ export type Database = {
           },
         ]
       }
+      tender_addenda: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          issued_by: string
+          new_deadline: string | null
+          sequence: number
+          summary: string
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          issued_by: string
+          new_deadline?: string | null
+          sequence: number
+          summary: string
+          tender_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          issued_by?: string
+          new_deadline?: string | null
+          sequence?: number
+          summary?: string
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_addenda_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_addenda_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_addenda_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_application_references: {
+        Row: {
+          application_id: string
+          client_name: string
+          contact: Json | null
+          id: string
+          project_summary: string | null
+        }
+        Insert: {
+          application_id: string
+          client_name: string
+          contact?: Json | null
+          id?: string
+          project_summary?: string | null
+        }
+        Update: {
+          application_id?: string
+          client_name?: string
+          contact?: Json | null
+          id?: string
+          project_summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_application_references_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "tender_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_applications: {
+        Row: {
+          addendum_ack_sequence: number | null
+          application_number: string
+          contractor_id: string
+          cover_note: string | null
+          created_at: string
+          declarations: Json | null
+          id: string
+          lump_sum_total: number | null
+          methodology: string | null
+          prequal_snapshot: Json | null
+          programme_detail: string | null
+          status: string
+          subcontracting: Json | null
+          submitted_at: string | null
+          tender_id: string
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          addendum_ack_sequence?: number | null
+          application_number: string
+          contractor_id: string
+          cover_note?: string | null
+          created_at?: string
+          declarations?: Json | null
+          id?: string
+          lump_sum_total?: number | null
+          methodology?: string | null
+          prequal_snapshot?: Json | null
+          programme_detail?: string | null
+          status?: string
+          subcontracting?: Json | null
+          submitted_at?: string | null
+          tender_id: string
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          addendum_ack_sequence?: number | null
+          application_number?: string
+          contractor_id?: string
+          cover_note?: string | null
+          created_at?: string
+          declarations?: Json | null
+          id?: string
+          lump_sum_total?: number | null
+          methodology?: string | null
+          prequal_snapshot?: Json | null
+          programme_detail?: string | null
+          status?: string
+          subcontracting?: Json | null
+          submitted_at?: string | null
+          tender_id?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_applications_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_applications_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_applications_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_clarifications: {
+        Row: {
+          answer: string | null
+          answered_at: string | null
+          answered_by: string | null
+          asked_by: string
+          created_at: string
+          id: string
+          question: string
+          tender_id: string
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          asked_by: string
+          created_at?: string
+          id?: string
+          question: string
+          tender_id: string
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          asked_by?: string
+          created_at?: string
+          id?: string
+          question?: string
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_asked_by_fkey"
+            columns: ["asked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_asked_by_fkey"
+            columns: ["asked_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_documents: {
         Row: {
           addendum_id: string | null
@@ -5084,6 +5322,13 @@ export type Database = {
           uploaded_by?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tender_documents_addendum_id_fkey"
+            columns: ["addendum_id"]
+            isOneToOne: false
+            referencedRelation: "tender_addenda"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tender_documents_tender_id_fkey"
             columns: ["tender_id"]
@@ -5239,6 +5484,47 @@ export type Database = {
             columns: ["tender_id"]
             isOneToOne: false
             referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_rates_cards: {
+        Row: {
+          application_id: string
+          callout_out_of_hours: number
+          callout_standard: number
+          extra_lines: Json | null
+          hourly_rate: number
+          id: string
+          materials_markup_pct: number
+          minimum_charge: number | null
+        }
+        Insert: {
+          application_id: string
+          callout_out_of_hours: number
+          callout_standard: number
+          extra_lines?: Json | null
+          hourly_rate: number
+          id?: string
+          materials_markup_pct: number
+          minimum_charge?: number | null
+        }
+        Update: {
+          application_id?: string
+          callout_out_of_hours?: number
+          callout_standard?: number
+          extra_lines?: Json | null
+          hourly_rate?: number
+          id?: string
+          materials_markup_pct?: number
+          minimum_charge?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_rates_cards_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "tender_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -5630,6 +5916,61 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_clarifications_for_contractor: {
+        Row: {
+          answer: string | null
+          answered_at: string | null
+          answered_by: string | null
+          asked_by: string | null
+          created_at: string | null
+          id: string | null
+          question: string | null
+          tender_id: string | null
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          asked_by?: never
+          created_at?: string | null
+          id?: string | null
+          question?: string | null
+          tender_id?: string | null
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          asked_by?: never
+          created_at?: string | null
+          id?: string | null
+          question?: string | null
+          tender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_business_invite: {
@@ -5637,12 +5978,28 @@ export type Database = {
         Returns: string
       }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
+      application_is_draft: {
+        Args: { p_application_id: string }
+        Returns: boolean
+      }
       auth_user_company_ids: { Args: never; Returns: string[] }
+      build_prequal_snapshot: {
+        Args: { p_company_id: string; p_contractor_id: string }
+        Returns: Json
+      }
+      business_can_view_application: {
+        Args: { p_application_id: string }
+        Returns: boolean
+      }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_sla_breaches: { Args: never; Returns: undefined }
       contractor_can_view_tender: {
         Args: { p_tender_id: string }
         Returns: boolean
+      }
+      create_tender_application_draft: {
+        Args: { p_tender_id: string }
+        Returns: string
       }
       generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
@@ -5667,6 +6024,14 @@ export type Database = {
       release_schedule_block: {
         Args: { p_event_id: string }
         Returns: undefined
+      }
+      submit_tender_application: {
+        Args: { p_application_id: string }
+        Returns: undefined
+      }
+      tender_application_received_count: {
+        Args: { p_tender_id: string }
+        Returns: number
       }
       tender_company_id: { Args: { p_tender_id: string }; Returns: string }
       tender_id_from_storage_path: { Args: { p_name: string }; Returns: string }
