@@ -369,35 +369,81 @@ next_due date, assigned_trade, active boolean)
 
 ## CHUNK 7 — Expiry radar & retender
 
-### logged_contracts  (NEW — deliberately thin)
+### logged_contracts  (NEW — deliberately thin; BUILT, see 20260712120000)
 (id, company_id → companies, supplier_name text NOT NULL, trade_category
 NULL, site_ids uuid[] NULL — loose array acceptable here, no RLS/joins
 hang off it, expiry_date date NOT NULL, retender_notice_months int NOT
-NULL DEFAULT 6, notes NULL, created_by, created_at)
+NULL DEFAULT 6, notes NULL, retendered_as uuid NULL → tenders(id),
+created_by, created_at)
 - Off-platform contract logging: ninety-second entry or nobody does it.
   No status machine. RLS: company members only.
 - THE acquisition mechanic: every logged contract = a scheduled retender
   prompt landing on-platform.
+- retendered_as added post-lock (chunk 7 build, ruled): same stop-nudging
+  rule as engagements, and it's where the logged-contract one-tap stamps
+  its pre-filled draft — the on-platform conversion event, worth counting
+  later.
 
-### Radar = view + watcher (no new table)
-- View unions active term_engagements (expiry_date, notice months,
-  notice_given as early trigger) and logged_contracts.
-- Watcher nudges: business at notice point ("expires [date] — start your
-  retender?" one-tap); incumbent contractor soft parallel notification
-  (engagement-sourced only). Nudge clamped: never earlier than term midpoint.
-- retendered_as set ⇒ radar shows "retender in progress", stops re-nudging.
+### Radar = view + watcher (no new table; BUILT, see 20260712120000)
+- View (contract_expiry_radar) unions active/suspended/notice_given
+  term_engagements (expiry_date, notice months, notice_given as early
+  trigger) and logged_contracts, `UNION ALL` with a `source` discriminator
+  (`'engagement' | 'logged_contract'`). Built with `security_invoker = true`
+  so each row is filtered by the underlying tables' own RLS per querying
+  user, rather than the view needing to re-embed is_company_member itself.
+  trade_categories text[] on both arms, lossless on each side: the
+  engagement arm passes tenders.trade_categories through as-is (joined via
+  term_engagements.tender_id); the logged arm wraps its single
+  trade_category in a one-element array. contractor_id kept on the
+  engagement arm (NULL on the logged arm) — powers the incumbent
+  notification below and any future incumbent-flagging UI, even though
+  nothing else consumes it yet.
+- Watcher (run_expiry_radar(), attached inside run_tendering_scheduled_tasks(),
+  no new cron entry) nudges: business at notice point ("expires [date] —
+  start your retender?" one-tap); incumbent contractor soft parallel
+  notification (engagement-sourced only — logged_contracts have no
+  on-platform contractor to notify). Nudge clamped: never earlier than
+  term midpoint (start_date + (expiry_date - start_date)/2) — logged
+  contracts have no start_date, so no midpoint exists to clamp against;
+  their nudge is unclamped, driven by retender_notice_months alone.
+  notice_given status bypasses the notice-month timing entirely and nudges
+  every run (maximally urgent, the relationship is already ending).
+- retendered_as set ⇒ excluded from watcher nudging (view still returns the
+  row for "retender in progress" display).
+- Like the compliance watcher (chunk 6), nudges are NOT deduped against
+  previous runs — known rough edge, not fixed here.
 
-### clone_tender_for_retender(engagement_id)  (SECURITY DEFINER function)
-- New tender, new T-number, status draft.
+### clone_tender_for_retender(engagement_id)  (SECURITY DEFINER function; BUILT, see 20260712120000)
+- New tender, new T-number, status draft. Numbering is trigger-automatic
+  (assign_tender_number_trigger, already shipped in chunk 2's
+  20260710150000_tender_object_and_satellites.sql) — the clone leaves
+  tender_number NULL on insert and the existing trigger allocates it, same
+  as every other tender creation path. No new trigger needed for this chunk.
 - Copies from ORIGINAL tender: title, type, trades, scope, response
   requirements, prequal requirements, evaluation criteria, SLA ref,
-  formal_procurement flag.
+  formal_procurement flag, and (added on review) the procurement-preference
+  columns bid_visibility, distribution, bid_validity_days,
+  site_visit_required, tupe_applies, contract_term_months — these describe
+  how the business wants to run the procurement, not lifecycle state from
+  the last cycle. contract_start_date and the budget fields (budget_min/
+  budget_max/budget_visible) remain deliberately uncopied: a new cycle
+  needs a fresh start date and a fresh budget-disclosure decision.
+- SLA ref copied BY REFERENCE (sla_rule_set_id, the FK, not a value copy):
+  the rule belongs to the company and evolves over time; the AGREEMENT's
+  terms_snapshot (chunk 5/6) is what preserves what-was-actually-agreed for
+  the expiring engagement. The retender clone is a fresh procurement, not a
+  record of the old one — it should see the company's current rule.
 - Sites from engagement_sites (CURRENT portfolio), not the original tender.
 - Does NOT copy: invitations (fresh distribution each cycle; invite picker
-  flags incumbent via is_incumbent), addenda, clarifications, deadlines.
+  flags incumbent via is_incumbent), addenda, clarifications, deadlines, or
+  any other lifecycle stamp (published_at/closed_at/awarded_at all start
+  NULL on the new draft) — over-copying would leak last cycle's context
+  into a fresh procurement.
 - Stamps term_engagements.retendered_as.
 - logged_contracts variant: no source to clone — one-tap opens a pre-filled
-  draft (trade, sites, title from supplier/notes).
+  draft (trade, sites, title from supplier/notes). Schema-only concern:
+  the radar view exposes enough fields (label, trade_categories, site_ids)
+  to pre-fill from; the pre-fill itself is a UI concern, not built here.
 
 ---
 
