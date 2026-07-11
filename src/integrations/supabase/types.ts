@@ -2552,6 +2552,7 @@ export type Database = {
           sla_status: string | null
           start_date: string | null
           status: string
+          tender_agreement_id: string | null
           title: string
           updated_at: string
         }
@@ -2591,6 +2592,7 @@ export type Database = {
           sla_status?: string | null
           start_date?: string | null
           status?: string
+          tender_agreement_id?: string | null
           title: string
           updated_at?: string
         }
@@ -2630,6 +2632,7 @@ export type Database = {
           sla_status?: string | null
           start_date?: string | null
           status?: string
+          tender_agreement_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -2716,6 +2719,13 @@ export type Database = {
             columns: ["sla_rule_id"]
             isOneToOne: false
             referencedRelation: "sla_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_tender_agreement_id_fkey"
+            columns: ["tender_agreement_id"]
+            isOneToOne: false
+            referencedRelation: "tender_agreements"
             referencedColumns: ["id"]
           },
         ]
@@ -5110,6 +5120,94 @@ export type Database = {
           },
         ]
       }
+      tender_agreements: {
+        Row: {
+          application_id: string
+          business_accepted_at: string
+          business_accepted_by: string
+          contractor_accepted_at: string | null
+          contractor_accepted_by: string | null
+          created_at: string
+          declined_reason: string | null
+          id: string
+          standstill_ends_at: string | null
+          status: string
+          tender_id: string
+          terms_snapshot: Json
+        }
+        Insert: {
+          application_id: string
+          business_accepted_at: string
+          business_accepted_by: string
+          contractor_accepted_at?: string | null
+          contractor_accepted_by?: string | null
+          created_at?: string
+          declined_reason?: string | null
+          id?: string
+          standstill_ends_at?: string | null
+          status?: string
+          tender_id: string
+          terms_snapshot: Json
+        }
+        Update: {
+          application_id?: string
+          business_accepted_at?: string
+          business_accepted_by?: string
+          contractor_accepted_at?: string | null
+          contractor_accepted_by?: string | null
+          created_at?: string
+          declined_reason?: string | null
+          id?: string
+          standstill_ends_at?: string | null
+          status?: string
+          tender_id?: string
+          terms_snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_agreements_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "tender_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_business_accepted_by_fkey"
+            columns: ["business_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_business_accepted_by_fkey"
+            columns: ["business_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_contractor_accepted_by_fkey"
+            columns: ["contractor_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_contractor_accepted_by_fkey"
+            columns: ["contractor_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: true
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_application_references: {
         Row: {
           application_id: string
@@ -5289,6 +5387,44 @@ export type Database = {
             columns: ["tender_id"]
             isOneToOne: false
             referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_debriefs: {
+        Row: {
+          application_id: string
+          created_at: string
+          feedback: string | null
+          id: string
+          own_scores_snapshot: Json | null
+          score_band: string | null
+          winning_scores_snapshot: Json | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          own_scores_snapshot?: Json | null
+          score_band?: string | null
+          winning_scores_snapshot?: Json | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          own_scores_snapshot?: Json | null
+          score_band?: string | null
+          winning_scores_snapshot?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_debriefs_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "tender_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -5558,6 +5694,65 @@ export type Database = {
           },
         ]
       }
+      tender_scores: {
+        Row: {
+          application_id: string
+          created_at: string
+          criterion_id: string
+          id: string
+          note: string | null
+          score: number
+          scored_by: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          criterion_id: string
+          id?: string
+          note?: string | null
+          score: number
+          scored_by: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          criterion_id?: string
+          id?: string
+          note?: string | null
+          score?: number
+          scored_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "tender_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_scores_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "tender_evaluation_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_scores_scored_by_fkey"
+            columns: ["scored_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_scores_scored_by_fkey"
+            columns: ["scored_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_sites: {
         Row: {
           id: string
@@ -5614,6 +5809,7 @@ export type Database = {
           response_deadline: string | null
           scope_description: string | null
           site_visit_required: boolean
+          sla_rule_set_id: string | null
           status: string
           tender_number: string
           tender_type: string
@@ -5644,6 +5840,7 @@ export type Database = {
           response_deadline?: string | null
           scope_description?: string | null
           site_visit_required?: boolean
+          sla_rule_set_id?: string | null
           status?: string
           tender_number: string
           tender_type: string
@@ -5674,6 +5871,7 @@ export type Database = {
           response_deadline?: string | null
           scope_description?: string | null
           site_visit_required?: boolean
+          sla_rule_set_id?: string | null
           status?: string
           tender_number?: string
           tender_type?: string
@@ -5709,6 +5907,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_sla_rule_set_id_fkey"
+            columns: ["sla_rule_set_id"]
+            isOneToOne: false
+            referencedRelation: "sla_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -5977,14 +6182,30 @@ export type Database = {
         Args: { p_invite_id?: string; p_token?: string }
         Returns: string
       }
+      accept_tender_agreement: {
+        Args: { p_agreement_id: string }
+        Returns: undefined
+      }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       application_is_draft: {
         Args: { p_application_id: string }
         Returns: boolean
       }
       auth_user_company_ids: { Args: never; Returns: string[] }
+      award_tender_agreement: {
+        Args: { p_application_id: string; p_standstill_ends_at?: string }
+        Returns: string
+      }
+      build_agreement_terms_snapshot: {
+        Args: { p_application_id: string; p_tender_id: string }
+        Returns: Json
+      }
       build_prequal_snapshot: {
         Args: { p_company_id: string; p_contractor_id: string }
+        Returns: Json
+      }
+      build_scores_summary: {
+        Args: { p_application_id: string; p_redact?: boolean }
         Returns: Json
       }
       business_can_view_application: {
@@ -5997,9 +6218,17 @@ export type Database = {
         Args: { p_tender_id: string }
         Returns: boolean
       }
+      convert_awarded_agreement_to_job: {
+        Args: { p_agreement_id: string }
+        Returns: string
+      }
       create_tender_application_draft: {
         Args: { p_tender_id: string }
         Returns: string
+      }
+      decline_tender_agreement: {
+        Args: { p_agreement_id: string; p_reason?: string }
+        Returns: undefined
       }
       generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
@@ -6025,6 +6254,10 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: undefined
       }
+      shortlist_tender_application: {
+        Args: { p_application_id: string }
+        Returns: undefined
+      }
       submit_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
@@ -6035,6 +6268,10 @@ export type Database = {
       }
       tender_company_id: { Args: { p_tender_id: string }; Returns: string }
       tender_id_from_storage_path: { Args: { p_name: string }; Returns: string }
+      tender_status_for_application: {
+        Args: { p_application_id: string }
+        Returns: string
+      }
     }
     Enums: {
       asset_category:
