@@ -16,6 +16,17 @@ npx supabase gen types typescript --project-id tnvxfzmdjpsswjszwbvf --schema pub
 
 No test runner is configured — verify changes by running the dev server.
 
+**`tsc --noEmit` caveat**: `tsconfig.app.json` has `strict: false`
+(`noImplicitAny`, `strictNullChecks`, `noUnusedLocals`,
+`noUnusedParameters` are all off explicitly, in both `tsconfig.json` and
+`tsconfig.app.json`). A clean
+`tsc --noEmit` run proves the code parses and types roughly line up — it
+does NOT prove null-safety (no `strictNullChecks`) and does NOT catch
+unused variables/params (no `noUnusedLocals`/`noUnusedParameters`). Treat a
+clean `tsc` as "didn't break the build," not "is correct" — manual review
+is still required for null-handling and dead-code cleanup. Gradual
+strict-mode adoption is on LATER.md.
+
 ## Architecture
 
 ### Routing (`src/App.tsx`)
@@ -35,6 +46,46 @@ Public contractor profile: `/contractor/:code` where `:code` is `ts_profile_code
 ### Data layer
 - **`public_pro_profiles` view** — the only table clients and the directory can query. Exposes safe fields from `profiles` (no email/phone). Always query this view for public contractor data; never query `profiles` directly from client-facing code.
 - **`profiles` table** — source of truth. Contractors read/write their own row via RLS (`user_id = auth.uid()`).
+
+### View idioms — two, deliberately different
+
+Two distinct patterns, both used on purpose. Know which one you're building
+before writing a new view.
+
+1. **Plain view, RLS-bypass** — `public_pro_profiles`,
+   `tender_clarifications_for_contractor`. A Postgres view runs with its
+   OWNER's table privileges by default (no `security_invoker`), so it reads
+   past the base table's RLS entirely. The view's own `WHERE` clause is
+   then **100% of the access gate** — nothing from the base table's RLS
+   backs it up. Use this when the view needs to expose a genuinely
+   different, narrower, or redacted slice of a row than the querying
+   user's own RLS would allow them to see directly (`public_pro_profiles`:
+   anon/authenticated see a public directory slice of `profiles` they
+   couldn't otherwise read; `tender_clarifications_for_contractor`: a
+   contractor sees other bidders' answered questions with `asked_by`
+   nulled out, which their own narrowed base-table RLS policy no longer
+   permits at all). Every predicate the view needs — including one that
+   would otherwise live in RLS — must be written into the view's `WHERE`
+   clause by hand. Get this wrong and the view either leaks rows the base
+   RLS would have blocked, or the "gate" silently isn't a gate (see the
+   `tender_clarifications_for_contractor` asked_by-leak incident:
+   `20260710170000_tender_clarifications_asker_anonymisation.sql` shipped
+   an `OR`-structured `WHERE` that didn't apply the visibility check to the
+   own-row arm, caught on review before commit).
+2. **`security_invoker = true` view** — `contract_expiry_radar`
+   (`20260712120000_expiry_radar_and_retender.sql`). The view runs AS the
+   querying user, so it inherits whatever RLS the underlying tables already
+   have — no `WHERE`-clause gate needs to be re-derived in the view at all.
+   Use this when the view is just a display-shaped union/join over tables
+   that already have CORRECT, sufficient RLS SELECT policies for every
+   party who should see the view — the view is convenience, not a new
+   access boundary.
+
+Rule of thumb: if the view needs to show a user something their own RLS
+wouldn't otherwise let them read, it's pattern 1 and the `WHERE` clause is
+load-bearing. If every underlying table already has the right RLS for
+every consumer, it's pattern 2 and `security_invoker = true` is simpler and
+safer than re-deriving the same filter by hand.
 
 ### Compliance vs credentials — two separate tables
 
@@ -150,6 +201,37 @@ Two policies that were NOT in this category — genuinely broken, fixed in
 `WITH CHECK (true)` with no ownership tie — no trigger backs this table, so it
 was a real open write) and `gdpr_erasure_log` ("Only admins can view erasure
 log" checked `performed_by = auth.uid()`, not an actual admin role).
+
+### Fragile invariants (read before touching adjacent code)
+
+Correctness here depends on something that isn't enforced by a type, a
+constraint, or a comment anyone would trip over — easy to break without
+noticing.
+
+- **`useContractorPipeline.ts` excludes lapsed quotes by absence, not a
+  filter.** The governing-quote if/else-if chain (around line 464 and the
+  fallthrough comment near line 537) has no branch for
+  `governing?.status === 'lapsed'` — a lapsed quote (set by
+  `EngagementThread.tsx`) simply produces no pipeline card because nothing
+  matches. This is intentional and is now commented inline at the
+  fallthrough, but adding a new catch-all branch to that chain later would
+  silently un-exclude lapsed quotes — check what falls through before
+  adding one.
+- **`SlotPicker.tsx`'s `WINDOW_DAYS = 42` (6-week booking window) is
+  client-side only.** No DB constraint backs it — nothing stops a
+  `schedule_events`/`availability_slots` row dated beyond 6 weeks out from
+  being created some other way (a future API, a script, a different UI
+  path). If a booking window rule ever needs to be actually enforced, it
+  isn't today.
+- **Contractor tender-clarifications UI must read
+  `tender_clarifications_for_contractor`, never the base
+  `tender_clarifications` table.** The base table's contractor SELECT
+  policy is own-rows-only (narrowed in `20260710170000`) — querying it
+  directly from contractor-side UI returns only the contractor's own
+  questions with no error, silently hiding every answered question from
+  other bidders that the sealed-clarifications feature is supposed to
+  surface. Silent-empty, not a thrown error — easy to miss in testing if
+  the test account happens to be the only bidder who asked anything.
 
 ### Hook conventions (`src/hooks/`)
 - Hooks that serve the contractor's own data do a two-step lookup internally; callers don't need to pass a profile ID.
@@ -371,6 +453,33 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   must use `SITE_URL` only. Standardising the old two is captured in LATER.md.
 - `LOVABLE_API_KEY` secret retired (Lovable fully retired).
 
+## Scheduled jobs / cron infrastructure
+- `pg_cron` (lives in `pg_catalog`, Supabase's mandated location) and
+  `pg_net` (in `extensions`) were dashboard-enabled 2026-07-11. They did
+  NOT exist before that despite `20260328193000_invoice_payment_flow.sql`'s
+  `CREATE EXTENSION IF NOT EXISTS pg_cron` recording as applied back in
+  March — `cron.job` was confirmed EMPTY when this was investigated for
+  tendering chunk 6, meaning `invoice-overdue-check` never actually
+  registered and neither invoice overdue marking nor SLA breach checking
+  ever ran live before `20260711130000_term_engagements_and_watchers.sql`
+  re-created all cron entries fresh.
+- Live cron entries (all via `net.http_post` to an edge function, or a
+  direct SQL call, per the established `cron.unschedule`-then-`schedule`
+  idiom): `invoice-overdue-check` (daily, → `mark-overdue-invoices`),
+  `sla-clock-check` (hourly, → `sla-clock` `{action:'check'}`),
+  `tendering-scheduled-runner` (daily, → `run_tendering_scheduled_tasks()`
+  directly — no HTTP hop, compliance watcher + PPM generator + expiry radar
+  are all plain SQL).
+- Cron secrets (`app.settings.supabase_url`, `app.settings.service_role_key`)
+  currently live as database GUCs (`ALTER DATABASE ... SET app.settings.*`),
+  read via `current_setting(..., true)`. Migrating these to
+  `supabase_vault` is on LATER.md — until then, any new HTTP-calling cron
+  body or SECURITY DEFINER function must guard for either setting being
+  NULL (see `create_callout_job()` in `20260711130000` for the
+  fire-and-forget-with-guard pattern: missing settings or a failed
+  `net.http_post` call are caught and `RAISE WARNING`'d, never allowed to
+  raise past the calling function).
+
 ## Critical Rules (read every session)
 - No emojis in UI
 - No fake placeholder data anywhere
@@ -555,3 +664,15 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
 - Legacy string formats (`QTE-TS-C-...`, `INV-TS-C-...-TS-P-...`) and their
   generator triggers are retired. If either pattern reappears in a grep, it's a
   regression.
+- **Tendering (T-/TA-/TE-) is a deliberately different numbering
+  convention** — see TENDERING-SCHEMA.md's Conventions header for the full
+  rationale. Short version: party-coded families that cross a company/
+  contractor boundary at creation (`T-`, `TA-`, `TE-`) store the FULL
+  composed string in the number column itself, trigger-minted
+  (`assign_tender_number_trigger` etc. call `next_business_document_number`/
+  `next_document_number` and compose the string server-side) — no
+  `documentRefs.ts`-style render-time composition for these. Intra-
+  contractor families (`Q-`/`J-`/`INV-`, this section) keep the
+  integer-column + render-time-compose pattern above. Do not conflate the
+  two when adding a new document family — check whether it crosses a party
+  boundary before picking a convention.

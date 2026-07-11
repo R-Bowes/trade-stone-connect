@@ -565,6 +565,92 @@ Deposit itself carries no platform fee.
   Approvals view is quote-approvals only until job sign-off is scoped.
 - Business tier SLA per-contractor pairing (matching `applies_to_trade` to a
   contractor's declared trade) — follow-on, currently a reference table only.
+- **Watcher nudge dedup.** Both the compliance watcher and the expiry radar
+  (tendering chunks 6/7) re-send the same nudge notification on every
+  scheduled run for as long as the underlying condition holds — no
+  "already nudged" log or last-nudged timestamp exists. Needs a sent-log
+  table or a `last_nudged_at`-style stamp before this goes in front of a
+  real user; flagged explicitly in both migrations
+  (`20260711130000_term_engagements_and_watchers.sql`,
+  `20260712120000_expiry_radar_and_retender.sql`) rather than silently
+  shipped as "fine."
+- **Migrate cron secrets from database GUCs to `supabase_vault`.**
+  `app.settings.supabase_url` / `app.settings.service_role_key` currently
+  live as plain `ALTER DATABASE ... SET` values, read via
+  `current_setting(..., true)` from cron bodies and SECURITY DEFINER
+  functions (`create_callout_job()`, the cron entries in
+  `20260711130000_term_engagements_and_watchers.sql`). GUCs aren't secret
+  storage — Vault is the correct home for a service-role key.
+- **Drop deprecated `companies` columns** (`address`, `email`, `phone`) —
+  superseded by `address_line1`/`address_line2` and
+  `contact_email`/`contact_phone`
+  (`20260710140000_companies_contact_field_cleanup.sql`). Safe to drop once
+  confirmed nothing reads them for a full release cycle.
+- **Homeowner job view: no per-job messaging entry point.** The rails exist
+  (`job_conversations`/`job_messages`) but there's no button on the
+  homeowner-facing job view that deep-links into the existing thread —
+  needs one UI affordance, not new schema.
+- **Audit the homeowner-visible job Team tab against contact-suppression.**
+  Verify it doesn't leak contractor contact details that the rest of the
+  platform deliberately keeps behind `public_pro_profiles`/messaging.
+- **Scope `contractor_availability_overrides` SELECT down from
+  `auth.role() = 'authenticated'`.** Flagged in CLAUDE.md's "Deliberately
+  public / known-broad RLS policies" section: any logged-in user can
+  currently read every contractor's override rows, including the free-text
+  `reason` column. Not fixed yet because the booking-slot picker's current
+  behaviour depends on the broad read — needs the picker reworked
+  alongside the policy tightening, not a policy-only change.
+- **Contractor sidebar "Projects" tab is a mislabeled jobs re-slice**, not
+  the real Projects feature (which is unbuilt — see the Projects section
+  above). Rename or remove before the first real contractor onboarding, to
+  avoid setting an expectation the platform doesn't meet yet.
+
+## Dormant schema roster
+
+Tables with zero application code reading or writing them as of this
+audit (2026-07 tendering build). Not necessarily wrong to have — just
+undecided: either a real feature needs designing around them, or they
+should be dropped. Adopt or drop when the relevant feature gets designed,
+don't leave them as silent dead weight indefinitely.
+
+- `job_message_notifications` — sender-gated as of
+  `20260709170000_security_fix_notifications_and_gdpr_log.sql` (was a real
+  open write before that fix), but nothing currently inserts into it.
+- `job_scheduling_proposals` — possible redundancy with `schedule_events`,
+  which is the table actually wired into the live scheduling flow. Audit
+  which one is canonical before building on either.
+- `job_checklist_items` / `job_checklist_templates` — checklist schema with
+  no UI.
+- `favourites` — no UI reads or writes it.
+- `quote_form_templates` — created by `handle_new_user()` on every signup
+  (a default template row is inserted per new user) but nothing in the app
+  reads the table back.
+- `enquiry_measurements` — ties to the "Enriched enquiry" LATER item above
+  (homeowner-submitted dimensions) — may already be the intended home for
+  that, check before adding a new table when that feature gets built.
+
+## Tendering — deferred (from TENDERING-SCHEMA.md, chunks 1-7 built 2026-07-10 to 2026-07-12)
+
+Carried over verbatim from TENDERING-SCHEMA.md's own DEFERRED section —
+duplicated here so it surfaces in the general backlog review, not just a
+schema doc most people won't open:
+
+- B2B payment rails + monthly roll-up invoicing (Stripe Invoicing vs bank
+  reconciliation — undecided). Job line data is already unaggregated and
+  ready for this; schema does not block it.
+- Business roles/approval thresholds on `business_members` — coverage-based
+  member-wide RLS shipped first (see CLAUDE.md's B2B/FM foundation
+  section); publish/award gating tightens later.
+- Lots — `tender_lots` table + nullable `lot_id` on applications, for
+  splitting a multi-site tender into independently-awarded pieces. Schema
+  was written not to preclude this (e.g. `tender_sites` is a junction, not
+  an array) but nothing implements it yet.
+- Frameworks — ranked multi-award, call-out cascade (also the structural
+  answer to an out-of-hours fallback contractor).
+- Two-stage tendering (EOI → shortlist → full tender).
+- Gradual strict-mode adoption for `tsconfig.app.json` — see the `tsc`
+  caveat in CLAUDE.md's Commands section; not tendering-specific but
+  surfaced during the tendering build's own review passes.
 
 ---
 
