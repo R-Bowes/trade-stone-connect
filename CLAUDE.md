@@ -68,18 +68,27 @@ it is equivalent but is not what the code uses, and mixing the two is noise.
   — a subquery is unavoidable here because the row holds a company id, not a
   user id. This is the one sanctioned subquery form.
 
-`auth_user_company_ids()` has been retired from the `companies` SELECT policy
-(replaced by direct `owner_id = auth.uid()`). Do not use it in new policies —
-calling it from a policy on `companies` causes 42P17 infinite recursion because
-the function queries `companies` while RLS is already active on that table.
+`auth_user_company_ids()` was retired from the `companies` SELECT policy in
+20260609120000 for causing 42P17 infinite recursion when called from a policy
+on `companies`. Do not resurrect it.
 
-`companies` SELECT policy ("Companies readable") uses only `owner_id = auth.uid()`.
-A `service_visits` subquery was removed in migration 20260609120000 — it created
-mutual recursion: companies SELECT → service_visits RLS → service_visits policy
-queries companies → companies SELECT → ∞. Do NOT add subqueries on tables whose
-own RLS policies query back to `companies`. Contractor reads of company rows are
-covered by "Companies readable by panel contractors" instead. Any contractor with
-legitimate service visits should already be in `contractor_panel`.
+`companies` SELECT policy ("Companies readable") is **`USING
+(is_company_member(id))`** as of `20260614174850_coverage_chunk_b_coverage_rls.sql`
+— NOT `owner_id = auth.uid()` alone; that was the 20260609120000-era body and
+is stale. **Correction to the recursion rule below**: `is_company_member()` →
+`is_company_owner()` DOES read `companies` directly now (joins `companies` →
+`profiles`), and this is safe. The actual danger that broke
+`auth_user_company_ids()` and `service_visits` is a CYCLE — table A's policy
+calls a function that reads table B, and table B's OWN policy calls a function
+that reads table A back (companies SELECT → service_visits RLS →
+service_visits policy queries companies → companies SELECT → ∞, removed in
+20260609120000). A one-directional SECURITY DEFINER read of `companies`, with
+nothing on companies' own policies calling back into the reading table, is
+fine — that's exactly what `is_company_owner` is. Do NOT introduce a cycle;
+do NOT avoid reading `companies` out of an overcorrected fear of the old bug.
+Contractor reads of company rows are covered by "Companies readable by panel
+contractors" instead. Any contractor with legitimate service visits should
+already be in `contractor_panel`.
 
 ### RLS / PostgREST failure modes
 
@@ -180,7 +189,9 @@ migration files — the DB cannot currently be rebuilt from migrations alone:
 
 Ownership root for ALL business-tier data is `companies(id)`, not
 `profiles(id)` directly. RLS now keys through `is_company_member()` /
-`is_site_member()` SECURITY DEFINER helpers (20260612120000).
+`is_company_owner()` / `can_access_site()` SECURITY DEFINER helpers
+(20260614174850 — supersedes the `is_company_member(uuid, text[])` /
+`is_site_member()` pair from 20260612120000; see B2B/FM foundation below).
 
 `jobs` carries: priority, company_id (FK formalised in 20260612120000),
 site_id, asset_id, sla_rule_id, sla_response_due, sla_resolution_due,
@@ -192,60 +203,109 @@ responded_at. `enquiries` gained company_id, site_id, asset_id in
 (pre-Projects experimentation) — untouched; do not assume its semantics until
 Projects work begins.
 
-`business_members` fully built in 20260612120000 (see B2B/FM foundation
-section below). Previous placeholder dropped.
+`business_members` fully built in 20260612120000, then rebuilt again
+(role -> coverage) in 20260614174850 (see B2B/FM foundation section below).
+Previous placeholder dropped.
 
 Dashboard-created native enums (in DB, not in migrations): asset_category,
 service_contract_status, service_document_type, service_frequency,
 service_visit_status. The service_* enums imply partial service-contract /
 PPM scaffolding — scope UNCONFIRMED; audit before building on it.
 
-### B2B/FM foundation (migration 20260612120000)
+### B2B/FM foundation (migrations 20260612120000, superseded by 20260614174850)
 
-#### Table shapes and role semantics
+**SUPERSEDED 2026-06-14.** The role-based model this section originally
+described (`business_members.role` IN `owner|admin|member`, an owner ROW in
+`business_members`, `is_company_member(uuid, text[])` /
+`is_site_member(uuid, text[])` taking a roles array) was replaced wholesale
+by `20260614174850_coverage_chunk_b_coverage_rls.sql` with a coverage-based
+model. Confirmed against `types.ts` (live-generated, not migration text):
+`business_members` has NO `role` column. Found while building tendering
+chunk 5 — a Phase-1 report earlier in that same build (chunk 4) had already
+printed the stale 2-arg `is_company_member` signature from 20260612120000's
+migration text, which is exactly the failure mode the "schema/policy claims
+must come from the live DB" rule exists to prevent. If you find migration
+text, an old doc paragraph, or a stale report describing `role`, it is wrong
+— trust this section and the live schema instead.
 
-`business_members` — company membership registry.
+#### Table shape (current, live)
+
+`business_members` — company membership registry, coverage-scoped.
 
 | column | notes |
 |---|---|
 | company_id | FK → companies(id) ON DELETE CASCADE |
 | profile_id | NULL while invited; set on accept |
-| role | `owner` \| `admin` \| `member` |
 | status | `invited` \| `active` \| `removed` |
+| coverage_kind | `national` \| `group` \| `site` — replaces `role` entirely |
+| coverage_group_id | FK → site_groups(id); set only when coverage_kind='group' |
+| coverage_site_id | FK → sites(id); set only when coverage_kind='site' |
 | invited_email | display only — NOT used for matching |
 | invite_token | single-use UUID; NULL after acceptance |
 | invite_expires_at | 7-day window from creation |
 
-v1 permissions are coarse: `owner` and `admin` can INSERT/UPDATE/DELETE
-members, sites, assets; `member` gets read-only access. Fine-grained
-permissions (site-scoped access, approval workflows) are deferred to LATER.md.
+**The owner has NO row in `business_members` at all.** Owner identity is
+exclusively `companies.owner_id`. The coverage migration deleted every
+owner's own membership row (`DELETE ... WHERE bm.profile_id = c.owner_id`)
+and dropped `role` outright. There is no role-based write/manage
+distinction among non-owner members anymore — v1 permissions are "owner can
+do everything; any active member can read/write within their coverage
+scope." Fine-grained member permission tiers (was: role hierarchy) are still
+deferred to LATER.md, now under the coverage model instead of a role model.
 
-#### RLS one-direction rule — never cross the boundary
+#### Membership helpers (current signatures — NOT the 2-arg role-array form)
+
+- `is_company_owner(p_company_id uuid) RETURNS boolean` — checks
+  `companies.owner_id` via a `profiles.user_id = auth.uid()` join. New in the
+  coverage migration.
+- `is_company_member(p_company_id uuid) RETURNS boolean` — **1-arg, no
+  `p_roles` parameter.** The 2-arg `is_company_member(uuid, text[])` from
+  20260612120000 was explicitly DROPPED (`DROP FUNCTION IF EXISTS
+  public.is_company_member(uuid, text[])`) before this one was created. Body:
+  `is_company_owner(p_company_id) OR EXISTS(active business_members row for
+  auth.uid())`.
+- `can_access_site(p_site_id uuid) RETURNS boolean` — replaces
+  `is_site_member(uuid, text[])`, which was DROPPED entirely. Resolves the
+  site's company; owner → always true; else checks the member's
+  `coverage_kind` (`national` → true; `site` → `coverage_site_id` matches;
+  `group` → the site is in `coverage_group_id` via `site_group_members`).
+
+Any policy calling the old 2-arg `is_company_member(id, ARRAY[...])` form or
+`is_site_member` is calling a function that no longer exists — this fails
+loudly at migration-apply time (function does not exist), not silently.
+Always use the 1-arg `is_company_member(company_id)` for member-wide checks,
+`is_company_owner(company_id)` for owner-only checks, `can_access_site
+(site_id)` for site-scoped checks.
+
+Tendering (chunks 2–5) was built entirely against the 1-arg form already —
+every call is `is_company_member(company_id)`, no roles array — so none of
+that SQL needed retroactive fixing when this divergence was found; only this
+doc section and one Phase-1 report were wrong.
+
+#### RLS one-direction rule — still holds, refined
 
 Companies, sites, assets, jobs, and enquiries policies MUST check membership
-ONLY via the `is_company_member()` or `is_site_member()` SECURITY DEFINER
-helpers. These helpers have a fixed table allowlist:
+ONLY via `is_company_member()` / `is_company_owner()` / `can_access_site()`.
+See the corrected recursion note in the Row-level security section above:
+these DO read `companies` internally now (`is_company_owner` joins
+`companies` → `profiles`), and that is safe — the real danger is a CYCLE
+(table A's policy → function reads table B → table B's own policy →
+function reads table A back), not merely "a function reads companies."
 
-- `is_company_member(p_company_id, p_roles)` — queries ONLY `business_members`
-- `is_site_member(p_site_id, p_roles)` — queries ONLY `sites` + `business_members`
+#### DB-enforced invariants (current)
 
-**NEVER add `companies` to either function.** That would recreate the 42P17
-infinite recursion that retired `auth_user_company_ids()` (see Row-level
-security section above).
-
-`business_members` policies MAY call `is_company_member()` — safe because the
-function is SECURITY DEFINER and bypasses `business_members` RLS, so no
-self-recursion occurs.
-
-#### DB-enforced invariants
-
-- **Owner-row protection**: the `business_members` write policies include
-  `(role <> 'owner' OR is_company_member(company_id, ARRAY['owner']))`. Only an
-  existing owner can INSERT, UPDATE, or DELETE an owner-role row. Demoting the last
-  owner is blocked at the DB level — no app guard required.
+- **Owner is immutable via this table**: there is no "last owner" business
+  rule to enforce anymore, because there is no owner row to protect —
+  `prevent_last_owner_removal()` and its trigger were DROPPED in the
+  coverage migration. Owner identity changes only via `companies.owner_id`
+  (no UI path exists for this today).
 - **Assets without a site**: assets with `site_id IS NULL` are invisible to
-  company members via RLS (`is_site_member` returns false for NULL). Assign
+  company members via RLS (`can_access_site` returns false for NULL). Assign
   assets to a site before they appear in the business dashboard.
+- **Coverage consistency**: `business_members_coverage_check` CHECK enforces
+  exactly one of `(national, group_id NULL, site_id NULL)` /
+  `(group, group_id set, site_id NULL)` / `(site, site_id set, group_id
+  NULL)` — the DB rejects mismatched combinations outright.
 
 #### App-enforced invariants (NOT enforced by DB constraints)
 
@@ -258,13 +318,17 @@ self-recursion occurs.
   flow reason is UX clarity, not a leak risk. No DB constraint enforces this
   in v1 — revisit under Projects/tendering work.
 
-#### Invite flow
+#### Invite flow (coverage-based, current)
 
-Link-based, single-use token, 7-day expiry.
+Link-based, single-use token, 7-day expiry — mechanics unchanged from
+20260612120000, but invites now state COVERAGE, not a role.
 
-1. Owner/admin INSERTs a `business_members` row with `status='invited'`,
-   `invited_email`, `profile_id=NULL`. `invite_token` defaults to
-   `gen_random_uuid()`.
+1. Owner INSERTs a `business_members` row with `status='invited'`,
+   `invited_email`, `profile_id=NULL`, and an explicit `coverage_kind` (+
+   `coverage_group_id`/`coverage_site_id` as the CHECK constraint requires —
+   `coverage_kind` lost its default in the coverage migration specifically
+   so new invites must state coverage explicitly). `invite_token` defaults
+   to `gen_random_uuid()`.
 2. Invitee opens the invite link (token in URL), frontend calls
    `accept_business_invite(token)` RPC.
 3. RPC validates: token exists, `status='invited'`, not expired, caller has a
@@ -273,9 +337,15 @@ Link-based, single-use token, 7-day expiry.
    `accepted_at=now()`, clears `invite_token` and `invite_expires_at`.
 5. Returns `company_id`. Raises clear exceptions on each failure mode.
 
-Invite token visibility: pending rows (status = `invited`) are visible in SELECT
-only to `owner`/`admin` members and the row's own `profile_id`. Regular `member`
-rows can see the roster of active members but not pending invite tokens.
+Invite token visibility: pending rows (status = `invited`) are visible in
+SELECT only to the owner and the row's own `profile_id`. Regular active
+members can see the roster but not pending invite tokens (RLS:
+`business_members_select`, 20260614174850).
+
+Confirmed while writing this correction: `BusinessTeamView.tsx` (frontend)
+already uses `coverage_kind`/`coverage_group_id`/`coverage_site_id`
+exclusively — no `role` reference anywhere in it. The app code was already
+consistent with the live schema; only this documentation had not caught up.
 
 #### assets.status — canonical values ratified
 
@@ -289,7 +359,7 @@ is needed. Do not add `active | archived` values — the conflict is closed.
 - Consolidated billing per company
 - Approval workflows for B2B job requests
 - Rate cards per contractor/company
-- Fine-grained permissions (site-scoped member access, role hierarchy)
+- Fine-grained member permissions beyond coverage scope (was: role hierarchy)
 - Clean up `assets.is_active` column (present in live DB, not canonical)
 - Consolidate the 11 overlapping `enquiries` RLS policies (two generations:
   older direct-equality + newer two-step/is_platform_admin) into one canonical
@@ -398,6 +468,13 @@ is needed. Do not add `active | archived` values — the conflict is closed.
 - CLAUDE.md: schema-change discipline rule added; B2B team/invite system documented
 
 ### Business team / invite system reference
+
+**SUPERSEDED 2026-06-14** by `20260614174850_coverage_chunk_b_coverage_rls.sql`
+— this subsection is a same-day session log of the ORIGINAL role-based
+build and is left as-is for history, but its role/`owner`/`admin`/`member`
+references are stale. See "B2B/FM foundation" above for the current
+coverage-based model; `BusinessTeamView.tsx` itself was updated to match and
+no longer references `role` anywhere.
 
 **`BusinessTeamView`** — `src/components/business/BusinessTeamView.tsx`
 Props: `{ companyId, profileId, currentRole }`. Rendered at `view=team`.
