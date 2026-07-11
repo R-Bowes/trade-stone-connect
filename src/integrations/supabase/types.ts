@@ -1190,6 +1190,177 @@ export type Database = {
           },
         ]
       }
+      engagement_ppm_schedules: {
+        Row: {
+          active: boolean
+          assigned_trade: string | null
+          engagement_id: string
+          frequency: string
+          id: string
+          next_due: string
+          site_id: string | null
+          title: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_trade?: string | null
+          engagement_id: string
+          frequency: string
+          id?: string
+          next_due: string
+          site_id?: string | null
+          title: string
+        }
+        Update: {
+          active?: boolean
+          assigned_trade?: string | null
+          engagement_id?: string
+          frequency?: string
+          id?: string
+          next_due?: string
+          site_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_ppm_schedules_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_ppm_schedules_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_rates: {
+        Row: {
+          agreed_by_business: string | null
+          agreed_by_business_at: string | null
+          agreed_by_contractor: string | null
+          agreed_by_contractor_at: string | null
+          callout_ooh: number
+          callout_standard: number
+          created_at: string
+          effective_from: string
+          engagement_id: string
+          extra_lines: Json | null
+          hourly_rate: number
+          id: string
+          materials_markup_pct: number
+          minimum_charge: number | null
+          version: number
+        }
+        Insert: {
+          agreed_by_business?: string | null
+          agreed_by_business_at?: string | null
+          agreed_by_contractor?: string | null
+          agreed_by_contractor_at?: string | null
+          callout_ooh: number
+          callout_standard: number
+          created_at?: string
+          effective_from: string
+          engagement_id: string
+          extra_lines?: Json | null
+          hourly_rate: number
+          id?: string
+          materials_markup_pct: number
+          minimum_charge?: number | null
+          version: number
+        }
+        Update: {
+          agreed_by_business?: string | null
+          agreed_by_business_at?: string | null
+          agreed_by_contractor?: string | null
+          agreed_by_contractor_at?: string | null
+          callout_ooh?: number
+          callout_standard?: number
+          created_at?: string
+          effective_from?: string
+          engagement_id?: string
+          extra_lines?: Json | null
+          hourly_rate?: number
+          id?: string
+          materials_markup_pct?: number
+          minimum_charge?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_rates_agreed_by_business_fkey"
+            columns: ["agreed_by_business"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_agreed_by_business_fkey"
+            columns: ["agreed_by_business"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_agreed_by_contractor_fkey"
+            columns: ["agreed_by_contractor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_agreed_by_contractor_fkey"
+            columns: ["agreed_by_contractor"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_sites: {
+        Row: {
+          engagement_id: string
+          id: string
+          site_id: string
+        }
+        Insert: {
+          engagement_id: string
+          id?: string
+          site_id: string
+        }
+        Update: {
+          engagement_id?: string
+          id?: string
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_sites_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enquiries: {
         Row: {
           additional_details: string | null
@@ -2530,6 +2701,7 @@ export type Database = {
           customer_id: string
           description: string | null
           end_date: string | null
+          engagement_id: string | null
           expected_completion: string | null
           id: string
           issued_quote_id: string | null
@@ -2570,6 +2742,7 @@ export type Database = {
           customer_id: string
           description?: string | null
           end_date?: string | null
+          engagement_id?: string | null
           expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
@@ -2610,6 +2783,7 @@ export type Database = {
           customer_id?: string
           description?: string | null
           end_date?: string | null
+          engagement_id?: string | null
           expected_completion?: string | null
           id?: string
           issued_quote_id?: string | null
@@ -2680,6 +2854,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jobs_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_issued_quote_id_fkey"
             columns: ["issued_quote_id"]
             isOneToOne: true
@@ -2726,6 +2907,77 @@ export type Database = {
             columns: ["tender_agreement_id"]
             isOneToOne: false
             referencedRelation: "tender_agreements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logged_contracts: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          expiry_date: string
+          id: string
+          notes: string | null
+          retender_notice_months: number
+          retendered_as: string | null
+          site_ids: string[] | null
+          supplier_name: string
+          trade_category: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          expiry_date: string
+          id?: string
+          notes?: string | null
+          retender_notice_months?: number
+          retendered_as?: string | null
+          site_ids?: string[] | null
+          supplier_name: string
+          trade_category?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expiry_date?: string
+          id?: string
+          notes?: string | null
+          retender_notice_months?: number
+          retendered_as?: string | null
+          site_ids?: string[] | null
+          supplier_name?: string
+          trade_category?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logged_contracts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logged_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logged_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logged_contracts_retendered_as_fkey"
+            columns: ["retendered_as"]
+            isOneToOne: false
+            referencedRelation: "tenders"
             referencedColumns: ["id"]
           },
         ]
@@ -5918,6 +6170,125 @@ export type Database = {
           },
         ]
       }
+      term_engagements: {
+        Row: {
+          agreement_id: string
+          auto_suspend_on_lapse: boolean
+          company_id: string
+          contractor_id: string
+          created_at: string
+          ended_at: string | null
+          ended_reason: string | null
+          engagement_number: string
+          expiry_date: string
+          id: string
+          notice_effective_date: string | null
+          notice_period_days: number
+          retender_notice_months: number
+          retendered_as: string | null
+          sla_rule_set_id: string | null
+          start_date: string
+          status: string
+          suspended_reason: string | null
+          tender_id: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_id: string
+          auto_suspend_on_lapse?: boolean
+          company_id: string
+          contractor_id: string
+          created_at?: string
+          ended_at?: string | null
+          ended_reason?: string | null
+          engagement_number: string
+          expiry_date: string
+          id?: string
+          notice_effective_date?: string | null
+          notice_period_days?: number
+          retender_notice_months?: number
+          retendered_as?: string | null
+          sla_rule_set_id?: string | null
+          start_date: string
+          status?: string
+          suspended_reason?: string | null
+          tender_id: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_id?: string
+          auto_suspend_on_lapse?: boolean
+          company_id?: string
+          contractor_id?: string
+          created_at?: string
+          ended_at?: string | null
+          ended_reason?: string | null
+          engagement_number?: string
+          expiry_date?: string
+          id?: string
+          notice_effective_date?: string | null
+          notice_period_days?: number
+          retender_notice_months?: number
+          retendered_as?: string | null
+          sla_rule_set_id?: string | null
+          start_date?: string
+          status?: string
+          suspended_reason?: string | null
+          tender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "term_engagements_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: true
+            referencedRelation: "tender_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_retendered_as_fkey"
+            columns: ["retendered_as"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_sla_rule_set_id_fkey"
+            columns: ["sla_rule_set_id"]
+            isOneToOne: false
+            referencedRelation: "sla_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       timesheets: {
         Row: {
           arrived_at: string | null
@@ -6037,6 +6408,22 @@ export type Database = {
       }
     }
     Views: {
+      contract_expiry_radar: {
+        Row: {
+          company_id: string | null
+          contractor_id: string | null
+          expiry_date: string | null
+          id: string | null
+          label: string | null
+          notice_effective_date: string | null
+          retender_notice_months: number | null
+          retendered_as: string | null
+          site_ids: string[] | null
+          source: string | null
+          trade_categories: string[] | null
+        }
+        Relationships: []
+      }
       public_pro_profiles: {
         Row: {
           avatar_url: string | null
@@ -6182,6 +6569,10 @@ export type Database = {
         Args: { p_invite_id?: string; p_token?: string }
         Returns: string
       }
+      accept_engagement_rate_version: {
+        Args: { p_rate_id: string }
+        Returns: undefined
+      }
       accept_tender_agreement: {
         Args: { p_agreement_id: string }
         Returns: undefined
@@ -6214,12 +6605,29 @@ export type Database = {
       }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_sla_breaches: { Args: never; Returns: undefined }
+      clone_tender_for_retender: {
+        Args: { p_engagement_id: string }
+        Returns: string
+      }
       contractor_can_view_tender: {
         Args: { p_tender_id: string }
         Returns: boolean
       }
       convert_awarded_agreement_to_job: {
         Args: { p_agreement_id: string }
+        Returns: string
+      }
+      convert_awarded_agreement_to_term_engagement: {
+        Args: { p_agreement_id: string }
+        Returns: string
+      }
+      create_callout_job: {
+        Args: {
+          p_description: string
+          p_engagement_id: string
+          p_site_id: string
+          p_title: string
+        }
         Returns: string
       }
       create_tender_application_draft: {
@@ -6230,11 +6638,49 @@ export type Database = {
         Args: { p_agreement_id: string; p_reason?: string }
         Returns: undefined
       }
+      effective_engagement_rates: {
+        Args: { p_engagement_id: string; p_on_date?: string }
+        Returns: {
+          agreed_by_business: string | null
+          agreed_by_business_at: string | null
+          agreed_by_contractor: string | null
+          agreed_by_contractor_at: string | null
+          callout_ooh: number
+          callout_standard: number
+          created_at: string
+          effective_from: string
+          engagement_id: string
+          extra_lines: Json | null
+          hourly_rate: number
+          id: string
+          materials_markup_pct: number
+          minimum_charge: number | null
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "engagement_rates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      end_term_engagement: {
+        Args: { p_engagement_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      engagement_company_id: {
+        Args: { p_engagement_id: string }
+        Returns: string
+      }
       generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
       generate_ts_code: { Args: { user_type_val: string }; Returns: string }
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
+      give_notice_on_term_engagement: {
+        Args: { p_engagement_id: string; p_notice_effective_date: string }
+        Returns: undefined
+      }
       is_company_member: { Args: { p_company_id: string }; Returns: boolean }
       is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
       is_conversation_party: {
@@ -6250,16 +6696,46 @@ export type Database = {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
       }
+      propose_engagement_rate_version: {
+        Args: {
+          p_callout_ooh: number
+          p_callout_standard: number
+          p_effective_from?: string
+          p_engagement_id: string
+          p_extra_lines?: Json
+          p_hourly_rate: number
+          p_materials_markup_pct: number
+          p_minimum_charge?: number
+        }
+        Returns: string
+      }
+      raise_callout: {
+        Args: {
+          p_description?: string
+          p_engagement_id: string
+          p_site_id?: string
+          p_title: string
+        }
+        Returns: string
+      }
       release_schedule_block: {
         Args: { p_event_id: string }
         Returns: undefined
       }
+      run_compliance_watcher: { Args: never; Returns: undefined }
+      run_expiry_radar: { Args: never; Returns: undefined }
+      run_ppm_generator: { Args: never; Returns: undefined }
+      run_tendering_scheduled_tasks: { Args: never; Returns: undefined }
       shortlist_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
       }
       submit_tender_application: {
         Args: { p_application_id: string }
+        Returns: undefined
+      }
+      suspend_term_engagement: {
+        Args: { p_engagement_id: string; p_reason?: string }
         Returns: undefined
       }
       tender_application_received_count: {
@@ -6271,6 +6747,10 @@ export type Database = {
       tender_status_for_application: {
         Args: { p_application_id: string }
         Returns: string
+      }
+      withdraw_or_decline_engagement_rate_version: {
+        Args: { p_rate_id: string }
+        Returns: undefined
       }
     }
     Enums: {
