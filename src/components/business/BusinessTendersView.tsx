@@ -51,6 +51,13 @@ export function BusinessTendersView({ companyId }: Props) {
     navigate(`/dashboard/business?${params.toString()}`);
   };
 
+  // New tender (no ?tender=) and Continue on a draft (?tender=<id>) both
+  // route to the real essentials form now — everything else (unseal,
+  // review, view) still goes to the stub until those slices land.
+  const goNewTender = () => navigate("/dashboard/business?view=tender-form");
+  const goContinueDraft = (tenderId: string) =>
+    navigate(`/dashboard/business?view=tender-form&tender=${tenderId}`);
+
   const metrics = useMemo(() => {
     const drafts = tenders.filter((t) => t.status === "draft").length;
     // "Open" = published + closed + unsealed: everything past draft that
@@ -104,9 +111,12 @@ export function BusinessTendersView({ companyId }: Props) {
     }
   };
 
+  // Only reached for non-draft rows now — draft rows go straight to
+  // goContinueDraft() instead of the stub. Kept as a switch (not an
+  // if/else) so a future status added to TenderStatus fails loudly via
+  // TS exhaustiveness rather than silently falling into "view".
   const rowActionMode = (t: TenderRow): string => {
     switch (t.status) {
-      case "draft": return "continue";
       case "closed": return "unseal";
       case "unsealed": return "review";
       default: return "view";
@@ -135,7 +145,7 @@ export function BusinessTendersView({ companyId }: Props) {
         <p className="text-sm text-muted-foreground">
           {tenders.length} tender{tenders.length === 1 ? "" : "s"}
         </p>
-        <Button onClick={() => goStub("new")} className="gap-2">
+        <Button onClick={goNewTender} className="gap-2">
           <Plus className="h-4 w-4" />
           New tender
         </Button>
@@ -147,7 +157,7 @@ export function BusinessTendersView({ companyId }: Props) {
             <i className="ti ti-gavel text-4xl text-muted-foreground mb-4 block" />
             <h3 className="text-lg font-medium mb-2">No tenders yet</h3>
             <p className="text-muted-foreground mb-6">Post your first tender to start finding contractors.</p>
-            <Button onClick={() => goStub("new")} className="gap-2">
+            <Button onClick={goNewTender} className="gap-2">
               <Plus className="h-4 w-4" />
               Post your first tender
             </Button>
@@ -218,7 +228,7 @@ export function BusinessTendersView({ companyId }: Props) {
                         <Button
                           size="sm"
                           variant={action.muted ? "outline" : "default"}
-                          onClick={() => goStub(rowActionMode(t), t.id)}
+                          onClick={() => (t.status === "draft" ? goContinueDraft(t.id) : goStub(rowActionMode(t), t.id))}
                           className="shrink-0"
                         >
                           {action.label}

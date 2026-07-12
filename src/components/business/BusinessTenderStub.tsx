@@ -2,18 +2,18 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-// Placeholder destination for every tender row/header action until slice 2
-// (creation form, detail view, unseal, bid comparison) is built. All of
-// "New tender", "Continue", "Unseal", "Review bids", and the terminal-state
-// "View" actions route here for now, distinguished only by `mode` so
-// slice 2 can split them into real destinations without touching the
-// callers in BusinessTendersView.
+// Placeholder destination for every tender action not yet built. "New
+// tender" and draft "Continue" now go to the real essentials form
+// (BusinessTenderForm, slice 2) instead of here. What's left routing to
+// this stub: "Unseal", "Review bids", the terminal-state "View" actions,
+// and "Publish" from inside the form itself — distinguished only by
+// `mode` so each can be split into a real destination independently,
+// without touching its caller.
 const MODE_COPY: Record<string, string> = {
-  new: "Tender creation is coming in the next build.",
-  continue: "Resuming a draft tender is coming in the next build.",
   unseal: "Unsealing bids is coming in the next build.",
   review: "Bid comparison and scoring is coming in the next build.",
   view: "The tender detail view is coming in the next build.",
+  publish: "Publishing a tender is coming in the next build.",
 };
 
 export function BusinessTenderStub() {

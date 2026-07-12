@@ -73,6 +73,7 @@ const VIEW_LABELS: Record<string, string> = {
   requests:   "Requests",
   approvals:  "Approvals",
   tenders:    "Tenders",
+  "tender-form": "Tender",
   "tenders-stub": "Tenders",
   sites:      "Sites",
   assets:     "Asset Register",

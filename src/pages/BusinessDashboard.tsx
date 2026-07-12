@@ -17,6 +17,7 @@ import { PanelManagement } from "@/components/business/PanelManagement";
 import { MaintenanceManagement } from "@/components/business/MaintenanceManagement";
 import { BusinessRequestsView } from "@/components/business/BusinessRequestsView";
 import { BusinessTendersView } from "@/components/business/BusinessTendersView";
+import { BusinessTenderForm } from "@/components/business/BusinessTenderForm";
 import { BusinessTenderStub } from "@/components/business/BusinessTenderStub";
 import { BusinessMessageInbox } from "@/components/business/BusinessMessageInbox";
 import BusinessSettings from "@/pages/BusinessSettings";
@@ -232,7 +233,7 @@ const BusinessDashboard = () => {
     }
 
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "compliance", "prequal", "team", "groups", "tenders"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "compliance", "prequal", "team", "groups", "tenders", "tender-form"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -279,6 +280,9 @@ const BusinessDashboard = () => {
 
       case "tenders":
         return <BusinessTendersView companyId={companyId!} />;
+
+      case "tender-form":
+        return <BusinessTenderForm companyId={companyId!} profileId={profileId} />;
 
       case "tenders-stub":
         return <BusinessTenderStub />;
