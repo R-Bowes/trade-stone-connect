@@ -6685,6 +6685,7 @@ export type Database = {
         }
         Returns: string
       }
+      publish_tender: { Args: { p_tender_id: string }; Returns: undefined }
       raise_callout: {
         Args: {
           p_description?: string

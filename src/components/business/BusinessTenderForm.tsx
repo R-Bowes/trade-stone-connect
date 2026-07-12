@@ -9,6 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Check, ChevronDown, Trash2, FileText, Upload } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 
@@ -190,6 +200,8 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
   const [uploading, setUploading] = useState(false);
   const [slaRules, setSlaRules] = useState<SlaRuleOption[]>([]);
   const [panelContractors, setPanelContractors] = useState<PanelContractorOption[]>([]);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Company's sites, for the checklist.
   useEffect(() => {
@@ -412,10 +424,17 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     (k) => !form.prequalRequirements.some((r) => r.kind === k.kind),
   );
 
-  const handleSave = async () => {
+  // Returns the persisted tender id on success, null on any failure -- used
+  // by handlePublish, which needs the freshly-created id on a first-ever
+  // save immediately, before the setTenderId(...) state update below has
+  // had a chance to re-render (the tenderId closure variable would
+  // otherwise still read null at that point). options.silent skips the
+  // "Draft saved" toast -- handlePublish saves as a step within publishing,
+  // not as its own user-facing action, and shows its own toast instead.
+  const handleSave = async (options?: { silent?: boolean }): Promise<string | null> => {
     if (!form.title.trim()) {
       toast({ title: "Title required", description: "Give the tender a title before saving.", variant: "destructive" });
-      return;
+      return null;
     }
 
     setSaving(true);
@@ -445,7 +464,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (error) {
         toast({ title: "Save failed", description: error.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
       setTenderNumber(data.tender_number);
     } else {
@@ -460,7 +479,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (error) {
         toast({ title: "Save failed", description: error.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
       savedId = data.id;
       setTenderId(data.id);
@@ -485,7 +504,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (removeError) {
         toast({ title: "Sites not saved", description: removeError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -496,7 +515,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (addError) {
         toast({ title: "Sites not saved", description: addError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -528,7 +547,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (reqRemoveError) {
         toast({ title: "Requirements not saved", description: reqRemoveError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -543,7 +562,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (reqAddError) {
         toast({ title: "Requirements not saved", description: reqAddError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -556,7 +575,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (reqUpdateError) {
         toast({ title: "Requirements not saved", description: reqUpdateError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -585,7 +604,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (prequalRemoveError) {
         toast({ title: "Prequalification not saved", description: prequalRemoveError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -602,7 +621,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (prequalAddError) {
         toast({ title: "Prequalification not saved", description: prequalAddError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -618,7 +637,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (prequalUpdateError) {
         toast({ title: "Prequalification not saved", description: prequalUpdateError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -641,7 +660,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (inviteRemoveError) {
         toast({ title: "Invitations not saved", description: inviteRemoveError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
@@ -656,14 +675,17 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       if (inviteAddError) {
         toast({ title: "Invitations not saved", description: inviteAddError.message, variant: "destructive" });
         setSaving(false);
-        return;
+        return null;
       }
     }
 
     setExistingInvitedContractorIds(form.invitedContractorIds);
 
     setSaving(false);
-    toast({ title: "Draft saved" });
+    if (!options?.silent) {
+      toast({ title: "Draft saved" });
+    }
+    return savedId;
   };
 
   // Upload needs tender_id for the storage path ({tender_id}/{filename}, the
@@ -714,6 +736,66 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     }
     await supabase.storage.from("tender-documents").remove([doc.file_path]);
     setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+  };
+
+  // Client-side mirror of the precondition checks publish_tender() also
+  // re-validates server-side (belt-and-braces -- see the migration). Runs
+  // against the in-memory form, not the last-persisted state, since
+  // handlePublish saves the current form before publishing.
+  const getPublishBlockers = (): string[] => {
+    const blockers: string[] = [];
+    if (!form.title.trim()) blockers.push("a title");
+    if (form.trades.length === 0) blockers.push("at least one trade");
+    if (form.siteIds.length === 0) blockers.push("at least one site");
+    if (!form.responseDeadline) {
+      blockers.push("a response deadline");
+    } else if (new Date(form.responseDeadline) <= new Date()) {
+      blockers.push("a response deadline in the future");
+    }
+    if (form.distribution === "invite" && form.invitedContractorIds.length === 0) {
+      blockers.push("at least one invited contractor");
+    }
+    return blockers;
+  };
+
+  const handlePublishClick = () => {
+    const blockers = getPublishBlockers();
+    if (blockers.length > 0) {
+      toast({
+        title: "Can't publish yet",
+        description: `Add ${blockers.join(", ")} before publishing.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setPublishDialogOpen(true);
+  };
+
+  // Saves the current form first so the published tender matches what the
+  // business saw when confirming, then calls publish_tender() -- see that
+  // migration for why this is a SECURITY DEFINER transition rather than a
+  // raw status UPDATE. Uses the id handleSave returns, not the tenderId
+  // state variable, because on a same-click first-ever save that state
+  // update hasn't re-rendered yet.
+  const handlePublish = async () => {
+    setPublishing(true);
+    const savedId = await handleSave({ silent: true });
+    if (!savedId) {
+      setPublishing(false);
+      setPublishDialogOpen(false);
+      return;
+    }
+
+    const { error } = await supabase.rpc("publish_tender", { p_tender_id: savedId });
+    setPublishing(false);
+    if (error) {
+      toast({ title: "Publish failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setPublishDialogOpen(false);
+    toast({ title: "Tender published", description: "Invited contractors have been notified." });
+    navigate("/dashboard/business?view=tenders");
   };
 
   if (loadingExisting) {
@@ -974,7 +1056,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
               {!tenderId ? (
                 <div className="flex items-center justify-between gap-3 border border-dashed border-border rounded-md p-3">
                   <p className="text-sm text-muted-foreground">Save the draft before attaching documents.</p>
-                  <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+                  <Button size="sm" variant="outline" onClick={() => handleSave()} disabled={saving}>
                     {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
                     Save draft
                   </Button>
@@ -1184,22 +1266,34 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           {tenderNumber ? `Saved as draft · ${tenderNumber}` : "Not yet saved"}
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() =>
-              navigate(
-                `/dashboard/business?view=tenders-stub&mode=publish${tenderId ? `&tender=${tenderId}` : ""}`,
-              )
-            }
-          >
+          <Button variant="outline" onClick={handlePublishClick}>
             Publish
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={() => handleSave()} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {tenderId ? "Save" : "Save as draft"}
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish this tender?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Invited contractors will be notified and can begin bidding. You won't be able to
+              edit the essentials after publishing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={publishing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePublish} disabled={publishing}>
+              {publishing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Publish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
