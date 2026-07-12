@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Check, ChevronDown, Trash2 } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 
 interface Props {
@@ -19,12 +21,73 @@ interface SiteOption {
   name: string;
 }
 
+type ResponseKind =
+  | "pricing"
+  | "references"
+  | "methodology"
+  | "programme"
+  | "subcontracting"
+  | "declarations"
+  | "rams";
+
+// The seven values tender_response_requirements_kind_check permits, confirmed
+// live via pg_constraint.
+const RESPONSE_KIND_OPTIONS: { kind: ResponseKind; label: string }[] = [
+  { kind: "pricing", label: "Pricing" },
+  { kind: "references", label: "References" },
+  { kind: "methodology", label: "Methodology statement" },
+  { kind: "programme", label: "Programme" },
+  { kind: "subcontracting", label: "Subcontracting declaration" },
+  { kind: "declarations", label: "Declarations" },
+  { kind: "rams", label: "RAMS" },
+];
+
+interface ResponseRequirementState {
+  kind: ResponseKind;
+  referencesCount?: number; // only meaningful when kind === "references"
+}
+
+// Verbatim, single source of truth: these six strings are exactly what
+// submit_tender_application()'s RED-block matches against (confirmed
+// against the live function body via pg_proc.prosrc, not migration text).
+// A mismatch here creates a mandatory prequal requirement the RED-block can
+// never see -- it silently never blocks submission no matter what the
+// contractor's actual compliance is.
+const MAPPABLE_PREQUAL_KINDS: { kind: string; label: string }[] = [
+  { kind: "public_liability", label: "Public liability insurance" },
+  { kind: "employers_liability", label: "Employers' liability insurance" },
+  { kind: "trade_cert", label: "Trade certification" },
+  { kind: "induction", label: "Site induction" },
+  { kind: "nda", label: "NDA" },
+  { kind: "terms", label: "Terms accepted" },
+];
+const OTHER_PREQUAL_KIND = "other";
+
+function prequalKindLabel(kind: string): string {
+  return MAPPABLE_PREQUAL_KINDS.find((k) => k.kind === kind)?.label ?? "Other (informational only)";
+}
+
+interface PrequalRequirementState {
+  // Client-generated (crypto.randomUUID()) the moment a row is added, and
+  // reused as the DB row's own id on INSERT -- no local-id-to-server-id
+  // reconciliation step needed after a save. tender_prequal_requirements
+  // has no CHECK on kind (confirmed live), so "other" free-text rows and,
+  // in principle, repeated mappable kinds are both possible -- id, not
+  // kind, is this row's real identity.
+  id: string;
+  kind: string;
+  detailText: string;
+  mandatory: boolean;
+}
+
 interface FormState {
   title: string;
   tenderType: "works" | "term";
   trades: string[];
   siteIds: string[];
   responseDeadline: string; // <input type="datetime-local"> value
+  responseRequirements: ResponseRequirementState[];
+  prequalRequirements: PrequalRequirementState[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -33,6 +96,8 @@ const EMPTY_FORM: FormState = {
   trades: [],
   siteIds: [],
   responseDeadline: "",
+  responseRequirements: [],
+  prequalRequirements: [],
 };
 
 // ISO timestamptz -> the value a <input type="datetime-local"> can display
@@ -66,8 +131,16 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
   // successful save (or [] for a fresh create). Diffed against
   // form.siteIds at save time so only the delta is written — see handleSave.
   const [existingSiteIds, setExistingSiteIds] = useState<string[]>([]);
+  // Same idea for the two requirement satellites, but these rows carry a
+  // value (config/mandatory) as well as identity, so the diff is
+  // three-bucket (added/removed/changed), not two — see handleSave.
+  const [existingResponseRequirements, setExistingResponseRequirements] = useState<ResponseRequirementState[]>([]);
+  const [existingPrequalById, setExistingPrequalById] = useState<
+    Map<string, { kind: string; detailText: string; mandatory: boolean }>
+  >(new Map());
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [tradeSearch, setTradeSearch] = useState("");
+  const [prequalOpen, setPrequalOpen] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(!!paramTenderId);
   const [saving, setSaving] = useState(false);
 
@@ -86,7 +159,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     if (!paramTenderId) return;
 
     (async () => {
-      const [{ data: tender }, { data: siteLinks }] = await Promise.all([
+      const [{ data: tender }, { data: siteLinks }, { data: responseReqs }, { data: prequalReqs }] = await Promise.all([
         supabase
           .from("tenders")
           .select("id, tender_number, title, tender_type, trade_categories, response_deadline")
@@ -96,19 +169,46 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           .from("tender_sites")
           .select("site_id")
           .eq("tender_id", paramTenderId),
+        supabase
+          .from("tender_response_requirements")
+          .select("kind, config")
+          .eq("tender_id", paramTenderId),
+        supabase
+          .from("tender_prequal_requirements")
+          .select("id, kind, detail, mandatory")
+          .eq("tender_id", paramTenderId),
       ]);
 
       if (tender) {
         const loadedSiteIds = (siteLinks ?? []).map((r) => r.site_id);
+        const loadedResponseReqs: ResponseRequirementState[] = (responseReqs ?? []).map((r) => ({
+          kind: r.kind as ResponseKind,
+          referencesCount:
+            r.kind === "references" ? ((r.config as { count?: number } | null)?.count ?? 1) : undefined,
+        }));
+        const loadedPrequalReqs: PrequalRequirementState[] = (prequalReqs ?? []).map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          detailText: (r.detail as { text?: string } | null)?.text ?? "",
+          mandatory: r.mandatory,
+        }));
+
         setForm({
           title: tender.title,
           tenderType: tender.tender_type as "works" | "term",
           trades: tender.trade_categories ?? [],
           siteIds: loadedSiteIds,
           responseDeadline: tender.response_deadline ? toDatetimeLocalValue(tender.response_deadline) : "",
+          responseRequirements: loadedResponseReqs,
+          prequalRequirements: loadedPrequalReqs,
         });
         setExistingSiteIds(loadedSiteIds);
+        setExistingResponseRequirements(loadedResponseReqs);
+        setExistingPrequalById(
+          new Map(loadedPrequalReqs.map((r) => [r.id, { kind: r.kind, detailText: r.detailText, mandatory: r.mandatory }])),
+        );
         setTenderNumber(tender.tender_number);
+        if (loadedPrequalReqs.length > 0) setPrequalOpen(true);
       }
       setLoadingExisting(false);
     })();
@@ -130,6 +230,58 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
 
   const filteredTrades = CONTRACTOR_TRADES.filter((t) =>
     t.toLowerCase().includes(tradeSearch.toLowerCase()),
+  );
+
+  const toggleResponseKind = (kind: ResponseKind) => {
+    setForm((f) => {
+      const selected = f.responseRequirements.some((r) => r.kind === kind);
+      if (selected) {
+        return { ...f, responseRequirements: f.responseRequirements.filter((r) => r.kind !== kind) };
+      }
+      return {
+        ...f,
+        responseRequirements: [
+          ...f.responseRequirements,
+          { kind, ...(kind === "references" ? { referencesCount: 1 } : {}) },
+        ],
+      };
+    });
+  };
+
+  const setReferencesCount = (n: number) => {
+    const count = Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+    setForm((f) => ({
+      ...f,
+      responseRequirements: f.responseRequirements.map((r) =>
+        r.kind === "references" ? { ...r, referencesCount: count } : r,
+      ),
+    }));
+  };
+
+  const addPrequalRequirement = (kind: string) => {
+    setForm((f) => ({
+      ...f,
+      prequalRequirements: [
+        ...f.prequalRequirements,
+        { id: crypto.randomUUID(), kind, detailText: "", mandatory: true },
+      ],
+    }));
+  };
+
+  const updatePrequalRequirement = (id: string, patch: Partial<PrequalRequirementState>) => {
+    setForm((f) => ({
+      ...f,
+      prequalRequirements: f.prequalRequirements.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    }));
+  };
+
+  const removePrequalRequirement = (id: string) => {
+    setForm((f) => ({ ...f, prequalRequirements: f.prequalRequirements.filter((r) => r.id !== id) }));
+  };
+
+  const referencesReq = form.responseRequirements.find((r) => r.kind === "references");
+  const availableMappablePrequalKinds = MAPPABLE_PREQUAL_KINDS.filter(
+    (k) => !form.prequalRequirements.some((r) => r.kind === k.kind),
   );
 
   const handleSave = async () => {
@@ -217,6 +369,131 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     }
 
     setExistingSiteIds(form.siteIds);
+
+    // Response requirements: kind is the natural unique key both before and
+    // after persistence (at most one row per kind per tender), so this is a
+    // by-kind diff -- no client-generated ids needed here, unlike prequal
+    // requirements below. "changed" can currently only ever be the
+    // references kind (the only one carrying a value that can differ while
+    // the kind stays selected), but the diff is written generically in case
+    // a future kind gains config too.
+    const existingReqByKind = new Map(existingResponseRequirements.map((r) => [r.kind, r]));
+    const currentReqByKind = new Map(form.responseRequirements.map((r) => [r.kind, r]));
+
+    const removedKinds = [...existingReqByKind.keys()].filter((k) => !currentReqByKind.has(k));
+    const addedKinds = [...currentReqByKind.keys()].filter((k) => !existingReqByKind.has(k));
+    const changedKinds = [...currentReqByKind.keys()].filter((k) => {
+      if (!existingReqByKind.has(k)) return false;
+      return existingReqByKind.get(k)!.referencesCount !== currentReqByKind.get(k)!.referencesCount;
+    });
+
+    if (removedKinds.length) {
+      const { error: reqRemoveError } = await supabase
+        .from("tender_response_requirements")
+        .delete()
+        .eq("tender_id", savedId!)
+        .in("kind", removedKinds);
+      if (reqRemoveError) {
+        toast({ title: "Requirements not saved", description: reqRemoveError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (addedKinds.length) {
+      const { error: reqAddError } = await supabase.from("tender_response_requirements").insert(
+        addedKinds.map((k) => ({
+          tender_id: savedId!,
+          kind: k,
+          config: k === "references" ? { count: currentReqByKind.get(k)!.referencesCount ?? 1 } : null,
+        })),
+      );
+      if (reqAddError) {
+        toast({ title: "Requirements not saved", description: reqAddError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    for (const k of changedKinds) {
+      const { error: reqUpdateError } = await supabase
+        .from("tender_response_requirements")
+        .update({ config: { count: currentReqByKind.get(k)!.referencesCount ?? 1 } })
+        .eq("tender_id", savedId!)
+        .eq("kind", k);
+      if (reqUpdateError) {
+        toast({ title: "Requirements not saved", description: reqUpdateError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    setExistingResponseRequirements(form.responseRequirements);
+
+    // Prequal requirements: identity is the row's own id (kind alone isn't
+    // unique -- "other" rows can repeat), generated client-side the moment
+    // a row is added and reused verbatim as the DB id on INSERT.
+    const existingPrequalIds = new Set(existingPrequalById.keys());
+    const currentPrequalIds = new Set(form.prequalRequirements.map((r) => r.id));
+
+    const removedPrequalIds = [...existingPrequalIds].filter((id) => !currentPrequalIds.has(id));
+    const addedPrequal = form.prequalRequirements.filter((r) => !existingPrequalIds.has(r.id));
+    const changedPrequal = form.prequalRequirements.filter((r) => {
+      const prev = existingPrequalById.get(r.id);
+      if (!prev) return false;
+      return prev.kind !== r.kind || prev.mandatory !== r.mandatory || prev.detailText !== r.detailText;
+    });
+
+    if (removedPrequalIds.length) {
+      const { error: prequalRemoveError } = await supabase
+        .from("tender_prequal_requirements")
+        .delete()
+        .eq("tender_id", savedId!)
+        .in("id", removedPrequalIds);
+      if (prequalRemoveError) {
+        toast({ title: "Prequalification not saved", description: prequalRemoveError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (addedPrequal.length) {
+      const { error: prequalAddError } = await supabase.from("tender_prequal_requirements").insert(
+        addedPrequal.map((r) => ({
+          id: r.id,
+          tender_id: savedId!,
+          kind: r.kind,
+          detail: r.kind === OTHER_PREQUAL_KIND ? { text: r.detailText } : null,
+          mandatory: r.mandatory,
+        })),
+      );
+      if (prequalAddError) {
+        toast({ title: "Prequalification not saved", description: prequalAddError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    for (const r of changedPrequal) {
+      const { error: prequalUpdateError } = await supabase
+        .from("tender_prequal_requirements")
+        .update({
+          kind: r.kind,
+          detail: r.kind === OTHER_PREQUAL_KIND ? { text: r.detailText } : null,
+          mandatory: r.mandatory,
+        })
+        .eq("id", r.id);
+      if (prequalUpdateError) {
+        toast({ title: "Prequalification not saved", description: prequalUpdateError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    setExistingPrequalById(
+      new Map(form.prequalRequirements.map((r) => [r.id, { kind: r.kind, detailText: r.detailText, mandatory: r.mandatory }])),
+    );
+
     setSaving(false);
     toast({ title: "Draft saved" });
   };
@@ -330,6 +607,117 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
             />
           </div>
         </CardContent>
+      </Card>
+
+      {/* What contractors must submit — accented, open by default */}
+      <Card style={{ borderColor: "#f07820", borderWidth: 2 }}>
+        <CardHeader>
+          <CardTitle className="text-base">What contractors must submit</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {RESPONSE_KIND_OPTIONS.map(({ kind, label }) => {
+              const selected = form.responseRequirements.some((r) => r.kind === kind);
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => toggleResponseKind(kind)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
+                    selected
+                      ? "border-[#f07820] bg-orange-50 text-[#f07820]"
+                      : "border-border text-muted-foreground hover:border-foreground/30"
+                  }`}
+                >
+                  {selected && <Check className="h-3.5 w-3.5" />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {referencesReq && (
+            <div className="flex items-center gap-2 pt-1">
+              <Label className="text-sm shrink-0">Number of references</Label>
+              <Input
+                type="number"
+                min={1}
+                className="w-20"
+                value={referencesReq.referencesCount ?? 1}
+                onChange={(e) => setReferencesCount(Number(e.target.value))}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Prequalification requirements — collapsible, closed by default */}
+      <Card>
+        <CardHeader className="cursor-pointer select-none" onClick={() => setPrequalOpen((o) => !o)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              Prequalification requirements
+              {form.prequalRequirements.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  ({form.prequalRequirements.length})
+                </span>
+              )}
+            </CardTitle>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform ${prequalOpen ? "rotate-180" : ""}`}
+            />
+          </div>
+        </CardHeader>
+        {prequalOpen && (
+          <CardContent className="space-y-3">
+            {form.prequalRequirements.map((r) => (
+              <div key={r.id} className="flex items-start gap-3 border border-border rounded-md p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{prequalKindLabel(r.kind)}</p>
+                  {r.kind === OTHER_PREQUAL_KIND && (
+                    <>
+                      <Input
+                        className="mt-1.5"
+                        placeholder="Describe the requirement"
+                        value={r.detailText}
+                        onChange={(e) => updatePrequalRequirement(r.id, { detailText: e.target.value })}
+                      />
+                      <p className="text-xs text-amber-600 mt-1.5">
+                        {r.mandatory
+                          ? "Informational only — this won't block submission automatically, even marked mandatory. You'll need to check it manually."
+                          : "Informational only — free-text requirements aren't checked automatically."}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">{r.mandatory ? "Mandatory" : "Preferred"}</span>
+                  <Switch
+                    checked={r.mandatory}
+                    onCheckedChange={(checked) => updatePrequalRequirement(r.id, { mandatory: checked })}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => removePrequalRequirement(r.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <Select key={form.prequalRequirements.length} onValueChange={addPrequalRequirement}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="+ Add a requirement" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableMappablePrequalKinds.map((k) => (
+                  <SelectItem key={k.kind} value={k.kind}>
+                    {k.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_PREQUAL_KIND}>Other (free text)</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        )}
       </Card>
 
       <div className="flex items-center justify-between">
