@@ -155,6 +155,8 @@ const Header = () => {
           <NavLink to="/marketplace" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Marketplace</NavLink>
           <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Hire</NavLink>
           <NavLink to="/contracts" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Contracts</NavLink>
+          {/* Legacy Lovable Projects flow — hidden pending the new tendering engine UI
+              (TENDERING-SCHEMA.md). Route still live at /projects; re-enable when replaced.
           <NavLink
             to="/projects"
             className={({ isActive }) =>
@@ -165,6 +167,7 @@ const Header = () => {
           >
             Projects
           </NavLink>
+          */}
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -312,6 +315,8 @@ const Header = () => {
             <NavLink to="/marketplace" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Marketplace</NavLink>
             <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Hire</NavLink>
             <NavLink to="/contracts" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Contracts</NavLink>
+            {/* Legacy Lovable Projects flow — hidden pending the new tendering engine UI
+                (TENDERING-SCHEMA.md). Route still live at /projects; re-enable when replaced.
             <NavLink
               to="/projects"
               onClick={() => setIsMenuOpen(false)}
@@ -324,6 +329,7 @@ const Header = () => {
               <FolderKanban className="h-4 w-4" />
               Projects
             </NavLink>
+            */}
             {user ? (
               <>
                 <Link
