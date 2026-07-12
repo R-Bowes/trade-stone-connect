@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Check, ChevronDown, Trash2 } from "lucide-react";
+import { Loader2, Check, ChevronDown, Trash2, FileText, Upload } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 
 interface Props {
@@ -80,6 +81,9 @@ interface PrequalRequirementState {
   mandatory: boolean;
 }
 
+type BidVisibility = "sealed" | "open";
+type Distribution = "invite" | "open";
+
 interface FormState {
   title: string;
   tenderType: "works" | "term";
@@ -88,6 +92,11 @@ interface FormState {
   responseDeadline: string; // <input type="datetime-local"> value
   responseRequirements: ResponseRequirementState[];
   prequalRequirements: PrequalRequirementState[];
+  scopeDescription: string;
+  slaRuleSetId: string | null;
+  bidVisibility: BidVisibility;
+  distribution: Distribution;
+  invitedContractorIds: string[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -98,7 +107,32 @@ const EMPTY_FORM: FormState = {
   responseDeadline: "",
   responseRequirements: [],
   prequalRequirements: [],
+  scopeDescription: "",
+  slaRuleSetId: null,
+  bidVisibility: "sealed",
+  distribution: "invite",
+  invitedContractorIds: [],
 };
+
+interface TenderDocument {
+  id: string;
+  file_path: string;
+  label: string | null;
+}
+
+interface SlaRuleOption {
+  id: string;
+  name: string;
+  priority: string;
+  response_hours: number;
+  resolution_hours: number;
+}
+
+interface PanelContractorOption {
+  contractor_id: string;
+  contractor_name: string;
+  contractor_trades: string[] | null;
+}
 
 // ISO timestamptz -> the value a <input type="datetime-local"> can display
 // (local time, minute precision, no timezone suffix).
@@ -108,9 +142,10 @@ function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// The essentials card only — title, type, trade, sites, deadline. Optional
-// sections (scope, budget, requirements, etc.) are a later slice; publish
-// is stubbed (disabled button) until the publish-transition slice lands.
+// Essentials, response/prequal requirements, scope + documents, SLA
+// expectations, and bidding + distribution. Budget fields (budget_min/max/
+// visible) are still a later slice; publish is stubbed (disabled button)
+// until the publish-transition slice lands.
 //
 // Route contract: no ?tender= param = create mode (first Save does an
 // INSERT, tender_number omitted so assign_tender_number_trigger mints it
@@ -138,11 +173,23 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
   const [existingPrequalById, setExistingPrequalById] = useState<
     Map<string, { kind: string; detailText: string; mandatory: boolean }>
   >(new Map());
+  // Same idea again for the invite roster -- two-bucket diff like sites,
+  // since a tender_invitations row carries no editable value of its own
+  // (just tender_id/contractor_id identity) once created.
+  const [existingInvitedContractorIds, setExistingInvitedContractorIds] = useState<string[]>([]);
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [tradeSearch, setTradeSearch] = useState("");
   const [prequalOpen, setPrequalOpen] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [slaOpen, setSlaOpen] = useState(false);
+  const [distributionOpen, setDistributionOpen] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(!!paramTenderId);
   const [saving, setSaving] = useState(false);
+
+  const [documents, setDocuments] = useState<TenderDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [slaRules, setSlaRules] = useState<SlaRuleOption[]>([]);
+  const [panelContractors, setPanelContractors] = useState<PanelContractorOption[]>([]);
 
   // Company's sites, for the checklist.
   useEffect(() => {
@@ -154,15 +201,68 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       .then(({ data }) => setSites(data ?? []));
   }, [companyId]);
 
+  // Company's SLA rule sets, for the SLA expectations picker.
+  useEffect(() => {
+    supabase
+      .from("sla_rules")
+      .select("id, name, priority, response_hours, resolution_hours")
+      .eq("company_id", companyId)
+      .order("name")
+      .then(({ data }) => setSlaRules(data ?? []));
+  }, [companyId]);
+
+  // Approved panel contractors, for the invite-mode distribution picker --
+  // same query shape as BusinessPrequalView.loadContractors.
+  useEffect(() => {
+    (async () => {
+      const { data: panelRows } = await supabase
+        .from("contractor_panel")
+        .select("contractor_id")
+        .eq("company_id", companyId)
+        .eq("status", "approved");
+
+      const ids = (panelRows ?? []).map((r) => r.contractor_id as string).filter(Boolean);
+      if (!ids.length) {
+        setPanelContractors([]);
+        return;
+      }
+
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("id, full_name, trades")
+        .in("id", ids);
+
+      setPanelContractors(
+        ids.map((id) => {
+          const p = (profileRows ?? []).find((row) => row.id === id);
+          return {
+            contractor_id: id,
+            contractor_name: p?.full_name ?? "Unknown contractor",
+            contractor_trades: p?.trades ?? null,
+          };
+        }),
+      );
+    })();
+  }, [companyId]);
+
   // Resume mode: load the existing draft + its current site selection.
   useEffect(() => {
     if (!paramTenderId) return;
 
     (async () => {
-      const [{ data: tender }, { data: siteLinks }, { data: responseReqs }, { data: prequalReqs }] = await Promise.all([
+      const [
+        { data: tender },
+        { data: siteLinks },
+        { data: responseReqs },
+        { data: prequalReqs },
+        { data: docs },
+        { data: invitations },
+      ] = await Promise.all([
         supabase
           .from("tenders")
-          .select("id, tender_number, title, tender_type, trade_categories, response_deadline")
+          .select(
+            "id, tender_number, title, tender_type, trade_categories, response_deadline, scope_description, sla_rule_set_id, bid_visibility, distribution",
+          )
           .eq("id", paramTenderId)
           .maybeSingle(),
         supabase
@@ -176,6 +276,14 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
         supabase
           .from("tender_prequal_requirements")
           .select("id, kind, detail, mandatory")
+          .eq("tender_id", paramTenderId),
+        supabase
+          .from("tender_documents")
+          .select("id, file_path, label")
+          .eq("tender_id", paramTenderId),
+        supabase
+          .from("tender_invitations")
+          .select("contractor_id")
           .eq("tender_id", paramTenderId),
       ]);
 
@@ -192,6 +300,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           detailText: (r.detail as { text?: string } | null)?.text ?? "",
           mandatory: r.mandatory,
         }));
+        const loadedInvitedIds = (invitations ?? []).map((r) => r.contractor_id);
 
         setForm({
           title: tender.title,
@@ -201,14 +310,24 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           responseDeadline: tender.response_deadline ? toDatetimeLocalValue(tender.response_deadline) : "",
           responseRequirements: loadedResponseReqs,
           prequalRequirements: loadedPrequalReqs,
+          scopeDescription: tender.scope_description ?? "",
+          slaRuleSetId: tender.sla_rule_set_id,
+          bidVisibility: tender.bid_visibility as BidVisibility,
+          distribution: tender.distribution as Distribution,
+          invitedContractorIds: loadedInvitedIds,
         });
         setExistingSiteIds(loadedSiteIds);
         setExistingResponseRequirements(loadedResponseReqs);
         setExistingPrequalById(
           new Map(loadedPrequalReqs.map((r) => [r.id, { kind: r.kind, detailText: r.detailText, mandatory: r.mandatory }])),
         );
+        setExistingInvitedContractorIds(loadedInvitedIds);
+        setDocuments(docs ?? []);
         setTenderNumber(tender.tender_number);
         if (loadedPrequalReqs.length > 0) setPrequalOpen(true);
+        if (tender.scope_description || (docs ?? []).length > 0) setScopeOpen(true);
+        if (tender.sla_rule_set_id) setSlaOpen(true);
+        if (loadedInvitedIds.length > 0) setDistributionOpen(true);
       }
       setLoadingExisting(false);
     })();
@@ -225,6 +344,15 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     setForm((f) => ({
       ...f,
       siteIds: f.siteIds.includes(id) ? f.siteIds.filter((x) => x !== id) : [...f.siteIds, id],
+    }));
+  };
+
+  const toggleInvitedContractor = (id: string) => {
+    setForm((f) => ({
+      ...f,
+      invitedContractorIds: f.invitedContractorIds.includes(id)
+        ? f.invitedContractorIds.filter((x) => x !== id)
+        : [...f.invitedContractorIds, id],
     }));
   };
 
@@ -299,6 +427,10 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       title: form.title.trim(),
       trade_categories: form.trades,
       response_deadline: form.responseDeadline ? new Date(form.responseDeadline).toISOString() : null,
+      scope_description: form.scopeDescription.trim() || null,
+      sla_rule_set_id: form.slaRuleSetId,
+      bid_visibility: form.bidVisibility,
+      distribution: form.distribution,
     };
 
     let savedId = tenderId;
@@ -494,8 +626,94 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       new Map(form.prequalRequirements.map((r) => [r.id, { kind: r.kind, detailText: r.detailText, mandatory: r.mandatory }])),
     );
 
+    // Invited contractors: two-bucket diff against the last persisted set,
+    // same idiom as sites -- a tender_invitations row carries no editable
+    // value once created, so unlike prequal there's no "changed" bucket.
+    const removedInvites = existingInvitedContractorIds.filter((id) => !form.invitedContractorIds.includes(id));
+    const addedInvites = form.invitedContractorIds.filter((id) => !existingInvitedContractorIds.includes(id));
+
+    if (removedInvites.length) {
+      const { error: inviteRemoveError } = await supabase
+        .from("tender_invitations")
+        .delete()
+        .eq("tender_id", savedId!)
+        .in("contractor_id", removedInvites);
+      if (inviteRemoveError) {
+        toast({ title: "Invitations not saved", description: inviteRemoveError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (addedInvites.length) {
+      const { error: inviteAddError } = await supabase.from("tender_invitations").insert(
+        addedInvites.map((contractor_id) => ({
+          tender_id: savedId!,
+          contractor_id,
+          invited_by: profileId,
+        })),
+      );
+      if (inviteAddError) {
+        toast({ title: "Invitations not saved", description: inviteAddError.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    }
+
+    setExistingInvitedContractorIds(form.invitedContractorIds);
+
     setSaving(false);
     toast({ title: "Draft saved" });
+  };
+
+  // Upload needs tender_id for the storage path ({tender_id}/{filename}, the
+  // convention the bucket RLS policies parse) -- the UI blocks this control
+  // until the draft has been saved once (see the JSX below), so tenderId is
+  // guaranteed non-null here.
+  const handleUploadDocument = async (file: File) => {
+    if (!tenderId) return;
+    setUploading(true);
+    try {
+      const path = `${tenderId}/${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("tender-documents")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data, error: insertError } = await supabase
+        .from("tender_documents")
+        .insert({ tender_id: tenderId, uploaded_by: profileId, file_path: path, label: file.name })
+        .select("id, file_path, label")
+        .single();
+      if (insertError) throw insertError;
+
+      setDocuments((prev) => [...prev, data]);
+      toast({ title: "Document uploaded" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ variant: "destructive", title: "Upload failed", description: msg });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleViewDocument = async (doc: TenderDocument) => {
+    const { data, error } = await supabase.storage.from("tender-documents").createSignedUrl(doc.file_path, 300);
+    if (error || !data?.signedUrl) {
+      toast({ variant: "destructive", title: "Could not open document" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleRemoveDocument = async (doc: TenderDocument) => {
+    const { error } = await supabase.from("tender_documents").delete().eq("id", doc.id);
+    if (error) {
+      toast({ variant: "destructive", title: "Remove failed", description: error.message });
+      return;
+    }
+    await supabase.storage.from("tender-documents").remove([doc.file_path]);
+    setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
   };
 
   if (loadingExisting) {
@@ -716,6 +934,247 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
                 <SelectItem value={OTHER_PREQUAL_KIND}>Other (free text)</SelectItem>
               </SelectContent>
             </Select>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Scope & documents — collapsible, closed by default */}
+      <Card>
+        <CardHeader className="cursor-pointer select-none" onClick={() => setScopeOpen((o) => !o)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Scope &amp; documents</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-normal text-muted-foreground">
+                {documents.length > 0
+                  ? `${documents.length} document${documents.length === 1 ? "" : "s"}`
+                  : form.scopeDescription.trim()
+                    ? "Scope added"
+                    : "No scope or documents"}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${scopeOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        {scopeOpen && (
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Scope of works</Label>
+              <Textarea
+                placeholder="Describe the scope of works in detail..."
+                rows={5}
+                value={form.scopeDescription}
+                onChange={(e) => setForm((f) => ({ ...f, scopeDescription: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Documents</Label>
+              {!tenderId ? (
+                <div className="flex items-center justify-between gap-3 border border-dashed border-border rounded-md p-3">
+                  <p className="text-sm text-muted-foreground">Save the draft before attaching documents.</p>
+                  <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+                    {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                    Save draft
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between gap-3 border border-border rounded-md p-2.5">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 text-sm text-blue-600 hover:underline min-w-0"
+                        onClick={() => handleViewDocument(doc)}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{doc.label ?? doc.file_path}</span>
+                      </button>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveDocument(doc)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadDocument(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={uploading}
+                      onClick={(e) => {
+                        (e.currentTarget.previousSibling as HTMLInputElement)?.click();
+                      }}
+                    >
+                      {uploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Upload document
+                    </Button>
+                  </label>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* SLA expectations — collapsible, closed by default */}
+      <Card>
+        <CardHeader className="cursor-pointer select-none" onClick={() => setSlaOpen((o) => !o)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">SLA expectations</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-normal text-muted-foreground">
+                {slaRules.find((r) => r.id === form.slaRuleSetId)?.name ?? "No SLA rule selected"}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${slaOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        {slaOpen && (
+          <CardContent className="space-y-2">
+            <Label>SLA rule set</Label>
+            {slaRules.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No SLA rules set up for your company yet.</p>
+            ) : (
+              <Select
+                value={form.slaRuleSetId ?? "none"}
+                onValueChange={(v) => setForm((f) => ({ ...f, slaRuleSetId: v === "none" ? null : v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select an SLA rule set" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {slaRules.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name} — {r.priority.toUpperCase()} · response {r.response_hours}h / resolution {r.resolution_hours}h
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Bidding & distribution — collapsible, closed by default */}
+      <Card>
+        <CardHeader className="cursor-pointer select-none" onClick={() => setDistributionOpen((o) => !o)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Bidding &amp; distribution</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-normal text-muted-foreground">
+                {form.bidVisibility === "sealed" ? "Sealed" : "Open"} ·{" "}
+                {form.distribution === "invite"
+                  ? `Invite-only (${form.invitedContractorIds.length})`
+                  : "Open to all"}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${distributionOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        {distributionOpen && (
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label>Bid visibility</Label>
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {(["sealed", "open"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, bidVisibility: v }))}
+                    className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                      form.bidVisibility === v
+                        ? "bg-[#1a2744] text-white"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v === "sealed" ? "Sealed" : "Open"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {form.bidVisibility === "sealed"
+                  ? "Bids stay hidden from you until you choose to unseal them."
+                  : "Bids are visible to you as they come in."}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Distribution</Label>
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {(["invite", "open"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, distribution: v }))}
+                    className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                      form.distribution === v
+                        ? "bg-[#1a2744] text-white"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v === "invite" ? "Invite-only" : "Open"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {form.distribution === "invite"
+                  ? "Only invited contractors can see and bid on this tender."
+                  : "Any contractor on the platform can see and bid on this tender."}
+              </p>
+            </div>
+
+            {form.distribution === "invite" && (
+              <div className="space-y-2">
+                <Label>Invite contractors ({form.invitedContractorIds.length} selected)</Label>
+                {panelContractors.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No approved panel contractors yet — add contractors to your panel first.
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto border border-border rounded-md p-1">
+                    {panelContractors.map((c) => (
+                      <label
+                        key={c.contractor_id}
+                        className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-muted"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.invitedContractorIds.includes(c.contractor_id)}
+                          onChange={() => toggleInvitedContractor(c.contractor_id)}
+                          style={{ accentColor: "#f07820", width: 14, height: 14 }}
+                        />
+                        <span className="text-sm">{c.contractor_name}</span>
+                        {c.contractor_trades?.length ? (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {c.contractor_trades.join(", ")}
+                          </span>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         )}
       </Card>
