@@ -38,6 +38,7 @@ import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
 import { ContractorPrequalStatus } from "@/components/contractor/ContractorPrequalStatus";
+import { ContractorTendersView } from "@/components/contractor/tenders/ContractorTendersView";
 import { ContractorServiceVisits } from "@/components/business/ContractorServiceVisits";
 import ShareProfileView from "@/components/contractor/ShareProfileView";
 import BusinessCardEditor from "@/components/contractor/BusinessCardEditor";
@@ -642,6 +643,14 @@ const ContractorDashboard = () => {
           </TabsContent>
 
           <TabsContent value="jobs"><JobManagement /></TabsContent>
+
+          {/* Tenders Tab */}
+          <TabsContent value="tenders">
+            {profileId ? <ContractorTendersView profileId={profileId} /> : (
+              <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load tenders — profile not found.</p></CardContent></Card>
+            )}
+          </TabsContent>
+
           <TabsContent value="contracts"><ContractManagement /></TabsContent>
           <TabsContent value="team"><TeamManagement /></TabsContent>
           <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>

@@ -6664,6 +6664,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      mark_tender_invitation_viewed: {
+        Args: { p_invitation_id: string }
+        Returns: undefined
+      }
       next_business_document_number: {
         Args: { p_company_id: string; p_entity: string }
         Returns: number
