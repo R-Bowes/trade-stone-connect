@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { ContractorTendersPipeline } from "./ContractorTendersPipeline";
 import { ContractorTenderBrief } from "./ContractorTenderBrief";
 import { ContractorTenderStub } from "./ContractorTenderStub";
+import { ContractorApplicationStepper } from "./ContractorApplicationStepper";
 
 interface Props {
   profileId: string;
@@ -47,6 +48,12 @@ export function ContractorTendersView({ profileId }: Props) {
       return prev;
     }, { replace: true });
   };
+
+  // "apply" gets the real stepper; "ask"/"decline" still land on the
+  // generic stub (out of scope for this slice).
+  if (tenderId && mode === "apply") {
+    return <ContractorApplicationStepper tenderId={tenderId} onBack={backToBrief} />;
+  }
 
   if (tenderId && mode) {
     return <ContractorTenderStub mode={mode} onBack={backToBrief} />;
