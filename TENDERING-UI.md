@@ -251,6 +251,12 @@ Each is a vertical slice, built to the production bar, proven before the next.
 4. Email escalation for time-critical events — in-app + email, or SMS too
    for emergencies (ties to the OOH dispatch question from the engine build).
 5. Roles taxonomy + threshold model (X3).
+6. Two-envelope evaluation: does the pricing section seal separately from
+   quality, and is the two-phase unseal worth the engine change? (Decide
+   at Stage 4.)
+7. ESG criterion type: a distinct weightable category, or handled via the
+   existing generic criteria + a convention? (Decide at Stage 1 criteria
+   UI.)
 
 ---
 
@@ -265,3 +271,74 @@ Each is a vertical slice, built to the production bar, proven before the next.
 - sla-clock / mark-overdue are unauthenticated edge functions
   (`verify_jwt=false`) — add shared-secret header if they ever do anything
   outsider-abusable.
+
+---
+
+## Global procurement standards: considered scope
+
+Researched against World Bank / UNCITRAL Model Law / EU directives /
+ISO 20400 and 2026 e-procurement practice. The engine already implements
+most of the international reference framework by design (sealed bids,
+prequalification, published weighted criteria, immutable audit trail,
+standstill, assessment summaries). The following are deliberate ADDITIONS
+to reach full procurement-grade for a global FM buyer — folded in at the
+stage each belongs to, not built speculatively.
+
+### G1. Tender types beyond works/term — add RFI
+Global standard distinguishes RFI (market intelligence, no award, no
+pricing), RFQ (price for scoped items), RFP (solution approach). We have
+works + term. Add **RFI** as a lightweight type: structured questions, no
+pricing section, no award — a business gathers market intelligence before
+committing to a full tender. Cheap given the engine (a tender with no
+pricing kind and a terminal "close, no award" path). Two-stage (EOI →
+shortlist → full) already deferred in engine notes — keep deferred.
+**Belongs to: Stage 1 (creation) — a type toggle + suppressed sections.**
+
+### G2. Two-envelope (technical-then-commercial) evaluation
+World Bank / multilateral / much public-sector standard: technical and
+commercial proposals sealed SEPARATELY. Evaluators score the technical
+response WITHOUT seeing price (removes price bias from quality scoring);
+bids below the technical qualifying score are eliminated before price is
+opened. This is an EXTENSION of the existing seal, not a rebuild — a
+`price_sealed_separately` flag on the tender, a two-phase unseal (quality
+first, then price for qualifying bids only), and the comparison screen
+respects the phase. A genuine procurement-integrity feature.
+**Belongs to: Stage 4 (unseal/comparison/scoring). Engine addition:
+separate seal/unseal for the pricing section vs the rest.**
+
+### G3. ESG / social value as a weightable criterion type
+ISO 20400 + 2026 practice: ESG/social value is now a business imperative,
+and housing-association buyers increasingly MUST score it. Engine has
+evaluation criteria + a social-value slot; production-grade makes ESG/
+social-value a proper, weightable criterion TYPE (not a free-text field),
+so it scores and weights like price/quality in the matrix.
+**Belongs to: Stage 1 (criteria definition) + Stage 4 (scoring). Engine
+addition: a criterion `type`/category so ESG is first-class.**
+
+### G4. Exportable audit pack
+The anti-corruption core of e-procurement: an auditable record removing
+subjectivity and increasing accountability. The engine already produces
+the immutable record (snapshots, append-only scores, transition log). Make
+it a ONE-CLICK exportable pack per tender: timeline (who saw what, when),
+every status transition, scores with rationale, the assessment summaries,
+sealed-bid integrity proof. Turns a byproduct into a headline feature and
+satisfies X1 concretely.
+**Belongs to: Stage 5 (post-award) + available anytime post-unseal.
+Standalone — mostly a read + format of data that already exists.**
+
+---
+
+## Explicitly OUT of scope (deliberate boundary)
+
+Named so the boundary is a decision, not an accident. TradeStone's wedge is
+marketplace + contractor OS + FM-grade procurement — not enterprise
+source-to-pay.
+
+- **e-reverse auctions** (live price-dropping bidding wars) — races quality
+  to the bottom, wrong for FM relationships, large build. No.
+- **Full source-to-pay / spend analytics / agentic AI bid-scoring**
+  (Zycus/Simfoni territory) — a different product.
+- **Deep ERP / e-ordering / e-invoicing integrations** — enterprise
+  plumbing, not the first buyers' need.
+- **Two-stage tendering (EOI → full)** — deferred, not rejected; revisit
+  after core flow if a buyer needs it.
