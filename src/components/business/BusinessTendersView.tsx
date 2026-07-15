@@ -3,40 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
-import { useTenders, type TenderRow, type TenderStatus } from "@/hooks/useTenders";
+import { useTenders, type TenderRow } from "@/hooks/useTenders";
+import { STATUS_LABEL, STATUS_COLOUR, TYPE_LABEL, MUTED_STATUSES } from "@/lib/tenderStatus";
 
 interface Props {
   companyId: string;
 }
-
-const STATUS_LABEL: Record<TenderStatus, string> = {
-  draft: "Draft",
-  published: "Published",
-  closed: "Closed",
-  unsealed: "Unsealed",
-  awarded: "Awarded",
-  cancelled: "Cancelled",
-  lapsed: "Lapsed",
-};
-
-const STATUS_COLOUR: Record<TenderStatus, string> = {
-  draft: "bg-gray-100 text-gray-600",
-  published: "bg-blue-100 text-blue-800",
-  closed: "bg-amber-100 text-amber-800",
-  unsealed: "bg-purple-100 text-purple-800",
-  awarded: "bg-green-100 text-green-800",
-  cancelled: "bg-gray-100 text-gray-500",
-  lapsed: "bg-gray-100 text-gray-500",
-};
-
-const TYPE_LABEL: Record<TenderRow["tender_type"], string> = {
-  works: "Works",
-  term: "Term",
-};
-
-// Terminal states rendered muted (per the confirmed mapping: cancelled/lapsed
-// are dead ends, not something needing the same visual weight as live rows).
-const MUTED_STATUSES: TenderStatus[] = ["cancelled", "lapsed"];
 
 type MetricKey = "open" | "awaitingUnseal" | "drafts" | "awarded";
 
@@ -45,18 +17,17 @@ export function BusinessTendersView({ companyId }: Props) {
   const { tenders, loading, error } = useTenders(companyId);
   const [activeMetric, setActiveMetric] = useState<MetricKey | null>(null);
 
-  const goStub = (mode: string, tenderId?: string) => {
-    const params = new URLSearchParams({ view: "tenders-stub", mode });
-    if (tenderId) params.set("tender", tenderId);
-    navigate(`/dashboard/business?${params.toString()}`);
-  };
-
   // New tender (no ?tender=) and Continue on a draft (?tender=<id>) both
-  // route to the real essentials form now — everything else (unseal,
-  // review, view) still goes to the stub until those slices land.
+  // route to the real essentials form. Every other non-draft status now
+  // routes to the real read-only detail view (BusinessTenderDetail) instead
+  // of the generic stub -- the stub itself is still reachable, but only via
+  // the detail view's own "Unseal"/"Review bids" links for closed/unsealed,
+  // since those actions (not the read-only summary) are still unbuilt.
   const goNewTender = () => navigate("/dashboard/business?view=tender-form");
   const goContinueDraft = (tenderId: string) =>
     navigate(`/dashboard/business?view=tender-form&tender=${tenderId}`);
+  const goDetail = (tenderId: string) =>
+    navigate(`/dashboard/business?view=tender-detail&tender=${tenderId}`);
 
   const metrics = useMemo(() => {
     const drafts = tenders.filter((t) => t.status === "draft").length;
@@ -108,18 +79,6 @@ export function BusinessTendersView({ companyId }: Props) {
       case "cancelled":
       case "lapsed":
         return { label: "View", muted: true };
-    }
-  };
-
-  // Only reached for non-draft rows now — draft rows go straight to
-  // goContinueDraft() instead of the stub. Kept as a switch (not an
-  // if/else) so a future status added to TenderStatus fails loudly via
-  // TS exhaustiveness rather than silently falling into "view".
-  const rowActionMode = (t: TenderRow): string => {
-    switch (t.status) {
-      case "closed": return "unseal";
-      case "unsealed": return "review";
-      default: return "view";
     }
   };
 
@@ -228,7 +187,7 @@ export function BusinessTendersView({ companyId }: Props) {
                         <Button
                           size="sm"
                           variant={action.muted ? "outline" : "default"}
-                          onClick={() => (t.status === "draft" ? goContinueDraft(t.id) : goStub(rowActionMode(t), t.id))}
+                          onClick={() => (t.status === "draft" ? goContinueDraft(t.id) : goDetail(t.id))}
                           className="shrink-0"
                         >
                           {action.label}
