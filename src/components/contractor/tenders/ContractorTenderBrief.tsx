@@ -79,12 +79,13 @@ interface ApplicationInfo {
 }
 
 // Verbatim mirror of RESPONSE_KIND_OPTIONS in BusinessTenderForm.tsx --
-// same seven values tender_response_requirements_kind_check permits. Kept
+// same seven values tender_response_requirements_kind_check permits
+// ('pricing' renamed to 'pricing_schedule' in 20260713130000). Kept
 // duplicated rather than shared: it's a small, stable, DB-constrained list,
 // and the two components live in different dashboards with no existing
 // shared-constants file between them.
 const RESPONSE_KIND_LABELS: Record<string, string> = {
-  pricing: "Pricing",
+  pricing_schedule: "Pricing schedule",
   references: "References",
   methodology: "Methodology statement",
   programme: "Programme",

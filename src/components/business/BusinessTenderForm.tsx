@@ -33,7 +33,7 @@ interface SiteOption {
 }
 
 type ResponseKind =
-  | "pricing"
+  | "pricing_schedule"
   | "references"
   | "methodology"
   | "programme"
@@ -42,9 +42,11 @@ type ResponseKind =
   | "rams";
 
 // The seven values tender_response_requirements_kind_check permits, confirmed
-// live via pg_constraint.
+// live via pg_constraint. 'pricing' was renamed to 'pricing_schedule' in
+// 20260713130000 -- it had no defined shape or server behaviour before that,
+// so this is the same slot, not a new one.
 const RESPONSE_KIND_OPTIONS: { kind: ResponseKind; label: string }[] = [
-  { kind: "pricing", label: "Pricing" },
+  { kind: "pricing_schedule", label: "Pricing schedule" },
   { kind: "references", label: "References" },
   { kind: "methodology", label: "Methodology statement" },
   { kind: "programme", label: "Programme" },
@@ -53,9 +55,62 @@ const RESPONSE_KIND_OPTIONS: { kind: ResponseKind; label: string }[] = [
   { kind: "rams", label: "RAMS" },
 ];
 
+// Fixed unit palette -- comparability is a locked fairness principle, no
+// custom units any more than custom columns.
+const PRICING_UNIT_OPTIONS: { value: string; label: string }[] = [
+  { value: "item", label: "Per item" },
+  { value: "job", label: "Per job" },
+  { value: "hour", label: "Per hour" },
+  { value: "day", label: "Per day" },
+  { value: "visit", label: "Per visit" },
+  { value: "sqm", label: "Per m²" },
+  { value: "metre", label: "Per metre" },
+  { value: "cubic_metre", label: "Per m³" },
+  { value: "fixed", label: "Fixed price" },
+];
+
+const PRICING_PRIORITY_OPTIONS = ["P1", "P2", "P3", "Standard"];
+
+// Fixed column palette. Rate and Unit are always present (not toggles);
+// everything here is optional. Locked: no custom columns, ever -- keeps
+// bids comparable line-for-line across contractors.
+type PricingColumn = "quantity" | "leadTime" | "frequency" | "slaPriority" | "notes";
+const PRICING_COLUMN_OPTIONS: { value: PricingColumn; label: string }[] = [
+  { value: "quantity", label: "Quantity" },
+  { value: "leadTime", label: "Lead time" },
+  { value: "frequency", label: "Frequency" },
+  { value: "slaPriority", label: "SLA priority" },
+  { value: "notes", label: "Notes" },
+];
+
+interface PricingScheduleRow {
+  // Client-generated (crypto.randomUUID()) the moment a row is added, reused
+  // verbatim as the id persisted in config.rows[].id. Stable across edits
+  // because the contractor's tender_application_price_lines rows key to it
+  // -- renaming a row's label later must not orphan a contractor's already
+  // -entered rate, so the id is never regenerated on edit, only on create.
+  id: string;
+  label: string;
+  unit: string;
+  // All business-specified, read-only for the contractor -- the grid's only
+  // contractor-editable cell is the rate (tender_application_price_lines).
+  // Populated only when the matching column is toggled active.
+  priority?: string;
+  quantity?: string;
+  leadTime?: string;
+  frequency?: string;
+  notes?: string;
+}
+
+interface PricingScheduleConfig {
+  rows: PricingScheduleRow[];
+  columns: PricingColumn[];
+}
+
 interface ResponseRequirementState {
   kind: ResponseKind;
   referencesCount?: number; // only meaningful when kind === "references"
+  pricingSchedule?: PricingScheduleConfig; // only meaningful when kind === "pricing_schedule"
 }
 
 // Verbatim, single source of truth: these six strings are exactly what
@@ -305,6 +360,10 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           kind: r.kind as ResponseKind,
           referencesCount:
             r.kind === "references" ? ((r.config as { count?: number } | null)?.count ?? 1) : undefined,
+          pricingSchedule:
+            r.kind === "pricing_schedule"
+              ? ((r.config as PricingScheduleConfig | null) ?? { rows: [], columns: [] })
+              : undefined,
         }));
         const loadedPrequalReqs: PrequalRequirementState[] = (prequalReqs ?? []).map((r) => ({
           id: r.id,
@@ -382,7 +441,11 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
         ...f,
         responseRequirements: [
           ...f.responseRequirements,
-          { kind, ...(kind === "references" ? { referencesCount: 1 } : {}) },
+          {
+            kind,
+            ...(kind === "references" ? { referencesCount: 1 } : {}),
+            ...(kind === "pricing_schedule" ? { pricingSchedule: { rows: [], columns: [] } } : {}),
+          },
         ],
       };
     });
@@ -395,6 +458,44 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       responseRequirements: f.responseRequirements.map((r) =>
         r.kind === "references" ? { ...r, referencesCount: count } : r,
       ),
+    }));
+  };
+
+  // Pricing schedule builder helpers. All operate on the single
+  // "pricing_schedule" requirement row's pricingSchedule field -- there is
+  // only ever one per tender (kind is the unique key), so no id lookup is
+  // needed the way reference/prequal rows need one.
+  const updatePricingSchedule = (patch: (p: PricingScheduleConfig) => PricingScheduleConfig) => {
+    setForm((f) => ({
+      ...f,
+      responseRequirements: f.responseRequirements.map((r) =>
+        r.kind === "pricing_schedule" && r.pricingSchedule ? { ...r, pricingSchedule: patch(r.pricingSchedule) } : r,
+      ),
+    }));
+  };
+
+  const addPricingRow = () => {
+    updatePricingSchedule((p) => ({
+      ...p,
+      rows: [...p.rows, { id: crypto.randomUUID(), label: "", unit: "item" }],
+    }));
+  };
+
+  const updatePricingRow = (rowId: string, patch: Partial<PricingScheduleRow>) => {
+    updatePricingSchedule((p) => ({
+      ...p,
+      rows: p.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
+    }));
+  };
+
+  const removePricingRow = (rowId: string) => {
+    updatePricingSchedule((p) => ({ ...p, rows: p.rows.filter((r) => r.id !== rowId) }));
+  };
+
+  const togglePricingColumn = (column: PricingColumn) => {
+    updatePricingSchedule((p) => ({
+      ...p,
+      columns: p.columns.includes(column) ? p.columns.filter((c) => c !== column) : [...p.columns, column],
     }));
   };
 
@@ -420,6 +521,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
   };
 
   const referencesReq = form.responseRequirements.find((r) => r.kind === "references");
+  const pricingScheduleReq = form.responseRequirements.find((r) => r.kind === "pricing_schedule");
   const availableMappablePrequalKinds = MAPPABLE_PREQUAL_KINDS.filter(
     (k) => !form.prequalRequirements.some((r) => r.kind === k.kind),
   );
@@ -524,10 +626,11 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     // Response requirements: kind is the natural unique key both before and
     // after persistence (at most one row per kind per tender), so this is a
     // by-kind diff -- no client-generated ids needed here, unlike prequal
-    // requirements below. "changed" can currently only ever be the
-    // references kind (the only one carrying a value that can differ while
-    // the kind stays selected), but the diff is written generically in case
-    // a future kind gains config too.
+    // requirements below. "changed" covers both value-bearing kinds:
+    // references' count, and pricing_schedule's whole rows/columns config
+    // (compared by JSON.stringify -- deep-comparing a small, order-stable
+    // object is simpler here than field-by-field, and row identity inside
+    // it is already stable since row ids are never regenerated on edit).
     const existingReqByKind = new Map(existingResponseRequirements.map((r) => [r.kind, r]));
     const currentReqByKind = new Map(form.responseRequirements.map((r) => [r.kind, r]));
 
@@ -535,8 +638,18 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     const addedKinds = [...currentReqByKind.keys()].filter((k) => !existingReqByKind.has(k));
     const changedKinds = [...currentReqByKind.keys()].filter((k) => {
       if (!existingReqByKind.has(k)) return false;
-      return existingReqByKind.get(k)!.referencesCount !== currentReqByKind.get(k)!.referencesCount;
+      const prev = existingReqByKind.get(k)!;
+      const cur = currentReqByKind.get(k)!;
+      if (k === "references") return prev.referencesCount !== cur.referencesCount;
+      if (k === "pricing_schedule") return JSON.stringify(prev.pricingSchedule) !== JSON.stringify(cur.pricingSchedule);
+      return false;
     });
+
+    const configForKind = (k: ResponseKind): { count: number } | PricingScheduleConfig | null => {
+      if (k === "references") return { count: currentReqByKind.get(k)!.referencesCount ?? 1 };
+      if (k === "pricing_schedule") return currentReqByKind.get(k)!.pricingSchedule ?? { rows: [], columns: [] };
+      return null;
+    };
 
     if (removedKinds.length) {
       const { error: reqRemoveError } = await supabase
@@ -556,7 +669,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
         addedKinds.map((k) => ({
           tender_id: savedId!,
           kind: k,
-          config: k === "references" ? { count: currentReqByKind.get(k)!.referencesCount ?? 1 } : null,
+          config: configForKind(k),
         })),
       );
       if (reqAddError) {
@@ -569,7 +682,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     for (const k of changedKinds) {
       const { error: reqUpdateError } = await supabase
         .from("tender_response_requirements")
-        .update({ config: { count: currentReqByKind.get(k)!.referencesCount ?? 1 } })
+        .update({ config: configForKind(k) })
         .eq("tender_id", savedId!)
         .eq("kind", k);
       if (reqUpdateError) {
@@ -946,6 +1059,127 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
                 value={referencesReq.referencesCount ?? 1}
                 onChange={(e) => setReferencesCount(Number(e.target.value))}
               />
+            </div>
+          )}
+
+          {pricingScheduleReq?.pricingSchedule && (
+            <div className="pt-3 space-y-3 border-t">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <Label className="text-sm">Columns</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border-2 border-[#1a2744] bg-[#1a2744]/5 text-[#1a2744]">
+                    Rate
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border-2 border-[#1a2744] bg-[#1a2744]/5 text-[#1a2744]">
+                    Unit
+                  </span>
+                  {PRICING_COLUMN_OPTIONS.map(({ value, label }) => {
+                    const active = pricingScheduleReq.pricingSchedule!.columns.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => togglePricingColumn(value)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border-2 transition-all ${
+                          active
+                            ? "border-[#f07820] bg-orange-50 text-[#f07820]"
+                            : "border-border text-muted-foreground hover:border-foreground/30"
+                        }`}
+                      >
+                        {active && <Check className="h-3 w-3" />}
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rate and Unit are always shown. No custom columns — the fixed palette keeps bids comparable
+                line-for-line across contractors.
+              </p>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Line items</Label>
+                {pricingScheduleReq.pricingSchedule.rows.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No line items yet.</p>
+                )}
+                {pricingScheduleReq.pricingSchedule.rows.map((row, i) => (
+                  <div key={row.id} className="flex items-start gap-2 border border-border rounded-md p-2.5">
+                    <span className="text-xs text-muted-foreground shrink-0 mt-2 w-4">{i + 1}.</span>
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <Input
+                        placeholder="Line item description"
+                        value={row.label}
+                        onChange={(e) => updatePricingRow(row.id, { label: e.target.value })}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Select value={row.unit} onValueChange={(v) => updatePricingRow(row.id, { unit: v })}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRICING_UNIT_OPTIONS.map((u) => (
+                              <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {pricingScheduleReq.pricingSchedule!.columns.includes("slaPriority") && (
+                          <Select
+                            value={row.priority ?? ""}
+                            onValueChange={(v) => updatePricingRow(row.id, { priority: v })}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="Priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PRICING_PRIORITY_OPTIONS.map((p) => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {pricingScheduleReq.pricingSchedule!.columns.includes("quantity") && (
+                          <Input
+                            className="w-28"
+                            placeholder="Quantity"
+                            value={row.quantity ?? ""}
+                            onChange={(e) => updatePricingRow(row.id, { quantity: e.target.value })}
+                          />
+                        )}
+                        {pricingScheduleReq.pricingSchedule!.columns.includes("leadTime") && (
+                          <Input
+                            className="w-32"
+                            placeholder="Lead time"
+                            value={row.leadTime ?? ""}
+                            onChange={(e) => updatePricingRow(row.id, { leadTime: e.target.value })}
+                          />
+                        )}
+                        {pricingScheduleReq.pricingSchedule!.columns.includes("frequency") && (
+                          <Input
+                            className="w-32"
+                            placeholder="Frequency"
+                            value={row.frequency ?? ""}
+                            onChange={(e) => updatePricingRow(row.id, { frequency: e.target.value })}
+                          />
+                        )}
+                      </div>
+                      {pricingScheduleReq.pricingSchedule!.columns.includes("notes") && (
+                        <Input
+                          placeholder="Notes"
+                          value={row.notes ?? ""}
+                          onChange={(e) => updatePricingRow(row.id, { notes: e.target.value })}
+                        />
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => removePricingRow(row.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" size="sm" variant="outline" onClick={addPricingRow}>
+                  + Add line item
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

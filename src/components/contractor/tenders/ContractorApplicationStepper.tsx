@@ -14,14 +14,15 @@ interface Props {
   onBack: () => void;
 }
 
-type RequirementKind = "pricing" | "references" | "methodology" | "programme" | "subcontracting" | "declarations" | "rams";
+type RequirementKind = "pricing_schedule" | "references" | "methodology" | "programme" | "subcontracting" | "declarations" | "rams";
 
 // Verbatim mirror of RESPONSE_KIND_OPTIONS in BusinessTenderForm.tsx / the
 // duplicate already kept in ContractorTenderBrief.tsx -- same seven values
-// tender_response_requirements_kind_check permits. See the brief's comment
-// for why this stays duplicated rather than shared.
+// tender_response_requirements_kind_check permits ('pricing' renamed to
+// 'pricing_schedule' in 20260713130000). See the brief's comment for why
+// this stays duplicated rather than shared.
 const REQUIREMENT_LABELS: Record<RequirementKind, string> = {
-  pricing: "Pricing",
+  pricing_schedule: "Pricing schedule",
   references: "References",
   methodology: "Methodology statement",
   programme: "Programme",
@@ -32,18 +33,51 @@ const REQUIREMENT_LABELS: Record<RequirementKind, string> = {
 
 // Canonical display order -- stable regardless of the order requirement
 // rows were created in.
-const REQUIREMENT_ORDER: RequirementKind[] = ["references", "methodology", "pricing", "programme", "subcontracting", "declarations", "rams"];
+const REQUIREMENT_ORDER: RequirementKind[] = ["references", "methodology", "pricing_schedule", "programme", "subcontracting", "declarations", "rams"];
 
 // This slice builds cover note (always present, not requirement-gated),
-// references, and methodology. Everything else renders a placeholder step
-// so the stepper's shape is correct, but isn't counted toward completeness
-// (see the completeness-meter design note below) since there's nothing the
-// contractor can actually do about it yet.
-const BUILT_KINDS: Set<RequirementKind> = new Set(["references", "methodology"]);
+// references, methodology, and pricing_schedule. Everything else renders a
+// placeholder step so the stepper's shape is correct, but isn't counted
+// toward completeness (see the completeness-meter design note below) since
+// there's nothing the contractor can actually do about it yet.
+const BUILT_KINDS: Set<RequirementKind> = new Set(["references", "methodology", "pricing_schedule"]);
+
+// Verbatim mirror of the unit palette in BusinessTenderForm.tsx -- fixed,
+// no custom units, same comparability lock as the column palette below.
+const PRICING_UNIT_LABELS: Record<string, string> = {
+  item: "Per item",
+  job: "Per job",
+  hour: "Per hour",
+  day: "Per day",
+  visit: "Per visit",
+  sqm: "Per m²",
+  metre: "Per metre",
+  cubic_metre: "Per m³",
+  fixed: "Fixed price",
+};
+
+interface PricingScheduleRow {
+  id: string;
+  label: string;
+  unit: string;
+  // Business-specified, read-only in this grid -- the contractor's only
+  // editable cell is rate. Present only when the matching column was
+  // toggled active on the business side.
+  priority?: string;
+  quantity?: string;
+  leadTime?: string;
+  frequency?: string;
+  notes?: string;
+}
+
+interface PricingScheduleConfig {
+  rows: PricingScheduleRow[];
+  columns: ("quantity" | "leadTime" | "frequency" | "slaPriority" | "notes")[];
+}
 
 interface ResponseRequirementRow {
   kind: RequirementKind;
-  config: { count?: number } | null;
+  config: { count?: number } | PricingScheduleConfig | null;
 }
 
 interface ReferenceRowState {
@@ -72,6 +106,9 @@ interface FormState {
   coverNote: string;
   methodology: string;
   references: ReferenceRowState[];
+  // Keyed by the config row's stable id -- string (not number) since it's a
+  // controlled input value; parsed to a number (or null) only at save time.
+  priceLines: Record<string, string>;
 }
 
 function contactToFields(contact: unknown): { contactName: string; contactEmail: string; contactPhone: string } {
@@ -88,6 +125,12 @@ function fieldsToContact(r: ReferenceRowState): { name: string | null; email: st
   };
 }
 
+function parseRate(v: string | undefined): number | null {
+  if (!v || !v.trim()) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -99,7 +142,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   const [tenderTitle, setTenderTitle] = useState<string | null>(null);
   const [requirementRows, setRequirementRows] = useState<ResponseRequirementRow[]>([]);
 
-  const [form, setForm] = useState<FormState>({ coverNote: "", methodology: "", references: [] });
+  const [form, setForm] = useState<FormState>({ coverNote: "", methodology: "", references: [], priceLines: {} });
   const [existingReferencesById, setExistingReferencesById] = useState<Map<string, ExistingReferenceSnapshot>>(new Map());
 
   const load = useCallback(async () => {
@@ -121,11 +164,12 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
     }
     setApplicationId(appId);
 
-    const [{ data: tenderRow }, { data: appRow }, { data: reqRows }, { data: refRows }] = await Promise.all([
+    const [{ data: tenderRow }, { data: appRow }, { data: reqRows }, { data: refRows }, { data: priceRows }] = await Promise.all([
       supabase.from("tenders").select("title").eq("id", tenderId).maybeSingle(),
       supabase.from("tender_applications").select("application_number, cover_note, methodology").eq("id", appId).maybeSingle(),
       supabase.from("tender_response_requirements").select("kind, config").eq("tender_id", tenderId),
       supabase.from("tender_application_references").select("id, client_name, contact, project_summary").eq("application_id", appId),
+      supabase.from("tender_application_price_lines").select("row_id, rate").eq("application_id", appId),
     ]);
 
     setTenderTitle(tenderRow?.title ?? null);
@@ -144,10 +188,16 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
       };
     });
 
+    const loadedPriceLines: Record<string, string> = {};
+    for (const r of priceRows ?? []) {
+      loadedPriceLines[r.row_id] = r.rate != null ? String(r.rate) : "";
+    }
+
     setForm({
       coverNote: appRow?.cover_note ?? "",
       methodology: appRow?.methodology ?? "",
       references: loadedReferences,
+      priceLines: loadedPriceLines,
     });
     setExistingReferencesById(
       new Map(
@@ -164,8 +214,10 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   useEffect(() => { load(); }, [load]);
 
   const referencesRequirement = requirementRows.find((r) => r.kind === "references");
-  const referencesRequiredCount = referencesRequirement?.config?.count ?? 1;
+  const referencesRequiredCount = (referencesRequirement?.config as { count?: number } | null)?.count ?? 1;
   const methodologyRequired = requirementRows.some((r) => r.kind === "methodology");
+  const pricingRequirement = requirementRows.find((r) => r.kind === "pricing_schedule");
+  const pricingConfig = pricingRequirement?.config as PricingScheduleConfig | null | undefined;
 
   const orderedSteps = [...requirementRows].sort(
     (a, b) => REQUIREMENT_ORDER.indexOf(a.kind) - REQUIREMENT_ORDER.indexOf(b.kind),
@@ -178,11 +230,14 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   const referencesComplete = form.references.filter((r) => r.clientName.trim()).length >= referencesRequiredCount;
   const methodologyComplete = form.methodology.trim().length > 0;
   const coverNoteComplete = form.coverNote.trim().length > 0;
+  const pricedRowCount = pricingConfig ? pricingConfig.rows.filter((row) => form.priceLines[row.id]?.trim()).length : 0;
+  const pricingComplete = !!pricingConfig && pricingConfig.rows.length > 0 && pricedRowCount >= pricingConfig.rows.length;
 
   const trackedSections: { key: string; complete: boolean }[] = [
     { key: "cover_note", complete: coverNoteComplete },
     ...(referencesRequirement ? [{ key: "references", complete: referencesComplete }] : []),
     ...(methodologyRequired ? [{ key: "methodology", complete: methodologyComplete }] : []),
+    ...(pricingRequirement ? [{ key: "pricing_schedule", complete: pricingComplete }] : []),
   ];
   const completedCount = trackedSections.filter((s) => s.complete).length;
 
@@ -201,6 +256,10 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
       ...f,
       references: f.references.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     }));
+  };
+
+  const setRate = (rowId: string, value: string) => {
+    setForm((f) => ({ ...f, priceLines: { ...f.priceLines, [rowId]: value } }));
   };
 
   const removeReferenceRow = (id: string) => {
@@ -299,6 +358,26 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
         ]),
       ),
     );
+
+    // Pricing schedule: row identity is entirely business-defined
+    // (pricingConfig.rows), never contractor-editable -- so this is a plain
+    // per-row upsert keyed on (application_id, row_id), not a diff. Every
+    // row is written every save, including a null rate for an emptied cell.
+    if (pricingConfig && pricingConfig.rows.length > 0) {
+      const { error: priceError } = await supabase.from("tender_application_price_lines").upsert(
+        pricingConfig.rows.map((row) => ({
+          application_id: applicationId,
+          row_id: row.id,
+          rate: parseRate(form.priceLines[row.id]),
+        })),
+        { onConflict: "application_id,row_id" },
+      );
+      if (priceError) {
+        toast({ title: "Pricing not saved", description: priceError.message, variant: "destructive" });
+        setSaving(false);
+        return false;
+      }
+    }
 
     setSaving(false);
     toast({ title: "Draft saved" });
@@ -460,9 +539,68 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
           );
         }
 
-        // Placeholder for kinds not yet built (pricing/programme/
-        // subcontracting/declarations/rams). Not counted in the
-        // completeness meter — see trackedSections above.
+        if (req.kind === "pricing_schedule" && pricingConfig) {
+          return (
+            <Card key="pricing_schedule">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  {pricingComplete ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                  Pricing schedule
+                  <span className="text-xs font-normal text-muted-foreground">
+                    ({pricedRowCount} of {pricingConfig.rows.length} priced)
+                  </span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Structure set by the business — you can only enter your rate.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {pricingConfig.rows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No line items have been set up for this tender.</p>
+                ) : (
+                  pricingConfig.rows.map((row, i) => (
+                    <div key={row.id} className="border border-border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {i + 1}. {row.label || "Untitled line item"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {PRICING_UNIT_LABELS[row.unit] ?? row.unit}
+                            {pricingConfig.columns.includes("slaPriority") && row.priority && ` · ${row.priority}`}
+                            {pricingConfig.columns.includes("quantity") && row.quantity && ` · Qty ${row.quantity}`}
+                            {pricingConfig.columns.includes("leadTime") && row.leadTime && ` · Lead time ${row.leadTime}`}
+                            {pricingConfig.columns.includes("frequency") && row.frequency && ` · ${row.frequency}`}
+                          </p>
+                          {pricingConfig.columns.includes("notes") && row.notes && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5">{row.notes}</p>
+                          )}
+                        </div>
+                        {pricingConfig.columns.includes("slaPriority") && row.priority && (
+                          <Badge variant="outline" className="text-xs shrink-0">{row.priority}</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs shrink-0">Your rate (£)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="w-32"
+                          value={form.priceLines[row.id] ?? ""}
+                          onChange={(e) => setRate(row.id, e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          );
+        }
+
+        // Placeholder for kinds not yet built (programme/subcontracting/
+        // declarations/rams). Not counted in the completeness meter — see
+        // trackedSections above.
         return (
           <Card key={req.kind} className="opacity-70">
             <CardHeader className="pb-3">
@@ -473,11 +611,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {req.kind === "pricing"
-                  ? "The pricing schedule is being built next — this section will let you submit your rates and totals."
-                  : "This section isn't built yet — check back before submitting."}
-              </p>
+              <p className="text-sm text-muted-foreground">This section isn't built yet — check back before submitting.</p>
             </CardContent>
           </Card>
         );

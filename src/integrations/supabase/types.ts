@@ -5435,6 +5435,35 @@ export type Database = {
           },
         ]
       }
+      tender_application_price_lines: {
+        Row: {
+          application_id: string
+          id: string
+          rate: number | null
+          row_id: string
+        }
+        Insert: {
+          application_id: string
+          id?: string
+          rate?: number | null
+          row_id: string
+        }
+        Update: {
+          application_id?: string
+          id?: string
+          rate?: number | null
+          row_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_application_price_lines_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "tender_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_application_references: {
         Row: {
           application_id: string
