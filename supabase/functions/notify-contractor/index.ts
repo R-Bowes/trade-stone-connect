@@ -1,15 +1,13 @@
-// TODO: Deploy this function:
-//   supabase functions deploy notify-contractor
-//
-// RESEND_API_KEY is shared with send-quote-notification — verify it is set under
-// Supabase Project Settings → Edge Functions → Secrets before deploying.
-// If not yet set: supabase secrets set RESEND_API_KEY=your_resend_api_key_here
-//
+// supabase/functions/notify-contractor/index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Sends a branded HTML email to the contractor when a new enquiry arrives.
 // Called from QuoteRequestDialog and ContractorMessageDialog after enquiry insert:
 //   supabase.functions.invoke('notify-contractor', { body: { enquiry_id } })
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tradesltd.co.uk",
@@ -54,7 +52,6 @@ serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    // Verify the caller is authenticated (they must be logged in to submit enquiries).
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
@@ -71,10 +68,9 @@ serve(async (req) => {
       return jsonResponse(400, { success: false, error: "enquiry_id required" }, corsHeaders);
     }
 
-    // Fetch the enquiry row.
     const { data: enquiry, error: enquiryError } = await supabase
       .from("enquiries")
-      .select("id, job_description, location, contractor_id, customer_id")
+      .select("id, job_description, location, contractor_id, customer_id, created_at")
       .eq("id", enquiry_id)
       .single();
 
@@ -87,7 +83,6 @@ serve(async (req) => {
       return jsonResponse(400, { success: false, error: "Enquiry has no contractor_id" }, corsHeaders);
     }
 
-    // Fetch the contractor's email from profiles (profiles.id = enquiry.contractor_id).
     const { data: contractorProfile } = await supabase
       .from("profiles")
       .select("email, full_name")
@@ -99,7 +94,6 @@ serve(async (req) => {
       return jsonResponse(200, { success: true, skipped: true }, corsHeaders);
     }
 
-    // Fetch the customer's ts_profile_code for display in the email.
     let customerRef = "Guest";
     if (enquiry.customer_id) {
       const { data: customerProfile } = await supabase
@@ -118,20 +112,18 @@ serve(async (req) => {
       return jsonResponse(500, { success: false, error: "Email service not configured" }, corsHeaders);
     }
 
-    const location = enquiry.location?.trim() || "Not specified";
-    const body_text = [
-      "You have received a new enquiry via TradeStone.",
-      "",
-      `Customer:    ${customerRef}`,
-      `Location:    ${location}`,
-      "",
-      "Description:",
-      enquiry.job_description,
-      "",
-      "Log in to TradeStone to view the full enquiry and send a quote.",
-      "",
-      "— The TradeStone Team",
-    ].join("\n");
+    const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
+    const receivedAt = enquiry.created_at
+      ? new Date(enquiry.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "Just now";
+
+    const emailData = {
+      customerRef,
+      location: enquiry.location?.trim() || "Not specified",
+      description: enquiry.job_description,
+      receivedAt,
+      ctaUrl: `${publicUrl}/contractor/enquiries`,
+    };
 
     const emailRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -142,8 +134,8 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "TradeStone <noreply@tradesltd.co.uk>",
         to: [contractorProfile.email],
-        subject: "New enquiry received — TradeStone",
-        text: body_text,
+        subject: buildSubject("new_enquiry", emailData),
+        html: buildEmail("new_enquiry", emailData),
       }),
     });
 
@@ -153,9 +145,7 @@ serve(async (req) => {
       return jsonResponse(500, { success: false, error: "Failed to send email" }, corsHeaders);
     }
 
-    console.log(
-      `[notify-contractor] email sent to ${contractorProfile.email} for enquiry ${enquiry_id}`,
-    );
+    console.log(`[notify-contractor] email sent to ${contractorProfile.email} for enquiry ${enquiry_id}`);
     return jsonResponse(200, { success: true }, corsHeaders);
   } catch (error: unknown) {
     console.error("[notify-contractor] unexpected error:", error);

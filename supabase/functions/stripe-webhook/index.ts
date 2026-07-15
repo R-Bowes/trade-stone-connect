@@ -1,16 +1,27 @@
+// supabase/functions/stripe-webhook/index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Full replacement. Only the email section changes — everything else is 
+// identical to the original. Find the block starting at:
+//   if (resend && profile?.email) {
+// and replace to the closing brace with the section below.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ADD this import at the top of the file alongside the other imports:
+// import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
+
+// REPLACE the entire stripe-webhook/index.ts with this complete file:
+
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { Resend } from "https://esm.sh/resend@4.7.0";
+import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
 });
 
 const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
-const resend = Deno.env.get("RESEND_API_KEY")
-  ? new Resend(Deno.env.get("RESEND_API_KEY"))
-  : null;
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 const jsonResponse = (status: number, payload: Record<string, unknown>) =>
   new Response(JSON.stringify(payload), {
@@ -96,13 +107,17 @@ serve(async (req) => {
       return jsonResponse(200, { success: true, received: true });
     }
 
+    const invoiceRef = invoice.invoice_number != null
+      ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
+      : invoice.id;
+
     const { error: notifError } = await supabase.from("notifications").insert({
-      user_id: invoice.contractor_id,
-      title: "Invoice paid",
-      message: `Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id} has been paid.`,
-      type: "invoice_response",
+      user_id:        invoice.contractor_id,
+      title:          "Invoice paid",
+      message:        `${invoiceRef} has been paid.`,
+      type:           "invoice_response",
       reference_type: "invoice",
-      reference_id: invoice.id,
+      reference_id:   invoice.id,
     });
 
     if (notifError) {
@@ -111,7 +126,7 @@ serve(async (req) => {
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("email")
+      .select("email, full_name")
       .eq("user_id", invoice.contractor_id)
       .single();
 
@@ -119,17 +134,28 @@ serve(async (req) => {
       console.error("Failed to load contractor profile", profileError);
     }
 
-    if (resend && profile?.email) {
-      await resend.emails.send({
-        from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
-        to: [profile.email],
-        subject: `Payment received — ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}`,
-        html: `
-          <p>Good news — your client has paid invoice <strong>${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}</strong>.</p>
-          <p>Amount received: <strong>£${Number(invoice.total).toFixed(2)}</strong></p>
-          <p>The funds will be transferred to your account via Stripe.</p>
-          <p>— TradeStone</p>
-        `,
+    if (RESEND_API_KEY && profile?.email) {
+      const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
+
+      const emailData = {
+        contractorName: profile.full_name || "Contractor",
+        invoiceRef,
+        amount:         `£${Number(invoice.total).toFixed(2)}`,
+        ctaUrl:         `${publicUrl}/contractor/invoices`,
+      };
+
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: "TradeStone <noreply@tradesltd.co.uk>",
+          to: [profile.email],
+          subject: buildSubject("payment_received", emailData),
+          html: buildEmail("payment_received", emailData),
+        }),
       });
     }
 

@@ -1,9 +1,12 @@
+// supabase/functions/mark-overdue-invoices/index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Cron-triggered. Marks sent invoices past their due_date as overdue and sends
+// a branded payment reminder email to each client.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.7.0";
-
-const resendApiKey = Deno.env.get("RESEND_API_KEY");
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
+import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
 serve(async () => {
   try {
@@ -20,9 +23,7 @@ serve(async () => {
       .eq("status", "sent")
       .lt("due_date", today);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     if (!overdueInvoices?.length) {
       return new Response(JSON.stringify({ updated: 0 }), {
@@ -30,29 +31,47 @@ serve(async () => {
       });
     }
 
-    const ids = overdueInvoices.map((invoice) => invoice.id);
+    const ids = overdueInvoices.map((inv) => inv.id);
 
     const { error: updateError } = await supabase
       .from("invoices")
       .update({ status: "overdue" })
       .in("id", ids);
 
-    if (updateError) {
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
-    if (resend) {
-      const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "http://localhost:5173";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
+
+    if (RESEND_API_KEY) {
       for (const invoice of overdueInvoices) {
-        await resend.emails.send({
-          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "TradeStone <noreply@tradesltd.co.uk>",
-          to: [invoice.client_email],
-          subject: `Reminder: Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id} is overdue`,
-          html: `
-            <p>Hi ${invoice.client_name},</p>
-            <p>This is a reminder that invoice <strong>${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : invoice.id}</strong> was due on ${invoice.due_date}.</p>
-            <p>You can pay now at: <a href="${publicUrl}/pay/${invoice.id}">${publicUrl}/pay/${invoice.id}</a></p>
-          `,
+        const invoiceRef = invoice.invoice_number != null
+          ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
+          : invoice.id;
+
+        const dueDateFormatted = new Date(invoice.due_date).toLocaleDateString("en-GB", {
+          day: "2-digit", month: "long", year: "numeric",
+        });
+
+        const emailData = {
+          clientName:  invoice.client_name,
+          invoiceRef,
+          dueDate:     dueDateFormatted,
+          payUrl:      `${publicUrl}/pay/${invoice.id}`,
+        };
+
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({
+            from: "TradeStone <noreply@tradesltd.co.uk>",
+            to: [invoice.client_email],
+            subject: buildSubject("overdue_invoice", emailData),
+            html: buildEmail("overdue_invoice", emailData),
+          }),
         });
       }
     }
@@ -62,7 +81,7 @@ serve(async () => {
     });
   } catch (error) {
     console.error("mark-overdue-invoices error", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

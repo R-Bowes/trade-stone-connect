@@ -1,5 +1,14 @@
+// supabase/functions/notify-invoice-quote-action/index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Sends branded HTML emails when a customer acts on a quote or invoice
+// (accept, decline, query, pay, message). Sends two emails per action:
+//   1. To the contractor — informing them of the customer's action
+//   2. To the customer  — confirming their own action
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://tradesltd.co.uk",
@@ -30,6 +39,15 @@ const jsonResponse = (status: number, payload: Record<string, unknown>, corsHead
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+const ACTION_LABELS: Record<string, string> = {
+  pay:     "Payment Initiated",
+  stall:   "Stalled",
+  query:   "Query Raised",
+  accept:  "Accepted",
+  reject:  "Declined",
+  message: "New Message",
+};
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -63,35 +81,39 @@ serve(async (req) => {
 
     const { action_type, context_type, context_id, message } = await req.json();
 
-    // Get the acting user's profile
     const { data: actorProfile } = await supabase
       .from("profiles")
       .select("full_name, email")
       .eq("user_id", userData.user.id)
       .single();
 
+    const actorName  = actorProfile?.full_name || "Customer";
+    const actorEmail = actorProfile?.email || userData.user.email || "";
+
     let contractorEmail = "";
-    let contractorName = "";
-    let recipientEmail = actorProfile?.email || userData.user.email || "";
-    let recipientName = actorProfile?.full_name || "User";
-    let contextLabel = "";
+    let contractorName  = "";
+    let contextLabel    = "";
+
+    const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
 
     if (context_type === "invoice") {
       const { data: invoice } = await supabase
         .from("invoices")
-        .select("contractor_id, invoice_number, client_name, client_email")
+        .select("contractor_id, invoice_number")
         .eq("id", context_id)
         .single();
 
       if (invoice) {
-        contextLabel = `Invoice ${invoice.invoice_number != null ? `INV-${String(invoice.invoice_number).padStart(4, "0")}` : context_id}`;
-        const { data: contractorProfile } = await supabase
+        contextLabel = invoice.invoice_number != null
+          ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
+          : context_id;
+        const { data: cp } = await supabase
           .from("profiles")
           .select("full_name, email")
           .eq("user_id", invoice.contractor_id)
           .single();
-        contractorEmail = contractorProfile?.email || "";
-        contractorName = contractorProfile?.full_name || "Contractor";
+        contractorEmail = cp?.email || "";
+        contractorName  = cp?.full_name || "Contractor";
       }
     } else if (context_type === "quote") {
       const { data: quote } = await supabase
@@ -101,71 +123,65 @@ serve(async (req) => {
         .single();
 
       if (quote) {
-        contextLabel = `Quote ${quote.quote_number != null ? `Q-${String(quote.quote_number).padStart(4, "0")}` : quote.title}`;
-        const { data: contractorProfile } = await supabase
+        contextLabel = quote.quote_number != null
+          ? `Q-${String(quote.quote_number).padStart(4, "0")}`
+          : (quote.title || context_id);
+        const { data: cp } = await supabase
           .from("profiles")
           .select("full_name, email")
           .eq("user_id", quote.contractor_id)
           .single();
-        contractorEmail = contractorProfile?.email || "";
-        contractorName = contractorProfile?.full_name || "Contractor";
+        contractorEmail = cp?.email || "";
+        contractorName  = cp?.full_name || "Contractor";
       }
     }
 
-    const actionLabels: Record<string, string> = {
-      pay: "Payment Initiated",
-      stall: "Stalled",
-      query: "Query Raised",
-      accept: "Accepted",
-      reject: "Rejected",
-      message: "New Message",
-    };
-
-    const actionLabel = actionLabels[action_type] || action_type;
-
-    // Send emails via Resend
+    const actionLabel = ACTION_LABELS[action_type] || action_type;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
     if (RESEND_API_KEY && contractorEmail) {
-      // Email to contractor
+      // 1. Email to contractor — informing them of the customer action
+      const contractorData = {
+        recipientName:  contractorName,
+        actorName,
+        contextLabel,
+        actionLabel,
+        message:        message || undefined,
+        isConfirmation: false,
+        ctaUrl:         `${publicUrl}/contractor/quotes`,
+      };
+
       await fetch("https://api.resend.com/emails", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
         body: JSON.stringify({
           from: "TradeStone <noreply@tradesltd.co.uk>",
           to: [contractorEmail],
-          subject: `${contextLabel} - ${actionLabel} by ${recipientName}`,
-          html: `
-            <h2>TradeStone Notification</h2>
-            <p><strong>${recipientName}</strong> has responded to your <strong>${contextLabel}</strong>.</p>
-            <p><strong>Action:</strong> ${actionLabel}</p>
-            ${message ? `<p><strong>Message:</strong> ${message}</p>` : ""}
-            <p>Log in to TradeStone to view details and respond.</p>
-          `,
+          subject: buildSubject("quote_action", contractorData),
+          html: buildEmail("quote_action", contractorData),
         }),
       });
 
-      // Email to recipient (confirmation)
-      if (recipientEmail && recipientEmail !== contractorEmail) {
+      // 2. Email to customer — confirming their own action
+      if (actorEmail && actorEmail !== contractorEmail) {
+        const customerData = {
+          recipientName:  actorName,
+          actorName,
+          contextLabel,
+          actionLabel,
+          message:        message || undefined,
+          isConfirmation: true,
+          ctaUrl:         `${publicUrl}/quotes`,
+        };
+
         await fetch("https://api.resend.com/emails", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${RESEND_API_KEY}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
           body: JSON.stringify({
             from: "TradeStone <noreply@tradesltd.co.uk>",
-            to: [recipientEmail],
-            subject: `Your response to ${contextLabel} - ${actionLabel}`,
-            html: `
-              <h2>TradeStone Notification</h2>
-              <p>You responded to <strong>${contractorName}'s</strong> ${contextLabel}.</p>
-              <p><strong>Your Action:</strong> ${actionLabel}</p>
-              ${message ? `<p><strong>Your Message:</strong> ${message}</p>` : ""}
-              <p>Log in to TradeStone to continue the conversation.</p>
-            `,
+            to: [actorEmail],
+            subject: buildSubject("quote_action", customerData),
+            html: buildEmail("quote_action", customerData),
           }),
         });
       }
