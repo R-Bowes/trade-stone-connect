@@ -72,12 +72,14 @@ function complianceState(asset: Asset): { rag: Rag; headline: string } {
   return { rag: "green", headline: "Compliant" };
 }
 
-function warrantyLine(asset: Asset): string {
-  if (!asset.warranty_expiry) return "Warranty not recorded";
+function warrantyState(asset: Asset): { text: string; className: string } {
+  if (!asset.warranty_expiry) {
+    return { text: "Warranty not recorded", className: "text-muted-foreground" };
+  }
   const expired = daysUntil(asset.warranty_expiry) < 0;
   return expired
-    ? `Warranty expired ${fmtDate(asset.warranty_expiry)}`
-    : `In warranty until ${fmtDate(asset.warranty_expiry)}`;
+    ? { text: `Warranty expired ${fmtDate(asset.warranty_expiry)}`, className: "text-red-700" }
+    : { text: `In warranty until ${fmtDate(asset.warranty_expiry)}`, className: "text-foreground" };
 }
 
 export function AssetDetail({ asset, onBack }: Props) {
@@ -114,6 +116,7 @@ export function AssetDetail({ asset, onBack }: Props) {
   useEffect(() => { load(); }, [load]);
 
   const compliance = complianceState(asset);
+  const warranty = warrantyState(asset);
 
   return (
     <div className="p-6 max-w-3xl space-y-6">
@@ -152,7 +155,7 @@ export function AssetDetail({ asset, onBack }: Props) {
               <p className="font-mono">{asset.last_serviced ? fmtDate(asset.last_serviced) : "Not recorded"}</p>
             </div>
           </div>
-          <p className="text-sm">{warrantyLine(asset)}</p>
+          <p className={`text-sm ${warranty.className}`}>{warranty.text}</p>
         </CardContent>
       </Card>
 

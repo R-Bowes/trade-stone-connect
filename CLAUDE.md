@@ -676,3 +676,77 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   integer-column + render-time-compose pattern above. Do not conflate the
   two when adding a new document family — check whether it crosses a party
   boundary before picking a convention.
+
+## Quote → job creation sequence (job creation is a manual mint, not a trigger)
+
+Investigated 2026-07-16 after production data showed a gap that looked like a
+missing/broken automation: `issued_quotes.status='accepted'`, then a
+`schedule_events` proposal reaching `status='accepted'`/`is_confirmed=true`,
+then `jobs` row minted several minutes later with no obvious cause. Confirmed:
+**there is no DB trigger, cron job, or edge function anywhere that inserts
+into `jobs` off a quote or schedule event.** Grepped every migration for
+`INSERT INTO jobs` and every edge function for a jobs insert — the only two
+places a `jobs` row is ever created client-side are `src/lib/createJobFromQuote.ts`
+and a one-off tender/term-engagement path (see below). Job creation is always
+a deliberate, separate button click by the recipient — the gap between
+schedule confirmation and job creation is human reaction time, not a hidden
+async process.
+
+**The real sequence, three independent steps, each a separate user action:**
+
+1. **Quote acceptance** — recipient clicks Accept in `ReceivedQuotes.tsx`
+   (`handleAccept` → `useReceivedQuotes.ts`'s `respondToQuote`). This ONLY
+   updates `issued_quotes.status = 'accepted'` (+ `recipient_response`,
+   `responded_at`). It does not touch `schedule_events` or `jobs` at all.
+   Immediately opens the schedule-negotiation dialog
+   (`QuoteScheduleNegotiation.tsx`).
+2. **Schedule confirmation** — either party calls `acceptProposal` in
+   `src/hooks/useQuoteScheduling.ts`, which updates a `schedule_events` row to
+   `status='accepted', is_confirmed=true`, blocks the contractor's calendar
+   half-day, and declines sibling proposals. **This still does not create a
+   job.** The UI's own toast at this point says it explicitly: "Schedule
+   confirmed — proceed to confirm the job below."
+3. **Job confirmation — the actual mint** — only once the schedule is
+   confirmed does `QuoteScheduleNegotiation.tsx` render a distinct "Confirm
+   Job" button (no-deposit quotes, `mode === "recipient"` only —
+   `handleConfirmJobDirectly` → `createJobFromQuote(quoteId)` directly) or an
+   "Approve & Pay Deposit" button (deposit quotes → `DepositPaymentDialog.tsx`
+   → Stripe payment succeeds → `createJobFromQuote(quoteId)` inside
+   `CheckoutForm.handlePay`). **This click is the only thing that ever inserts
+   a `jobs` row for the quote flow.** There is no automatic path from
+   "schedule confirmed" to "job created" — if the recipient closes the dialog
+   after confirming the date without clicking this second button, the job
+   simply never gets created, indefinitely.
+
+`createJobFromQuote.ts`'s insert column list (confirmed from source): reads
+`contractor_id, recipient_id, title, client_name, client_address, total,
+enquiry_id` off `issued_quotes`, resolves `company_id`/`site_id`/`asset_id` off
+the source `enquiries` row (if any) and the confirmed `schedule_events` row's
+`start_time` for `start_date`, then inserts `{contractor_id, customer_id,
+issued_quote_id, title, location, status: 'scheduled', contract_value,
+start_date, company_id, site_id, asset_id}` into `jobs`. It is reachable from
+exactly two live UI paths (`DepositPaymentDialog.tsx`,
+`QuoteScheduleNegotiation.tsx`'s direct-confirm button) — both gated behind
+schedule confirmation as described above.
+
+The only OTHER `INSERT INTO jobs` in the codebase is the term-engagement
+call-out path in `20260711130000_term_engagements_and_watchers.sql` (a
+SECURITY DEFINER function mirroring `createJobFromQuote`'s insert shape for
+`engagement_id`-based call-outs, which skip the quote phase entirely) — unrelated
+to this sequence, not a second path for quote-driven jobs.
+
+**Side finding, separate bug, not yet fixed:** `supabase/functions/accept-quote/index.ts`
+(the edge function `DepositPaymentDialog.tsx` calls to set up the Stripe
+deposit PaymentIntent) still queries `.from("quotes")` — the legacy, always-empty
+table this file already documents above ("The `quotes` table is LEGACY and
+empty — the live table is `issued_quotes`. Never query or build against
+`quotes`."). Every real `quote_id` passed in comes from `issued_quotes`, so
+`.eq("id", quote_id).single()` against `quotes` can never match, and the
+function always returns 400 "Quote not found" before Stripe is even reached.
+**Any quote with a deposit requirement cannot currently be paid/scheduled into
+a job at all** — the failure is loud (a toast), not silent, but the deposit
+path is 100% broken in production today. Traced via `git log`: commit
+`0624d622` ("refactor: unified document reference system", 2026-07-02)
+explicitly removed dead `from('quotes')` reads from `ContractorDashboard` and
+`BusinessManagement` as part of the `issued_quotes` migration cleanup, but
+missed this edge function — it was never updated off the legacy table.

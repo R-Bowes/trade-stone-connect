@@ -735,3 +735,37 @@ TS-codes-everywhere:
   level codes depend on coverage entities existing. Decide letter scheme when built.
 
 Links back to the dropped business_members.site_scope column (v1 rebuild).
+
+---
+
+## Business dashboard follow-ups (from asset compliance panel build verification, 2026-07-16)
+
+- **Requests list rows are not clickable.** `BusinessRequestsView.tsx`'s
+  request table has no click-through — no enquiry detail view exists anywhere
+  in the app. Needs a dedicated enquiry record view before rows can link
+  anywhere.
+- **A direct job-creation path exists, bypassing the quote flow entirely** —
+  jobs with `issued_quote_id IS NULL` (e.g. job_number 9/10) are not
+  quote-driven (see CLAUDE.md's "Quote → job creation sequence" section:
+  `createJobFromQuote` always sets `issued_quote_id`). The only matching path
+  in the schema is the term-engagement call-out RPCs `create_callout_job` /
+  `raise_callout` (`20260711130000_term_engagements_and_watchers.sql`) — but
+  grepping `src/` turns up zero callers of either function; nothing in the UI
+  invokes them today. Whatever created jobs 9/10 did so outside the app
+  (direct RPC call / SQL editor), not through a real user flow. When a UI is
+  eventually built for this path, it will need the same site→asset picker as
+  the enquiry form (`BusinessRequestsView.tsx`'s pattern) — `create_callout_job`
+  already accepts `p_site_id` but has no equivalent asset parameter yet.
+- **Enquiry record view should display its linked asset** once that view
+  exists (see the requests-list item above) — make the enquiry detail
+  URL-addressable (its own route/deep-link, not just a modal).
+- **Call-out jobs via `engagement_id` should carry `asset_id`** when a UI is
+  built for `create_callout_job`/`raise_callout` — add the asset parameter
+  alongside the site picker above rather than bolting it on afterward.
+- **Service visit completion should write `assets.last_serviced` and roll
+  `assets.next_service_due`** forward by the schedule's frequency — currently
+  pure UI display (`AssetDetail.tsx` reads these columns but nothing writes
+  them on visit completion). Build this alongside the
+  `service_schedules`/`service_visits` UI (`MaintenanceManagement.tsx`'s
+  Schedules/Visits tabs), not before — the visit-completion handler is the
+  correct place, not a general job-completion hook.

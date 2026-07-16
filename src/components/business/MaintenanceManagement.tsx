@@ -957,9 +957,9 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
     : ["sites", "assets", "contracts", "schedules", "visits"];
 
   return (
-    <div className="space-y-6">
+    <div className="h-full min-h-0 flex flex-col gap-6">
       {!embedded && (
-        <>
+        <div className="shrink-0 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="font-heading text-2xl font-bold">Maintenance & Compliance</h2>
@@ -988,12 +988,13 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
               <div><p className="text-2xl font-bold">{pendingVisits}</p><p className="text-xs text-muted-foreground">Pending Visits</p></div>
             </CardContent></Card>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as MaintenanceTab)}>
-        <TabsList className={`grid w-full`} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+      {/* Tabs — TabsList is fixed; only the active tab's body scrolls, matching the
+          viewport-bound single-pane pattern used by the message inboxes. */}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as MaintenanceTab)} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="grid w-full shrink-0" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
           {visibleTabs.includes("sites") && <TabsTrigger value="sites">Sites</TabsTrigger>}
           {visibleTabs.includes("assets") && <TabsTrigger value="assets">Assets</TabsTrigger>}
           {visibleTabs.includes("contracts") && <TabsTrigger value="contracts">Contracts</TabsTrigger>}
@@ -1001,33 +1002,31 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
           {visibleTabs.includes("visits") && <TabsTrigger value="visits">Visits</TabsTrigger>}
         </TabsList>
 
+        <div className="flex-1 min-h-0 overflow-y-auto mt-6">
         {tab === 'sites' && (
-          <div className="mt-6">
-            <SitesTab companyId={companyId} sites={sites} loading={loading} onRefresh={load}
-              onSelectSite={(s) => { setSelectedSite(s); setTab('assets'); }} />
-          </div>
+          <SitesTab companyId={companyId} sites={sites} loading={loading} onRefresh={load}
+            onSelectSite={(s) => { setSelectedSite(s); setTab('assets'); }} />
         )}
 
         {tab === 'assets' && (
-          <div className="mt-6">
-            <AssetsTab companyId={companyId} sites={sites} assets={assets} loading={loading} onRefresh={load} />
-          </div>
+          <AssetsTab companyId={companyId} sites={sites} assets={assets} loading={loading} onRefresh={load} />
         )}
 
-        <TabsContent value="contracts" className="mt-6">
+        <TabsContent value="contracts" className="mt-0">
           <ContractsTab companyId={companyId} sites={sites} contracts={contracts}
             panelContractors={panelContractors} loading={loading} onRefresh={load}
             onSelectContract={(c) => { setTab('schedules'); }} />
         </TabsContent>
 
-        <TabsContent value="schedules" className="mt-6">
+        <TabsContent value="schedules" className="mt-0">
           <SchedulesTab companyId={companyId} contracts={contracts} assets={assets}
             schedules={schedules} loading={loading} onRefresh={load} />
         </TabsContent>
 
-        <TabsContent value="visits" className="mt-6">
+        <TabsContent value="visits" className="mt-0">
           <VisitsTab visits={visits} documents={documents} loading={loading} onRefresh={load} />
         </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

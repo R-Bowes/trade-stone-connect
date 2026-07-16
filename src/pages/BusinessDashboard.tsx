@@ -294,7 +294,7 @@ const BusinessDashboard = () => {
       case "sites":
       case "assets":
         return (
-          <div className="p-6">
+          <div className="h-full min-h-0 flex flex-col p-6">
             <MaintenanceManagement
               key={activeView}
               companyId={companyId!}
