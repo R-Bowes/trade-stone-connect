@@ -49,6 +49,7 @@ interface Asset {
   id: string;
   name: string;
   site_id: string;
+  reference: string | null;
 }
 
 interface PanelContractor {
@@ -83,6 +84,10 @@ interface Props {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function assetLabel(asset: Asset): string {
+  return asset.reference ? `${asset.reference} — ${asset.name}` : asset.name;
+}
 
 function siteLocation(site: Site): string {
   const parts = [
@@ -150,8 +155,9 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
     // c. Assets for this company; filter by site client-side
     const { data: assetsData } = await supabase
       .from("assets")
-      .select("id, name, site_id")
+      .select("id, name, site_id, reference")
       .eq("company_id", companyId)
+      .neq("status", "decommissioned")
       .order("name");
     const assetList = (assetsData ?? []) as Asset[];
     setAssets(assetList);
@@ -422,29 +428,29 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
               </Select>
             </div>
 
-            {/* 2. Asset (optional) */}
-            <div className="space-y-2">
-              <Label>Asset (optional)</Label>
-              <Select
-                value={formAssetId}
-                onValueChange={setFormAssetId}
-                disabled={!formSiteId || submitting}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={formSiteId ? "None / general" : "Choose a site first"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None / general</SelectItem>
-                  {siteAssets.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* 2. Asset (optional) — hidden entirely when the selected site has no assets */}
+            {formSiteId && siteAssets.length > 0 && (
+              <div className="space-y-2">
+                <Label>Related asset (optional)</Label>
+                <Select
+                  value={formAssetId}
+                  onValueChange={setFormAssetId}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None / general" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None / general</SelectItem>
+                    {siteAssets.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {assetLabel(a)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* 3. Contractor */}
             <div className="space-y-2">

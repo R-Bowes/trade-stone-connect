@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,6 +128,7 @@ function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
 }
 
 export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
@@ -137,6 +139,15 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
   const [selected, setSelected] = useState<JobRow | null>(null);
 
   useEffect(() => { load(); }, [companyId]);
+
+  // Deep-link support: ?view=jobs&jobId=... (used by the asset detail job history panel)
+  useEffect(() => {
+    const jobId = searchParams.get("jobId");
+    if (jobId && jobs.length) {
+      const match = jobs.find((j) => j.id === jobId);
+      if (match) setSelected(match);
+    }
+  }, [searchParams, jobs]);
 
   const load = async () => {
     setLoading(true);

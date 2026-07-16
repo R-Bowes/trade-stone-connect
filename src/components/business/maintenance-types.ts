@@ -20,6 +20,7 @@ export type ServiceFrequency =
 export type ServiceContractStatus = 'draft' | 'active' | 'expired' | 'cancelled';
 export type ServiceVisitStatus = 'scheduled' | 'confirmed' | 'completed' | 'overdue' | 'cancelled';
 export type ServiceDocumentType = 'certificate' | 'report' | 'invoice' | 'photo' | 'other';
+export type AssetStatus = 'operational' | 'faulty' | 'decommissioned';
 
 export interface Site {
   id: string;
@@ -44,6 +45,12 @@ export interface Asset {
   install_date: string | null;
   is_active: boolean;
   created_at: string;
+  reference: string | null;
+  status: AssetStatus;
+  location_note: string | null;
+  last_serviced: string | null;
+  next_service_due: string | null;
+  warranty_expiry: string | null;
 }
 
 export interface ServiceContract {

@@ -22,6 +22,7 @@ import {
   ASSET_CATEGORY_LABELS, ASSET_CATEGORY_GROUPS, FREQUENCY_LABELS,
   FREQUENCY_DAYS, VISIT_STATUS_CONFIG, CONTRACT_STATUS_CONFIG,
 } from "@/components/business/maintenance-types";
+import { AssetDetail } from "@/components/business/AssetDetail";
 
 type MaintenanceTab = "sites" | "assets" | "contracts" | "schedules" | "visits";
 
@@ -180,6 +181,7 @@ const AssetsTab = ({
   const [saving, setSaving] = useState(false);
   const [filterSite, setFilterSite] = useState<string>('all');
   const [editAsset, setEditAsset] = useState<Asset | null>(null);
+  const [viewAsset, setViewAsset] = useState<Asset | null>(null);
   const [form, setForm] = useState({
     site_id: '', name: '', category: '' as AssetCategory | '',
     description: '', make: '', model: '', serial_number: '', install_date: '',
@@ -189,7 +191,8 @@ const AssetsTab = ({
     setForm({ site_id: sites[0]?.id ?? '', name: '', category: '', description: '', make: '', model: '', serial_number: '', install_date: '' });
     setEditAsset(null); setOpen(true);
   };
-  const openEdit = (a: Asset) => {
+  const openEdit = (a: Asset, e: React.MouseEvent) => {
+    e.stopPropagation();
     setForm({ site_id: a.site_id, name: a.name, category: a.category, description: a.description ?? '', make: a.make ?? '', model: a.model ?? '', serial_number: a.serial_number ?? '', install_date: a.install_date ?? '' });
     setEditAsset(a); setOpen(true);
   };
@@ -214,6 +217,10 @@ const AssetsTab = ({
   const getSiteName = (id: string) => sites.find(s => s.id === id)?.name ?? 'Unknown';
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+
+  if (viewAsset) {
+    return <AssetDetail asset={viewAsset} onBack={() => setViewAsset(null)} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -240,7 +247,7 @@ const AssetsTab = ({
       ) : (
         <div className="space-y-3">
           {filtered.map(asset => (
-            <Card key={asset.id} className="hover:shadow-md transition-shadow">
+            <Card key={asset.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setViewAsset(asset)}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4 min-w-0">
@@ -258,7 +265,7 @@ const AssetsTab = ({
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(asset)}><Edit className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={(e) => openEdit(asset, e)}><Edit className="h-4 w-4" /></Button>
                 </div>
               </CardContent>
             </Card>
