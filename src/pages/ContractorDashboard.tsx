@@ -8,7 +8,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
   Filter, MessageCircle, Star, Loader2,
-  XCircle, MessageSquare,
+  XCircle, MessageSquare, Calendar,
   AlertTriangle, Wrench, UserCheck,
 } from "lucide-react";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
@@ -36,6 +36,7 @@ import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { StripeConnect } from "@/components/management/StripeConnect";
 import { RejectDialog } from "@/components/management/RejectDialog";
 import { RespondDialog } from "@/components/management/RespondDialog";
+import { ProposeSiteVisitDialog } from "@/components/management/ProposeSiteVisitDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
 import { ContractorPrequalStatus } from "@/components/contractor/ContractorPrequalStatus";
 import { ContractorTendersView } from "@/components/contractor/tenders/ContractorTendersView";
@@ -71,7 +72,7 @@ type JobWithSla = Job & { sla_status?: string | null; sla_completion_due?: strin
 const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
-  const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | null>(null);
+  const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | "site_visit" | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -341,7 +342,7 @@ const ContractorDashboard = () => {
 
   const reloadEnquiriesAndPipeline = () => { reloadEnquiries(); refetchPipeline(); };
 
-  const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond") => { setActiveEnquiry(enquiry as EnquiryForDialog); setEnquiryDialog(dialog); };
+  const openEnquiryDialog = (enquiry: any, dialog: "quote" | "reject" | "respond" | "site_visit") => { setActiveEnquiry(enquiry as EnquiryForDialog); setEnquiryDialog(dialog); };
   const closeEnquiryDialog = () => { setEnquiryDialog(null); setActiveEnquiry(null); };
 
   const dashboardStats = [
@@ -575,10 +576,13 @@ const ContractorDashboard = () => {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 md:min-w-[160px]">
-                          {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
+                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
                             <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}><Send className="h-3 w-3 mr-1" />Send Quote</Button>
                           )}
-                          {enquiry.status !== 'converted' && enquiry.status !== 'archived' && (
+                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
+                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'site_visit')}><Calendar className="h-3 w-3 mr-1" />Propose Site Visit</Button>
+                          )}
+                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
                             <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}><MessageSquare className="h-3 w-3 mr-1" />Request Info</Button>
                           )}
                           {(enquiry.status === 'new' || enquiry.status === 'replied') && (
@@ -674,6 +678,7 @@ const ContractorDashboard = () => {
             <SendQuoteDialog open={enquiryDialog === 'quote'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
             <RespondDialog open={enquiryDialog === 'respond'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
             <RejectDialog open={enquiryDialog === 'reject'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
+            <ProposeSiteVisitDialog open={enquiryDialog === 'site_visit'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
           </>
         )}
 

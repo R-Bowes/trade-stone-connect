@@ -5,9 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, MapPin, Plus, Trash2 } from "lucide-react";
+import { Loader2, MapPin, Plus, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
+import { format } from "date-fns";
 
 type Enquiry = {
   id: string;
@@ -59,6 +61,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [depositPercentage, setDepositPercentage] = useState(25);
   const [submitting, setSubmitting] = useState(false);
   const [customerTsCode, setCustomerTsCode] = useState<string | null>(null);
+  const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +76,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setTerms("");
     setDepositRequired(false);
     setDepositPercentage(25);
+    setProposedSlots([]);
 
     if (enquiry.customer_id) {
       supabase
@@ -120,6 +124,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       toast({ title: "Valid until date required", variant: "destructive" });
       return;
     }
+    if (proposedSlots.length < 2 || proposedSlots.length > 5) {
+      toast({ title: "Select 2–5 available dates", description: "Offer the customer between 2 and 5 dates before sending.", variant: "destructive" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -146,35 +154,63 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         total: quantity * unit_price,
       }));
 
-      const { error: quoteError } = await supabase.from("issued_quotes").insert({
-        contractor_id: contractorProfile.id,
-        recipient_id: recipientId,
-        enquiry_id: enquiry.id,
-        // client_* fields are required by NOT NULL constraints — written to DB only,
-        // never rendered in any UI component. Contact reveal governed by 48hr rule.
-        client_name: enquiry.customer_name ?? "",
-        client_email: enquiry.customer_email ?? "",
-        client_phone: enquiry.customer_phone ?? null,
-        client_type: "customer",
-        title: title.trim(),
-        description: description.trim() || null,
-        items: lineItems,
-        subtotal,
-        tax_rate: taxRate,
-        tax_amount: taxAmount,
-        total,
-        valid_until: validUntil,
-        notes: notes.trim() || null,
-        completion_time: completionTime || null,
-        deposit_required: depositRequired,
-        deposit_percentage: depositRequired ? depositPercentage : 0,
-        deposit_amount: depositRequired ? depositAmount : null,
-        terms: terms.trim() || null,
-        status: "sent",
-        sent_at: new Date().toISOString(),
-      });
+      const { data: insertedQuote, error: quoteError } = await supabase
+        .from("issued_quotes")
+        .insert({
+          contractor_id: contractorProfile.id,
+          recipient_id: recipientId,
+          enquiry_id: enquiry.id,
+          // client_* fields are required by NOT NULL constraints — written to DB only,
+          // never rendered in any UI component. Contact reveal governed by 48hr rule.
+          client_name: enquiry.customer_name ?? "",
+          client_email: enquiry.customer_email ?? "",
+          client_phone: enquiry.customer_phone ?? null,
+          client_type: "customer",
+          title: title.trim(),
+          description: description.trim() || null,
+          items: lineItems,
+          subtotal,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+          total,
+          valid_until: validUntil,
+          notes: notes.trim() || null,
+          completion_time: completionTime || null,
+          deposit_required: depositRequired,
+          deposit_percentage: depositRequired ? depositPercentage : 0,
+          deposit_amount: depositRequired ? depositAmount : null,
+          terms: terms.trim() || null,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
 
       if (quoteError) throw quoteError;
+
+      // Cycle-1 quote_proposal batch — the contractor's initial offered
+      // slots. useQuoteScheduling.ts's negotiation picks up from here at
+      // any later cycle; this is just the first round.
+      const batchId = crypto.randomUUID();
+      const { error: slotsError } = await supabase.from("schedule_events").insert(
+        proposedSlots.map((slot) => ({
+          contractor_id: contractorProfile.id,
+          quote_id: insertedQuote.id,
+          title: "Quote schedule proposal",
+          description: null,
+          event_type: "quote_proposal",
+          start_time: slot.startTime,
+          end_time: slot.endTime,
+          status: "proposed",
+          proposed_by: contractorProfile.id,
+          is_confirmed: false,
+          all_day: false,
+          cycle: 1,
+          turn_kind: "negotiation",
+          batch_id: batchId,
+        })),
+      );
+      if (slotsError) throw slotsError;
 
       const { error: enquiryError } = await supabase
         .from("enquiries")
@@ -351,6 +387,44 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               <div className="flex justify-between text-primary font-medium border-t pt-2">
                 <span>Deposit due ({depositPercentage}%)</span>
                 <span>£{fmt(depositAmount)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 rounded-md border p-4">
+            <Label>
+              Available dates <span className="text-destructive">*</span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Offer 2–5 dates when you send this quote — the customer picks one to confirm.
+            </p>
+            {proposedSlots.length === 0 ? (
+              <SlotPicker
+                contractorId={enquiry.contractor_id ?? ""}
+                maxSlots={5}
+                minSlots={2}
+                helperText="Select 2–5 available dates to offer."
+                submitLabel={(count) => `Use these ${count} date${count !== 1 ? "s" : ""}`}
+                onSubmit={(slots) => setProposedSlots(slots)}
+              />
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {proposedSlots.map((slot, i) => (
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-800 border border-green-200 font-medium">
+                      {format(new Date(slot.startTime), "EEE d MMM")} · {new Date(slot.startTime).getHours() < 12 ? "AM" : "PM"}
+                    </span>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={submitting}
+                  onClick={() => setProposedSlots([])}
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />Change dates
+                </Button>
               </div>
             )}
           </div>

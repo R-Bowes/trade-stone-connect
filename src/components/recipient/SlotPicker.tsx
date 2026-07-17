@@ -17,6 +17,7 @@ export interface PickedSlot {
 interface SlotPickerProps {
   contractorId: string;
   maxSlots: number;
+  minSlots?: number;
   onSubmit: (slots: PickedSlot[]) => Promise<void> | void;
   helperText?: string;
   submitLabel?: (count: number) => string;
@@ -37,7 +38,7 @@ function keyToSlot(key: SlotKey): PickedSlot {
  * the customer's initial proposal, either party's counter-proposal, and
  * the post-exhaustion single-date picker (maxSlots=1).
  */
-export function SlotPicker({ contractorId, maxSlots, onSubmit, helperText, submitLabel }: SlotPickerProps) {
+export function SlotPicker({ contractorId, maxSlots, minSlots = 1, onSubmit, helperText, submitLabel }: SlotPickerProps) {
   const { getAvailabilityForRange, loading } = useAvailability(contractorId);
   const [selectedSlots, setSelectedSlots] = useState<Set<SlotKey>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -177,8 +178,9 @@ export function SlotPicker({ contractorId, maxSlots, onSubmit, helperText, submi
         <div className="pt-2 space-y-2">
           <p className="text-xs text-muted-foreground">
             {selectedSlots.size} of {maxSlots} slot{maxSlots !== 1 ? "s" : ""} selected
+            {selectedSlots.size < minSlots && ` — select at least ${minSlots}`}
           </p>
-          <Button size="sm" disabled={saving} onClick={handleSubmit} className="w-full">
+          <Button size="sm" disabled={saving || selectedSlots.size < minSlots} onClick={handleSubmit} className="w-full">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             {submitLabel
               ? submitLabel(selectedSlots.size)

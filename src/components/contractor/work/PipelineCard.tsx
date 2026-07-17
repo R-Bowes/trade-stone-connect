@@ -10,7 +10,7 @@ interface PipelineCardProps {
   engagement: PipelineEngagement;
   contractorId: string;
   onOpenThread: (engagement: PipelineEngagement) => void;
-  onOpenEnquiry: (engagement: PipelineEngagement, dialog: "quote" | "reject" | "respond") => void;
+  onOpenEnquiry: (engagement: PipelineEngagement, dialog: "quote" | "reject" | "respond" | "site_visit") => void;
   onRefetch: () => void;
 }
 
@@ -114,6 +114,7 @@ export function PipelineCard({
           {e.stage === "enquiry" ? (
             <div className="flex flex-wrap gap-2">
               <Button size="sm" style={PRIMARY_STYLE} onClick={stop(() => onOpenEnquiry(e, "quote"))}>Send quote</Button>
+              <Button variant="outline" size="sm" onClick={stop(() => onOpenEnquiry(e, "site_visit"))}>Site visit</Button>
               <Button variant="outline" size="sm" onClick={stop(() => onOpenEnquiry(e, "respond"))}>Request info</Button>
               <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={stop(() => onOpenEnquiry(e, "reject"))}>
                 Decline

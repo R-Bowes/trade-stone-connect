@@ -61,6 +61,9 @@ interface QuoteSubmissionRequest {
   project_location?: string | null;
   budget_range?: string | null;
   timeline?: string | null;
+  preferred_window_start?: string | null;
+  preferred_window_end?: string | null;
+  preferred_time_of_day?: string | null;
   additional_details?: Record<string, string> | null;
   contractorName: string;
 }
@@ -99,6 +102,13 @@ const validateInput = (data: QuoteSubmissionRequest): string | null => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(contractor_id)) {
     return "Invalid contractor ID format";
+  }
+
+  // Matches enquiries_preferred_time_of_day (and the enquiries.status CHECK
+  // convention): reject anything outside the DB's own domain rather than
+  // letting a malformed value surface as an opaque insert error.
+  if (data.preferred_time_of_day && !["am", "pm", "any"].includes(data.preferred_time_of_day)) {
+    return "Invalid preferred_time_of_day";
   }
 
   return null;
@@ -306,6 +316,9 @@ const handler = async (req: Request): Promise<Response> => {
           location: requestData.project_location?.trim() || '',
           preferred_timeline: requestData.timeline || null,
           budget_range: requestData.budget_range || null,
+          preferred_window_start: requestData.preferred_window_start || null,
+          preferred_window_end: requestData.preferred_window_end || null,
+          preferred_time_of_day: requestData.preferred_time_of_day || null,
           status: 'new',
         })
         .select('id')

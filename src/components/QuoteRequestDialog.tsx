@@ -52,6 +52,9 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
   const [timeline, setTimeline] = useState("");
   const [budgetRange, setBudgetRange] = useState("");
   const [photos, setPhotos] = useState<FileList | null>(null);
+  const [windowStart, setWindowStart] = useState("");
+  const [windowEnd, setWindowEnd] = useState("");
+  const [timeOfDay, setTimeOfDay] = useState<string>("");
 
   // Auth check + profile fetch
   useEffect(() => {
@@ -102,6 +105,9 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
       setTimeline("");
       setBudgetRange("");
       setPhotos(null);
+      setWindowStart("");
+      setWindowEnd("");
+      setTimeOfDay("");
     }
   }, [isOpen]);
 
@@ -114,6 +120,10 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
     }
     if (!location.trim()) {
       toast({ title: "Required", description: "Please enter the job location.", variant: "destructive" });
+      return;
+    }
+    if (windowStart && windowEnd && windowEnd < windowStart) {
+      toast({ title: "Invalid dates", description: "The window end date must be on or after the start date.", variant: "destructive" });
       return;
     }
 
@@ -133,6 +143,9 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
           project_location: location,
           budget_range: budgetRange || null,
           timeline: timeline || null,
+          preferred_window_start: windowStart || null,
+          preferred_window_end: windowEnd || null,
+          preferred_time_of_day: timeOfDay || null,
           additional_details: Object.keys(additionalDetails).length > 0 ? additionalDetails : null,
           contractorName,
         },
@@ -233,6 +246,37 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
                   {TIMELINE_OPTIONS.map((opt) => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 3b. Preferred date window (optional) */}
+            <div className="space-y-2">
+              <Label>Preferred dates (optional)</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="date"
+                  aria-label="Earliest date"
+                  value={windowStart}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setWindowStart(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  aria-label="Latest date"
+                  value={windowEnd}
+                  min={windowStart || new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setWindowEnd(e.target.value)}
+                />
+              </div>
+              <Select value={timeOfDay} onValueChange={setTimeOfDay}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Time of day (any)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="am">Morning (AM)</SelectItem>
+                  <SelectItem value="pm">Afternoon (PM)</SelectItem>
+                  <SelectItem value="any">Any time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
