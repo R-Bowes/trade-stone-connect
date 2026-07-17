@@ -18,12 +18,12 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { createJobFromQuote } from "@/lib/createJobFromQuote";
 
 const stripePromise = loadStripe("pk_test_51T0jcrAB5s9xl5hIfwaVbwe5aSfpdC5DpsE4YmkhJUGSBVPIUVCPOnCK87pv0WKUBo0LUZoXcZfhsIglMsJFfUAK00QZD2E4Xn");
 
 interface Props {
   quoteId: string;
+  eventId: string;
   totalAmount: number;
   depositAmount?: number;
   contractorName: string;
@@ -33,12 +33,10 @@ interface Props {
 }
 
 function CheckoutForm({
-  quoteId,
   depositAmount,
   totalAmount,
   onSuccess,
 }: {
-  quoteId: string;
   depositAmount: number;
   totalAmount: number;
   onSuccess: () => void;
@@ -69,23 +67,15 @@ function CheckoutForm({
       return;
     }
 
-    // Payment succeeded — create the job
-    try {
-      await createJobFromQuote(quoteId);
-    } catch (err) {
-      console.error("Job creation error", err);
-      toast({
-        title: "Payment taken but job creation failed",
-        description: "Please contact support with your quote reference.",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
-
+    // Payment succeeded — the job is minted by the stripe-webhook on
+    // payment_intent.succeeded (LOCKED DECISION 1: a scheduled job means
+    // money has moved), not here. Minting client-side right after
+    // confirmPayment() resolves was the old race (a closed tab between
+    // payment success and the client-side mint call left a paid deposit
+    // with no job) — this dialog no longer mints anything itself.
     toast({
       title: "Deposit paid",
-      description: "Your job is confirmed!",
+      description: "Your job will be confirmed shortly.",
     });
     setLoading(false);
     onSuccess();
@@ -133,6 +123,7 @@ function CheckoutForm({
 
 export function DepositPaymentDialog({
   quoteId,
+  eventId,
   totalAmount,
   depositAmount: propDeposit,
   contractorName,
@@ -155,11 +146,15 @@ export function DepositPaymentDialog({
       setInitialising(true);
       setError(null);
 
+      // The one exit door for the transaction: confirms the slot, accepts
+      // the quote, and (deposit due) sets up the PaymentIntent — all in one
+      // atomic call. Idempotent if the event was already confirmed earlier
+      // in the negotiation (see accept_quote_with_slot's confirmed-event path).
       const { data, error: fnError } = await supabase.functions.invoke("accept-quote", {
-        body: { quote_id: quoteId },
+        body: { quote_id: quoteId, event_id: eventId },
       });
 
-      if (fnError || !data?.client_secret) {
+      if (fnError || data?.error || !data?.client_secret) {
         const msg = data?.error ?? fnError?.message ?? "Could not set up payment";
         setError(msg);
         toast({ title: "Payment setup failed", description: msg, variant: "destructive" });
@@ -167,13 +162,17 @@ export function DepositPaymentDialog({
         return;
       }
 
+      // The calendar block for a deposit-pending confirm is now handled
+      // server-side inside accept_quote_with_slot itself (upserts
+      // contractor_availability_overrides when the deposit gate holds the
+      // mint) — nothing to do here.
       setClientSecret(data.client_secret);
       if (data.deposit_amount) setResolvedDeposit(data.deposit_amount);
       setInitialising(false);
     };
 
     init();
-  }, [open, quoteId]);
+  }, [open, quoteId, eventId]);
 
   const handleClose = () => {
     onClose();
@@ -212,7 +211,6 @@ export function DepositPaymentDialog({
             }}
           >
             <CheckoutForm
-              quoteId={quoteId}
               depositAmount={resolvedDeposit}
               totalAmount={totalAmount}
               onSuccess={() => {

@@ -16,6 +16,9 @@ export interface ReceivedQuote {
   recipient_id: string | null;
   recipient_response: string | null;
   responded_at: string | null;
+  deposit_required: boolean | null;
+  deposit_amount: number | null;
+  deposit_paid: boolean | null;
   items: any;
   subtotal: number;
   tax_rate: number;

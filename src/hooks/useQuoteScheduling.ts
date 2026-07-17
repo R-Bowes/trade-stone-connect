@@ -402,18 +402,10 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
       setBackoutPending(false);
 
-      // Only the customer→contractor direction is a silent handoff worth a
-      // notification — the contractor already sees their own proposal land
-      // in the recipient's UI live; this rider fills the reverse gap so it
-      // surfaces in the contractor's Work view without a page refresh.
-      if (otherPartyId === contractorId) {
-        await notifyOtherParty(
-          quoteId,
-          "New schedule proposal",
-          `${otherPartyName ?? "The client"} proposed ${slots.length} date${slots.length !== 1 ? "s" : ""} for scheduling`,
-          "schedule_proposed",
-        );
-      }
+      // Notification is now owned by the DB trigger
+      // (trg_notify_on_schedule_proposal, 20260717120000) which fires for
+      // both directions on every proposal batch insert — this used to
+      // notify the customer→contractor direction only, from here.
 
       toast({ title: "Dates proposed", description: "Waiting for the other party to respond." });
       await fetchData();
@@ -423,9 +415,6 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
       currentCycle,
       fetchData,
       jobExists,
-      notifyOtherParty,
-      otherPartyId,
-      otherPartyName,
       quoteId,
       setBackoutPending,
       toast,
@@ -489,19 +478,13 @@ export function useQuoteScheduling(quoteId: string | null, contractorId: string 
 
       setBackoutPending(false);
 
-      if (otherPartyId === contractorId) {
-        await notifyOtherParty(
-          quoteId,
-          "New schedule proposal",
-          `${otherPartyName ?? "The client"} proposed a final date for scheduling`,
-          "schedule_proposed",
-        );
-      }
+      // Notification is now owned by the DB trigger
+      // (trg_notify_on_schedule_proposal, 20260717120000) — see submitProposals.
 
       toast({ title: "Date proposed", description: "Waiting for the other party to confirm." });
       await fetchData();
     },
-    [contractorId, currentCycle, fetchData, jobExists, notifyOtherParty, otherPartyId, otherPartyName, quoteId, setBackoutPending, toast, userId],
+    [contractorId, currentCycle, fetchData, jobExists, quoteId, setBackoutPending, toast, userId],
   );
 
   /**

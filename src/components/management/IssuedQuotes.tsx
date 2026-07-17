@@ -43,6 +43,7 @@ interface IssuedQuote {
   valid_until: string;
   deposit_required: boolean | null;
   deposit_amount: number | null;
+  deposit_paid: boolean | null;
   parent_quote_id: string | null;
   enquiry_id: string | null;
   recipient_response: string | null;
@@ -74,6 +75,14 @@ function statusLabel(s: string): string {
     rejected: "Rejected", expired: "Expired", superseded: "Superseded",
   };
   return map[s] ?? s;
+}
+
+/** Overrides the plain "Accepted" badge while a deposit is still outstanding. */
+function depositPendingBadge(quote: Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid">) {
+  if (quote.status === "accepted" && quote.deposit_required && !quote.deposit_paid) {
+    return { className: "bg-amber-100 text-amber-800", label: "Awaiting deposit — waiting on client" };
+  }
+  return null;
 }
 
 function fmtDate(iso: string | null): string {
@@ -120,6 +129,7 @@ function normaliseRow(q: Record<string, unknown>): IssuedQuote {
     valid_until: q.valid_until as string,
     deposit_required: q.deposit_required as boolean | null,
     deposit_amount: q.deposit_amount as number | null,
+    deposit_paid: q.deposit_paid as boolean | null,
     parent_quote_id: q.parent_quote_id as string | null,
     enquiry_id: q.enquiry_id as string | null,
     recipient_response: q.recipient_response as string | null,
@@ -167,8 +177,8 @@ function QuoteDetailPanel({
             <p className="font-mono text-xs text-muted-foreground mb-1">{eyebrow}</p>
             <DialogTitle className="text-xl leading-tight">{quote.title}</DialogTitle>
           </div>
-          <Badge className={`shrink-0 mt-1 ${STATUS_BADGE[quote.status] ?? "bg-gray-100 text-gray-700"}`}>
-            {statusLabel(quote.status)}
+          <Badge className={`shrink-0 mt-1 ${depositPendingBadge(quote)?.className ?? STATUS_BADGE[quote.status] ?? "bg-gray-100 text-gray-700"}`}>
+            {depositPendingBadge(quote)?.label ?? statusLabel(quote.status)}
           </Badge>
         </div>
       </DialogHeader>
@@ -553,7 +563,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("issued_quotes")
-      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, parent_quote_id, enquiry_id, recipient_response, notes, terms")
+      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_paid, parent_quote_id, enquiry_id, recipient_response, notes, terms")
       .eq("contractor_id", profileId)
       .order("created_at", { ascending: false });
     const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>)) : [];
@@ -796,8 +806,8 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
                       <td className="p-3">{q.client_name}</td>
                       <td className="p-3 text-right font-mono">{fmtMoney(q.total)}</td>
                       <td className="p-3">
-                        <Badge className={STATUS_BADGE[q.status] ?? "bg-gray-100 text-gray-700"}>
-                          {statusLabel(q.status)}
+                        <Badge className={depositPendingBadge(q)?.className ?? STATUS_BADGE[q.status] ?? "bg-gray-100 text-gray-700"}>
+                          {depositPendingBadge(q)?.label ?? statusLabel(q.status)}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">

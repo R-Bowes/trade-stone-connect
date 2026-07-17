@@ -8,13 +8,14 @@ import { FileText, CheckCircle, XCircle, Pause, Loader2, Calendar } from "lucide
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
 import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
+import { QuoteAcceptScreen } from "./QuoteAcceptScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
 
 export function ReceivedQuotes() {
-  const { quotes, loading, respondToQuote } = useReceivedQuotes();
+  const { quotes, loading, respondToQuote, refetch } = useReceivedQuotes();
   const [messageDialog, setMessageDialog] = useState<{
     open: boolean;
     quote: ReceivedQuote | null;
@@ -22,31 +23,28 @@ export function ReceivedQuotes() {
   }>({ open: false, quote: null, action: "" });
   const { toast } = useToast();
   const [scheduleQuote, setScheduleQuote] = useState<ReceivedQuote | null>(null);
+  const [acceptScreenQuote, setAcceptScreenQuote] = useState<ReceivedQuote | null>(null);
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
-  const handleAccept = async (quote: ReceivedQuote) => {
-    setPendingIds((prev) => ({ ...prev, [quote.id]: "accepted" }));
-    try {
-      await respondToQuote(quote.id, "accepted");
+  // D4: "Accept" no longer writes recipient_response itself — it opens the
+  // one-screen accept flow, which confirms a slot AND accepts the quote
+  // atomically via accept-quote/accept_quote_with_slot (LOCKED DECISION 1).
+  const handleAcceptClick = (quote: ReceivedQuote) => {
+    setAcceptScreenQuote(quote);
+  };
 
-      supabase.functions.invoke("notify-invoice-quote-action", {
-        body: { action_type: "accept", context_type: "quote", context_id: quote.id },
-      }).catch(console.error);
+  const handleAcceptConfirmed = (quote: ReceivedQuote) => {
+    setAcceptScreenQuote(null);
+    supabase.functions.invoke("notify-invoice-quote-action", {
+      body: { action_type: "accept", context_type: "quote", context_id: quote.id },
+    }).catch(console.error);
+    toast({ title: "Job scheduled", description: "The contractor has been notified." });
+    refetch();
+  };
 
-      toast({
-        title: "Quote accepted",
-        description: "Now agree a schedule with your contractor to confirm the job.",
-      });
-
-      // Open scheduling dialog immediately
-      setScheduleQuote(quote);
-    } finally {
-      setPendingIds((prev) => {
-        const next = { ...prev };
-        delete next[quote.id];
-        return next;
-      });
-    }
+  const handleNoneWork = (quote: ReceivedQuote) => {
+    setAcceptScreenQuote(null);
+    setScheduleQuote(quote);
   };
 
   const handleReject = async (quote: ReceivedQuote) => {
@@ -85,6 +83,9 @@ export function ReceivedQuotes() {
 
   const getResponseBadge = (quote: ReceivedQuote) => {
     const response = quote.recipient_response ?? pendingIds[quote.id] ?? null;
+    if (response === "accepted" && quote.deposit_required && !quote.deposit_paid) {
+      return <Badge className="bg-amber-100 text-amber-800">Awaiting deposit — waiting on you</Badge>;
+    }
     if (response === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
     if (response === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
     if (response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
@@ -178,7 +179,7 @@ export function ReceivedQuotes() {
                     )}
                     {canRespond(q) && !isResponding(q) && (
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" onClick={() => handleAccept(q)}>
+                        <Button size="sm" onClick={() => handleAcceptClick(q)}>
                           <CheckCircle className="h-4 w-4 mr-1" />Accept
                         </Button>
                         <Button
@@ -215,6 +216,31 @@ export function ReceivedQuotes() {
         </CardContent>
       </Card>
 
+      {/* D4: one-screen accept flow — slot pick + summary + single CTA */}
+      <Dialog
+        open={!!acceptScreenQuote}
+        onOpenChange={(open) => { if (!open) setAcceptScreenQuote(null); }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
+              Accept quote
+            </DialogTitle>
+          </DialogHeader>
+          {acceptScreenQuote && (
+            <QuoteAcceptScreen
+              quoteId={acceptScreenQuote.id}
+              contractorId={acceptScreenQuote.contractor_id}
+              quoteTotal={Number(acceptScreenQuote.total)}
+              quoteDepositAmount={acceptScreenQuote.deposit_amount != null ? Number(acceptScreenQuote.deposit_amount) : null}
+              contractorName={acceptScreenQuote.contractor_name ?? "Contractor"}
+              onNoneWork={() => handleNoneWork(acceptScreenQuote)}
+              onConfirmed={() => handleAcceptConfirmed(acceptScreenQuote)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Schedule negotiation — modal dialog, no more scroll-to-bottom */}
       <Dialog
         open={!!scheduleQuote}
@@ -232,11 +258,7 @@ export function ReceivedQuotes() {
               contractorId={scheduleQuote.contractor_id}
               mode="recipient"
               quoteTotal={Number(scheduleQuote.total)}
-              quoteDepositAmount={
-                (scheduleQuote as any).deposit_amount
-                  ? Number((scheduleQuote as any).deposit_amount)
-                  : null
-              }
+              quoteDepositAmount={scheduleQuote.deposit_amount != null ? Number(scheduleQuote.deposit_amount) : null}
               contractorName={scheduleQuote.contractor_name ?? "Contractor"}
               onJobConfirmed={() => {
                 setScheduleQuote(null);

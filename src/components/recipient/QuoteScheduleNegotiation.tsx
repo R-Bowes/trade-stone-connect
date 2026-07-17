@@ -21,7 +21,7 @@ import { useSubmitGuard } from "@/hooks/useSubmitGuard";
 import { SlotPicker } from "./SlotPicker";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { MessageDialog } from "./MessageDialog";
-import { createJobFromQuote } from "@/lib/createJobFromQuote";
+import { confirmQuoteSlot } from "@/lib/confirmQuoteSlot";
 import { useToast } from "@/hooks/use-toast";
 
 interface QuoteScheduleNegotiationProps {
@@ -104,13 +104,17 @@ export function QuoteScheduleNegotiation({
   });
 
   const handleConfirmJobDirectly = guardConfirmJob(async () => {
+    if (!confirmedProposal) return;
     try {
-      await createJobFromQuote(quoteId);
+      // No deposit due — mint_job_from_quote runs inside the RPC and the
+      // jobs-insert trigger (block_date_on_job_confirmed) blocks the
+      // contractor's calendar server-side; nothing to do here.
+      await confirmQuoteSlot(quoteId, confirmedProposal.id);
       toast({ title: "Job confirmed" });
       onJobConfirmed?.();
     } catch (err) {
       console.error(err);
-      toast({ title: "Error", description: "Failed to confirm job", variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to confirm job", variant: "destructive" });
     }
   });
 
@@ -424,9 +428,10 @@ export function QuoteScheduleNegotiation({
         <CardContent className="space-y-4">{body}</CardContent>
       </Card>
 
-      {hasDeposit && depositOpen && quoteTotal != null && (
+      {hasDeposit && depositOpen && quoteTotal != null && confirmedProposal && (
         <DepositPaymentDialog
           quoteId={quoteId}
+          eventId={confirmedProposal.id}
           totalAmount={quoteTotal}
           depositAmount={quoteDepositAmount!}
           contractorName={contractorName ?? "Contractor"}
