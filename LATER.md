@@ -586,6 +586,19 @@ Deposit itself carries no platform fee.
   `contact_email`/`contact_phone`
   (`20260710140000_companies_contact_field_cleanup.sql`). Safe to drop once
   confirmed nothing reads them for a full release cycle.
+- **Drop redundant partial index `jobs_issued_quote_id_key`** (duplicates
+  `jobs_issued_quote_id_unique`, which already existed live —
+  `20260717120000_offer_with_slots_accept_flow.sql` added the partial index
+  without checking the live DB first; harmless but redundant) in the next
+  tidy migration.
+- **Auto-lapse of unpaid accepted quotes.** A quote whose deposit is never
+  paid currently sits accepted-but-unscheduled indefinitely — no mechanism
+  expires it. When built, this must ALSO release the
+  `'Auto-blocked: awaiting deposit'` `contractor_availability_overrides` row
+  (`accept_quote_with_slot`, `20260717150000_accept_quote_with_slot_full_contract.sql`)
+  and un-confirm the held `schedule_events` row for that quote — not just
+  flip the quote's own status — or a lapsed quote leaves the contractor's
+  calendar permanently blocked with no path back to available.
 - **Homeowner job view: no per-job messaging entry point.** The rails exist
   (`job_conversations`/`job_messages`) but there's no button on the
   homeowner-facing job view that deep-links into the existing thread —

@@ -1354,7 +1354,10 @@ export type Database = {
           job_type: string | null
           location: string
           photo_urls: string[] | null
+          preferred_time_of_day: string | null
           preferred_timeline: string | null
+          preferred_window_end: string | null
+          preferred_window_start: string | null
           priority: string | null
           project_id: string | null
           site_id: string | null
@@ -1380,7 +1383,10 @@ export type Database = {
           job_type?: string | null
           location: string
           photo_urls?: string[] | null
+          preferred_time_of_day?: string | null
           preferred_timeline?: string | null
+          preferred_window_end?: string | null
+          preferred_window_start?: string | null
           priority?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -1406,7 +1412,10 @@ export type Database = {
           job_type?: string | null
           location?: string
           photo_urls?: string[] | null
+          preferred_time_of_day?: string | null
           preferred_timeline?: string | null
+          preferred_window_end?: string | null
+          preferred_window_start?: string | null
           priority?: string | null
           project_id?: string | null
           site_id?: string | null
@@ -4476,6 +4485,7 @@ export type Database = {
           cycle: number
           description: string | null
           end_time: string
+          enquiry_id: string | null
           event_type: string
           id: string
           is_confirmed: boolean | null
@@ -4500,6 +4510,7 @@ export type Database = {
           cycle?: number
           description?: string | null
           end_time: string
+          enquiry_id?: string | null
           event_type?: string
           id?: string
           is_confirmed?: boolean | null
@@ -4524,6 +4535,7 @@ export type Database = {
           cycle?: number
           description?: string | null
           end_time?: string
+          enquiry_id?: string | null
           event_type?: string
           id?: string
           is_confirmed?: boolean | null
@@ -4538,6 +4550,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "schedule_events_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedule_events_job_id_fkey"
             columns: ["job_id"]
@@ -6577,6 +6596,10 @@ export type Database = {
         Args: { p_rate_id: string }
         Returns: undefined
       }
+      accept_quote_with_slot: {
+        Args: { p_event_id: string; p_quote_id: string }
+        Returns: Json
+      }
       accept_tender_agreement: {
         Args: { p_agreement_id: string }
         Returns: undefined
@@ -6697,6 +6720,7 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: undefined
       }
+      mint_job_from_quote: { Args: { p_quote_id: string }; Returns: string }
       next_business_document_number: {
         Args: { p_company_id: string; p_entity: string }
         Returns: number
