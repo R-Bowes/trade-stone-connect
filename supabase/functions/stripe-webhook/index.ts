@@ -238,12 +238,7 @@ serve(async (req) => {
 
     let event: Stripe.Event;
     try {
-      if (webhookSecret && webhookSecret !== "skip") {
-        event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
-      } else {
-        event = JSON.parse(body) as Stripe.Event;
-        console.log("WARNING: Stripe signature verification skipped");
-      }
+      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
     } catch (err) {
       console.error("Webhook signature verification failed", err);
       return jsonResponse(400, { success: false, error: "Invalid Stripe signature" });
