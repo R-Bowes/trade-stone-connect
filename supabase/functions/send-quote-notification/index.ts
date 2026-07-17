@@ -1,28 +1,345 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// REPLACEMENT for the customer confirmation email section inside
-// supabase/functions/send-quote-notification/index.ts
-//
-// ADD this import at the top alongside the other imports:
-//   import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
-//
-// FIND this block (around line 195):
-//   // Send confirmation email to customer
-//   console.log("Sending confirmation email to:", customerEmail);
-//   try {
-//     const emailResponse = await fetch('https://api.resend.com/emails', {
-//       ...
-//     body: JSON.stringify({
-//       from: "TradeStone <noreply@tradesltd.co.uk>",
-//       ...
-//       html: `<div style="font-family: Arial ...
-//     })
-//   ...
-//   }
-//
-// REPLACE the entire try block with:
-// ─────────────────────────────────────────────────────────────────────────────
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
-    // Send confirmation email to customer
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const ADMIN_SECRET_KEY = Deno.env.get("ADMIN_SECRET_KEY") || "";
+
+// Rate limit configuration
+const RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_WINDOW_MINUTES = 60;
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://tradesltd.co.uk",
+  "https://www.tradesltd.co.uk",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+
+const allowedOrigins = (() => {
+  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+  if (!envOrigins) {
+    return DEFAULT_ALLOWED_ORIGINS;
+  }
+  return envOrigins
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+})();
+
+const resolveCorsOrigin = (origin: string | null): string | null => {
+  if (!origin) {
+    return null;
+  }
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+  return null;
+};
+
+const buildCorsHeaders = (origin: string | null): HeadersInit => {
+  const allowedOrigin = resolveCorsOrigin(origin);
+  // Use the first allowed origin as default for unauthorized requests
+  // This prevents returning 'null' which could cause issues in older browsers
+  const safeOrigin = allowedOrigin ?? DEFAULT_ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": safeOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+};
+
+interface QuoteSubmissionRequest {
+  contractor_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string | null;
+  project_title: string;
+  project_description: string;
+  project_location?: string | null;
+  budget_range?: string | null;
+  timeline?: string | null;
+  additional_details?: Record<string, string> | null;
+  contractorName: string;
+}
+
+// Input validation
+const validateInput = (data: QuoteSubmissionRequest): string | null => {
+  const { contractor_id, customer_name, customer_email, project_title, project_description, contractorName } = data;
+
+  // Check required fields exist and are strings
+  if (!contractor_id || typeof contractor_id !== 'string' || contractor_id.length > 100) {
+    return "Invalid contractor ID";
+  }
+  if (!customer_name || typeof customer_name !== 'string' || customer_name.length > 200) {
+    return "Invalid customer name";
+  }
+  if (!customer_email || typeof customer_email !== 'string' || customer_email.length > 255) {
+    return "Invalid customer email";
+  }
+  if (!project_title || typeof project_title !== 'string' || project_title.length > 500) {
+    return "Invalid project title";
+  }
+  if (!project_description || typeof project_description !== 'string' || project_description.length > 5000) {
+    return "Invalid project description";
+  }
+  if (!contractorName || typeof contractorName !== 'string' || contractorName.length > 200) {
+    return "Invalid contractor name";
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(customer_email)) {
+    return "Invalid email format";
+  }
+
+  // UUID validation for contractor_id
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(contractor_id)) {
+    return "Invalid contractor ID format";
+  }
+
+  return null;
+};
+
+// Sanitize text to prevent injection in emails
+const sanitizeText = (text: string): string => {
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .trim();
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClientAny = ReturnType<typeof createClient<any>>;
+
+// Server-side rate limiting check
+const checkRateLimit = async (
+  supabase: SupabaseClientAny,
+  identifier: string,
+  actionType: string
+): Promise<{ allowed: boolean; remainingRequests: number; resetTime: Date }> => {
+  const windowStart = new Date();
+  windowStart.setMinutes(windowStart.getMinutes() - RATE_LIMIT_WINDOW_MINUTES);
+
+  console.log(`Checking rate limit for identifier: ${identifier}, action: ${actionType}`);
+
+  // Count recent requests
+  const { count, error } = await supabase
+    .from('rate_limits')
+    .select('*', { count: 'exact', head: true })
+    .eq('identifier', identifier)
+    .eq('action_type', actionType)
+    .gte('created_at', windowStart.toISOString());
+
+  if (error) {
+    console.error('Rate limit check error:', error);
+    // On error, allow the request but log it
+    return { allowed: true, remainingRequests: RATE_LIMIT_MAX_REQUESTS, resetTime: new Date() };
+  }
+
+  const currentCount = count || 0;
+  const allowed = currentCount < RATE_LIMIT_MAX_REQUESTS;
+  const remainingRequests = Math.max(0, RATE_LIMIT_MAX_REQUESTS - currentCount);
+  const resetTime = new Date(windowStart.getTime() + RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+
+  console.log(`Rate limit check: count=${currentCount}, allowed=${allowed}, remaining=${remainingRequests}`);
+
+  return { allowed, remainingRequests, resetTime };
+};
+
+// Record a rate limit entry
+const recordRateLimitEntry = async (
+  supabase: SupabaseClientAny,
+  identifier: string,
+  actionType: string
+): Promise<void> => {
+  const { error } = await supabase
+    .from('rate_limits')
+    .insert({ identifier, action_type: actionType });
+
+  if (error) {
+    console.error('Failed to record rate limit entry:', error);
+  } else {
+    console.log(`Rate limit entry recorded for: ${identifier}`);
+  }
+};
+
+const handler = async (req: Request): Promise<Response> => {
+  console.log("Quote submission function called");
+
+  // Handle CORS preflight requests
+  const origin = req.headers.get("origin");
+  const corsHeaders = buildCorsHeaders(origin);
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (!resolveCorsOrigin(origin)) {
+    return new Response(
+      JSON.stringify({ error: "Origin not allowed", success: false }),
+      { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  // Initialize Supabase client with service role for database operations
+  const supabase = createClient(SUPABASE_URL, ADMIN_SECRET_KEY);
+
+  try {
+    // Parse and validate request body
+    let requestData: QuoteSubmissionRequest;
+    try {
+      requestData = await req.json();
+    } catch {
+      console.error("Failed to parse request body");
+      return new Response(
+        JSON.stringify({ error: "Invalid request body", success: false }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate input
+    const validationError = validateInput(requestData);
+    if (validationError) {
+      console.error("Validation error:", validationError);
+      return new Response(
+        JSON.stringify({ error: validationError, success: false }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Resolve the auth user from the JWT — pass the token directly to getUser()
+    // on the service-role client. This is the correct pattern for edge functions.
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    let authUser: { id: string; email?: string } | null = null;
+    let customerProfile: { id: string; user_id: string; email: string | null; full_name: string | null } | null = null;
+    if (token) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError) {
+        console.warn('[send-quote-notification] getUser error:', authError.message);
+      } else if (user) {
+        authUser = user;
+        const { data: cp } = await supabase
+          .from('profiles')
+          .select('id, user_id, email, full_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        customerProfile = cp ?? null;
+      }
+    }
+    console.log('[send-quote-notification] authUser:', authUser?.id, 'customerProfile.id:', customerProfile?.id);
+
+    // Look up contractor's profiles.id (row PK) — the enquiries table contractor_id
+    // column references profiles.id, not the auth UUID.
+    let contractorProfileId: string | null = null;
+    console.log('[debug] contractor_id received:', requestData.contractor_id);
+    const { data: contractorProfile } = await supabase
+      .from('profiles')
+      .select('id, user_id')
+      .eq('id', requestData.contractor_id)
+      .maybeSingle();
+    contractorProfileId = contractorProfile?.id ?? null;
+
+    // Sanitize inputs
+    // customer_email is derived from the JWT auth user; fall back to request body only
+    // if no authenticated session is present (e.g. guest submission).
+    const customerEmail = (authUser?.email ?? requestData.customer_email).trim().toLowerCase();
+    const customerName = sanitizeText(
+      customerProfile?.full_name || requestData.customer_name
+    );
+    const contractorName = sanitizeText(requestData.contractorName);
+    const projectTitle = sanitizeText(requestData.project_title);
+    const projectDescription = sanitizeText(requestData.project_description);
+
+    // Server-side rate limiting check using email as identifier
+    const rateLimitIdentifier = customerEmail;
+    const { allowed, remainingRequests, resetTime } = await checkRateLimit(
+      supabase,
+      rateLimitIdentifier,
+      'quote_request'
+    );
+
+    if (!allowed) {
+      console.log(`Rate limit exceeded for: ${rateLimitIdentifier}`);
+      return new Response(
+        JSON.stringify({
+          error: "Too many quote requests. Please try again later.",
+          success: false,
+          retryAfter: resetTime.toISOString()
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": Math.ceil((resetTime.getTime() - Date.now()) / 1000).toString(),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": resetTime.toISOString(),
+            ...corsHeaders
+          }
+        }
+      );
+    }
+
+    // Record this request for rate limiting
+    await recordRateLimitEntry(supabase, rateLimitIdentifier, 'quote_request');
+
+    // Insert an enquiry row so the contractor sees this request in their management
+    // dashboard (which queries the enquiries table). customer_id and customer_email
+    // are derived from the JWT, not the request body.
+    let createdEnquiryId: string | null = null;
+    if (contractorProfileId) {
+      const { data: enquiryRow, error: enquiryError } = await supabase
+        .from('enquiries')
+        .insert({
+          customer_id: customerProfile?.id ?? null,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: requestData.customer_phone?.trim() || null,
+          contractor_id: contractorProfileId,
+          job_description: requestData.project_description.trim(),
+          location: requestData.project_location?.trim() || '',
+          preferred_timeline: requestData.timeline || null,
+          budget_range: requestData.budget_range || null,
+          status: 'new',
+        })
+        .select('id')
+        .single();
+      if (enquiryError) {
+        console.error('[send-quote-notification] Failed to insert enquiry:', enquiryError);
+        // Non-fatal — quote was saved; contractor notification will still fire
+      } else {
+        createdEnquiryId = enquiryRow?.id ?? null;
+        console.log('[send-quote-notification] Enquiry inserted for contractor profile:', contractorProfileId, 'id:', createdEnquiryId);
+      }
+    } else {
+      console.warn('[send-quote-notification] contractor profiles.id not found — enquiry row skipped');
+    }
+
+    // Notify the contractor in-app about the new quote request
+    const { error: notifError } = await supabase
+      .from("notifications")
+      .insert({
+        user_id: requestData.contractor_id,
+        title: "New Quote Request",
+        message: `${sanitizeText(requestData.customer_name)} has requested a quote for "${sanitizeText(requestData.project_title)}"`,
+        type: "quote_request",
+        reference_type: "enquiry",
+      });
+    if (notifError) {
+      console.error("Failed to insert contractor notification:", notifError);
+      // Non-fatal — enquiry was saved and email will be sent
+    }
+
+    // Send confirmation email to customer — branded template (this is the
+    // swap commit dfb90ac was supposed to make; it instead wholesale-replaced
+    // this file with just the patch instructions below, losing everything
+    // above. Restored here with the branded-template swap actually applied.
     console.log("Sending confirmation email to:", customerEmail);
     try {
       const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
@@ -61,3 +378,35 @@
       console.error("Error sending confirmation email:", emailError);
       // Don't fail — enquiry was already saved
     }
+
+    return new Response(JSON.stringify({
+      success: true,
+      rateLimitRemaining: remainingRequests - 1,
+      enquiry_id: createdEnquiryId,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Remaining": (remainingRequests - 1).toString(),
+        ...corsHeaders,
+      },
+    });
+  } catch (error) {
+    console.error("Error in quote submission function:", error);
+    return new Response(
+      JSON.stringify({
+        error: "An error occurred processing your quote request",
+        success: false
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        },
+      }
+    );
+  }
+};
+
+serve(handler);
