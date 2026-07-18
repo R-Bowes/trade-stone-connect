@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
+import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
+import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
 
 export function ReceivedQuotes() {
   const { quotes, loading, respondToQuote, refetch } = useReceivedQuotes();
@@ -83,16 +85,27 @@ export function ReceivedQuotes() {
 
   const getResponseBadge = (quote: ReceivedQuote) => {
     const response = quote.recipient_response ?? pendingIds[quote.id] ?? null;
-    if (response === "accepted" && quote.deposit_required && !quote.deposit_paid) {
-      return <Badge className="bg-amber-100 text-amber-800">Awaiting deposit — waiting on you</Badge>;
-    }
-    if (response === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
-    if (response === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
-    if (response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
-    if (quote.status === "accepted") return <Badge className="bg-green-100 text-green-800">Accepted</Badge>;
-    if (quote.status === "rejected") return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
-    if (quote.status === "expired") return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
-    return <Badge variant="outline">Pending</Badge>;
+
+    // recipient_response takes precedence over the base issued_quotes.status
+    // when both exist (a rejected/stalled/accepted response can arrive before
+    // or alongside a status update) — resolve to one effective status string,
+    // then narrow it properly rather than building QuoteState branches ad hoc.
+    const effectiveStatus =
+      response === "rejected" || quote.status === "rejected"
+        ? "rejected"
+        : response === "stalled"
+        ? "stalled"
+        : response === "accepted" || quote.status === "accepted"
+        ? "accepted"
+        : quote.status;
+
+    const state = toQuoteState(effectiveStatus, {
+      withinFollowUpWindow: false,
+      depositRequired: !!quote.deposit_required,
+      depositPaid: !!quote.deposit_paid,
+    });
+    const result = presentOrNeutral(state, "recipient", quote.status);
+    return <Badge className={TONE_BADGE_CLASS[result.tone]}>{result.label}</Badge>;
   };
 
   const canRespond = (quote: ReceivedQuote) =>

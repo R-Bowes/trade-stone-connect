@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth } from "date-fns";
 import { Loader2 } from "lucide-react";
+import { BusinessNeedsYourAction } from "./BusinessNeedsYourAction";
 
 // Confirmed DB values:
 //   jobs.status:            'scheduled' | 'in_progress' | 'snagging' | 'complete' | 'cancelled'
@@ -21,13 +22,6 @@ interface OverviewMetrics {
   awaitingApproval: number;
   slaAtRisk: number;
   spendMtd: number;
-}
-
-interface AttentionQuote {
-  id: string;
-  title: string | null;
-  contractor_name: string | null;
-  created_at: string;
 }
 
 interface AtRiskJob {
@@ -66,7 +60,6 @@ export function BusinessOverview({ profileId, companyId }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<OverviewMetrics>({ openJobs: 0, awaitingApproval: 0, slaAtRisk: 0, spendMtd: 0 });
-  const [attentionQuotes, setAttentionQuotes] = useState<AttentionQuote[]>([]);
   const [atRiskJobs, setAtRiskJobs] = useState<AtRiskJob[]>([]);
   const [jobRows, setJobRows] = useState<JobRow[]>([]);
   const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
@@ -99,10 +92,11 @@ export function BusinessOverview({ profileId, companyId }: Props) {
         .not("status", "in", `(${CLOSED_STATUSES.map(s => `"${s}"`).join(",")})`)
         .order("created_at", { ascending: false }),
 
-      // Awaiting approval = issued_quotes not yet responded to
+      // Awaiting approval = issued_quotes not yet responded to (count only —
+      // BusinessNeedsYourAction fetches the full list itself)
       supabase
         .from("issued_quotes")
-        .select("id, title:job_description, created_at, contractor_id")
+        .select("id")
         .eq("recipient_id", profileId)
         .is("responded_at", null),
 
@@ -135,25 +129,8 @@ export function BusinessOverview({ profileId, companyId }: Props) {
     const jobs: JobRow[] = (jobsRes.data ?? []).map((j: any) => ({ ...j }));
     const slaJobs: AtRiskJob[] = (slaRes.data ?? []).map((j: any) => ({ ...j }));
     const spendTotal = (spendRes.data ?? []).reduce((acc: number, r: any) => acc + (r.total ?? 0), 0);
-    const quotePending: AttentionQuote[] = (quotesRes.data ?? []).map((q: any) => ({
-      id: q.id,
-      title: q.title ?? null,
-      contractor_name: null,
-      created_at: q.created_at,
-    }));
-
-    // Hydrate contractor names for attention quotes
-    const contractorIds = [...new Set((quotesRes.data ?? []).map((q: any) => q.contractor_id).filter(Boolean))];
-    if (contractorIds.length) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", contractorIds);
-      const pMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p.full_name]));
-      quotePending.forEach((q, i) => {
-        q.contractor_name = pMap[(quotesRes.data ?? [])[i]?.contractor_id] ?? null;
-      });
-    }
+    // Count only — BusinessNeedsYourAction owns the actual list rendering now.
+    const awaitingApprovalCount = (quotesRes.data ?? []).length;
 
     // Hydrate site names for jobs list and SLA jobs
     const siteIds = [...new Set([
@@ -188,11 +165,10 @@ export function BusinessOverview({ profileId, companyId }: Props) {
 
     setMetrics({
       openJobs: jobs.length,
-      awaitingApproval: quotePending.length,
+      awaitingApproval: awaitingApprovalCount,
       slaAtRisk: slaJobs.length,
       spendMtd: spendTotal,
     });
-    setAttentionQuotes(quotePending);
     setAtRiskJobs(hydratedSlaJobs);
     setJobRows(hydratedJobs);
     setSites(sitesRes.data ?? []);
@@ -265,7 +241,7 @@ export function BusinessOverview({ profileId, companyId }: Props) {
     );
   };
 
-  const showAttention = metrics.awaitingApproval > 0 || metrics.slaAtRisk > 0;
+  const showAttention = metrics.slaAtRisk > 0;
 
   return (
     <div className="p-6 space-y-8 max-w-5xl">
@@ -296,40 +272,16 @@ export function BusinessOverview({ profileId, companyId }: Props) {
         ))}
       </div>
 
-      {/* Needs your attention */}
+      {/* B6: quotes to review, deposits to pay, dates to confirm — one click each */}
+      <BusinessNeedsYourAction profileId={profileId} />
+
+      {/* SLA breaches — a distinct, operational-risk category from counterparty actions above */}
       {showAttention && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Needs your attention</CardTitle>
+            <CardTitle className="text-base font-semibold">SLA at risk</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {attentionQuotes.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">
-                    {attentionQuotes.length} quote{attentionQuotes.length !== 1 ? "s" : ""} awaiting approval
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => nav("approvals")}>
-                    Go to Approvals
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  {attentionQuotes.slice(0, 3).map((q) => (
-                    <div key={q.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                      <span className="text-muted-foreground truncate max-w-xs">
-                        {q.title ?? "Untitled quote"}
-                        {q.contractor_name ? ` — ${q.contractor_name}` : ""}
-                      </span>
-                      <span className="text-xs text-muted-foreground shrink-0 ml-4">{fmt(q.created_at)}</span>
-                    </div>
-                  ))}
-                  {attentionQuotes.length > 3 && (
-                    <p className="text-xs text-muted-foreground pt-1">+{attentionQuotes.length - 3} more</p>
-                  )}
-                </div>
-              </div>
-            )}
-
             {atRiskJobs.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">

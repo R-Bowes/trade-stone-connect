@@ -59,7 +59,7 @@ async function fetchEngagementDetail(engagement: PipelineEngagement): Promise<En
     const { data } = await supabase
       .from("issued_quotes")
       .select(
-        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, total, subtotal, tax_amount, tax_rate, items, sent_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, enquiry_id, contractor_id",
+        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, total, subtotal, tax_amount, tax_rate, items, sent_at, viewed_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, deposit_paid, enquiry_id, contractor_id",
       )
       .eq("id", quoteId)
       .maybeSingle();

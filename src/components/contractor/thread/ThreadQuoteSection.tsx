@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatQuoteRef } from "@/lib/documentRefs";
+import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
+import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
 
 export interface ThreadQuoteVersion {
   id: string;
@@ -29,17 +31,26 @@ export interface ThreadQuote {
   rejected_at: string | null;
   deposit_required: boolean | null;
   deposit_amount: number | null;
+  deposit_paid: boolean | null;
+  viewed_at: string | null;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-800",
-  accepted: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  expired: "bg-amber-100 text-amber-800",
-  superseded: "bg-gray-100 text-gray-400",
-  lapsed: "bg-gray-100 text-gray-400",
-};
+/** The same presenter-driven badge ReceivedQuotes/IssuedQuotes use — one source of truth. */
+function quoteStatusBadge(quote: {
+  status: string;
+  deposit_required: boolean | null;
+  deposit_paid: boolean | null;
+  viewed_at: string | null;
+}): { className: string; label: string } {
+  const state = toQuoteState(quote.status, {
+    viewed: !!quote.viewed_at,
+    withinFollowUpWindow: false,
+    depositRequired: !!quote.deposit_required,
+    depositPaid: !!quote.deposit_paid,
+  });
+  const result = presentOrNeutral(state, "contractor", quote.status);
+  return { className: TONE_BADGE_CLASS[result.tone], label: result.label };
+}
 
 function fmtMoney(n: number): string {
   return `£${Number(n).toFixed(2)}`;
@@ -58,7 +69,7 @@ export function ThreadQuoteSection({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Quote</h3>
-        <Badge className={STATUS_BADGE[quote.status] ?? "bg-gray-100 text-gray-700"}>{quote.status}</Badge>
+        <Badge className={quoteStatusBadge(quote).className}>{quoteStatusBadge(quote).label}</Badge>
       </div>
 
       <table className="w-full text-sm">
@@ -108,7 +119,9 @@ export function ThreadQuoteSection({
               className={`flex items-center justify-between text-xs px-2 py-1 rounded ${v.id === quote.id ? "bg-muted font-medium" : ""}`}
             >
               <span className="font-mono">{formatQuoteRef(quote.quote_number, { version: v.version })}</span>
-              <Badge className={`text-[10px] py-0 px-1.5 ${STATUS_BADGE[v.status] ?? "bg-gray-100"}`}>{v.status}</Badge>
+              <Badge className={`text-[10px] py-0 px-1.5 ${quoteStatusBadge({ status: v.status, deposit_required: false, deposit_paid: false, viewed_at: null }).className}`}>
+                {quoteStatusBadge({ status: v.status, deposit_required: false, deposit_paid: false, viewed_at: null }).label}
+              </Badge>
             </div>
           ))}
         </div>

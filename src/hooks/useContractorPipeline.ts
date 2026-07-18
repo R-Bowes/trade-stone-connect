@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatInvoiceRef, formatJobRef, formatQuoteRef } from "@/lib/documentRefs";
+import {
+  presentState,
+  presentOrNeutral,
+  toEnquiryState,
+  toQuoteState,
+  toJobState,
+  toInvoiceState,
+  type PresenterTone,
+  type WaitingOn,
+} from "@/lib/statusPresenter";
 
 /**
  * The contractor's live-engagement pipeline for the Work view.
@@ -43,11 +53,14 @@ export interface PipelineEngagement {
   clientName: string;
   clientCode: string | null;
   companyId: string | null;
+  title: string | null;
   stage: PipelineStage;
   stageLabel: string;
   reference: string | null;
   band: PipelineBand;
   action: string;
+  tone: PresenterTone;
+  waitingOn: WaitingOn;
   sinceIso: string;
   overdue: boolean;
   slaStatus: string | null;
@@ -85,6 +98,7 @@ interface RawQuote {
   quote_number: number;
   version: number;
   status: string;
+  title: string;
   client_name: string;
   recipient_id: string | null;
   enquiry_id: string | null;
@@ -94,12 +108,16 @@ interface RawQuote {
   accepted_at: string | null;
   created_at: string;
   updated_at: string;
+  deposit_required: boolean | null;
+  deposit_paid: boolean | null;
+  viewed_at: string | null;
 }
 
 interface RawJob {
   id: string;
   job_number: number;
   status: string;
+  title: string;
   issued_quote_id: string | null;
   company_id: string | null;
   customer_id: string;
@@ -144,9 +162,12 @@ function resolveSchedulingSubstate(
   events: RawScheduleEvent[],
   contractorId: string,
   acceptedAtIso: string,
+  deposit: { required: boolean; paid: boolean },
 ): {
   band: PipelineBand;
   action: string;
+  tone: PresenterTone;
+  waitingOn: WaitingOn;
   sinceIso: string;
   confirmableProposalId: string | null;
 } {
@@ -158,9 +179,18 @@ function resolveSchedulingSubstate(
 
   const confirmed = proposals.find((p) => p.is_confirmed || p.status === "accepted") ?? null;
   if (confirmed) {
+    // The chosen slot is confirmed the moment accept_quote_with_slot runs,
+    // even when a deposit is still outstanding — the true bottleneck in
+    // that case is the deposit, not the date, so present it as that
+    // instead of a generic "awaiting job confirmation".
+    const result = deposit.required && !deposit.paid
+      ? presentState({ kind: "quote", status: "accepted", depositRequired: true, depositPaid: false }, "contractor")
+      : presentState({ kind: "scheduling", substate: "confirmed_awaiting_job" }, "contractor");
     return {
-      band: "waiting",
-      action: "Awaiting client job confirmation",
+      band: result.tone === "action" ? "needs_you" : "waiting",
+      action: result.label,
+      tone: result.tone,
+      waitingOn: result.waitingOn,
       sinceIso: confirmed.updated_at ?? confirmed.created_at,
       confirmableProposalId: null,
     };
@@ -171,9 +201,12 @@ function resolveSchedulingSubstate(
   );
   if (pendingFromOther.length > 0) {
     const oldest = pendingFromOther.reduce((a, b) => (a.created_at < b.created_at ? a : b));
+    const result = presentState({ kind: "scheduling", substate: "pending", proposedByViewer: false }, "contractor");
     return {
       band: "needs_you",
-      action: "Confirm or counter dates",
+      action: result.label,
+      tone: result.tone,
+      waitingOn: result.waitingOn,
       sinceIso: oldest.created_at,
       confirmableProposalId: pendingFromOther.length === 1 ? pendingFromOther[0].id : null,
     };
@@ -184,18 +217,28 @@ function resolveSchedulingSubstate(
   );
   if (pendingFromMe.length > 0) {
     const oldest = pendingFromMe.reduce((a, b) => (a.created_at < b.created_at ? a : b));
+    const result = presentState({ kind: "scheduling", substate: "pending", proposedByViewer: true }, "contractor");
     return {
       band: "waiting",
-      action: "Awaiting response",
+      action: result.label,
+      tone: result.tone,
+      waitingOn: result.waitingOn,
       sinceIso: oldest.created_at,
       confirmableProposalId: null,
     };
   }
 
+  // Nothing pending from anyone and nothing confirmed: the dead-end state
+  // (both parties out of ordinary turns) — previously described in plain
+  // words ("Agree a date via message or final offer") with no distinct
+  // tone, now the presenter's explicit dead_end case.
   const lastActivity = events.reduce((max, e) => (e.updated_at > max ? e.updated_at : max), acceptedAtIso);
+  const result = presentState({ kind: "scheduling", substate: "dead_end" }, "contractor");
   return {
     band: "needs_you",
-    action: "Agree a date via message or final offer",
+    action: result.label,
+    tone: result.tone,
+    waitingOn: result.waitingOn,
     sinceIso: lastActivity,
     confirmableProposalId: null,
   };
@@ -249,13 +292,13 @@ export function useContractorPipeline() {
       supabase
         .from("issued_quotes")
         .select(
-          "id, quote_number, version, status, client_name, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at",
+          "id, quote_number, version, status, title, client_name, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at, deposit_required, deposit_paid, viewed_at",
         )
         .eq("contractor_id", contractorId),
       supabase
         .from("jobs")
         .select(
-          "id, job_number, status, issued_quote_id, company_id, customer_id, contract_value, completed_at, contractor_signed_off_at, signed_off_at, sla_status, sla_completion_due, created_at, updated_at",
+          "id, job_number, status, title, issued_quote_id, company_id, customer_id, contract_value, completed_at, contractor_signed_off_at, signed_off_at, sla_status, sla_completion_due, created_at, updated_at",
         )
         .eq("contractor_id", contractorId)
         .neq("status", "cancelled"),
@@ -329,16 +372,27 @@ export function useContractorPipeline() {
 
     // ---- enquiry stage ----
     for (const enq of rawEnquiries) {
+      // The fetch already filters to status IN ('new','replied') at the
+      // query level, but that's a query-time constraint, not a type-level
+      // guarantee — narrow properly rather than casting, and skip the card
+      // entirely if a future value somehow slips through unrecognised
+      // rather than crashing the whole pipeline render on it.
+      const enquiryState = toEnquiryState(enq.status);
+      if (!enquiryState) continue;
+      const enquiryResult = presentState(enquiryState, "contractor");
       out.push({
         key: `enquiry:${enq.id}`,
         clientName: enq.customer_name ?? "Client",
         clientCode: enq.customer_ts_code ?? null,
         companyId: enq.company_id ?? null,
+        title: enq.title ?? enq.job_description,
         stage: "enquiry",
         stageLabel: "Enquiry",
         reference: null,
-        band: "needs_you",
-        action: "Respond to enquiry",
+        band: enquiryResult.tone === "action" ? "needs_you" : "waiting",
+        action: enquiryResult.label,
+        tone: enquiryResult.tone,
+        waitingOn: enquiryResult.waitingOn,
         sinceIso: enq.created_at ?? new Date().toISOString(),
         overdue: false,
         slaStatus: null,
@@ -401,16 +455,20 @@ export function useContractorPipeline() {
         if (liveInvoice?.status === "paid") {
           skipDraftCard = true; // paid-and-done — excluded entirely
         } else if (liveInvoice) {
+          const invoiceResult = presentOrNeutral(toInvoiceState(liveInvoice.status), "contractor", liveInvoice.status);
           out.push({
             key: `invoice:${liveInvoice.id}`,
             clientName: liveInvoice.client_name || jobQuote.client_name,
             clientCode,
             companyId: job.company_id,
+            title: job.title ?? jobQuote.title,
             stage: "invoice",
             stageLabel: liveInvoice.status === "overdue" ? "Invoice overdue" : liveInvoice.status === "sent" ? "Invoice sent" : "Invoice draft",
             reference: formatInvoiceRef(liveInvoice.invoice_number),
-            band: liveInvoice.status === "draft" ? "needs_you" : "waiting",
-            action: liveInvoice.status === "draft" ? "Send invoice" : "Awaiting payment",
+            band: invoiceResult.tone === "action" ? "needs_you" : "waiting",
+            action: invoiceResult.label,
+            tone: invoiceResult.tone,
+            waitingOn: invoiceResult.waitingOn,
             sinceIso: liveInvoice.sent_at ?? liveInvoice.created_at,
             overdue: liveInvoice.status === "overdue",
             slaStatus: job.sla_status,
@@ -423,16 +481,20 @@ export function useContractorPipeline() {
           });
         } else if (job.status === "complete") {
           const needsSignOff = !job.contractor_signed_off_at;
+          const jobResult = presentState(toJobState("complete", !needsSignOff)!, "contractor");
           out.push({
             key: `job:${job.id}`,
             clientName: jobQuote.client_name,
             clientCode,
             companyId: job.company_id,
+            title: job.title ?? jobQuote.title,
             stage: "job",
             stageLabel: "Complete",
             reference: formatJobRef(job.job_number),
-            band: "needs_you",
-            action: needsSignOff ? "Add your sign-off" : "Create invoice",
+            band: jobResult.tone === "action" ? "needs_you" : "waiting",
+            action: jobResult.label,
+            tone: jobResult.tone,
+            waitingOn: jobResult.waitingOn,
             sinceIso: needsSignOff ? job.completed_at ?? job.updated_at : job.contractor_signed_off_at!,
             overdue: false,
             slaStatus: job.sla_status,
@@ -444,21 +506,20 @@ export function useContractorPipeline() {
             confirmableProposalId: null,
           });
         } else {
+          const jobResult = presentOrNeutral(toJobState(job.status), "contractor", job.status);
           out.push({
             key: `job:${job.id}`,
             clientName: jobQuote.client_name,
             clientCode,
             companyId: job.company_id,
+            title: job.title ?? jobQuote.title,
             stage: "job",
             stageLabel: JOB_STAGE_LABELS[job.status] ?? job.status,
             reference: formatJobRef(job.job_number),
-            band: "needs_you",
-            action:
-              job.status === "snagging"
-                ? "Resolve snags"
-                : job.status === "in_progress"
-                  ? "Update progress"
-                  : "Start job",
+            band: jobResult.tone === "action" ? "needs_you" : "waiting",
+            action: jobResult.label,
+            tone: jobResult.tone,
+            waitingOn: jobResult.waitingOn,
             sinceIso: job.created_at,
             overdue: false,
             slaStatus: job.sla_status,
@@ -476,17 +537,21 @@ export function useContractorPipeline() {
           eventsByQuoteId.get(governing.id) ?? [],
           contractorId,
           governing.accepted_at ?? governing.created_at,
+          { required: !!governing.deposit_required, paid: !!governing.deposit_paid },
         );
         out.push({
           key: `scheduling:${governing.id}`,
           clientName: governing.client_name,
           clientCode,
           companyId: null,
+          title: governing.title,
           stage: "scheduling",
           stageLabel: "Scheduling",
           reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
           band: substate.band,
           action: substate.action,
+          tone: substate.tone,
+          waitingOn: substate.waitingOn,
           sinceIso: substate.sinceIso,
           overdue: false,
           slaStatus: null,
@@ -498,16 +563,20 @@ export function useContractorPipeline() {
           confirmableProposalId: substate.confirmableProposalId,
         });
       } else if (governing?.status === "sent") {
+        const sentResult = presentState({ kind: "quote", status: "sent", viewed: !!governing.viewed_at }, "contractor");
         out.push({
           key: `quote:${governing.id}`,
           clientName: governing.client_name,
           clientCode,
           companyId: null,
+          title: governing.title,
           stage: "quote_sent",
           stageLabel: "Quote sent",
           reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
-          band: "waiting",
-          action: "Awaiting client response",
+          band: sentResult.tone === "action" ? "needs_you" : "waiting",
+          action: sentResult.label,
+          tone: sentResult.tone,
+          waitingOn: sentResult.waitingOn,
           sinceIso: governing.sent_at ?? governing.created_at,
           overdue: false,
           slaStatus: null,
@@ -521,16 +590,23 @@ export function useContractorPipeline() {
       } else if (governing?.status === "rejected") {
         const since = governing.rejected_at ?? governing.responded_at ?? governing.updated_at;
         if (daysSince(since) <= REJECTED_QUOTE_GRACE_DAYS) {
+          const rejectedResult = presentState(
+            { kind: "quote", status: "rejected", withinFollowUpWindow: true },
+            "contractor",
+          );
           out.push({
             key: `quote:${governing.id}`,
             clientName: governing.client_name,
             clientCode,
             companyId: null,
+            title: governing.title,
             stage: "quote_sent",
             stageLabel: "Quote declined",
             reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
-            band: "needs_you",
-            action: "Revise or follow up",
+            band: rejectedResult.tone === "action" ? "needs_you" : "waiting",
+            action: rejectedResult.label,
+            tone: rejectedResult.tone,
+            waitingOn: rejectedResult.waitingOn,
             sinceIso: since,
             overdue: false,
             slaStatus: null,
@@ -556,16 +632,20 @@ export function useContractorPipeline() {
       // An unsent draft revision beyond whatever's governing the engagement
       // gets its own card so it can't mask the governing stage above it.
       if (!skipDraftCard && governing && latestVersion.status === "draft" && latestVersion.id !== governing.id) {
+        const draftResult = presentState({ kind: "quote", status: "draft" }, "contractor");
         out.push({
           key: `draft:${latestVersion.id}`,
           clientName: latestVersion.client_name,
           clientCode,
           companyId: null,
+          title: latestVersion.title,
           stage: "quote_sent",
           stageLabel: "Draft revision",
           reference: formatQuoteRef(latestVersion.quote_number, { version: latestVersion.version }),
           band: "needs_you",
           action: "Send revised quote",
+          tone: draftResult.tone,
+          waitingOn: draftResult.waitingOn,
           sinceIso: latestVersion.created_at,
           overdue: false,
           slaStatus: null,
@@ -579,7 +659,13 @@ export function useContractorPipeline() {
       }
     }
 
-    out.sort((a, b) => new Date(a.sinceIso).getTime() - new Date(b.sinceIso).getTime());
+    // B7: action-needed first, then recency (oldest-waiting-on-you first
+    // within that group) — needing action always outranks how long
+    // something's simply been sitting waiting on the other party.
+    out.sort((a, b) => {
+      if (a.band !== b.band) return a.band === "needs_you" ? -1 : 1;
+      return new Date(a.sinceIso).getTime() - new Date(b.sinceIso).getTime();
+    });
     setEngagements(out);
     if (!silent) setLoading(false);
   }, []);

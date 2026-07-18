@@ -5,6 +5,15 @@ import { Button } from "@/components/ui/button";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import type { PipelineEngagement } from "@/hooks/useContractorPipeline";
 import { InlineConfirmDate } from "./InlineConfirmDate";
+import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
+import type { PresenterTone } from "@/lib/statusPresenter";
+
+const TONE_CHIP_LABEL: Record<PresenterTone, string> = {
+  action: "Needs you",
+  waiting: "Waiting",
+  neutral: "Closed",
+  done: "Done",
+};
 
 interface PipelineCardProps {
   engagement: PipelineEngagement;
@@ -103,8 +112,10 @@ export function PipelineCard({
             {e.reference && <span className="font-mono text-xs text-muted-foreground">{e.reference}</span>}
             <SlaStatusPill status={e.slaStatus} completionDue={e.slaCompletionDue} />
           </div>
+          {e.title && <p className="text-sm text-foreground truncate">{e.title}</p>}
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <Badge variant="secondary" className="text-xs">{e.stageLabel}</Badge>
+            <Badge className={`text-xs ${TONE_BADGE_CLASS[e.tone]}`}>{TONE_CHIP_LABEL[e.tone]}</Badge>
             <span className={e.overdue ? "text-red-600 font-medium" : "text-muted-foreground"}>{e.action}</span>
             <span className="text-xs text-muted-foreground">· {e.band === "needs_you" ? "since" : "waiting"} {waitingSince}</span>
           </div>

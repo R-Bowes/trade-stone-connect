@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatQuoteRef } from "@/lib/documentRefs";
+import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
+import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
 
 interface LineItem {
   description: string;
@@ -60,29 +62,18 @@ interface EditState {
   deposit_amount: string;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-800",
-  accepted: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  expired: "bg-amber-100 text-amber-800",
-  superseded: "bg-gray-100 text-gray-400",
-};
+type BadgeableQuote = Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid" | "viewed_at">;
 
-function statusLabel(s: string): string {
-  const map: Record<string, string> = {
-    draft: "Draft", sent: "Sent", accepted: "Accepted",
-    rejected: "Rejected", expired: "Expired", superseded: "Superseded",
-  };
-  return map[s] ?? s;
-}
-
-/** Overrides the plain "Accepted" badge while a deposit is still outstanding. */
-function depositPendingBadge(quote: Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid">) {
-  if (quote.status === "accepted" && quote.deposit_required && !quote.deposit_paid) {
-    return { className: "bg-amber-100 text-amber-800", label: "Awaiting deposit — waiting on client" };
-  }
-  return null;
+/** The one presenter-driven badge for every quote status this list can show. */
+function quoteBadge(quote: BadgeableQuote): { className: string; label: string } {
+  const state = toQuoteState(quote.status, {
+    viewed: !!quote.viewed_at,
+    withinFollowUpWindow: false,
+    depositRequired: !!quote.deposit_required,
+    depositPaid: !!quote.deposit_paid,
+  });
+  const result = presentOrNeutral(state, "contractor", quote.status);
+  return { className: TONE_BADGE_CLASS[result.tone], label: result.label };
 }
 
 function fmtDate(iso: string | null): string {
@@ -177,8 +168,8 @@ function QuoteDetailPanel({
             <p className="font-mono text-xs text-muted-foreground mb-1">{eyebrow}</p>
             <DialogTitle className="text-xl leading-tight">{quote.title}</DialogTitle>
           </div>
-          <Badge className={`shrink-0 mt-1 ${depositPendingBadge(quote)?.className ?? STATUS_BADGE[quote.status] ?? "bg-gray-100 text-gray-700"}`}>
-            {depositPendingBadge(quote)?.label ?? statusLabel(quote.status)}
+          <Badge className={`shrink-0 mt-1 ${quoteBadge(quote).className}`}>
+            {quoteBadge(quote).label}
           </Badge>
         </div>
       </DialogHeader>
@@ -283,8 +274,8 @@ function QuoteDetailPanel({
                   className={`w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between transition-colors hover:bg-muted/50 ${v.id === quote.id ? "bg-muted font-medium" : ""}`}
                 >
                   <span className="font-mono">{formatQuoteRef(v.quote_number, { version: v.version })}</span>
-                  <Badge className={`text-[10px] py-0 px-1.5 ${STATUS_BADGE[v.status] ?? "bg-gray-100"}`}>
-                    {statusLabel(v.status)}
+                  <Badge className={`text-[10px] py-0 px-1.5 ${quoteBadge(v).className}`}>
+                    {quoteBadge(v).label}
                   </Badge>
                 </button>
               ))}
@@ -806,8 +797,8 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
                       <td className="p-3">{q.client_name}</td>
                       <td className="p-3 text-right font-mono">{fmtMoney(q.total)}</td>
                       <td className="p-3">
-                        <Badge className={depositPendingBadge(q)?.className ?? STATUS_BADGE[q.status] ?? "bg-gray-100 text-gray-700"}>
-                          {depositPendingBadge(q)?.label ?? statusLabel(q.status)}
+                        <Badge className={quoteBadge(q).className}>
+                          {quoteBadge(q).label}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">
