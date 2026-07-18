@@ -30,6 +30,7 @@ const BUDGET_OPTIONS = [
   "£2,000–£5,000",
   "£5,000–£10,000",
   "£10,000+",
+  "No specific budget",
   "I'd like a full quote first",
 ];
 
