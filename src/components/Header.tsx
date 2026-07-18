@@ -137,10 +137,21 @@ const Header = () => {
     </div>
   );
 
+  // B8: the brand mark takes a logged-in user back to their own dashboard,
+  // not the public marketing homepage — clicking it from inside a dashboard
+  // previously always bounced you out to "/", which reads as "log me out."
+  const homeHref = user && profile
+    ? profile.user_type === "contractor"
+      ? "/dashboard/contractor"
+      : profile.user_type === "business"
+      ? "/dashboard/business"
+      : "/dashboard/homeowner"
+    : "/";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-300 bg-white">
       <div className="container flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2.5">
+        <Link to={homeHref} className="flex items-center gap-2.5">
           <img src={tradestoneLogo} alt="TradeStone logo" className="h-7 w-auto" />
           <span
             className="leading-none uppercase tracking-wide"
