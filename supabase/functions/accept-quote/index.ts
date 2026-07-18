@@ -196,6 +196,10 @@ serve(async (req) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: depositPence,
       currency: "gbp",
+      // Card only (Apple/Google Pay ride on 'card' via the Payment Element) —
+      // drops Klarna/Revolut Pay and other BNPL/delayed-confirmation methods,
+      // which don't suit a deposit that needs to confirm the job immediately.
+      payment_method_types: ["card"],
       application_fee_amount: platformFee,
       transfer_data: { destination: contractorProfile.stripe_account_id },
       metadata: {

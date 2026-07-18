@@ -135,7 +135,7 @@ function CheckoutForm({
       </Button>
 
       <p className="text-center text-xs text-muted-foreground">
-        Secured by Stripe · Funds held until job confirmed complete
+        Deposit paid directly to your contractor · Secured by Stripe
       </p>
     </div>
   );
