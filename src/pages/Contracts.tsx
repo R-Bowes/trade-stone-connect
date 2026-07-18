@@ -27,18 +27,18 @@ const Contracts = () => {
     },
     {
       icon: Shield,
-      title: "Secure Escrow Payments",
-      description: "Funds are held securely until milestones are met, protecting both contractors and clients."
+      title: <>Secure Escrow Payments <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+      description: <>Funds held securely until milestones are met, protecting both contractors and clients <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
     },
     {
       icon: Clock,
-      title: "Milestone Tracking",
-      description: "Break projects into phases with clear deliverables and automatic payment releases."
+      title: <>Milestone Tracking <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+      description: <>Break projects into phases with clear deliverables and automatic payment releases <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
     },
     {
       icon: Users,
-      title: "Multi-Party Agreements",
-      description: "Manage contracts involving multiple subcontractors, suppliers, and stakeholders in one place."
+      title: <>Multi-Party Agreements <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+      description: <>Manage contracts involving multiple subcontractors, suppliers, and stakeholders in one place <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
     }
   ];
 
@@ -59,19 +59,19 @@ const Contracts = () => {
       icon: Shield,
       title: "Secure Escrow Payments",
       description: "Protect both sides of a project with milestone-based fund releases.",
-      status: "Available Now"
+      status: "Coming Soon"
     },
     {
       icon: Clock,
       title: "Milestone Tracking",
       description: "Set clear project phases and monitor work completion before payout.",
-      status: "Available Now"
+      status: "Coming Soon"
     },
     {
       icon: Users,
       title: "Multi-Party Agreements",
       description: "Handle contracts involving clients, subcontractors, and suppliers in one place.",
-      status: "Available Now"
+      status: "Coming Soon"
     },
     {
       icon: Sparkles,

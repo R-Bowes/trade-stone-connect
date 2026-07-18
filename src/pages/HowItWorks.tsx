@@ -41,7 +41,7 @@ const HowItWorks = () => {
       number: "4",
       icon: CreditCard,
       title: "Work & Get Paid",
-      description: "Manage projects, communicate securely, and receive payments through our protected escrow system."
+      description: "Manage projects, communicate securely, and get paid directly by your client through Stripe."
     },
     {
       number: "5",
@@ -110,11 +110,11 @@ const HowItWorks = () => {
         label: "Contractor Pro",
         features: [
           "Invoicing & payment system",
-          "Escrow-protected payments",
           "Contract bidding access",
           "Schedule & team management",
           <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> business assistant</>,
-          "Loyalty rebate tiers"
+          <>Escrow-protected payments <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
+          <>Loyalty rebate tiers <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>
         ]
       }
     }
@@ -276,11 +276,11 @@ const HowItWorks = () => {
                     { feature: "Team collaboration tools", personal: false, business: "pro", contractor: false },
                     { feature: "Company profile & branding", personal: false, business: "pro", contractor: false },
                     { feature: "Invoicing & payment system", personal: false, business: false, contractor: "pro" },
-                    { feature: "Escrow-protected payments", personal: false, business: false, contractor: "pro" },
                     { feature: "Contract bidding access", personal: false, business: false, contractor: "pro" },
                     { feature: "Schedule & team management", personal: false, business: false, contractor: "pro" },
-                    { feature: "Loyalty rebate tiers", personal: false, business: false, contractor: "pro" },
                     { feature: "AI assistant (Coming Soon)", personal: false, business: "pro", contractor: "pro" },
+                    { feature: "Escrow-protected payments (Coming Soon)", personal: false, business: false, contractor: "pro" },
+                    { feature: "Loyalty rebate tiers (Coming Soon)", personal: false, business: false, contractor: "pro" },
                   ].map((row, i) => (
                     <tr key={i} className={`border-b border-border ${i % 2 === 0 ? 'bg-muted/20' : ''}`}>
                       <td className="py-3 px-4 text-sm text-foreground">{row.feature}</td>
