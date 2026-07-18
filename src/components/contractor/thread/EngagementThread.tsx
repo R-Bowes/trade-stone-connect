@@ -88,7 +88,7 @@ async function fetchEngagementDetail(engagement: PipelineEngagement): Promise<En
   if (enquiryId) {
     const { data } = await supabase
       .from("enquiries")
-      .select("id, job_description, location, budget_range, preferred_timeline, photo_urls, created_at")
+      .select("id, job_description, location, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls, created_at")
       .eq("id", enquiryId)
       .maybeSingle();
     enquiry = data ?? null;

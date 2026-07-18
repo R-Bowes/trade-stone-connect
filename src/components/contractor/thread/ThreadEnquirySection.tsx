@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { MapPin, Calendar, Wallet } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 
 export interface ThreadEnquiry {
   id: string;
@@ -8,50 +8,18 @@ export interface ThreadEnquiry {
   location: string;
   budget_range: string | null;
   preferred_timeline: string | null;
+  preferred_time_of_day: string | null;
+  preferred_window_start: string | null;
+  preferred_window_end: string | null;
   photo_urls: string[] | null;
   created_at: string | null;
 }
 
-const PHOTO_BUCKET = "enquiry-photos";
-
-/**
- * Enquiry photo uploads have no working storage trail anywhere in this
- * codebase — QuoteRequestDialog collects files into local state but never
- * uploads them, so `photo_urls` is never actually populated by any current
- * flow (see engagement-thread build notes). Rendered defensively via signed
- * URLs (the `enquiry-photos` bucket is private) in case rows exist from
- * manual seeding/testing or a future upload path lands.
- */
-function EnquiryPhotos({ paths }: { paths: string[] }) {
-  const [urls, setUrls] = useState<string[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      paths.map(async (path) => {
-        const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
-        return data?.signedUrl ?? null;
-      }),
-    ).then((resolved) => {
-      if (!cancelled) setUrls(resolved.filter((u): u is string => !!u));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [paths]);
-
-  if (urls.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {urls.map((url, i) => (
-        <a key={i} href={url} target="_blank" rel="noreferrer" className="block h-20 w-20 rounded-md overflow-hidden border">
-          <img src={url} alt={`Enquiry photo ${i + 1}`} className="h-full w-full object-cover" />
-        </a>
-      ))}
-    </div>
-  );
-}
+const TIME_OF_DAY_LABEL: Record<string, string> = {
+  am: "Mornings (AM)",
+  pm: "Afternoons (PM)",
+  any: "Any time",
+};
 
 export function ThreadEnquirySection({ enquiry }: { enquiry: ThreadEnquiry }) {
   return (
@@ -66,9 +34,20 @@ export function ThreadEnquirySection({ enquiry }: { enquiry: ThreadEnquiry }) {
         {enquiry.preferred_timeline && (
           <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{enquiry.preferred_timeline}</span>
         )}
+        {enquiry.preferred_time_of_day && (
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5" />Prefers: {TIME_OF_DAY_LABEL[enquiry.preferred_time_of_day] ?? enquiry.preferred_time_of_day}
+          </span>
+        )}
+        {enquiry.preferred_window_start && enquiry.preferred_window_end && (
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5" />
+            Window: {format(new Date(enquiry.preferred_window_start), "d MMM")} – {format(new Date(enquiry.preferred_window_end), "d MMM")}
+          </span>
+        )}
       </div>
       {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
-        <EnquiryPhotos paths={enquiry.photo_urls} />
+        <EnquiryPhotoThumbnails paths={enquiry.photo_urls} label="Customer photos" />
       )}
     </div>
   );

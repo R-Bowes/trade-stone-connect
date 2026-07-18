@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { addDays, format, startOfToday } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvailability } from "@/hooks/useAvailability";
 
@@ -21,6 +21,9 @@ interface SlotPickerProps {
   onSubmit: (slots: PickedSlot[]) => Promise<void> | void;
   helperText?: string;
   submitLabel?: (count: number) => string;
+  /** Guidance only — never restricts selection, just highlights matching cells and biases the default page. */
+  preferredTimeOfDay?: string | null;
+  preferredWindowStart?: string | null;
 }
 
 function keyToSlot(key: SlotKey): PickedSlot {
@@ -38,11 +41,19 @@ function keyToSlot(key: SlotKey): PickedSlot {
  * the customer's initial proposal, either party's counter-proposal, and
  * the post-exhaustion single-date picker (maxSlots=1).
  */
-export function SlotPicker({ contractorId, maxSlots, minSlots = 1, onSubmit, helperText, submitLabel }: SlotPickerProps) {
+export function SlotPicker({
+  contractorId,
+  maxSlots,
+  minSlots = 1,
+  onSubmit,
+  helperText,
+  submitLabel,
+  preferredTimeOfDay,
+  preferredWindowStart,
+}: SlotPickerProps) {
   const { getAvailabilityForRange, loading } = useAvailability(contractorId);
   const [selectedSlots, setSelectedSlots] = useState<Set<SlotKey>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [page, setPage] = useState(0);
   const pageCount = WINDOW_DAYS / PAGE_DAYS;
 
   const today = startOfToday();
@@ -50,6 +61,17 @@ export function SlotPicker({ contractorId, maxSlots, minSlots = 1, onSubmit, hel
     () => Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + 1)),
     [today.toISOString()],
   );
+
+  // Guidance only: default the visible page to wherever the customer's
+  // preferred window starts, clamped within the picker's own 6-week range.
+  // Never restricts navigation — the contractor can still page anywhere.
+  const [page, setPage] = useState(() => {
+    if (!preferredWindowStart) return 0;
+    const target = new Date(preferredWindowStart);
+    const dayIndex = allDays.findIndex((d) => format(d, "yyyy-MM-dd") === format(target, "yyyy-MM-dd"));
+    if (dayIndex < 0) return 0;
+    return Math.min(Math.max(Math.floor(dayIndex / PAGE_DAYS), 0), pageCount - 1);
+  });
   const days = allDays.slice(page * PAGE_DAYS, (page + 1) * PAGE_DAYS);
   const rangeData = getAvailabilityForRange(allDays[0], allDays[allDays.length - 1]);
 
@@ -138,6 +160,9 @@ export function SlotPicker({ contractorId, maxSlots, minSlots = 1, onSubmit, hel
             );
           }
 
+          const amPreferred = preferredTimeOfDay === "am";
+          const pmPreferred = preferredTimeOfDay === "pm";
+
           return (
             <div key={dateStr} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
               <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
@@ -146,26 +171,32 @@ export function SlotPicker({ contractorId, maxSlots, minSlots = 1, onSubmit, hel
                   <button
                     type="button"
                     onClick={() => toggleSlot(amKey)}
+                    title={amPreferred ? "Matches customer's preferred time" : undefined}
                     className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
                       selectedSlots.has(amKey)
                         ? "bg-[#f07820] text-white border-[#f07820]"
+                        : amPreferred
+                        ? "bg-orange-50 text-[#f07820] border-[#f07820]/50 ring-1 ring-[#f07820]/30 hover:border-[#f07820]"
                         : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
                     }`}
                   >
-                    AM
+                    <span className="inline-flex items-center gap-1">AM{amPreferred && <Star className="h-3 w-3 fill-current" />}</span>
                   </button>
                 )}
                 {dayData.pmAvailable && (
                   <button
                     type="button"
                     onClick={() => toggleSlot(pmKey)}
+                    title={pmPreferred ? "Matches customer's preferred time" : undefined}
                     className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
                       selectedSlots.has(pmKey)
                         ? "bg-[#f07820] text-white border-[#f07820]"
+                        : pmPreferred
+                        ? "bg-orange-50 text-[#f07820] border-[#f07820]/50 ring-1 ring-[#f07820]/30 hover:border-[#f07820]"
                         : "bg-green-50 text-green-800 border-green-200 hover:border-[#f07820] hover:text-[#f07820]"
                     }`}
                   >
-                    PM
+                    <span className="inline-flex items-center gap-1">PM{pmPreferred && <Star className="h-3 w-3 fill-current" />}</span>
                   </button>
                 )}
               </div>

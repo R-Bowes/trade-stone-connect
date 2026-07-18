@@ -9,7 +9,14 @@ import { Loader2, MapPin, Plus, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
+
+const TIME_OF_DAY_LABEL: Record<string, string> = {
+  am: "Mornings (AM)",
+  pm: "Afternoons (PM)",
+  any: "Any time",
+};
 
 type Enquiry = {
   id: string;
@@ -24,6 +31,9 @@ type Enquiry = {
   job_type: string | null;
   location: string;
   preferred_timeline: string | null;
+  preferred_time_of_day: string | null;
+  preferred_window_start: string | null;
+  preferred_window_end: string | null;
   budget_range: string | null;
   status: string | null;
   photo_urls: string[] | null;
@@ -259,24 +269,17 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               </span>
               {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
               {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
+              {enquiry.preferred_time_of_day && (
+                <span>Prefers: {TIME_OF_DAY_LABEL[enquiry.preferred_time_of_day] ?? enquiry.preferred_time_of_day}</span>
+              )}
+              {enquiry.preferred_window_start && enquiry.preferred_window_end && (
+                <span>
+                  Window: {format(new Date(enquiry.preferred_window_start), "d MMM")} – {format(new Date(enquiry.preferred_window_end), "d MMM")}
+                </span>
+              )}
             </div>
             {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <p className="text-xs font-medium text-muted-foreground">Customer photos</p>
-                <div className="flex flex-wrap gap-2">
-                  {enquiry.photo_urls.slice(0, 4).map((path, i) => {
-                    const { data } = supabase.storage.from("enquiry-photos").getPublicUrl(path);
-                    return (
-                      <img
-                        key={path}
-                        src={data.publicUrl}
-                        alt={`Customer photo ${i + 1}`}
-                        className="h-16 w-16 rounded-md object-cover"
-                      />
-                    );
-                  })}
-                </div>
-              </div>
+              <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
             )}
           </div>
 
@@ -406,6 +409,8 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
                 helperText="Select 2–5 available dates to offer."
                 submitLabel={(count) => `Use these ${count} date${count !== 1 ? "s" : ""}`}
                 onSubmit={(slots) => setProposedSlots(slots)}
+                preferredTimeOfDay={enquiry.preferred_time_of_day}
+                preferredWindowStart={enquiry.preferred_window_start}
               />
             ) : (
               <div className="space-y-2">

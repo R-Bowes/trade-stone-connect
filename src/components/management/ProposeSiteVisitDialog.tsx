@@ -10,6 +10,8 @@ type Enquiry = {
   contractor_id: string | null;
   job_description: string;
   location: string;
+  preferred_time_of_day?: string | null;
+  preferred_window_start?: string | null;
 };
 
 interface ProposeSiteVisitDialogProps {
@@ -98,6 +100,8 @@ export function ProposeSiteVisitDialog({ open, onOpenChange, enquiry, onSuccess 
             helperText="Select up to 5 slots — the customer will pick one."
             submitLabel={(count) => (submitting ? "Sending…" : `Propose ${count} date${count !== 1 ? "s" : ""}`)}
             onSubmit={handleSubmit}
+            preferredTimeOfDay={enquiry.preferred_time_of_day}
+            preferredWindowStart={enquiry.preferred_window_start}
           />
         ) : (
           <p className="text-sm text-destructive">Contractor profile not found for this enquiry.</p>

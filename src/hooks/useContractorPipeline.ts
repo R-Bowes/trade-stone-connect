@@ -31,6 +31,9 @@ export interface PipelineEnquiryRef {
   job_description: string;
   location: string;
   preferred_timeline: string | null;
+  preferred_time_of_day: string | null;
+  preferred_window_start: string | null;
+  preferred_window_end: string | null;
   budget_range: string | null;
   status: string | null;
 }
@@ -71,6 +74,9 @@ interface RawEnquiry {
   customer_ts_code: string | null;
   budget_range: string | null;
   preferred_timeline: string | null;
+  preferred_time_of_day: string | null;
+  preferred_window_start: string | null;
+  preferred_window_end: string | null;
   company_id: string | null;
 }
 
@@ -236,7 +242,7 @@ export function useContractorPipeline() {
       supabase
         .from("enquiries")
         .select(
-          "id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, budget_range, preferred_timeline, company_id",
+          "id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, company_id",
         )
         .eq("contractor_id", contractorId)
         .in("status", ["new", "replied"]),
@@ -347,6 +353,9 @@ export function useContractorPipeline() {
           job_description: enq.job_description,
           location: enq.location,
           preferred_timeline: enq.preferred_timeline,
+          preferred_time_of_day: enq.preferred_time_of_day,
+          preferred_window_start: enq.preferred_window_start,
+          preferred_window_end: enq.preferred_window_end,
           budget_range: enq.budget_range,
           status: enq.status,
         },

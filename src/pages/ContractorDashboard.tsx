@@ -61,6 +61,9 @@ type EnquiryForDialog = {
   job_description: string;
   location: string;
   preferred_timeline: string | null;
+  preferred_time_of_day: string | null;
+  preferred_window_start: string | null;
+  preferred_window_end: string | null;
   budget_range: string | null;
   status: string | null;
 };
@@ -281,7 +284,7 @@ const ContractorDashboard = () => {
       }
 
       const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
-        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
+        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
         .eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
       if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
       else setEnquiries(enquiriesData || []);
@@ -335,7 +338,7 @@ const ContractorDashboard = () => {
   const reloadEnquiries = async () => {
     if (!user) return;
     const { data } = await supabase.from('enquiries')
-      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, photo_urls')
+      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
       .eq('contractor_id', user.id).order('created_at', { ascending: false });
     setEnquiries(data || []);
   };
