@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { markRecentAction } from "@/lib/recentActions";
 
 export interface ReceivedQuote {
   id: string;
@@ -122,6 +123,11 @@ export function useReceivedQuotes() {
       toast({ title: "Error", description: "Failed to respond to quote", variant: "destructive" });
       throw error;
     }
+
+    // notify_quote_response also inserts a "You have accepted/rejected/
+    // stalled..." confirmation for the recipient (us) — suppress its toast,
+    // we already show our own below.
+    markRecentAction(quoteId);
 
     await fetchQuotes();
     return quoteId;

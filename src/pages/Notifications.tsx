@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, Trash2, Search, Filter, Briefcase, StickyNote, FileText } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
+import { notificationIcon, resolveNotificationRoute } from "@/lib/notificationResolver";
 import { formatDistanceToNow, format } from "date-fns";
 import Header from "@/components/Header";
 
@@ -27,18 +28,8 @@ const STATUS_OPTIONS = [
 ];
 
 function NotificationIcon({ type }: { type: string }) {
-  switch (type) {
-    case "job_status":
-      return <Briefcase className="h-5 w-5 text-primary shrink-0" />;
-    case "job_note":
-      return <StickyNote className="h-5 w-5 text-primary shrink-0" />;
-    case "invoice_response":
-      return <FileText className="h-5 w-5 text-destructive shrink-0" />;
-    case "quote_response":
-      return <FileText className="h-5 w-5 text-accent-foreground shrink-0" />;
-    default:
-      return <Bell className="h-5 w-5 text-muted-foreground shrink-0" />;
-  }
+  const Icon = notificationIcon(type);
+  return <Icon className="h-5 w-5 text-primary shrink-0" />;
 }
 
 function typeLabel(type: string) {
@@ -70,11 +61,10 @@ export default function Notifications() {
     return list;
   }, [notifications, typeFilter, statusFilter, search]);
 
-  const handleClick = (notif: Notification) => {
+  const handleClick = async (notif: Notification) => {
     if (!notif.is_read) markAsRead(notif.id);
-    if (notif.reference_type === "job") navigate("/dashboard");
-    else if (notif.reference_type === "invoice") navigate("/dashboard?view=invoices");
-    else if (notif.reference_type === "issued_quote") navigate("/dashboard?view=quotes");
+    const route = await resolveNotificationRoute(notif);
+    navigate(route);
   };
 
   return (

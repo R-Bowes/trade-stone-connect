@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { wasRecentAction } from "@/lib/recentActions";
+import { resolveNotificationRoute } from "@/lib/notificationResolver";
 
 export interface Notification {
   id: string;
@@ -18,6 +22,7 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchNotifications = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -77,9 +82,23 @@ export function useNotifications() {
           (payload) => {
             const newNotif = payload.new as unknown as Notification;
             setNotifications((prev) => [newNotif, ...prev]);
-            toast({
-              title: newNotif.title,
-              description: newNotif.message,
+
+            // Self-caused: a small number of triggers notify the acting
+            // party too (see src/lib/recentActions.ts) — the row still
+            // lands in the list/badge, but the toast is redundant with the
+            // local toast the acting call site already showed.
+            if (wasRecentAction(newNotif.reference_id)) return;
+
+            resolveNotificationRoute(newNotif).then((route) => {
+              toast({
+                title: newNotif.title,
+                description: newNotif.message,
+                action: (
+                  <ToastAction altText="View" onClick={() => navigate(route)}>
+                    View
+                  </ToastAction>
+                ),
+              });
             });
           }
         )
@@ -91,7 +110,7 @@ export function useNotifications() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, [toast, navigate]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 

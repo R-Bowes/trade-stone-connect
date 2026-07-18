@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { markRecentAction } from "@/lib/recentActions";
 import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -537,6 +538,9 @@ export function JobManagement() {
       toast({ title: "Status update failed", description: error.message, variant: "destructive" });
     } else {
       setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
+      // notify_job_status_change notifies both customer_id and contractor_id
+      // unconditionally — suppress our own toast for it, we show this one.
+      markRecentAction(job.id);
       toast({ title: "Job updated", description: `${job.title} moved to ${statusLabel[nextStatus]}.` });
     }
     setSavingJobId(null);
@@ -554,6 +558,7 @@ export function JobManagement() {
       toast({ title: "Status update failed", description: error.message, variant: "destructive" });
     } else {
       setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: prevStatus } : j)));
+      markRecentAction(job.id);
       toast({ title: "Job moved back", description: `${job.title} moved to ${statusLabel[prevStatus]}.` });
     }
     setSavingJobId(null);

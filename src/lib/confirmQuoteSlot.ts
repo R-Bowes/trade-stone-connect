@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { markRecentAction } from "@/lib/recentActions";
 
 /**
  * The one exit door for the recipient-side quote transaction: confirms a
@@ -24,6 +25,11 @@ export async function confirmQuoteSlot(quoteId: string, eventId: string): Promis
   if (error || data?.error) {
     throw new Error(data?.error ?? error?.message ?? "Failed to confirm this date");
   }
+
+  // accept_quote_with_slot flips issued_quotes.recipient_response, which
+  // fires notify_quote_response's "You have accepted..." self-confirmation
+  // for us (the recipient) — suppress its toast, the caller shows its own.
+  markRecentAction(quoteId);
 
   return data as ConfirmQuoteSlotResult;
 }
