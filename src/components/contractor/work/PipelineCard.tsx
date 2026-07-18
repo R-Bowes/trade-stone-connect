@@ -113,6 +113,12 @@ export function PipelineCard({
             <SlaStatusPill status={e.slaStatus} completionDue={e.slaCompletionDue} />
           </div>
           {e.title && <p className="text-sm text-foreground truncate">{e.title}</p>}
+          {e.address && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
+              <i className="ti ti-map-pin shrink-0" />
+              <span className="truncate">{e.address}</span>
+            </p>
+          )}
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <Badge variant="secondary" className="text-xs">{e.stageLabel}</Badge>
             <Badge className={`text-xs ${TONE_BADGE_CLASS[e.tone]}`}>{TONE_CHIP_LABEL[e.tone]}</Badge>

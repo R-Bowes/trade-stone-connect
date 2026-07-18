@@ -54,6 +54,7 @@ export interface PipelineEngagement {
   clientCode: string | null;
   companyId: string | null;
   title: string | null;
+  address: string | null;
   stage: PipelineStage;
   stageLabel: string;
   reference: string | null;
@@ -100,6 +101,7 @@ interface RawQuote {
   status: string;
   title: string;
   client_name: string;
+  client_address: string | null;
   recipient_id: string | null;
   enquiry_id: string | null;
   sent_at: string | null;
@@ -118,6 +120,7 @@ interface RawJob {
   job_number: number;
   status: string;
   title: string;
+  location: string | null;
   issued_quote_id: string | null;
   company_id: string | null;
   customer_id: string;
@@ -292,13 +295,13 @@ export function useContractorPipeline() {
       supabase
         .from("issued_quotes")
         .select(
-          "id, quote_number, version, status, title, client_name, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at, deposit_required, deposit_paid, viewed_at",
+          "id, quote_number, version, status, title, client_name, client_address, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at, deposit_required, deposit_paid, viewed_at",
         )
         .eq("contractor_id", contractorId),
       supabase
         .from("jobs")
         .select(
-          "id, job_number, status, title, issued_quote_id, company_id, customer_id, contract_value, completed_at, contractor_signed_off_at, signed_off_at, sla_status, sla_completion_due, created_at, updated_at",
+          "id, job_number, status, title, location, issued_quote_id, company_id, customer_id, contract_value, completed_at, contractor_signed_off_at, signed_off_at, sla_status, sla_completion_due, created_at, updated_at",
         )
         .eq("contractor_id", contractorId)
         .neq("status", "cancelled"),
@@ -363,6 +366,24 @@ export function useContractorPipeline() {
       : { data: [] as { id: string; full_name: string | null; ts_profile_code: string | null }[] };
     const profileById = new Map((profilesRes.data ?? []).map((p) => [p.id, p]));
 
+    // Quote cards show client_address; when null (guest quotes issued
+    // straight off an enquiry often don't repeat the address on the quote
+    // itself), fall back to the linked enquiry's location. The enquiries
+    // fetch above only covers status IN ('new','replied') — a quote's
+    // enquiry has usually moved past that by the time a quote exists — so
+    // this is a separate flat lookup, not a join off `rawEnquiries`.
+    const quoteEnquiryIds = Array.from(
+      new Set(rawQuotes.map((q) => q.enquiry_id).filter((id): id is string => !!id)),
+    );
+    const enquiryLocationRes = quoteEnquiryIds.length
+      ? await supabase.from("enquiries").select("id, location").in("id", quoteEnquiryIds)
+      : { data: [] as { id: string; location: string | null }[] };
+    const enquiryLocationById = new Map(
+      (enquiryLocationRes.data ?? []).map((e) => [e.id, e.location]),
+    );
+    const resolveQuoteAddress = (q: RawQuote): string | null =>
+      q.client_address || (q.enquiry_id ? enquiryLocationById.get(q.enquiry_id) ?? null : null) || null;
+
     const invoicesByJobId = new Map<string, RawInvoice[]>();
     for (const inv of rawInvoices) {
       if (inv.job_id) invoicesByJobId.set(inv.job_id, [...(invoicesByJobId.get(inv.job_id) ?? []), inv]);
@@ -386,6 +407,7 @@ export function useContractorPipeline() {
         clientCode: enq.customer_ts_code ?? null,
         companyId: enq.company_id ?? null,
         title: enq.title ?? enq.job_description,
+        address: enq.location || null,
         stage: "enquiry",
         stageLabel: "Enquiry",
         reference: null,
@@ -462,6 +484,7 @@ export function useContractorPipeline() {
             clientCode,
             companyId: job.company_id,
             title: job.title ?? jobQuote.title,
+            address: job.location || null,
             stage: "invoice",
             stageLabel: liveInvoice.status === "overdue" ? "Invoice overdue" : liveInvoice.status === "sent" ? "Invoice sent" : "Invoice draft",
             reference: formatInvoiceRef(liveInvoice.invoice_number),
@@ -488,6 +511,7 @@ export function useContractorPipeline() {
             clientCode,
             companyId: job.company_id,
             title: job.title ?? jobQuote.title,
+            address: job.location || null,
             stage: "job",
             stageLabel: "Complete",
             reference: formatJobRef(job.job_number),
@@ -513,6 +537,7 @@ export function useContractorPipeline() {
             clientCode,
             companyId: job.company_id,
             title: job.title ?? jobQuote.title,
+            address: job.location || null,
             stage: "job",
             stageLabel: JOB_STAGE_LABELS[job.status] ?? job.status,
             reference: formatJobRef(job.job_number),
@@ -545,6 +570,7 @@ export function useContractorPipeline() {
           clientCode,
           companyId: null,
           title: governing.title,
+          address: resolveQuoteAddress(governing),
           stage: "scheduling",
           stageLabel: "Scheduling",
           reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
@@ -570,6 +596,7 @@ export function useContractorPipeline() {
           clientCode,
           companyId: null,
           title: governing.title,
+          address: resolveQuoteAddress(governing),
           stage: "quote_sent",
           stageLabel: "Quote sent",
           reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
@@ -600,6 +627,7 @@ export function useContractorPipeline() {
             clientCode,
             companyId: null,
             title: governing.title,
+            address: resolveQuoteAddress(governing),
             stage: "quote_sent",
             stageLabel: "Quote declined",
             reference: formatQuoteRef(governing.quote_number, { version: governing.version > 1 ? governing.version : undefined }),
@@ -639,6 +667,7 @@ export function useContractorPipeline() {
           clientCode,
           companyId: null,
           title: latestVersion.title,
+          address: resolveQuoteAddress(latestVersion),
           stage: "quote_sent",
           stageLabel: "Draft revision",
           reference: formatQuoteRef(latestVersion.quote_number, { version: latestVersion.version }),
