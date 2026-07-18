@@ -19,7 +19,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const stripePromise = loadStripe("pk_test_51T0jcrAB5s9xl5hIfwaVbwe5aSfpdC5DpsE4YmkhJUGSBVPIUVCPOnCK87pv0WKUBo0LUZoXcZfhsIglMsJFfUAK00QZD2E4Xn");
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "");
 
 interface Props {
   quoteId: string;
@@ -44,12 +44,16 @@ function CheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
+  const [elementReady, setElementReady] = useState(false);
+  const [elementLoadError, setElementLoadError] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
   const { toast } = useToast();
   const remaining = totalAmount - depositAmount;
 
   const handlePay = async () => {
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !elementReady) return;
     setLoading(true);
+    setPayError(null);
 
     const { error } = await stripe.confirmPayment({
       elements,
@@ -58,6 +62,7 @@ function CheckoutForm({
     });
 
     if (error) {
+      setPayError(error.message ?? "Payment failed. Please try again.");
       toast({
         title: "Payment failed",
         description: error.message ?? "Please try again.",
@@ -99,16 +104,31 @@ function CheckoutForm({
         </div>
       </div>
 
-      <PaymentElement />
+      <PaymentElement
+        onReady={() => setElementReady(true)}
+        onLoadError={(event) => {
+          console.error("Payment Element failed to load", event.error);
+          setElementLoadError("Payment form failed to load — please try again or contact support.");
+        }}
+      />
+
+      {elementLoadError && (
+        <p className="text-sm text-destructive">{elementLoadError}</p>
+      )}
+      {payError && !elementLoadError && (
+        <p className="text-sm text-destructive">{payError}</p>
+      )}
 
       <Button
         onClick={handlePay}
-        disabled={loading}
+        disabled={loading || !elementReady || !!elementLoadError}
         className="w-full text-white font-semibold"
         style={{ backgroundColor: "#f07820" }}
       >
         {loading ? (
           <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing…</>
+        ) : !elementReady && !elementLoadError ? (
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading payment form…</>
         ) : (
           `Pay £${depositAmount.toFixed(2)} deposit`
         )}

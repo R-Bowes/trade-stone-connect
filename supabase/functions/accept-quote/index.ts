@@ -124,6 +124,39 @@ serve(async (req) => {
     if (!depositAmount || depositAmount <= 0) {
       return json(500, { error: "Deposit amount could not be resolved" });
     }
+
+    // Idempotency: a retried pay-button click (e.g. after a failed Payment
+    // Element load, or a page refresh) must reuse the existing pending
+    // invoice/PaymentIntent rather than minting a new one every time.
+    const { data: existingInvoices } = await serviceClient
+      .from("invoices")
+      .select("id, stripe_payment_intent_id")
+      .eq("quote_id", quote.id)
+      .eq("status", "pending")
+      .not("stripe_payment_intent_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const existingInvoice = existingInvoices?.[0];
+    if (existingInvoice?.stripe_payment_intent_id) {
+      try {
+        const existingPi = await stripe.paymentIntents.retrieve(existingInvoice.stripe_payment_intent_id);
+        if (["requires_payment_method", "requires_action", "requires_confirmation"].includes(existingPi.status)) {
+          return json(200, {
+            deposit_required: true,
+            client_secret: existingPi.client_secret,
+            invoice_id: existingInvoice.id,
+            deposit_amount: depositAmount,
+            confirmed_start: result.confirmed_start,
+          });
+        }
+        // Otherwise (canceled/succeeded/processing) fall through and mint a fresh invoice + PI.
+      } catch (piErr) {
+        console.error("Failed to retrieve existing PaymentIntent, creating a new one", piErr);
+        // Fall through and mint a fresh invoice + PI.
+      }
+    }
+
     const depositPence = Math.round(depositAmount * 100);
     const platformFee = Math.round(depositPence * PLATFORM_FEE_PERCENT);
 
