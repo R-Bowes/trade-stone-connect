@@ -229,10 +229,7 @@ export function ReceivedQuotes() {
           </DialogHeader>
           {acceptScreenQuote && (
             <QuoteAcceptScreen
-              quoteId={acceptScreenQuote.id}
-              contractorId={acceptScreenQuote.contractor_id}
-              quoteTotal={Number(acceptScreenQuote.total)}
-              quoteDepositAmount={acceptScreenQuote.deposit_amount != null ? Number(acceptScreenQuote.deposit_amount) : null}
+              quote={acceptScreenQuote}
               contractorName={acceptScreenQuote.contractor_name ?? "Contractor"}
               onNoneWork={() => handleNoneWork(acceptScreenQuote)}
               onConfirmed={() => handleAcceptConfirmed(acceptScreenQuote)}
@@ -260,6 +257,13 @@ export function ReceivedQuotes() {
               quoteTotal={Number(scheduleQuote.total)}
               quoteDepositAmount={scheduleQuote.deposit_amount != null ? Number(scheduleQuote.deposit_amount) : null}
               contractorName={scheduleQuote.contractor_name ?? "Contractor"}
+              quoteItems={Array.isArray(scheduleQuote.items) ? scheduleQuote.items : []}
+              quoteSubtotal={Number(scheduleQuote.subtotal)}
+              quoteTaxRate={Number(scheduleQuote.tax_rate)}
+              quoteTaxAmount={Number(scheduleQuote.tax_amount)}
+              quoteValidUntil={scheduleQuote.valid_until}
+              quoteNotes={scheduleQuote.notes}
+              quoteTerms={scheduleQuote.terms}
               onJobConfirmed={() => {
                 setScheduleQuote(null);
                 toast({

@@ -23,6 +23,14 @@ import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { MessageDialog } from "./MessageDialog";
 import { confirmQuoteSlot } from "@/lib/confirmQuoteSlot";
 import { useToast } from "@/hooks/use-toast";
+import { QuoteBreakdownSummary } from "./QuoteBreakdownSummary";
+
+interface QuoteLineItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
 
 interface QuoteScheduleNegotiationProps {
   quoteId: string;
@@ -31,6 +39,13 @@ interface QuoteScheduleNegotiationProps {
   quoteTotal?: number;
   quoteDepositAmount?: number | null;
   contractorName?: string;
+  quoteItems?: QuoteLineItem[];
+  quoteSubtotal?: number;
+  quoteTaxRate?: number;
+  quoteTaxAmount?: number;
+  quoteValidUntil?: string | null;
+  quoteNotes?: string | null;
+  quoteTerms?: string | null;
   onJobConfirmed?: () => void;
 }
 
@@ -41,6 +56,13 @@ export function QuoteScheduleNegotiation({
   quoteTotal,
   quoteDepositAmount,
   contractorName,
+  quoteItems,
+  quoteSubtotal,
+  quoteTaxRate,
+  quoteTaxAmount,
+  quoteValidUntil,
+  quoteNotes,
+  quoteTerms,
   onJobConfirmed,
 }: QuoteScheduleNegotiationProps) {
   const {
@@ -296,6 +318,20 @@ export function QuoteScheduleNegotiation({
         {mode === "recipient" && quoteTotal != null && (
           <>
             <Separator />
+            {quoteItems && quoteSubtotal != null && quoteTaxRate != null && quoteTaxAmount != null && quoteTotal != null && (
+              <QuoteBreakdownSummary
+                items={quoteItems}
+                subtotal={quoteSubtotal}
+                taxRate={quoteTaxRate}
+                taxAmount={quoteTaxAmount}
+                total={quoteTotal}
+                depositRequired={hasDeposit}
+                depositAmount={quoteDepositAmount}
+                validUntil={quoteValidUntil}
+                notes={quoteNotes}
+                terms={quoteTerms}
+              />
+            )}
             <div className="rounded-lg bg-muted/40 p-4 space-y-3">
               <p className="text-sm font-semibold flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />

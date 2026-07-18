@@ -7,41 +7,42 @@ import { useQuoteScheduling } from "@/hooks/useQuoteScheduling";
 import { useToast } from "@/hooks/use-toast";
 import { confirmQuoteSlot } from "@/lib/confirmQuoteSlot";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
+import { QuoteBreakdownSummary } from "./QuoteBreakdownSummary";
+import type { ReceivedQuote } from "@/hooks/useReceivedQuotes";
 
 interface QuoteAcceptScreenProps {
-  quoteId: string;
-  contractorId: string;
-  quoteTotal: number;
-  quoteDepositAmount: number | null;
+  quote: ReceivedQuote;
   contractorName: string;
   onNoneWork: () => void;
   onConfirmed: () => void;
 }
 
 /**
- * D4 — one screen: current-cycle proposed slots as a radio pick + total/
- * deposit summary + single CTA. This is the atomic first-interaction accept
+ * D4 — one screen: quote breakdown, current-cycle proposed slots as a radio
+ * pick, and a single CTA. This is the atomic first-interaction accept
  * (quote-accept + slot-pick collapsed into one click) — calls accept-quote
  * directly with { quote_id, event_id }. "None of these work" hands off to
  * the existing QuoteScheduleNegotiation for counter-proposals; this screen
  * does not reimplement negotiation itself.
  */
 export function QuoteAcceptScreen({
-  quoteId,
-  contractorId,
-  quoteTotal,
-  quoteDepositAmount,
+  quote,
   contractorName,
   onNoneWork,
   onConfirmed,
 }: QuoteAcceptScreenProps) {
+  const quoteId = quote.id;
+  const contractorId = quote.contractor_id;
+  const quoteTotal = Number(quote.total);
+  const quoteDepositAmount = quote.deposit_amount != null ? Number(quote.deposit_amount) : null;
+
   const { pendingFromOther, loading } = useQuoteScheduling(quoteId, contractorId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [depositEventId, setDepositEventId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const hasDeposit = quoteDepositAmount != null && quoteDepositAmount > 0;
+  const hasDeposit = Boolean(quote.deposit_required) && quoteDepositAmount != null && quoteDepositAmount > 0;
 
   const getAmPmLabel = (startIso: string) => {
     const h = new Date(startIso).getHours();
@@ -102,6 +103,21 @@ export function QuoteAcceptScreen({
   return (
     <>
       <div className="space-y-4">
+        <QuoteBreakdownSummary
+          items={Array.isArray(quote.items) ? quote.items : []}
+          subtotal={Number(quote.subtotal)}
+          taxRate={Number(quote.tax_rate)}
+          taxAmount={Number(quote.tax_amount)}
+          total={quoteTotal}
+          depositRequired={quote.deposit_required}
+          depositAmount={quoteDepositAmount}
+          validUntil={quote.valid_until}
+          notes={quote.notes}
+          terms={quote.terms}
+        />
+
+        <Separator />
+
         <div className="space-y-2">
           <p className="text-sm font-medium">Pick a date for the job:</p>
           <div className="space-y-2">
@@ -125,21 +141,6 @@ export function QuoteAcceptScreen({
               </label>
             ))}
           </div>
-        </div>
-
-        <Separator />
-
-        <div className="rounded-lg bg-muted/40 p-4 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Total job value</span>
-            <span className="font-medium">£{quoteTotal.toFixed(2)}</span>
-          </div>
-          {hasDeposit && (
-            <div className="flex justify-between font-semibold" style={{ color: "#f07820" }}>
-              <span>Deposit due to confirm</span>
-              <span>£{quoteDepositAmount!.toFixed(2)}</span>
-            </div>
-          )}
         </div>
 
         <Button
