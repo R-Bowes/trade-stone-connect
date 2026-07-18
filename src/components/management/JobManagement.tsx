@@ -30,6 +30,8 @@ import {
   ShieldCheck,
   Camera,
   FileText,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 import {
@@ -42,6 +44,8 @@ import JobPhotosTab from "@/components/JobPhotosTab";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
 import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
+import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
+import { JobOriginSection } from "@/components/JobOriginSection";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -86,6 +90,7 @@ type JobCardData = {
   quote_number: number | null;
   quote_version: number | null;
   issued_quote_id: string | null;
+  engagement_id: string | null;
   sla_status: string | null;
   sla_completion_due: string | null;
   contract_value: number;
@@ -276,6 +281,9 @@ export function JobManagement() {
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [originOpen, setOriginOpen] = useState(false);
+  const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
+  const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
   const navigate = useNavigate();
@@ -315,6 +323,7 @@ export function JobManagement() {
         location,
         customer_id,
         issued_quote_id,
+        engagement_id,
         sla_status,
         sla_completion_due,
         contract_value,
@@ -349,6 +358,7 @@ export function JobManagement() {
       quote_number: job.quote?.quote_number ?? null,
       quote_version: job.quote?.version ?? null,
       issued_quote_id: job.issued_quote_id ?? null,
+      engagement_id: job.engagement_id ?? null,
       sla_status: job.sla_status ?? null,
       sla_completion_due: job.sla_completion_due ?? null,
       contract_value: job.contract_value ?? 0,
@@ -428,6 +438,21 @@ export function JobManagement() {
   };
 
   useEffect(() => { loadJobs(); }, []);
+
+  useEffect(() => {
+    if (!selectedJobId) return;
+    setOriginOpen(false);
+    if (originByJob[selectedJobId]) return;
+    const job = jobs.find((j) => j.id === selectedJobId);
+    if (!job || (!job.issued_quote_id && !job.engagement_id)) return;
+
+    setOriginLoadingId(selectedJobId);
+    fetchJobOrigin({ issuedQuoteId: job.issued_quote_id, engagementId: job.engagement_id }).then((result) => {
+      setOriginByJob((cur) => ({ ...cur, [selectedJobId]: result }));
+      setOriginLoadingId((cur) => (cur === selectedJobId ? null : cur));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedJobId]);
 
   const activeJobs = useMemo(
     () => jobs
@@ -908,17 +933,35 @@ export function JobManagement() {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Origin</div>
-                        <div className="font-medium font-mono">
-                          {selectedJob.quote_number != null
-                            ? formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })
-                            : selectedJob.priority
-                            ? `SLA ${selectedJob.priority}`
-                            : "—"}
-                        </div>
+                        {selectedJob.quote_number != null || selectedJob.engagement_id ? (
+                          <button
+                            type="button"
+                            className="font-medium font-mono inline-flex items-center gap-1 hover:underline"
+                            onClick={() => setOriginOpen((v) => !v)}
+                          >
+                            {selectedJob.quote_number != null
+                              ? formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })
+                              : originByJob[selectedJob.id]?.engagementNumber ?? "Call-out"}
+                            {originOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                        ) : (
+                          <div className="font-medium font-mono">
+                            {selectedJob.priority ? `SLA ${selectedJob.priority}` : "—"}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
                 })()}
+
+                {originOpen && (selectedJob.quote_number != null || selectedJob.engagement_id) && (
+                  <div className="rounded-md border p-4">
+                    <JobOriginSection
+                      origin={originByJob[selectedJob.id] ?? null}
+                      loading={originLoadingId === selectedJob.id}
+                    />
+                  </div>
+                )}
 
                 {/* Workers */}
                 {selectedJob.status !== "cancelled" && (

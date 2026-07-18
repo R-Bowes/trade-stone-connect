@@ -25,6 +25,9 @@ import {
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, type Job } from "@/hooks/useJobs";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
+import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
+import { JobOriginSection } from "@/components/JobOriginSection";
+import { Compass } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
   not_started: { label: "Not Started", icon: Clock, color: "bg-muted text-muted-foreground" },
@@ -106,14 +109,28 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const { teamMembers } = useJobTeam(job.id);
   const { review, submitReview } = useJobReview(job.id);
   const [newNote, setNewNote] = useState("");
-  const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team" | "review">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team" | "review" | "origin">("overview");
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [portfolioApproved, setPortfolioApproved] = useState(job.portfolio_approved);
+  const [origin, setOrigin] = useState<JobOrigin | null>(null);
+  const [originLoading, setOriginLoading] = useState(false);
   const { toast } = useToast();
 
   const sc = statusConfig[job.status] || statusConfig.not_started;
   const StatusIcon = sc.icon;
+  const hasOrigin = !!job.issued_quote_id || !!job.engagement_id;
+
+  const openOrigin = () => {
+    setActiveSection("origin");
+    if (!origin && !originLoading) {
+      setOriginLoading(true);
+      fetchJobOrigin({ issuedQuoteId: job.issued_quote_id, engagementId: job.engagement_id }).then((result) => {
+        setOrigin(result);
+        setOriginLoading(false);
+      });
+    }
+  };
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
@@ -193,17 +210,36 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
 
       {/* Section Nav */}
       <div className="flex gap-2 flex-wrap">
-        {(["overview", "notes", "photos", "team", ...(job.status === "complete" || job.status === "completed" ? ["review"] : [])] as const).map((section) => (
-          <Button key={section} variant={activeSection === section ? "default" : "outline"} size="sm" onClick={() => setActiveSection(section as any)}>
+        {(["overview", "notes", "photos", "team", ...(hasOrigin ? ["origin"] : []), ...(job.status === "complete" || job.status === "completed" ? ["review"] : [])] as const).map((section) => (
+          <Button
+            key={section}
+            variant={activeSection === section ? "default" : "outline"}
+            size="sm"
+            onClick={() => (section === "origin" ? openOrigin() : setActiveSection(section as any))}
+          >
             {section === "overview" && <Briefcase className="h-4 w-4 mr-1" />}
             {section === "notes" && <StickyNote className="h-4 w-4 mr-1" />}
             {section === "photos" && <Camera className="h-4 w-4 mr-1" />}
             {section === "team" && <Users className="h-4 w-4 mr-1" />}
+            {section === "origin" && <Compass className="h-4 w-4 mr-1" />}
             {section === "review" && <Star className="h-4 w-4 mr-1" />}
             {String(section).charAt(0).toUpperCase() + String(section).slice(1)}
           </Button>
         ))}
       </div>
+
+      {/* Origin */}
+      {activeSection === "origin" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Origin</CardTitle>
+            <CardDescription>Where this job came from</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <JobOriginSection origin={origin} loading={originLoading} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notes */}
       {activeSection === "notes" && (

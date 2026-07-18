@@ -7,6 +7,7 @@ export interface Job {
   contractor_id: string;
   customer_id: string;
   issued_quote_id: string | null;
+  engagement_id: string | null;
   quote_number: number | null;
   title: string;
   description: string | null;

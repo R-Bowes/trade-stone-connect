@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Loader2, ArrowLeft, Briefcase } from "lucide-react";
+import { Loader2, ArrowLeft, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { PriorityBadge } from "@/components/PriorityBadge";
+import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
+import { JobOriginSection } from "@/components/JobOriginSection";
 
 // Confirmed jobs.status values from migration 20260328170000
 const ALL_STATUSES = ["scheduled", "in_progress", "snagging", "complete", "cancelled"] as const;
@@ -43,6 +45,8 @@ interface JobRow {
   sla_status: string | null;
   responded_at: string | null;
   created_at: string;
+  issued_quote_id: string | null;
+  engagement_id: string | null;
   site_name?: string | null;
   contractor_name?: string | null;
 }
@@ -67,6 +71,22 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
+  const [originOpen, setOriginOpen] = useState(false);
+  const [origin, setOrigin] = useState<JobOrigin | null>(null);
+  const [originLoading, setOriginLoading] = useState(false);
+  const hasOrigin = !!job.issued_quote_id || !!job.engagement_id;
+
+  const toggleOrigin = () => {
+    setOriginOpen((v) => !v);
+    if (!origin && !originLoading) {
+      setOriginLoading(true);
+      fetchJobOrigin({ issuedQuoteId: job.issued_quote_id, engagementId: job.engagement_id }).then((result) => {
+        setOrigin(result);
+        setOriginLoading(false);
+      });
+    }
+  };
+
   return (
     <div className="p-6 max-w-2xl space-y-6">
       <button
@@ -123,6 +143,24 @@ function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
           </div>
         )}
       </div>
+
+      {hasOrigin && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={toggleOrigin}
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            Origin
+            {originOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {originOpen && (
+            <div className="rounded-md border p-4">
+              <JobOriginSection origin={origin} loading={originLoading} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -154,7 +192,7 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
 
     const { data: jobRows } = await supabase
       .from("jobs")
-      .select("id, title, status, priority, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, sla_completion_due, sla_status, responded_at, created_at")
+      .select("id, title, status, priority, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, sla_completion_due, sla_status, responded_at, created_at, issued_quote_id, engagement_id")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
