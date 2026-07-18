@@ -7,6 +7,7 @@ import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 
 type Enquiry = {
   id: string;
@@ -20,6 +21,7 @@ type Enquiry = {
   preferred_timeline: string | null;
   budget_range: string | null;
   status: string | null;
+  photo_urls?: string[] | null;
 };
 
 interface RejectDialogProps {
@@ -107,6 +109,9 @@ export function RejectDialog({ open, onOpenChange, enquiry, onSuccess }: RejectD
               {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
               {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
             </div>
+            {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
+              <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
+            )}
           </div>
 
           <div className="space-y-2">

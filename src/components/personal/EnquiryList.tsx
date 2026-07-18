@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ChevronLeft, MapPin, Calendar, MessageCircle, Clock } from "lucide-react";
 import { format, parseISO, addDays, startOfToday } from "date-fns";
 import { useAvailability } from "@/hooks/useAvailability";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 
 type Enquiry = {
   id: string;
@@ -15,6 +16,7 @@ type Enquiry = {
   status: string | null;
   created_at: string | null;
   contractor_id: string | null;
+  photo_urls: string[] | null;
   contractor: {
     full_name: string | null;
     company_name: string | null;
@@ -159,7 +161,7 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
     const { data, error: err } = await supabase
       .from("enquiries")
       .select(`
-        id, title, job_description, location, status, created_at, contractor_id,
+        id, title, job_description, location, status, created_at, contractor_id, photo_urls,
         contractor:profiles!enquiries_contractor_id_fkey (
           full_name, company_name, ts_profile_code
         )
@@ -244,6 +246,10 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
               <p className="text-sm font-medium mb-1">Description</p>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.job_description}</p>
             </div>
+
+            {selected.photo_urls && selected.photo_urls.length > 0 && (
+              <EnquiryPhotoThumbnails paths={selected.photo_urls} label="Your photos" />
+            )}
 
             {selected.contractor ? (
               <div className="rounded-lg border p-3 space-y-0.5">

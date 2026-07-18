@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 
 type Enquiry = {
   id: string;
@@ -12,6 +13,7 @@ type Enquiry = {
   location: string;
   preferred_time_of_day?: string | null;
   preferred_window_start?: string | null;
+  photo_urls?: string[] | null;
 };
 
 interface ProposeSiteVisitDialogProps {
@@ -91,6 +93,9 @@ export function ProposeSiteVisitDialog({ open, onOpenChange, enquiry, onSuccess 
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />{enquiry.location}
           </span>
+          {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
+            <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
+          )}
         </div>
 
         {contractorId ? (

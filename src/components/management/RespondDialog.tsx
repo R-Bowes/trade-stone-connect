@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 
 type Enquiry = {
   id: string;
@@ -21,6 +22,7 @@ type Enquiry = {
   preferred_timeline: string | null;
   budget_range: string | null;
   status: string | null;
+  photo_urls?: string[] | null;
 };
 
 interface RespondDialogProps {
@@ -154,6 +156,9 @@ export function RespondDialog({ open, onOpenChange, enquiry, onSuccess }: Respon
               {enquiry.budget_range && <span>Budget: {enquiry.budget_range}</span>}
               {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
             </div>
+            {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
+              <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
+            )}
           </div>
 
           <div className="space-y-2">

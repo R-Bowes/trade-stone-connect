@@ -66,6 +66,7 @@ type EnquiryForDialog = {
   preferred_window_end: string | null;
   budget_range: string | null;
   status: string | null;
+  photo_urls: string[] | null;
 };
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 // sla_status / sla_completion_due are not yet in the generated Database types
