@@ -599,6 +599,32 @@ Deposit itself carries no platform fee.
   and un-confirm the held `schedule_events` row for that quote — not just
   flip the quote's own status — or a lapsed quote leaves the contractor's
   calendar permanently blocked with no path back to available.
+- **`create-payment-intent` findings from the syntax-error repair
+  (2026-07-18), not fixed as part of that repair:**
+  - No legacy `quotes` table reference (clean) and no silent-default
+    shape like the old `accept-quote` deposit bug (this function has no
+    deposit concept at all — it charges the invoice's full `total`).
+  - **Partial idempotency, one gap**: it already checks
+    `invoice.stripe_payment_intent_id` and reuses that PaymentIntent
+    instead of always minting a new one (better than `accept-quote`'s
+    pre-fix state) — but unlike the fixed `accept-quote`, it never checks
+    the retrieved PI's `.status` before reusing it. If that PI is already
+    `canceled` or `succeeded`, it still hands back that dead PI's
+    `client_secret`, which will fail (or silently do nothing useful) at
+    confirm time. Needs the same status-gated reuse-vs-recreate logic
+    `accept-quote`'s deposit branch now has.
+  - **No authorization check on the default `create_client_secret`
+    action.** The `send_invoice` action requires a bearer token matching
+    the contractor; `create_client_secret` (the default when `action` is
+    omitted) has no auth check at all, and the function has
+    `verify_jwt: false` at the platform level too — so anyone who knows
+    or guesses an `invoiceId` can call this and get back a valid Stripe
+    `client_secret` plus the invoice's `client_name`/items/subtotal/
+    tax/total in the response body. Not a payment-authorization hole
+    (paying someone else's invoice for them isn't malicious) but is a
+    billing-detail information leak with zero access control. Needs an
+    ownership or recipient check before the next time this file is
+    touched for anything else.
 - **Homeowner job view: no per-job messaging entry point.** The rails exist
   (`job_conversations`/`job_messages`) but there's no button on the
   homeowner-facing job view that deep-links into the existing thread —

@@ -32,6 +32,7 @@ serve(async (req) => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("ADMIN_SECRET_KEY")!
+    );
 
     const { action = "create_client_secret", invoiceId }: RequestBody = await req.json();
 
