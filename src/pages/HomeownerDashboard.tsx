@@ -47,14 +47,17 @@ interface PendingInvoice {
 function HomeownerOverview({ profileId, userId }: { profileId: string; userId: string }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeJobs, setActiveJobs] = useState<OverviewJob[]>([]);
   const [nextVisit, setNextVisit] = useState<string | null>(null);
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const load = async () => {
+      setLoadError(null);
       const [jobsResult, quotesResult, invoicesResult] = await Promise.all([
         supabase
           .from("jobs")
@@ -77,6 +80,14 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
           .eq("recipient_id", userId)
           .order("due_date", { ascending: true }),
       ]);
+
+      const fetchError = jobsResult.error || quotesResult.error || invoicesResult.error;
+      if (fetchError) {
+        console.error("Error loading homeowner overview:", fetchError);
+        setLoadError("Couldn't load your overview. Please try again.");
+        setLoading(false);
+        return;
+      }
 
       const jobs = (jobsResult.data ?? []) as OverviewJob[];
       const inProgress = jobs.filter((j) => j.status === "in_progress");
@@ -103,8 +114,12 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
       setLoading(false);
     };
 
-    load().catch(() => setLoading(false));
-  }, [profileId, userId]);
+    load().catch((err) => {
+      console.error("Error loading homeowner overview:", err);
+      setLoadError("Couldn't load your overview. Please try again.");
+      setLoading(false);
+    });
+  }, [profileId, userId, reloadKey]);
 
   const awaitingYou = pendingQuotes.length + pendingInvoices.length;
 
@@ -112,6 +127,14 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
     return (
       <div className="p-6 flex justify-center items-center h-48">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-6">
+        <ErrorState message={loadError} onRetry={() => { setLoading(true); setReloadKey((k) => k + 1); }} />
       </div>
     );
   }

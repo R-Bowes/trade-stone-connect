@@ -559,8 +559,14 @@ Deposit itself carries no platform fee.
 ## Tech debt / known issues to revisit
 
 - Standardise all Edge Functions on `SITE_URL`; remove `PUBLIC_URL` and `PUBLIC_APP_URL` reads.
-- `notify_job_note_added` references a possibly non-existent `jobs.client_id`
-  — flagged, uninvestigated.
+- ~~`notify_job_note_added` references a possibly non-existent `jobs.client_id`~~
+  **Fixed** (readiness-audit R1-3, `20260718100000_fix_job_note_and_invoice_response_triggers.sql`):
+  confirmed the column was renamed to `customer_id`; every job-note INSERT was
+  rolling back with "column client_id does not exist" — job notes were
+  non-functional in both directions, not just silently unnotified.
+  `notify_invoice_response`'s `COALESCE(int, text)` type-mismatch bug (same
+  migration, R1-4) is fixed too, mirroring `notify_quote_response`'s existing
+  LPAD pattern.
 - Job sign-off approval — `jobs.portfolio_approved` column unused; business
   Approvals view is quote-approvals only until job sign-off is scoped.
 - Business tier SLA per-contractor pairing (matching `applies_to_trade` to a
@@ -600,31 +606,34 @@ Deposit itself carries no platform fee.
   flip the quote's own status — or a lapsed quote leaves the contractor's
   calendar permanently blocked with no path back to available.
 - **`create-payment-intent` findings from the syntax-error repair
-  (2026-07-18), not fixed as part of that repair:**
+  (2026-07-18) — both fixed in the readiness-audit R1-R3 fix slice
+  (2026-07-18):**
   - No legacy `quotes` table reference (clean) and no silent-default
     shape like the old `accept-quote` deposit bug (this function has no
     deposit concept at all — it charges the invoice's full `total`).
-  - **Partial idempotency, one gap**: it already checks
-    `invoice.stripe_payment_intent_id` and reuses that PaymentIntent
-    instead of always minting a new one (better than `accept-quote`'s
-    pre-fix state) — but unlike the fixed `accept-quote`, it never checks
-    the retrieved PI's `.status` before reusing it. If that PI is already
-    `canceled` or `succeeded`, it still hands back that dead PI's
-    `client_secret`, which will fail (or silently do nothing useful) at
-    confirm time. Needs the same status-gated reuse-vs-recreate logic
-    `accept-quote`'s deposit branch now has.
-  - **No authorization check on the default `create_client_secret`
-    action.** The `send_invoice` action requires a bearer token matching
-    the contractor; `create_client_secret` (the default when `action` is
-    omitted) has no auth check at all, and the function has
-    `verify_jwt: false` at the platform level too — so anyone who knows
-    or guesses an `invoiceId` can call this and get back a valid Stripe
-    `client_secret` plus the invoice's `client_name`/items/subtotal/
-    tax/total in the response body. Not a payment-authorization hole
-    (paying someone else's invoice for them isn't malicious) but is a
-    billing-detail information leak with zero access control. Needs an
-    ownership or recipient check before the next time this file is
-    touched for anything else.
+  - ~~Partial idempotency~~ **Fixed (R3-4):** now checks the retrieved
+    PI's `.status` before reusing it (`requires_payment_method`/
+    `requires_action`/`requires_confirmation` only), falling through to
+    mint a fresh one otherwise — mirrors `accept-quote`'s deposit-branch
+    gate.
+  - ~~No authorization check on `create_client_secret`~~ **Fixed
+    (R3-3):** verify-if-present — if a caller sends a JWT that resolves
+    to a real user, it must match the invoice's `recipient_id`; no
+    session (the anonymous overdue-invoice email-link flow) is still
+    allowed through unchanged, bounded by the invoice id being an
+    unguessable UUID.
+- **`create-deposit-checkout` (Projects deposits) — quarantined, not
+  fixed**, readiness-audit R2 decision 2 (2026-07-18): no live caller
+  invokes it (`ProposalReview.tsx` shows an honest "coming soon" message
+  instead). Before re-enabling: (a) `stripe-webhook` has no
+  `type:"project_deposit"` branch for the checkout session this creates —
+  a payment made through it today is captured by Stripe and never
+  recorded anywhere in the DB; (b) `contractor_stripe_account` is taken
+  directly from the request body with no server-side lookup against
+  `profiles.stripe_account_id`, so nothing stops a modified payload
+  redirecting the transfer to an arbitrary connected account; (c) no
+  idempotency guard at all (no reuse-existing-session check before
+  minting a new Checkout Session).
 - **Homeowner job view: no per-job messaging entry point.** The rails exist
   (`job_conversations`/`job_messages`) but there's no button on the
   homeowner-facing job view that deep-links into the existing thread —
@@ -643,6 +652,51 @@ Deposit itself carries no platform fee.
   the real Projects feature (which is unbuilt — see the Projects section
   above). Rename or remove before the first real contractor onboarding, to
   avoid setting an expectation the platform doesn't meet yet.
+- **Stripe Connect `charges_enabled` tracking.** `StripeConnect.tsx`'s status
+  badge is derived purely from whether `profiles.stripe_account_id` is
+  non-null, never from Stripe's live `charges_enabled`/`details_submitted` —
+  a contractor who abandons onboarding immediately after clicking Connect
+  still sees a green "Connected"/"Active" card. `create-connect-account`
+  already subscribes to enough to know better; wire an `account.updated`
+  webhook handler (new branch in `stripe-webhook/index.ts`) that writes
+  `charges_enabled`/`payouts_enabled` columns (need adding to `profiles`)
+  and have `StripeConnect.tsx` read those instead of presence-of-id alone.
+- **`stripe-webhook` has no handler for payment-failure events.** Only
+  `checkout.session.completed` and `payment_intent.succeeded` are handled;
+  `payment_intent.payment_failed` / `checkout.session.expired` fall through
+  to a generic 200 ack with no processing and no user-facing follow-up
+  (e.g. an invoice stuck at "sent" forever with no signal to the client that
+  their card was actually declined).
+- **Empty/error-state rollout, remainder.** The readiness-audit R3-1 pass
+  fixed the `if(!user) return`-before-`setLoading(false)` spinner-forever
+  class and added error surfacing to `useInvoices`, `useJobs`,
+  `useReceivedQuotes`, `useReceivedInvoices`, `useContractorPipeline`, and
+  `HomeownerOverview` only — the audit's A4 findings named several more
+  surfaces with the same silent-empty-on-fetch-error pattern that were
+  explicitly deferred: `IssuedQuotes.tsx`, `ContractorDashboard.tsx`'s
+  8-query stats block, `BusinessOverview.tsx`, `BusinessJobsView.tsx`,
+  `BusinessRequestsView.tsx`, `BusinessComplianceView.tsx`. Same fix shape
+  each time (check `.error`, toast or `ErrorState`, `finally { setLoading
+  (false) }`) — do the rest in one pass rather than piecemeal.
+- **Expired-quote DB flip.** R3-5 added a *display-layer* "Expired" state
+  (computed from `valid_until` when a quote is still `status='sent'`) and
+  disabled Accept for it — nothing in the DB ever actually flips
+  `issued_quotes.status` to `'expired'`. A real flip (cron or trigger) is a
+  separate piece of work; the display fix means it's no longer urgent, but
+  the underlying quote will sit at `status='sent'` forever without one.
+- **Enquiry staleness.** Confirmed in the readiness audit (A1): `enquiries`
+  has no time-based staleness/expiry concept at all — status changes are
+  purely event-driven (new/replied/declined/converted/archived, all
+  human-triggered). An enquiry a contractor never responds to just sits at
+  `new` indefinitely with no nudge or auto-close. Not designed yet.
+- **Contractor-side quote badges don't reflect display-layer expiry.** R3-5's
+  `toQuoteState({validUntil})` expiry computation was wired into
+  `ReceivedQuotes.tsx` (recipient side) only. `ThreadQuoteSection.tsx` and
+  `IssuedQuotes.tsx` (contractor side) still show "Sent — awaiting response"
+  for the same quote past its `valid_until`, since their `ThreadQuote`/
+  `IssuedQuote` types don't carry `valid_until` through to their
+  `toQuoteState()` calls yet. Same fix shape as `ReceivedQuotes.tsx`, just
+  needs `valid_until` added to those two types' select queries.
 
 ## Dormant schema roster
 
@@ -808,3 +862,62 @@ Links back to the dropped business_members.site_scope column (v1 rebuild).
   `service_schedules`/`service_visits` UI (`MaintenanceManagement.tsx`'s
   Schedules/Visits tabs), not before — the visit-completion handler is the
   correct place, not a general job-completion hook.
+
+
+  ## Staged Payments, Deposits & Retentions
+
+**Status:** Designed at outline level. Highest-ranked money gap — will block real jobs over ~£1k and most B2B work.
+**Why it matters:** Real jobs are deposit → stage payments → final balance, not one invoice at completion. B2B adds 30–60 day terms, applications for payment, and retentions. Current Stripe flow assumes one invoice per job.
+
+### Design direction
+- **Payment schedule object on the job:** ordered stages (label, amount or % of quote, trigger: on-acceptance / date / milestone / completion). Each stage generates its own invoice via existing INV- numbering — one invoice per stage, not a new document type.
+- **Deposits:** just stage 1 with trigger on-acceptance. No separate deposit concept.
+- **B2B payment terms:** `payment_terms_days` on the invoice (0 = due on receipt, 30/60 for B2B). Overdue cron already exists — extend to respect terms.
+- **Retentions (B2B):** retention % on the payment schedule; final stage splits into "final balance" + "retention release" invoice with a future due date. Compliance watcher / cron surfaces retention releases falling due — genuinely valuable, contractors forget these and lose the money.
+- **OPEN:** does Stripe handle B2B at all initially, or do B2B invoices support "paid off-platform / bank transfer" marking? (Likely yes — FM clients pay by BACS, not card. Platform fee model for off-platform payment needs deciding.)
+
+## Job Variations / Change Orders
+
+**Status:** Already on horizon — promoting to top of queue. Most common real-world job event not handled.
+**Why it matters:** "While I'm up here, the joist is rotten." Happens on a huge share of jobs; without it, the final invoice can't legitimately differ from the quote and contractors route around the platform.
+
+### Design direction
+- `job_variations` table: description, amount (+/-), status (proposed → accepted/rejected), photos, who raised it, client assent timestamp. Numbering: V-1, V-2 within the job (contractor_counters pattern not needed — per-job sequence fine).
+- Client acceptance is a hard gate before the variation amount is invoiceable — this is the dispute-defence artifact.
+- Job total = quote + accepted variations; invoice/stage amounts reconcile against that.
+- Feeds job record PDF (variations section with assent trail).
+- Pairs with job photos (evidence attached to the variation).
+
+## Job Photos
+
+**Status:** Not built (enquiry photo upload also never built — separate item). Cheap, high value.
+**Why it matters:** Before/during/after photos are how contractors defend disputes, evidence variations, and justify invoices.
+
+### Design direction
+- Reuse tender-documents pattern: private bucket, `{job_id}/{filename}`, signed URLs. Likely same `job_documents` table as RAMS Tier 1 with `kind = photo`, plus `phase` (before/during/after/variation/completion) and optional `variation_id`.
+- Upload from job view, mobile-first (camera capture, not just file picker — contractors photograph on-site with phones).
+- Surfaces: job record PDF (photo appendix), variation evidence, snagging/dispute path when built.
+- Build alongside RAMS Tier 1 — same table, same bucket pattern, one migration.
+
+## Certificates & Warranties on Job Completion
+
+**Status:** Designed at outline level. Extends job_documents pattern.
+**Why it matters:** The certificate is the real "done" artifact — EIC/minor works + Part P (electrical), CP12/commissioning record (gas). Contractors issue these via NICEIC/Gas Safe apps; attaching them makes the TradeStone job record the authoritative file. FM clients audit for exactly this.
+
+### Design direction
+- `job_documents` with `kind` values: `certificate`, `warranty` (alongside `rams`, `photo`). Metadata: cert type, reference number, expiry (for CP12s — annual).
+- **Soft prompt, not hard gate:** at sign-off, prompt for certificates on trades that require them (keyed off job trade). Don't block completion — not every job needs one, and false gates train contractors to ignore gates. **OPEN:** B2B clients may want it as a hard gate per-contract — could be a client-side setting later.
+- Warranties: workmanship guarantee terms + insurance-backed guarantee (IBG) doc where applicable (TrustMark requires IBGs for some work).
+- Expiry radar potential: CP12 expiry feeds future FM reporting / renewal prompts — natural fit with the contract expiry radar pattern.
+
+## Consumer Cooling-Off Notice (14-day)
+
+**Status:** Designed. Small build, real legal exposure for contractors without it — and a selling point.
+**Why it matters:** Contracts agreed off-premises/at the consumer's home fall under Consumer Contracts Regulations 2013. If no cancellation notice is served, the consumer's cancellation window extends up to 12 months and the contractor may be unable to enforce payment. Baking it into quote acceptance protects every contractor on the platform by default.
+
+### Design direction
+- Homeowner quote acceptance flow: cancellation-rights notice presented at acceptance, explicit acknowledgement recorded (timestamp + notice version — same terms_snapshot discipline as the agreement ceremony).
+- If work starts inside the 14 days: capture the consumer's express request for early commencement + acknowledgement they'll pay for work done if they cancel (this is the bit contractors always miss).
+- Cancellation notice text + model cancellation form stored versioned; appears in acceptance email and job record PDF.
+- B2B jobs: not applicable, flow skipped entirely (keys off client type, same flag as RAMS gate).
+- **Needs a solicitor's eye on the notice wording before launch** — pattern is standard but the text carries legal weight. Not professional advice from TradeStone; the platform serves the contractor's notice for them.

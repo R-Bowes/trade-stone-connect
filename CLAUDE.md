@@ -735,7 +735,19 @@ SECURITY DEFINER function mirroring `createJobFromQuote`'s insert shape for
 `engagement_id`-based call-outs, which skip the quote phase entirely) — unrelated
 to this sequence, not a second path for quote-driven jobs.
 
-**Side finding, separate bug, not yet fixed:** `supabase/functions/accept-quote/index.ts`
+**FIXED (confirmed 2026-07-18, readiness-audit A3/A5 pass):** the paragraph
+below described `supabase/functions/accept-quote/index.ts` as still querying
+the legacy, always-empty `quotes` table, breaking every deposit payment.
+Re-read in full during the audit: it queries `issued_quotes` exclusively
+(confirmed via repo-wide grep for `.from("quotes")` across
+`supabase/functions` — zero matches) and has its own header comment stating
+this explicitly. Left the original note below for history/context, but do
+not act on its "100% broken" conclusion — it no longer reflects the code.
+
+<details>
+<summary>Original note (stale, kept for history)</summary>
+
+`supabase/functions/accept-quote/index.ts`
 (the edge function `DepositPaymentDialog.tsx` calls to set up the Stripe
 deposit PaymentIntent) still queries `.from("quotes")` — the legacy, always-empty
 table this file already documents above ("The `quotes` table is LEGACY and
@@ -750,3 +762,5 @@ path is 100% broken in production today. Traced via `git log`: commit
 explicitly removed dead `from('quotes')` reads from `ContractorDashboard` and
 `BusinessManagement` as part of the `issued_quotes` migration cleanup, but
 missed this edge function — it was never updated off the legacy table.
+
+</details>

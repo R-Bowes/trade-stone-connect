@@ -1,3 +1,24 @@
+// QUARANTINED as of readiness-audit R2 decision 2 (2026-07-18) — no live
+// caller invokes this function. ProposalReview.tsx's handleClientSigned
+// used to call it automatically on contract signing when a project
+// deposit was required; that call was removed in favour of an honest
+// "coming soon" message, pending the Projects slice. Known issues found
+// by the audit, NOT fixed here (fix properly before re-enabling, see
+// LATER.md):
+//   A3-2: the checkout.session.completed event this creates carries
+//     metadata {type: "project_deposit", project_id, proposal_id} —
+//     stripe-webhook/index.ts's handler only reads session.metadata.
+//     invoice_id and has no project_deposit branch at all. A payment
+//     made through this path today would be captured by Stripe and
+//     never recorded anywhere in the DB.
+//   A3-3: contractor_stripe_account is taken directly from the request
+//     body and passed straight into transfer_data.destination with no
+//     server-side lookup against profiles.stripe_account_id — nothing
+//     stops a modified payload from redirecting the transfer to an
+//     arbitrary connected account.
+// Left in place (not deleted) so the Projects slice has a working
+// starting point once these are fixed.
+//
 // Deploy: supabase functions deploy create-deposit-checkout
 // Required secrets: SUPABASE_URL, ADMIN_SECRET_KEY, STRIPE_SECRET_KEY
 // Optional: SITE_URL (defaults to https://tradesltd.co.uk)

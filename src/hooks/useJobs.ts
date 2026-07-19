@@ -66,32 +66,36 @@ export function useJobs(role: "contractor" | "client") {
   const { toast } = useToast();
 
   const loadJobs = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    const column = role === "contractor" ? "contractor_id" : "customer_id";
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("*, issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
-      .eq(column, profileRow?.id)
-      .order("created_at", { ascending: false });
+      const column = role === "contractor" ? "contractor_id" : "customer_id";
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*, issued_quotes!jobs_issued_quote_id_fkey(quote_number)")
+        .eq(column, profileRow?.id)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error loading jobs:", error);
-    } else {
-      const mapped = (data || []).map((j: any) => ({
-        ...j,
-        quote_number: j.issued_quotes?.quote_number ?? null,
-      }));
-      setJobs(mapped as Job[]);
+      if (error) {
+        console.error("Error loading jobs:", error);
+        toast({ title: "Error", description: "Failed to load jobs", variant: "destructive" });
+      } else {
+        const mapped = (data || []).map((j: any) => ({
+          ...j,
+          quote_number: j.issued_quotes?.quote_number ?? null,
+        }));
+        setJobs(mapped as Job[]);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {

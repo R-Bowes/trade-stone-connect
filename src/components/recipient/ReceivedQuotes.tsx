@@ -103,15 +103,26 @@ export function ReceivedQuotes() {
       withinFollowUpWindow: false,
       depositRequired: !!quote.deposit_required,
       depositPaid: !!quote.deposit_paid,
+      validUntil: quote.valid_until,
     });
     const result = presentOrNeutral(state, "recipient", quote.status);
     return <Badge className={TONE_BADGE_CLASS[result.tone]}>{result.label}</Badge>;
   };
 
+  // Display-layer expiry (A1: nothing ever flips status to 'expired' in the
+  // DB) — a quote past valid_until that's still sitting at 'sent' can no
+  // longer be accepted, even though the accept_quote_with_slot RPC would
+  // also reject it server-side; this avoids the two-step failure of
+  // reaching the slot picker before hitting that raw exception.
+  const isExpired = (quote: ReceivedQuote) =>
+    quote.status === "sent" && !quote.recipient_response && new Date(quote.valid_until) < new Date();
+
   const canRespond = (quote: ReceivedQuote) =>
     quote.status === "sent" &&
     !quote.recipient_response &&
     !pendingIds[quote.id];
+
+  const canAccept = (quote: ReceivedQuote) => canRespond(quote) && !isExpired(quote);
 
   const isResponding = (quote: ReceivedQuote) => quote.id in pendingIds;
 
@@ -192,9 +203,15 @@ export function ReceivedQuotes() {
                     )}
                     {canRespond(q) && !isResponding(q) && (
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" onClick={() => handleAcceptClick(q)}>
-                          <CheckCircle className="h-4 w-4 mr-1" />Accept
-                        </Button>
+                        {canAccept(q) ? (
+                          <Button size="sm" onClick={() => handleAcceptClick(q)}>
+                            <CheckCircle className="h-4 w-4 mr-1" />Accept
+                          </Button>
+                        ) : (
+                          <Button size="sm" disabled title="This quote has expired — ask the contractor for a new one">
+                            <CheckCircle className="h-4 w-4 mr-1" />Expired
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="destructive"

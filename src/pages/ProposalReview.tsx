@@ -396,37 +396,22 @@ const ProposalReview = () => {
       description: "The contractor has been notified to review and sign.",
     });
 
+    // Project deposit payments are quarantined pending the Projects slice
+    // (readiness-audit R2 decision 2) — create-deposit-checkout has no
+    // idempotency guard and trusts a client-supplied Stripe destination
+    // account unchecked (A3-3), and stripe-webhook has no handler at all
+    // for its type:"project_deposit" checkout session (A3-2). Contract
+    // signing still completes; the deposit just isn't collected through
+    // this flow yet — see create-deposit-checkout/index.ts's header
+    // comment and LATER.md for the proper fix.
     if (project.deposit_required && project.deposit_amount) {
-      try {
-        const { data: depositData, error: depositError } =
-          await supabase.functions.invoke("create-deposit-checkout", {
-            body: {
-              project_id: id,
-              proposal_id: contractSigning.proposal.id,
-              amount: project.deposit_amount,
-              contractor_stripe_account:
-                contractSigning.proposal.contractor?.stripe_account_id,
-            },
-          });
-
-        if (depositError || !depositData?.checkout_url) {
-          throw depositError ?? new Error("Failed to create checkout session");
-        }
-
-        window.location.href = depositData.checkout_url as string;
-      } catch (err: unknown) {
-        const msg =
-          err instanceof Error ? err.message : "Failed to start deposit payment";
-        toast({
-          title: "Payment error",
-          description: msg,
-          variant: "destructive",
-        });
-        navigate(`/projects/${id}`);
-      }
-    } else {
-      navigate(`/projects/${id}`);
+      toast({
+        title: "Deposit payment coming soon",
+        description: "Deposit payments for projects aren't available yet — the contractor will follow up separately.",
+      });
     }
+
+    navigate(`/projects/${id}`);
   }
 
   // ── Reject ────────────────────────────────────────────────────────────────────

@@ -30,22 +30,26 @@ export function useReceivedInvoices() {
   const { toast } = useToast();
 
   const fetchInvoices = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("recipient_id", user.id)
-      .order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("recipient_id", user.id)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching received invoices:", error);
-    } else {
-      setInvoices((data || []) as unknown as ReceivedInvoice[]);
+      if (error) {
+        console.error("Error fetching received invoices:", error);
+        toast({ title: "Error", description: "Failed to load invoices", variant: "destructive" });
+      } else {
+        setInvoices((data || []) as unknown as ReceivedInvoice[]);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     fetchInvoices();

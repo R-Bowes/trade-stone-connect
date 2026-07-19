@@ -297,10 +297,24 @@ async function handleCheck(supabase: any, jobId: string | undefined) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Internal-only (verify_jwt=false in config.toml — no end-user JWT is
+  // ever sent here). The shared secret IS the service-role key, already
+  // sent as the Authorization bearer by every legitimate caller
+  // (create_callout_job's net.http_post, the sla-clock-check cron body —
+  // see 20260712130000_cron_secrets_to_vault.sql) since both source it
+  // from the same Vault entry this env var mirrors. Closes the LATER.md
+  // "sla-clock/mark-overdue-invoices have no auth" gap.
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+    console.error("[sla-clock] rejected call with missing/invalid Authorization header");
+    return json(401, { success: false, error: "Unauthorized" });
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceRoleKey,
       { auth: { persistSession: false } },
     );
 

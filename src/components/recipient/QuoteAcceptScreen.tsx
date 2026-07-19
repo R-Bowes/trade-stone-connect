@@ -71,9 +71,18 @@ export function QuoteAcceptScreen({
       toast({ title: "Job confirmed", description: "Your job has been scheduled." });
       onConfirmed();
     } catch (err) {
+      // accept_quote_with_slot raises a raw Postgres exception (internal
+      // function name + UUID) on an expired quote — invokeEdgeFunction (R1-5)
+      // already gets the real message through, but this specific case still
+      // needs friendlier copy than "accept_quote_with_slot: quote <uuid> has
+      // expired (valid_until=<date>)".
+      const rawMessage = err instanceof Error ? err.message : "Could not confirm this date";
+      const description = rawMessage.includes("has expired")
+        ? "This quote has expired. Please ask the contractor to resend it."
+        : rawMessage;
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : "Could not confirm this date",
+        description,
         variant: "destructive",
       });
     } finally {

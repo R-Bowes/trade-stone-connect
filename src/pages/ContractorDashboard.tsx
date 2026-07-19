@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorState } from "@/components/AsyncState";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ const ContractorDashboard = () => {
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
 
-  const { engagements, loading: pipelineLoading, refetch: refetchPipeline } = useContractorPipeline();
+  const { engagements, loading: pipelineLoading, error: pipelineError, refetch: refetchPipeline } = useContractorPipeline();
   const [filterStage, setFilterStage] = useState<PipelineStage | null>(null);
   const [openEngagement, setOpenEngagement] = useState<PipelineEngagement | null>(null);
 
@@ -465,6 +466,8 @@ const ContractorDashboard = () => {
 
             {pipelineLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : pipelineError ? (
+              <ErrorState message={pipelineError} onRetry={() => refetchPipeline()} />
             ) : (
               <div className="space-y-8">
                 <div className="space-y-3">

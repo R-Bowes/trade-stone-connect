@@ -257,6 +257,7 @@ const JOB_STAGE_LABELS: Record<string, string> = {
 export function useContractorPipeline() {
   const [engagements, setEngagements] = useState<PipelineEngagement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // `silent` powers the tab-focus-return refresh below: fresh data is
   // fetched, but `loading` never flips, so the card list isn't swapped for
@@ -264,7 +265,7 @@ export function useContractorPipeline() {
   // re-render with new props once `setEngagements` resolves.
   const fetchPipeline = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
-    if (!silent) setLoading(true);
+    if (!silent) { setLoading(true); setError(null); }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setEngagements([]);
@@ -310,6 +311,16 @@ export function useContractorPipeline() {
         .select("id, invoice_number, status, job_id, client_name, recipient_id, created_at, sent_at")
         .eq("contractor_id", contractorId),
     ]);
+
+    const fetchError = enquiriesRes.error || quotesRes.error || jobsRes.error || invoicesRes.error;
+    if (fetchError) {
+      console.error("Error fetching pipeline data:", fetchError);
+      if (!silent) {
+        setError("Couldn't load your pipeline. Please try again.");
+        setLoading(false);
+      }
+      return;
+    }
 
     const rawEnquiries = (enquiriesRes.data as RawEnquiry[]) ?? [];
     const rawQuotes = (quotesRes.data as RawQuote[]) ?? [];
@@ -719,5 +730,5 @@ export function useContractorPipeline() {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [fetchPipeline]);
 
-  return { engagements, loading, refetch: fetchPipeline };
+  return { engagements, loading, error, refetch: fetchPipeline };
 }

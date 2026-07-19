@@ -39,28 +39,29 @@ export function useReceivedQuotes() {
   const { toast } = useToast();
 
   const fetchQuotes = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    const { data, error } = await supabase
-      .from("issued_quotes")
-      .select("*")
-      .eq("recipient_id", profileRow?.id)
-      .order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("issued_quotes")
+        .select("*")
+        .eq("recipient_id", profileRow?.id)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching received quotes:", error);
-      setLoading(false);
-      return;
-    }
+      if (error) {
+        console.error("Error fetching received quotes:", error);
+        toast({ title: "Error", description: "Failed to load quotes", variant: "destructive" });
+        return;
+      }
 
-    const rawQuotes = (data || []) as unknown as ReceivedQuote[];
+      const rawQuotes = (data || []) as unknown as ReceivedQuote[];
 
     const contractorIds = [...new Set(rawQuotes.map((q) => q.contractor_id))];
     let nameMap: Record<string, string> = {};
@@ -97,13 +98,15 @@ export function useReceivedQuotes() {
       const cur = latestMap.get(key);
       if (!cur || (q.version ?? 1) > (cur.version ?? 1)) latestMap.set(key, q);
     }
-    setQuotes(
-      Array.from(latestMap.values()).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
-    );
-    setLoading(false);
-  }, []);
+      setQuotes(
+        Array.from(latestMap.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     fetchQuotes();

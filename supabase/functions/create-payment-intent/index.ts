@@ -87,6 +87,25 @@ serve(async (req) => {
       }
     }
 
+    if (action === "create_client_secret") {
+      // Verify-if-present, not required: this path also serves the
+      // anonymous overdue-invoice email link (/pay/:invoiceId — see
+      // mark-overdue-invoices), which has no session and no Authorization
+      // header worth trusting. supabase.functions.invoke() sends the anon
+      // key by default when there's no active session, which resolves to
+      // no user below — that case is intentionally let through, bounded
+      // by the invoice id being an unguessable UUID. Only a caller who
+      // resolves to a REAL, WRONG user is rejected.
+      const authHeader = req.headers.get("Authorization");
+      const token = authHeader?.replace("Bearer ", "");
+      if (token) {
+        const { data: authData } = await supabase.auth.getUser(token);
+        if (authData?.user && authData.user.id !== invoice.recipient_id) {
+          return jsonResponse(401, { success: false, error: "Unauthorized" });
+        }
+      }
+    }
+
     const amountInPence = Math.round(Number(invoice.total || 0) * 100);
     if (amountInPence <= 0) {
       return jsonResponse(400, { success: false, error: "Invoice total must be greater than zero" });
@@ -96,11 +115,28 @@ serve(async (req) => {
 
     let paymentIntentId = invoice.stripe_payment_intent_id;
     let clientSecret: string | null = null;
+    let reusable = false;
 
+    // Idempotency (LATER.md-flagged gap, closed here): a stored PI id isn't
+    // automatically reusable — if it's already terminal (canceled/succeeded)
+    // or mid-processing, handing back its client_secret fails or does
+    // nothing useful at confirm time. Mirrors accept-quote's deposit-branch
+    // status gate.
     if (paymentIntentId) {
-      const existingIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-      clientSecret = existingIntent.client_secret;
-    } else {
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (["requires_payment_method", "requires_action", "requires_confirmation"].includes(existingIntent.status)) {
+          clientSecret = existingIntent.client_secret;
+          reusable = true;
+        }
+        // Otherwise (canceled/succeeded/processing) fall through and mint a fresh one.
+      } catch (piErr) {
+        console.error("Failed to retrieve existing PaymentIntent, creating a new one", piErr);
+        // Fall through and mint a fresh one.
+      }
+    }
+
+    if (!reusable) {
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInPence,
         currency: "gbp",

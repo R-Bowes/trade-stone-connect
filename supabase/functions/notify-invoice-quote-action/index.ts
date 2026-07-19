@@ -96,14 +96,25 @@ serve(async (req) => {
 
     const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
 
+    // Ownership gate: the caller must be the recipient on the invoice/quote
+    // they're claiming to have acted on — without this, any authenticated
+    // user could pass an arbitrary UUID and send a contractor a spoofed
+    // "customer has accepted/declined" email for a deal they're not party
+    // to. recipient_id on both tables is guaranteed equal to auth.uid() for
+    // the true recipient (profiles.id == profiles.user_id == auth.uid() by
+    // construction — see CLAUDE.md's RLS section), so a direct compare
+    // against userData.user.id is correct for either table.
     if (context_type === "invoice") {
       const { data: invoice } = await supabase
         .from("invoices")
-        .select("contractor_id, invoice_number")
+        .select("contractor_id, invoice_number, recipient_id")
         .eq("id", context_id)
         .single();
 
       if (invoice) {
+        if (invoice.recipient_id !== userData.user.id) {
+          return jsonResponse(403, { success: false, error: "Not authorised for this invoice" }, corsHeaders);
+        }
         contextLabel = invoice.invoice_number != null
           ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
           : context_id;
@@ -118,11 +129,14 @@ serve(async (req) => {
     } else if (context_type === "quote") {
       const { data: quote } = await supabase
         .from("issued_quotes")
-        .select("contractor_id, quote_number, title")
+        .select("contractor_id, quote_number, title, recipient_id")
         .eq("id", context_id)
         .single();
 
       if (quote) {
+        if (quote.recipient_id !== userData.user.id) {
+          return jsonResponse(403, { success: false, error: "Not authorised for this quote" }, corsHeaders);
+        }
         contextLabel = quote.quote_number != null
           ? `Q-${String(quote.quote_number).padStart(4, "0")}`
           : (quote.title || context_id);

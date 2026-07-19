@@ -8,7 +8,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
 
-serve(async () => {
+serve(async (req) => {
+  // Internal-only (verify_jwt=false in config.toml — cron-invoked, no
+  // end-user JWT expected). The shared secret is the service-role key,
+  // already sent as the Authorization bearer by the invoice-overdue-check
+  // cron body (20260712130000_cron_secrets_to_vault.sql, sourced from the
+  // same Vault entry ADMIN_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY mirror —
+  // confirmed identical values). Closes the LATER.md "no auth" gap.
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+    console.error("[mark-overdue-invoices] rejected call with missing/invalid Authorization header");
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

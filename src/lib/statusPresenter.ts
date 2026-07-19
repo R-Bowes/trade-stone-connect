@@ -107,6 +107,16 @@ export interface QuoteStateExtras {
   withinFollowUpWindow?: boolean;
   depositRequired?: boolean;
   depositPaid?: boolean;
+  /**
+   * Display-layer-only expiry: nothing in the DB ever flips a quote's
+   * status to 'expired' (readiness-audit A1) — a quote past its
+   * valid_until sits at status='sent' forever unless a human acts on it.
+   * Passing validUntil lets a still-'sent' quote present as expired
+   * without waiting for (or requiring) a DB-side flip. Ignored for every
+   * other status — a rejected/accepted/etc quote's validUntil having
+   * passed is not "expired," it's just old.
+   */
+  validUntil?: string | null;
 }
 
 export function toQuoteState(status: string | null | undefined, extra: QuoteStateExtras = {}): QuoteState | null {
@@ -114,6 +124,9 @@ export function toQuoteState(status: string | null | undefined, extra: QuoteStat
     case "draft":
       return { kind: "quote", status: "draft" };
     case "sent":
+      if (extra.validUntil && new Date(extra.validUntil) < new Date()) {
+        return { kind: "quote", status: "expired" };
+      }
       return { kind: "quote", status: "sent", viewed: !!extra.viewed };
     case "rejected":
       return { kind: "quote", status: "rejected", withinFollowUpWindow: !!extra.withinFollowUpWindow };
