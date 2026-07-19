@@ -10,9 +10,6 @@ verify_jwt = false
 [functions.notify-invoice-quote-action]
 verify_jwt = false
 
-[functions.create-invoice-payment]
-verify_jwt = false
-
 [functions.create-payment-intent]
 verify_jwt = false
 

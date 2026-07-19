@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { formatInvoiceRef } from "@/lib/documentRefs";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 type PublicInvoice = {
   id: string;
@@ -75,22 +75,19 @@ export default function PayInvoicePage() {
       if (!invoiceId) return;
       setLoading(true);
 
-      const paymentResponse = await supabase.functions.invoke("create-payment-intent", {
-        body: {
-          action: "create_client_secret",
-          invoiceId,
-        },
-      });
+      try {
+        const data = await invokeEdgeFunction<{ invoice: PublicInvoice; clientSecret: string }>(
+          "create-payment-intent",
+          { body: { action: "create_client_secret", invoiceId } },
+        );
 
-      if (paymentResponse.error) {
-        setError(paymentResponse.error.message || "Could not initialise payment.");
-      } else {
-        const invoiceData = paymentResponse.data.invoice as PublicInvoice;
         setInvoice({
-          ...invoiceData,
-          items: Array.isArray(invoiceData.items) ? invoiceData.items : [],
+          ...data.invoice,
+          items: Array.isArray(data.invoice.items) ? data.invoice.items : [],
         });
-        setClientSecret(paymentResponse.data.clientSecret);
+        setClientSecret(data.clientSecret);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not initialise payment.");
       }
 
       setLoading(false);

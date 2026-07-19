@@ -16,8 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "");
 
@@ -170,25 +170,29 @@ export function DepositPaymentDialog({
       // the quote, and (deposit due) sets up the PaymentIntent — all in one
       // atomic call. Idempotent if the event was already confirmed earlier
       // in the negotiation (see accept_quote_with_slot's confirmed-event path).
-      const { data, error: fnError } = await supabase.functions.invoke("accept-quote", {
-        body: { quote_id: quoteId, event_id: eventId },
-      });
+      try {
+        const data = await invokeEdgeFunction<{ client_secret?: string; deposit_amount?: number }>(
+          "accept-quote",
+          { body: { quote_id: quoteId, event_id: eventId } },
+        );
 
-      if (fnError || data?.error || !data?.client_secret) {
-        const msg = data?.error ?? fnError?.message ?? "Could not set up payment";
+        if (!data?.client_secret) {
+          throw new Error("Could not set up payment");
+        }
+
+        // The calendar block for a deposit-pending confirm is now handled
+        // server-side inside accept_quote_with_slot itself (upserts
+        // contractor_availability_overrides when the deposit gate holds the
+        // mint) — nothing to do here.
+        setClientSecret(data.client_secret);
+        if (data.deposit_amount) setResolvedDeposit(data.deposit_amount);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Could not set up payment";
         setError(msg);
         toast({ title: "Payment setup failed", description: msg, variant: "destructive" });
+      } finally {
         setInitialising(false);
-        return;
       }
-
-      // The calendar block for a deposit-pending confirm is now handled
-      // server-side inside accept_quote_with_slot itself (upserts
-      // contractor_availability_overrides when the deposit gate holds the
-      // mint) — nothing to do here.
-      setClientSecret(data.client_secret);
-      if (data.deposit_amount) setResolvedDeposit(data.deposit_amount);
-      setInitialising(false);
     };
 
     init();

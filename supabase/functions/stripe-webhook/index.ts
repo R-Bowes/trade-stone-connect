@@ -1,15 +1,25 @@
 // supabase/functions/stripe-webhook/index.ts
 //
 // Handles two event types:
-//  - checkout.session.completed: ordinary invoice payment (unchanged from
-//    before this slice — preserved verbatim, including its snake_case
-//    session.metadata.invoice_id, per Phase A/C instruction not to unify the
-//    two metadata casings in this slice).
-//  - payment_intent.succeeded: quote deposit payment (accept-quote/index.ts's
-//    PaymentIntent, camelCase metadata). Marks the deposit paid on both the
-//    quote and the invoice, mints the job via mint_job_from_quote (LOCKED
-//    DECISION: a scheduled job means money has moved, or none was due), and
-//    records a payments row. Idempotent — safe to receive either event twice.
+//  - checkout.session.completed: no live caller creates a Checkout Session
+//    with invoice_id metadata as of readiness-audit R1-2 — the function
+//    that used to (create-invoice-payment/index.ts) was retired in favour
+//    of converging invoice payment on the payment_intent.succeeded/"invoice"
+//    path below. Kept as a harmless, idempotent no-op path (not
+//    create-deposit-checkout's session either — that's quarantined per
+//    the Projects decision, and uses different metadata: type/"project_deposit"
+//    this handler never reads) rather than deleted, in case Checkout
+//    Session usage for invoices returns.
+//  - payment_intent.succeeded: dispatches on paymentIntent.metadata.type —
+//    "deposit" (accept-quote/index.ts's PaymentIntent): marks the deposit
+//    paid on both the quote and the invoice, mints the job via
+//    mint_job_from_quote (LOCKED DECISION: a scheduled job means money has
+//    moved, or none was due), and records a payments row; "invoice"
+//    (create-payment-intent/index.ts's PaymentIntent): marks the invoice
+//    paid and records a payments row. Both branches are idempotent — safe
+//    to receive either event twice. Both use camelCase metadata
+//    (invoiceId/contractorId/clientId) — no attempt made in this slice to
+//    unify with checkout.session.completed's snake_case.
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -128,10 +138,83 @@ async function handleCheckoutSessionCompleted(
   return jsonResponse(200, { success: true, received: true });
 }
 
+async function handleInvoicePaymentIntentSucceeded(
+  supabase: ReturnType<typeof createClient>,
+  paymentIntent: Stripe.PaymentIntent,
+) {
+  const invoiceId = paymentIntent.metadata.invoiceId;
+  if (!invoiceId) {
+    console.error("payment_intent.succeeded (invoice) missing invoiceId metadata", paymentIntent.id);
+    return jsonResponse(400, { success: false, error: "Missing invoiceId in payment intent metadata" });
+  }
+
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
+    .select("id, status, contractor_id, recipient_id, job_id")
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (invoiceError || !invoice) {
+    console.error("Invoice not found for payment", invoiceId, invoiceError);
+    return jsonResponse(400, { success: false, error: "Invoice not found" });
+  }
+
+  // Idempotent: only flip to paid if it isn't already. Setting
+  // recipient_response fires notify_invoice_response, which notifies both
+  // the contractor and the client — do not also hand-insert notifications
+  // here, that would duplicate what the trigger now does.
+  if (invoice.status !== "paid") {
+    const { error: updateError } = await supabase
+      .from("invoices")
+      .update({
+        status: "paid",
+        paid_date: new Date().toISOString().slice(0, 10),
+        recipient_response: "paid",
+      })
+      .eq("id", invoiceId);
+    if (updateError) {
+      console.error("Failed to mark invoice paid", updateError);
+      throw updateError;
+    }
+  }
+
+  // payments row — idempotent on stripe_payment_intent_id.
+  const { data: existingPayment } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntent.id)
+    .maybeSingle();
+
+  if (!existingPayment) {
+    const { error: paymentError } = await supabase.from("payments").insert({
+      job_id: invoice.job_id,
+      invoice_id: invoiceId,
+      payer_id: paymentIntent.metadata.clientId || invoice.recipient_id || null,
+      payee_id: paymentIntent.metadata.contractorId || invoice.contractor_id || null,
+      amount: paymentIntent.amount / 100,
+      platform_fee: (paymentIntent.application_fee_amount ?? 0) / 100,
+      stripe_payment_intent_id: paymentIntent.id,
+      status: "released",
+      type: "invoice",
+    });
+    if (paymentError) {
+      console.error("Failed to record payments row for invoice payment", paymentError);
+    }
+  }
+
+  console.log(`Invoice ${invoiceId} marked paid via PaymentIntent ${paymentIntent.id}`);
+
+  return jsonResponse(200, { success: true, received: true });
+}
+
 async function handlePaymentIntentSucceeded(
   supabase: ReturnType<typeof createClient>,
   paymentIntent: Stripe.PaymentIntent,
 ) {
+  if (paymentIntent.metadata?.type === "invoice") {
+    return await handleInvoicePaymentIntentSucceeded(supabase, paymentIntent);
+  }
+
   if (paymentIntent.metadata?.type !== "deposit") {
     return jsonResponse(200, { success: true, received: true });
   }

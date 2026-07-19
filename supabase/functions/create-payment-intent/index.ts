@@ -112,6 +112,7 @@ serve(async (req) => {
           invoiceId: invoice.id,
           contractorId: invoice.contractor_id,
           clientId: invoice.recipient_id,
+          type: "invoice",
         },
       });
 

@@ -182,9 +182,7 @@ export function ReceivedInvoices() {
                         <>
                           <PayInvoiceButton
                             invoiceId={inv.id}
-                            amount={Number(inv.total)}
                             status={inv.recipient_response || "pending"}
-                            onPaymentComplete={() => refetch()}
                           />
                           <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
                             <Pause className="h-4 w-4 mr-1" />Stall
