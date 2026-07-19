@@ -279,11 +279,22 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
               <p className="text-sm text-muted-foreground text-center py-8">No photos uploaded yet.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {photos.map((photo) => (
-                  <div key={photo.id} className="rounded-lg overflow-hidden border">
-                    <img src={photo.photo_url} alt={photo.title || "Job photo"} className="aspect-square object-cover w-full" />
-                  </div>
-                ))}
+                {photos.map((photo) => {
+                  const url = photo.storage_path
+                    ? supabase.storage.from("job-photos").getPublicUrl(photo.storage_path).data.publicUrl
+                    : photo.photo_url;
+                  return (
+                    <div key={photo.id} className="rounded-lg overflow-hidden border">
+                      {url && photo.file_type !== "pdf" ? (
+                        <img src={url} alt={photo.caption || "Job photo"} className="aspect-square object-cover w-full" />
+                      ) : (
+                        <a href={url ?? undefined} target="_blank" rel="noreferrer" className="aspect-square flex items-center justify-center bg-muted text-xs text-muted-foreground">
+                          {photo.caption || "View file"}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

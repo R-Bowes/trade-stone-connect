@@ -220,7 +220,13 @@ export default function JobPhotosTab({
     setUploading(true);
 
     const ext = selectedFile.name.split(".").pop() ?? "bin";
-    const path = `${jobId}/${Date.now()}.${ext}`;
+    // storage.objects' upload/delete RLS requires the path's first folder
+    // segment to be the uploader's own auth.uid() — contractorProfileId is
+    // that value (profiles.id == profiles.user_id == auth.uid() by
+    // construction). A path of just `${jobId}/...` was silently rejected
+    // by RLS before ever reaching the DB insert this file's photo_url bug
+    // masked as the whole story.
+    const path = `${contractorProfileId}/${jobId}/${Date.now()}.${ext}`;
     const fileType: FileType =
       selectedFile.type === "application/pdf" ? "pdf" : "image";
 

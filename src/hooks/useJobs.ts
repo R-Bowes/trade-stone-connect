@@ -35,19 +35,26 @@ export interface JobNote {
 export interface JobPhoto {
   id: string;
   job_id: string;
-  photo_url: string;
-  title: string | null;
-  description: string | null;
+  photo_url: string | null;
+  storage_path: string | null;
+  caption: string | null;
+  tags: string[];
+  visibility: "internal" | "customer";
+  file_type: "image" | "pdf";
+  portfolio: boolean;
   uploaded_by: string;
+  uploaded_by_role: "contractor" | "customer";
   created_at: string;
 }
 
+// Shape of a job_assignments row (see useJobTeam) — team_member_id is
+// nullable there since a row can represent the contractor themself.
 export interface JobTeamMember {
   id: string;
   job_id: string;
-  team_member_id: string;
-  role: string;
-  assigned_at: string;
+  team_member_id: string | null;
+  is_contractor: boolean;
+  created_at: string;
 }
 
 export interface JobReview {
@@ -173,12 +180,22 @@ export function useJobPhotos(jobId: string | null) {
   const loadPhotos = async () => {
     if (!jobId) return;
     setLoading(true);
+    // RLS ("Clients can view job photos") already restricts this to
+    // visibility='customer' rows for the client's own job — nothing to
+    // filter client-side.
     const { data, error } = await supabase
       .from("job_photos")
       .select("*")
       .eq("job_id", jobId)
       .order("created_at", { ascending: true });
-    if (!error) setPhotos((data || []) as JobPhoto[]);
+    if (!error) {
+      setPhotos(
+        (data || []).map((row: any) => ({
+          ...row,
+          tags: Array.isArray(row.tags) ? row.tags : [],
+        })) as JobPhoto[],
+      );
+    }
     setLoading(false);
   };
 
@@ -186,14 +203,17 @@ export function useJobPhotos(jobId: string | null) {
     loadPhotos();
   }, [jobId]);
 
-  const uploadPhoto = async (file: File, title?: string) => {
+  // No upload UI exists on the client side today (ClientJobDetail's
+  // Photos tab is read-only) — kept for API completeness, fixed to match
+  // JobPhotosTab.tsx's real column shape rather than the old photo_url-
+  // only insert that could never have worked against this table.
+  const uploadPhoto = async (file: File, caption?: string) => {
     if (!jobId) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const fileId = crypto.randomUUID();
-    const ext = file.name.split(".").pop();
-    const filePath = `${user.id}/${jobId}/${fileId}.${ext}`;
+    const ext = file.name.split(".").pop() ?? "bin";
+    const filePath = `${user.id}/${jobId}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("job-photos")
@@ -203,12 +223,17 @@ export function useJobPhotos(jobId: string | null) {
       return;
     }
 
-    const { data: { publicUrl } } = supabase.storage.from("job-photos").getPublicUrl(filePath);
-
-    const { error } = await supabase
-      .from("job_photos")
-      .insert({ job_id: jobId, photo_url: publicUrl, title: title || null, uploaded_by: user.id });
+    const { error } = await supabase.from("job_photos").insert({
+      job_id: jobId,
+      storage_path: filePath,
+      caption: caption || null,
+      uploaded_by: user.id,
+      uploaded_by_role: "customer",
+      visibility: "customer",
+      file_type: file.type === "application/pdf" ? "pdf" : "image",
+    });
     if (error) {
+      await supabase.storage.from("job-photos").remove([filePath]);
       toast({ title: "Error", description: "Failed to save photo", variant: "destructive" });
     } else {
       loadPhotos();
@@ -216,11 +241,8 @@ export function useJobPhotos(jobId: string | null) {
   };
 
   const deletePhoto = async (photo: JobPhoto) => {
-    // Try to extract path and remove from storage
-    const urlParts = photo.photo_url.split("/job-photos/");
-    const storagePath = urlParts[urlParts.length - 1]?.split("?")[0];
-    if (storagePath) {
-      await supabase.storage.from("job-photos").remove([storagePath]);
+    if (photo.storage_path) {
+      await supabase.storage.from("job-photos").remove([photo.storage_path]);
     }
     const { error } = await supabase.from("job_photos").delete().eq("id", photo.id);
     if (!error) setPhotos(prev => prev.filter(p => p.id !== photo.id));
@@ -229,6 +251,13 @@ export function useJobPhotos(jobId: string | null) {
   return { photos, loading, uploadPhoto, deletePhoto, loadPhotos };
 }
 
+// job_team_members is deprecated-pending-drop (never had a writer anywhere
+// in the app — see 20260719100000_job_photos_shape_and_visibility_rls.sql).
+// The contractor's actual worker-assignment UI (JobManagement.tsx's
+// Workers section, toggleAssignment) writes job_assignments; this hook now
+// reads that table instead so the client's Team tab shows real data
+// rather than a table nothing ever populated. Read-only repoint — no
+// dual-write, and no assignment UI exists on the client side.
 export function useJobTeam(jobId: string | null) {
   const [teamMembers, setTeamMembers] = useState<(JobTeamMember & { full_name?: string; role_title?: string })[]>([]);
   const [loading, setLoading] = useState(false);
