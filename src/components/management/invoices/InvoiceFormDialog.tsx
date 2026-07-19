@@ -22,6 +22,12 @@ export type InvoiceFormInitialData = {
   contractorId?: string;
   clientId?: string;
   quoteId?: string | null;
+  /** deposit_required on the origin quote — drives the unpaid-deposit banner. */
+  depositRequired?: boolean;
+  /** deposit_paid on the origin quote — a paid deposit is already reflected as a deduction line in `items`. */
+  depositPaid?: boolean;
+  /** The amount already deducted as a line item, carried onto the invoice row for structured reference (invoices.deposit_deducted). */
+  depositAmount?: number | null;
 };
 
 type InvoiceFormDialogProps = {
@@ -43,6 +49,9 @@ type InvoiceFormDialogProps = {
     total: number;
     notes?: string;
     status: string;
+    deposit_amount?: number | null;
+    deposit_deducted?: number | null;
+    deposit_paid?: boolean;
   }) => Promise<void>;
   invoice?: Invoice | null;
   initialData?: InvoiceFormInitialData | null;
@@ -174,6 +183,9 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
         total,
         notes: notes || undefined,
         status: asDraft ? "draft" : "sent",
+        deposit_amount: initialData?.depositAmount ?? null,
+        deposit_deducted: initialData?.depositPaid ? initialData?.depositAmount ?? null : null,
+        deposit_paid: initialData?.depositPaid,
       });
       onClose();
     } catch (e) {
@@ -190,6 +202,17 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
             {invoice ? "Update the invoice details below." : "Fill in the details to create a new invoice."}
           </DialogDescription>
         </DialogHeader>
+
+        {initialData?.depositRequired && !initialData?.depositPaid && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">Deposit was required but is unpaid</p>
+            <p className="text-amber-800">
+              This job's quote required a deposit that was never collected. This invoice includes the full
+              amount with no deduction — check with the client before sending, or add a deduction line
+              yourself if a partial payment was taken outside the platform.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Client Info */}

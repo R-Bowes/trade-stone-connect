@@ -650,7 +650,7 @@ export function JobManagement() {
 
     const { data: quote } = await supabase
       .from("issued_quotes")
-      .select("id, client_name, client_email, client_phone, client_address, items")
+      .select("id, client_name, client_email, client_phone, client_address, items, deposit_required, deposit_amount, deposit_paid, quote_number, version")
       .eq("id", fullJob.issued_quote_id)
       .maybeSingle();
 
@@ -661,6 +661,25 @@ export function JobManagement() {
       unit_price: Number(item.unit_price ?? 0),
       total: Number(item.total ?? Number(item.quantity ?? 1) * Number(item.unit_price ?? 0)),
     }));
+
+    // A paid deposit was already collected at quote acceptance — without
+    // this, the generated invoice double-bills the client for it. Encoded
+    // as a regular (negative) line item so it flows through the existing
+    // subtotal/total math and every renderer that iterates `items` (PDF,
+    // client-facing invoice view) automatically shows it — no separate
+    // display-layer change needed.
+    const depositAmount = Number(quote?.deposit_amount ?? 0);
+    const depositPaid = !!quote?.deposit_paid;
+    const depositRequired = !!quote?.deposit_required;
+    const depositItems: InvoiceItem[] =
+      depositPaid && depositAmount > 0
+        ? [{
+            description: `Less deposit paid — ${quote?.quote_number != null ? formatQuoteRef(quote.quote_number, { version: quote.version ?? undefined }) : "quote"}`,
+            quantity: 1,
+            unit_price: -depositAmount,
+            total: -depositAmount,
+          }]
+        : [];
 
     const { data: expenses } = await supabase
       .from("expenses" as any)
@@ -718,12 +737,15 @@ export function JobManagement() {
       client_phone: quote?.client_phone || "",
       client_address: quote?.client_address || "",
       notes: `Generated from completed job: ${job.title}`,
-      items: [...quoteItems, ...expenseItems, ...labourItems],
+      items: [...quoteItems, ...expenseItems, ...labourItems, ...depositItems],
       defaultDueDate: dueDate.toISOString().slice(0, 10),
       defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
       contractorId: fullJob.contractor_id,
       clientId: fullJob.customer_id,
       quoteId: fullJob.issued_quote_id,
+      depositRequired,
+      depositPaid,
+      depositAmount: depositPaid ? depositAmount : null,
     });
     setInvoiceDialogOpen(true);
   };
