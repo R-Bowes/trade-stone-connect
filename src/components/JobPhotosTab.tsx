@@ -65,6 +65,26 @@ const ACCEPTED_TYPES = [
   "application/pdf",
 ];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_BATCH = 10;
+
+// iOS reports HEIC inconsistently — sometimes "image/heic"/"image/heif",
+// sometimes a blank type when the file arrives via the Files app rather
+// than the native Photos picker (accept=".jpg,.jpeg,..." doesn't reliably
+// trigger the picker's own JPEG handoff the way accept="image/*" does).
+// Checking the extension too catches the case a browser mis-reports.
+function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+  return type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const heic2any = (await import("heic2any")).default;
+  const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
+  const blob = Array.isArray(result) ? result[0] : result;
+  const stem = file.name.replace(/\.[^./]+$/, "");
+  return new File([blob], `${stem}.jpg`, { type: "image/jpeg" });
+}
 
 function ApprovalBadge({ status }: { status: ApprovalStatus }) {
   if (status === "not_requested") return null;
@@ -114,12 +134,13 @@ export default function JobPhotosTab({
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<Visibility>("internal");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -171,31 +192,47 @@ export default function JobPhotosTab({
     ? photos.filter((p) => p.tags.includes(activeTag))
     : photos;
 
-  const handleFileSelect = (file: File) => {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
+  const handleFilesSelect = (fileList: FileList) => {
+    let files = Array.from(fileList);
+
+    if (files.length > MAX_BATCH) {
       toast({
-        title: "Invalid file type",
-        description: "Only JPG, PNG, WEBP, and PDF files are allowed.",
+        title: "Too many files",
+        description: `You can upload up to ${MAX_BATCH} at once — only the first ${MAX_BATCH} were kept.`,
         variant: "destructive",
       });
-      return;
+      files = files.slice(0, MAX_BATCH);
     }
-    if (file.size > MAX_SIZE_BYTES) {
+
+    const valid: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      if (!isHeic(file) && !ACCEPTED_TYPES.includes(file.type)) {
+        rejected.push(`${file.name} (unsupported type)`);
+        continue;
+      }
+      if (file.size > MAX_SIZE_BYTES) {
+        rejected.push(`${file.name} (over 10 MB)`);
+        continue;
+      }
+      valid.push(file);
+    }
+
+    if (rejected.length > 0) {
       toast({
-        title: "File too large",
-        description: "Maximum file size is 10 MB.",
+        title: rejected.length === files.length ? "No files added" : "Some files were skipped",
+        description: rejected.join(", "),
         variant: "destructive",
       });
-      return;
     }
-    setSelectedFile(file);
+
+    setSelectedFiles(valid);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file);
+    if (e.dataTransfer.files.length > 0) handleFilesSelect(e.dataTransfer.files);
   };
 
   const addTag = () => {
@@ -208,72 +245,85 @@ export default function JobPhotosTab({
     setTags((prev) => prev.filter((x) => x !== t));
 
   const resetUploadForm = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setCaption("");
     setTags([]);
     setTagInput("");
     setVisibility("internal");
+    setUploadProgress(null);
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-    setUploading(true);
+  const uploadOne = async (fileIn: File, index: number) => {
+    let file = fileIn;
+    if (isHeic(file)) {
+      file = await convertHeicToJpeg(file);
+    }
 
-    const ext = selectedFile.name.split(".").pop() ?? "bin";
+    const ext = file.name.split(".").pop() ?? "bin";
     // storage.objects' upload/delete RLS requires the path's first folder
     // segment to be the uploader's own auth.uid() — contractorProfileId is
     // that value (profiles.id == profiles.user_id == auth.uid() by
     // construction). A path of just `${jobId}/...` was silently rejected
     // by RLS before ever reaching the DB insert this file's photo_url bug
-    // masked as the whole story.
-    const path = `${contractorProfileId}/${jobId}/${Date.now()}.${ext}`;
-    const fileType: FileType =
-      selectedFile.type === "application/pdf" ? "pdf" : "image";
+    // masked as the whole story. `-${index}` keeps paths unique within a
+    // batch even if two uploads land in the same millisecond.
+    const path = `${contractorProfileId}/${jobId}/${Date.now()}-${index}.${ext}`;
+    const fileType: FileType = file.type === "application/pdf" ? "pdf" : "image";
 
-    const { error: storageError } = await supabase.storage
-      .from("job-photos")
-      .upload(path, selectedFile);
+    const { error: storageError } = await supabase.storage.from("job-photos").upload(path, file);
+    if (storageError) throw new Error(storageError.message);
 
-    if (storageError) {
-      toast({
-        title: "Upload failed",
-        description: storageError.message,
-        variant: "destructive",
-      });
-      setUploading(false);
-      return;
-    }
-
-    const { error: dbError } = await (supabase as any)
-      .from("job_photos")
-      .insert({
-        job_id: jobId,
-        uploaded_by: contractorProfileId,
-        uploaded_by_role: "contractor",
-        storage_path: path,
-        caption: caption.trim() || null,
-        tags,
-        visibility,
-        file_type: fileType,
-        portfolio: false,
-        photo_approval_status: "not_requested",
-      });
+    const { error: dbError } = await (supabase as any).from("job_photos").insert({
+      job_id: jobId,
+      uploaded_by: contractorProfileId,
+      uploaded_by_role: "contractor",
+      storage_path: path,
+      caption: caption.trim() || null,
+      tags,
+      visibility,
+      file_type: fileType,
+      portfolio: false,
+      photo_approval_status: "not_requested",
+    });
 
     if (dbError) {
       await supabase.storage.from("job-photos").remove([path]);
-      toast({
-        title: "Save failed",
-        description: dbError.message,
-        variant: "destructive",
-      });
-      setUploading(false);
-      return;
+      throw new Error(dbError.message);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) return;
+    setUploading(true);
+
+    let succeeded = 0;
+    const failures: string[] = [];
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      setUploadProgress({ current: i + 1, total: selectedFiles.length });
+      try {
+        await uploadOne(selectedFiles[i], i);
+        succeeded++;
+      } catch (err) {
+        failures.push(`${selectedFiles[i].name}: ${err instanceof Error ? err.message : "unknown error"}`);
+      }
     }
 
-    toast({ title: "Photo uploaded" });
-    setUploadOpen(false);
-    resetUploadForm();
-    await loadPhotos();
+    setUploadProgress(null);
+
+    if (succeeded > 0) {
+      toast({
+        title: `${succeeded} photo${succeeded !== 1 ? "s" : ""} uploaded`,
+        description: failures.length > 0 ? `${failures.length} failed — ${failures.join("; ")}` : undefined,
+        variant: failures.length > 0 ? "destructive" : undefined,
+      });
+      setUploadOpen(false);
+      resetUploadForm();
+      await loadPhotos();
+    } else {
+      toast({ title: "Upload failed", description: failures.join("; "), variant: "destructive" });
+    }
+
     setUploading(false);
   };
 
@@ -642,23 +692,27 @@ export default function JobPhotosTab({
               }`}
             >
               <Upload className="h-7 w-7 mb-2 text-muted-foreground" />
-              {selectedFile ? (
-                <div className="space-y-1">
+              {selectedFiles.length > 0 ? (
+                <div className="space-y-1.5 w-full px-4">
                   <p className="text-sm font-medium text-foreground">
-                    {selectedFile.name}
+                    {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""} selected
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
+                  <ul className="max-h-24 overflow-y-auto text-left space-y-0.5">
+                    {selectedFiles.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="text-xs text-muted-foreground truncate">
+                        {f.name} · {(f.size / 1024 / 1024).toFixed(2)} MB
+                      </li>
+                    ))}
+                  </ul>
                   <button
                     type="button"
                     className="text-xs text-muted-foreground underline hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedFile(null);
+                      setSelectedFiles([]);
                     }}
                   >
-                    Remove
+                    Clear selection
                   </button>
                 </div>
               ) : (
@@ -667,18 +721,18 @@ export default function JobPhotosTab({
                     Drag and drop or click to select
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    JPG, PNG, WEBP, PDF — max 10 MB
+                    Photos (HEIC converted automatically) or PDF — up to {MAX_BATCH} files, max 10 MB each
                   </p>
                 </>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFileSelect(f);
+                  if (e.target.files && e.target.files.length > 0) handleFilesSelect(e.target.files);
                   e.target.value = "";
                 }}
               />
@@ -782,17 +836,17 @@ export default function JobPhotosTab({
 
             <Button
               className="w-full hover:opacity-90 transition-opacity"
-              disabled={!selectedFile || uploading}
+              disabled={selectedFiles.length === 0 || uploading}
               onClick={handleUpload}
               style={{ backgroundColor: "#f07820", color: "#fff" }}
             >
               {uploading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Uploading...
+                  {uploadProgress ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}…` : "Uploading..."}
                 </>
               ) : (
-                "Upload"
+                `Upload${selectedFiles.length > 1 ? ` ${selectedFiles.length} photos` : ""}`
               )}
             </Button>
           </div>

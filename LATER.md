@@ -716,7 +716,18 @@ Deposit itself carries no platform fee.
   on the contractor's profile, which a blanket-private bucket would
   break. See `20260719100000_job_photos_shape_and_visibility_rls.sql`'s
   header comment for the full reasoning.
-- **`job_checklist_items`/`job_checklist_templates` — decision still
+- **Consolidate job_photos RLS.** Live `pg_policies` shows 5 policies on
+  `job_photos`, confirmed 2026-07-19 while diagnosing the HEIC upload
+  bug: the new visibility-scoped client read policy from
+  `20260719100000_job_photos_shape_and_visibility_rls.sql` sits alongside
+  a pre-existing near-duplicate client read policy ("Customers can view
+  approved photos on their jobs"), an approve-portfolio policy, and a
+  null-qual customer INSERT policy, plus the contractor's own full-access
+  policy. All OR together with no exposure gap found, but five
+  overlapping policies on one table (two of which do near-identical
+  client-read jobs) is confusing to reason about and easy to get wrong
+  next time someone touches this table. Tidy into one clear set in a
+  dedicated migration — not done here, this pass didn't touch any policy.
   needed**, confirmed still true as of the job-execution build phase
   (2026-07-19): zero UI on either side, deliberately left unbuilt rather
   than wired up half-heartedly. Already tracked in the Dormant schema
