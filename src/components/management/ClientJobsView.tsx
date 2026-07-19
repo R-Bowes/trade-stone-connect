@@ -20,18 +20,28 @@ import {
   MapPin,
   FileText,
   Star,
-  ShieldCheck
+  ShieldCheck,
+  Calendar,
+  Wrench,
 } from "lucide-react";
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, type Job } from "@/hooks/useJobs";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
+import { JobStageStrip } from "@/components/JobStageStrip";
 import { Compass } from "lucide-react";
 
+// scheduled/snagging were missing entirely — both silently fell through to
+// not_started (statusConfig[job.status] || statusConfig.not_started below),
+// showing "Not Started" for a job that's actually nearly done and in
+// snagging. That fallback stays as a genuine last-resort default; with
+// these two added it should now be unreachable for any real job status.
 const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
+  scheduled: { label: "Scheduled", icon: Calendar, color: "bg-slate-100 text-slate-800" },
   not_started: { label: "Not Started", icon: Clock, color: "bg-muted text-muted-foreground" },
   in_progress: { label: "In Progress", icon: PlayCircle, color: "bg-blue-100 text-blue-800" },
+  snagging: { label: "Final Checks", icon: Wrench, color: "bg-amber-100 text-amber-800" },
   complete: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
   completed: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
 };
@@ -199,7 +209,10 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {(job.status === "scheduled" || job.status === "in_progress" || job.status === "snagging" || job.status === "complete") && (
+            <JobStageStrip status={job.status} signedOff={!!job.signed_off_by} />
+          )}
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             {job.location && <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{job.location}</span>}
             {job.contract_value > 0 && <span className="flex items-center gap-1"><FileText className="h-4 w-4" />£{Number(job.contract_value).toFixed(2)}</span>}

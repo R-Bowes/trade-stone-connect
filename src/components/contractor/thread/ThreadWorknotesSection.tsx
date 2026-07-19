@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Loader2, Lock, Pencil, Plus, Trash2, X, Check } from "lucide-react";
+import { Loader2, Lock, Pencil, Plus, Trash2, X, Check, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useEngagementNotes } from "@/hooks/useEngagementNotes";
+import { useJobNotes } from "@/hooks/useJobs";
 
 interface ThreadWorknotesSectionProps {
   enquiryId?: string | null;
@@ -12,8 +13,18 @@ interface ThreadWorknotesSectionProps {
   jobId?: string | null;
 }
 
+/**
+ * B6: engagement_notes (below) is the contractor's own private scratch
+ * notes, never visible to the client — a genuinely different table and
+ * purpose from job_notes (client-authored, e.g. via ClientJobsView's
+ * Notes tab), not a duplicate of it. This section shows both: the private
+ * worknotes editor, plus a read-only list of the client's own job_notes
+ * underneath, clearly separated and labelled, so the contractor doesn't
+ * have to leave the thread to see what the client wrote.
+ */
 export function ThreadWorknotesSection({ enquiryId, quoteId, jobId }: ThreadWorknotesSectionProps) {
   const { notes, loading, addNote, updateNote, deleteNote } = useEngagementNotes({ enquiryId, quoteId, jobId });
+  const { notes: clientNotes, loading: clientNotesLoading } = useJobNotes(jobId ?? null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -124,6 +135,31 @@ export function ThreadWorknotesSection({ enquiryId, quoteId, jobId }: ThreadWork
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {jobId && (
+        <div className="space-y-2 pt-2 border-t">
+          <div className="flex items-center gap-2">
+            <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client notes</h4>
+          </div>
+          {clientNotesLoading ? (
+            <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+          ) : clientNotes.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-1">The client hasn't left any notes on this job.</p>
+          ) : (
+            <div className="space-y-2">
+              {clientNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                  <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                  <span className="text-[10px] text-muted-foreground">
+                    {format(new Date(note.created_at), "d MMM yyyy, HH:mm")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

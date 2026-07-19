@@ -266,7 +266,7 @@ export function useJobTeam(jobId: string | null) {
     if (!jobId) return;
     setLoading(true);
     const { data, error } = await supabase
-      .from("job_team_members")
+      .from("job_assignments")
       .select("*, team_members(full_name, role)")
       .eq("job_id", jobId);
     if (!error) {
@@ -283,24 +283,7 @@ export function useJobTeam(jobId: string | null) {
     loadTeam();
   }, [jobId]);
 
-  const assignMember = async (teamMemberId: string, role?: string) => {
-    if (!jobId) return;
-    const { error } = await supabase
-      .from("job_team_members")
-      .insert({ job_id: jobId, team_member_id: teamMemberId, role: role || "worker" });
-    if (!error) loadTeam();
-    return error;
-  };
-
-  const removeMember = async (id: string) => {
-    const { error } = await supabase
-      .from("job_team_members")
-      .delete()
-      .eq("id", id);
-    if (!error) setTeamMembers(prev => prev.filter(t => t.id !== id));
-  };
-
-  return { teamMembers, loading, assignMember, removeMember, loadTeam };
+  return { teamMembers, loading, loadTeam };
 }
 
 export function useJobReview(jobId: string | null) {
