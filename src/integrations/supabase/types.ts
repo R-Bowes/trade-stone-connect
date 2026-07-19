@@ -2347,7 +2347,7 @@ export type Database = {
           photo_approval_requested_at: string | null
           photo_approval_responded_at: string | null
           photo_approval_status: string
-          photo_url: string
+          photo_url: string | null
           portfolio: boolean
           stage_id: string | null
           storage_path: string | null
@@ -2368,7 +2368,7 @@ export type Database = {
           photo_approval_requested_at?: string | null
           photo_approval_responded_at?: string | null
           photo_approval_status?: string
-          photo_url: string
+          photo_url?: string | null
           portfolio?: boolean
           stage_id?: string | null
           storage_path?: string | null
@@ -2389,7 +2389,7 @@ export type Database = {
           photo_approval_requested_at?: string | null
           photo_approval_responded_at?: string | null
           photo_approval_status?: string
-          photo_url?: string
+          photo_url?: string | null
           portfolio?: boolean
           stage_id?: string | null
           storage_path?: string | null
