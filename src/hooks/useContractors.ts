@@ -46,10 +46,14 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
   return useQuery({
     queryKey: ["contractors", normalizedSearchTerm, trade, normalizedLocation],
     queryFn: async () => {
+      // Belt and braces — the view (public_pro_profiles) already restricts to
+      // published contractors for anyone but the row's own owner; this
+      // client-side filter is defence in depth, not the access gate itself.
       let query = supabase
         .from("public_pro_profiles")
         .select(CONTRACTOR_SELECT)
-        .eq("user_type", "contractor");
+        .eq("user_type", "contractor")
+        .eq("profile_is_published", true);
 
       if (normalizedLocation.length > 0) {
         const sanitizedLocation = escapeILIKE(normalizedLocation.slice(0, 100));
@@ -85,6 +89,7 @@ export const useContractorByCode = (code: string) => {
         .select(CONTRACTOR_SELECT)
         .eq("ts_profile_code", code)
         .eq("user_type", "contractor")
+        .eq("profile_is_published", true)
         .maybeSingle();
 
       if (error) throw error;

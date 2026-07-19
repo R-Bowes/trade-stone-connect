@@ -39,7 +39,7 @@ const Dashboard = () => {
       // Get user profile to determine type
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("user_type")
+        .select("user_type, onboarding_completed")
         .eq("user_id", user.id)
         .single();
 
@@ -55,7 +55,15 @@ const Dashboard = () => {
       // Redirect based on user type
       switch (userType) {
         case "contractor":
-          navigate(`/dashboard/contractor${window.location.search}`, { replace: true });
+          // Also the landing point for a just-confirmed signup — a
+          // contractor who hasn't finished the initial profile wizard
+          // continues straight into it instead of hitting a dashboard
+          // that assumes trades/location/etc already exist.
+          if (!profile?.onboarding_completed) {
+            navigate("/onboarding/contractor", { replace: true });
+          } else {
+            navigate(`/dashboard/contractor${window.location.search}`, { replace: true });
+          }
           break;
         case "business":
           navigate(`/dashboard/business${window.location.search}`, { replace: true });

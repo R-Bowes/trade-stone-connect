@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { ForgotPasswordDialog } from "@/components/ui/ForgotPasswordDialog";
+import { Loader2, Mail } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -34,9 +35,11 @@ const Auth = () => {
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [signupComplete, setSignupComplete] = useState<{ email: string; isContractor: boolean } | null>(null);
+  const [resending, setResending] = useState(false);
 
   const captchaSiteKey = import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY ?? "";
-  const captchaEnabled = false;
+  const captchaEnabled = true;
 
   const returnToParam = new URLSearchParams(location.search).get("returnTo");
   const safeReturnTo = returnToParam && returnToParam.startsWith("/") ? returnToParam : null;
@@ -152,11 +155,15 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Confirm-email is required (verified live) — signUp() returns no
+      // active session until the link is clicked, so there is nothing to
+      // navigate into yet. The confirmation link redirects to /dashboard,
+      // which resolves role + (for a contractor) onboarding status itself.
       const { error } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             full_name: fullName,
             user_type: userType,
@@ -172,15 +179,7 @@ const Auth = () => {
           description: error.message,
         });
       } else {
-        toast({
-          title: "Account created!",
-          description: userType === "contractor"
-            ? "Welcome! Let's set up your contractor profile."
-            : "Please check your email to verify your account.",
-        });
-        if (userType === "contractor") {
-          navigate(safeReturnTo ?? "/onboarding/contractor");
-        }
+        setSignupComplete({ email: signupEmail, isContractor: userType === "contractor" });
       }
     } catch {
       toast({
@@ -192,6 +191,22 @@ const Auth = () => {
       if (shouldValidateSignupCaptcha) resetCaptcha();
       setLoading(false);
     }
+  };
+
+  const handleResend = async () => {
+    if (!signupComplete) return;
+    setResending(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: signupComplete.email,
+      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+    });
+    if (error) {
+      toast({ variant: "destructive", title: "Could not resend", description: error.message });
+    } else {
+      toast({ title: "Email sent", description: "Check your inbox for the confirmation link." });
+    }
+    setResending(false);
   };
 
   const handleQuickLogin = async (
@@ -277,6 +292,39 @@ const Auth = () => {
             <p className="text-muted-foreground text-center">Sign in or create your account</p>
           </div>
 
+          {signupComplete ? (
+            <Card>
+              <CardHeader className="items-center text-center">
+                <Mail className="h-10 w-10 text-primary mb-2" />
+                <CardTitle>Check your email</CardTitle>
+                <CardDescription>
+                  We've sent a confirmation link to <strong>{signupComplete.email}</strong>.{" "}
+                  {signupComplete.isContractor
+                    ? "Click it to verify your account — you'll continue straight into setting up your contractor profile."
+                    : "Click it to verify your account, then sign in."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResend}
+                  disabled={resending}
+                >
+                  {resending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Resend confirmation email
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => { setSignupComplete(null); setActiveTab("login"); }}
+                >
+                  Back to sign in
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           {import.meta.env.DEV && (
             <Card className="mb-6">
               <CardHeader>
@@ -479,6 +527,8 @@ const Auth = () => {
               </Card>
             </TabsContent>
           </Tabs>
+            </>
+          )}
         </div>
       </div>
     </div>
