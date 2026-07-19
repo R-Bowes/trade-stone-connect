@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { addDays, format, startOfWeek } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,8 +28,12 @@ const STEP = 0.5;
 const toISODate = (date: Date) => format(date, "yyyy-MM-dd");
 
 export function TimesheetManagement() {
+  const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState<JobOption[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<string>("");
+  // ?jobId= preselect — used by JobManagement's "Log time →" link. Falls
+  // back to the first loaded job below (loadJobs) if the id doesn't match
+  // one this contractor/worker actually has.
+  const [selectedJobId, setSelectedJobId] = useState<string>(() => searchParams.get("jobId") ?? "");
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [workers, setWorkers] = useState<WorkerRow[]>([]);
   const [cellsByKey, setCellsByKey] = useState<Record<string, TimesheetCell>>({});

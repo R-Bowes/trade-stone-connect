@@ -7,7 +7,7 @@ import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -217,6 +217,7 @@ export function JobManagement() {
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const loadJobs = async () => {
     setLoading(true);
@@ -368,6 +369,18 @@ export function JobManagement() {
   };
 
   useEffect(() => { loadJobs(); }, []);
+
+  // Deep-link support: ?view=jobs&jobId=... — used by ThreadJobSection's
+  // "Snags & photos" button (and the origin thread's job card generally)
+  // to land straight on this job's detail modal instead of the flat list.
+  // Mirrors BusinessJobsView.tsx's existing ?jobId= pattern.
+  useEffect(() => {
+    const jobId = searchParams.get("jobId");
+    if (jobId && jobs.length) {
+      const match = jobs.find((j) => j.id === jobId);
+      if (match) setSelectedJobId(match.id);
+    }
+  }, [searchParams, jobs]);
 
   useEffect(() => {
     if (!selectedJobId) return;
@@ -882,6 +895,13 @@ export function JobManagement() {
                       <div>
                         <div className="text-xs text-muted-foreground">Hours logged</div>
                         <div className="font-medium">{totalHours === 0 ? "0h" : formatHours(totalHours)}</div>
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:underline hover:text-foreground"
+                          onClick={() => navigate(`/dashboard/contractor?view=timesheets&jobId=${selectedJob.id}`)}
+                        >
+                          Log time →
+                        </button>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Origin</div>

@@ -697,6 +697,31 @@ Deposit itself carries no platform fee.
   `IssuedQuote` types don't carry `valid_until` through to their
   `toQuoteState()` calls yet. Same fix shape as `ReceivedQuotes.tsx`, just
   needs `valid_until` added to those two types' select queries.
+- **Client-side snag visibility — deliberately out of scope for the
+  job-execution build phase (2026-07-19).** `job_snag_items` remains
+  contractor-only: no client read UI, no RLS SELECT policy for the
+  client. Phase A flagged this as a one-party surface, not a defect;
+  worth a product decision (should a client see open snags on their own
+  job, or is that noise?) before building it, not a default yes.
+- **job_photos true storage-level privacy.** The job-execution build
+  phase (B1) made `visibility` meaningful at the row/metadata layer
+  (client queries only return `visibility='customer'` rows via RLS), but
+  the `job-photos` storage bucket itself is public — anyone with a
+  photo's storage_path can fetch the raw file directly regardless of the
+  visibility column, since there's no per-object ACL. Making the bucket
+  genuinely private (flip to `public: false`, add storage-level RLS,
+  switch to signed URLs everywhere) needs the portfolio/photo_approval_
+  status feature audited first — `job_photos.portfolio` + its approval
+  workflow strongly implies approved photos are meant to be public-facing
+  on the contractor's profile, which a blanket-private bucket would
+  break. See `20260719100000_job_photos_shape_and_visibility_rls.sql`'s
+  header comment for the full reasoning.
+- **`job_checklist_items`/`job_checklist_templates` — decision still
+  needed**, confirmed still true as of the job-execution build phase
+  (2026-07-19): zero UI on either side, deliberately left unbuilt rather
+  than wired up half-heartedly. Already tracked in the Dormant schema
+  roster below — decide adopt-or-drop when checklists actually get
+  designed, don't build a stub UI against it in the meantime.
 
 ## Dormant schema roster
 
@@ -721,6 +746,14 @@ don't leave them as silent dead weight indefinitely.
 - `enquiry_measurements` — ties to the "Enriched enquiry" LATER item above
   (homeowner-submitted dimensions) — may already be the intended home for
   that, check before adding a new table when that feature gets built.
+- `job_team_members` — deprecated-pending-drop as of the job-execution
+  build phase (2026-07-19): never had a writer anywhere in the app (the
+  contractor's real worker-assignment UI, JobManagement.tsx's Workers
+  section, writes `job_assignments` instead). The client Team tab
+  (`useJobTeam`) now reads `job_assignments` joined to `team_members`
+  instead of this table — see
+  `20260719100000_job_photos_shape_and_visibility_rls.sql`'s trailer
+  comment. Safe to drop once confirmed nothing else references it.
 
 ## Tendering — deferred (from TENDERING-SCHEMA.md, chunks 1-7 built 2026-07-10 to 2026-07-12)
 

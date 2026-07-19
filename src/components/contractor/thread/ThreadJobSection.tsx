@@ -37,10 +37,14 @@ function fmtMoney(n: number): string {
 }
 
 /**
- * Stepper + sign-off inline; timesheets, snag-item detail, and photos stay
- * in the full Jobs tab for this phase — those are multi-field editing
- * surfaces (worker assignment, hours, checklists) that don't compress into
- * a thread section without becoming their own dialog again.
+ * Stepper + sign-off inline; snag-item detail and photos stay in the full
+ * Jobs tab (JobManagement.tsx) — multi-field editing surfaces that don't
+ * compress into a thread section without becoming their own dialog again.
+ * The button below deep-links straight into this job's own detail modal
+ * there (?view=jobs&jobId=..., mirrors BusinessJobsView's existing
+ * ?jobId= pattern) rather than dropping the contractor on the flat list.
+ * Timesheets live on a separate dashboard tab entirely (?view=timesheets)
+ * — reachable from JobManagement's own "Log time" link, not from here.
  */
 export function ThreadJobSection({
   job,
@@ -164,8 +168,8 @@ export function ThreadJobSection({
             {signOffPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Add your sign-off
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/contractor?view=jobs")}>
-          Timesheets, snags &amp; photos
+        <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard/contractor?view=jobs&jobId=${job.id}`)}>
+          Snags &amp; photos
         </Button>
       </div>
     </div>
