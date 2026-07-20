@@ -716,9 +716,10 @@ Deposit itself carries no platform fee.
   on the contractor's profile, which a blanket-private bucket would
   break. See `20260719100000_job_photos_shape_and_visibility_rls.sql`'s
   header comment for the full reasoning.
-- **Consolidate job_photos RLS.** Live `pg_policies` shows 5 policies on
-  `job_photos`, confirmed 2026-07-19 while diagnosing the HEIC upload
-  bug: the new visibility-scoped client read policy from
+- **Consolidate job_photos RLS (table AND storage.objects).** Live
+  `pg_policies` shows 5 policies on the `job_photos` TABLE, confirmed
+  2026-07-19 while diagnosing the HEIC upload bug: the new visibility-
+  scoped client read policy from
   `20260719100000_job_photos_shape_and_visibility_rls.sql` sits alongside
   a pre-existing near-duplicate client read policy ("Customers can view
   approved photos on their jobs"), an approve-portfolio policy, and a
@@ -728,6 +729,17 @@ Deposit itself carries no platform fee.
   client-read jobs) is confusing to reason about and easy to get wrong
   next time someone touches this table. Tidy into one clear set in a
   dedicated migration — not done here, this pass didn't touch any policy.
+  Separately, on `storage.objects` for bucket `job-photos`: the two
+  over-permissive SELECT policies ("Public can view job photos" /
+  "Authenticated users can view job photos") were replaced with scoped
+  ones in `20260719140000_job_photos_storage_read_policies.sql`, but a
+  **broad INSERT policy remains untouched** — confirmed live 2026-07-19
+  alongside the correctly-scoped own-prefix contractor INSERT policy,
+  it allows any authenticated user to upload into the bucket, not scoped
+  to job ownership. Left alone this pass (that migration only touched
+  SELECT) — fold into the same consolidation migration as the table-RLS
+  cleanup above.
+- **`job_checklist_items`/`job_checklist_templates` — decision still
   needed**, confirmed still true as of the job-execution build phase
   (2026-07-19): zero UI on either side, deliberately left unbuilt rather
   than wired up half-heartedly. Already tracked in the Dormant schema

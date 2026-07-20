@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 
 const PHOTO_BUCKET = "enquiry-photos";
 
@@ -9,28 +8,25 @@ const PHOTO_BUCKET = "enquiry-photos";
  * actually load these images. Click-to-enlarge: each thumbnail opens the
  * full image in a new tab.
  *
+ * KNOWN BROKEN as of 2026-07-19: the `enquiry-photos` bucket does not
+ * exist in the live bucket list, despite a migration
+ * (20260328150000_enquiry_submission_flow.sql) that should have created
+ * it. createSignedUrl() against a nonexistent bucket returns no URL, and
+ * this component's own empty-state (`if (urls.length === 0) return
+ * null`) means every consumer (SendQuoteDialog, ThreadEnquirySection,
+ * JobOriginSection) has always silently rendered nothing, with no visible
+ * error — not just "nothing uploads here" as previously documented, but
+ * "even manually-seeded photo_urls could never have displayed." Flagged
+ * for the upcoming enquiry-upload slice, not fixed here.
+ *
  * No current enquiry-creation flow actually uploads to this bucket
  * (QuoteRequestDialog collects files into local state but never calls
  * storage.upload()) — any photo_urls that render here came from manual
  * seeding/testing or a since-removed upload path, not live submissions.
  */
 export function EnquiryPhotoThumbnails({ paths, label }: { paths: string[]; label?: string }) {
-  const [urls, setUrls] = useState<string[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      paths.map(async (path) => {
-        const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
-        return data?.signedUrl ?? null;
-      }),
-    ).then((resolved) => {
-      if (!cancelled) setUrls(resolved.filter((u): u is string => !!u));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [paths]);
+  const { urls: urlMap } = useSignedPhotoUrls(PHOTO_BUCKET, paths);
+  const urls = paths.map((p) => urlMap[p]).filter((u): u is string => !!u);
 
   if (urls.length === 0) return null;
 

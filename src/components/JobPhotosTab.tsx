@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,6 @@ interface JobPhoto {
   photo_approval_requested_at: string | null;
   photo_approval_responded_at: string | null;
   created_at: string;
-  publicUrl?: string;
 }
 
 const ACCEPTED_TYPES = [
@@ -163,28 +163,27 @@ export default function JobPhotosTab({
       return;
     }
 
-    const withUrls: JobPhoto[] = (data || []).map((row: any) => {
-      let publicUrl: string | undefined;
-      if (row.file_type === "image" && row.storage_path) {
-        const { data: urlData } = supabase.storage
-          .from("job-photos")
-          .getPublicUrl(row.storage_path);
-        publicUrl = urlData.publicUrl;
-      }
-      return {
-        ...row,
-        tags: Array.isArray(row.tags) ? row.tags : [],
-        publicUrl,
-      } as JobPhoto;
-    });
+    const withTags: JobPhoto[] = (data || []).map((row: any) => ({
+      ...row,
+      tags: Array.isArray(row.tags) ? row.tags : [],
+    } as JobPhoto));
 
-    setPhotos(withUrls);
+    setPhotos(withTags);
     setLoading(false);
   };
 
   useEffect(() => {
     loadPhotos();
   }, [jobId]);
+
+  // job-photos is a private bucket — getPublicUrl() constructs a URL that
+  // 400s against it (same reason EnquiryPhotoThumbnails signs). Batch-sign
+  // every visible image's storage_path.
+  const imagePaths = useMemo(
+    () => photos.filter((p) => p.file_type === "image").map((p) => p.storage_path),
+    [photos],
+  );
+  const { urls: signedUrls } = useSignedPhotoUrls("job-photos", imagePaths);
 
   const allTags = Array.from(new Set(photos.flatMap((p) => p.tags)));
 
@@ -525,9 +524,9 @@ export default function JobPhotosTab({
               >
                 {/* Thumbnail */}
                 <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                  {photo.file_type === "image" && photo.publicUrl ? (
+                  {photo.file_type === "image" && signedUrls[photo.storage_path] ? (
                     <img
-                      src={photo.publicUrl}
+                      src={signedUrls[photo.storage_path]}
                       alt={photo.caption ?? "Job photo"}
                       className="w-full h-full object-cover"
                     />

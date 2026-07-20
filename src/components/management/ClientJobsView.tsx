@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, type Job } from "@/hooks/useJobs";
+import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
@@ -116,6 +117,12 @@ export function ClientJobsView() {
 function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const { notes, addNote } = useJobNotes(job.id);
   const { photos } = useJobPhotos(job.id);
+  // job-photos is a private bucket — getPublicUrl() 400s against it.
+  const photoPaths = useMemo(
+    () => photos.map((p) => p.storage_path).filter((p): p is string => !!p),
+    [photos],
+  );
+  const { urls: signedPhotoUrls } = useSignedPhotoUrls("job-photos", photoPaths);
   const { teamMembers } = useJobTeam(job.id);
   const { review, submitReview } = useJobReview(job.id);
   const [newNote, setNewNote] = useState("");
@@ -293,9 +300,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {photos.map((photo) => {
-                  const url = photo.storage_path
-                    ? supabase.storage.from("job-photos").getPublicUrl(photo.storage_path).data.publicUrl
-                    : photo.photo_url;
+                  const url = photo.storage_path ? signedPhotoUrls[photo.storage_path] : photo.photo_url;
                   return (
                     <div key={photo.id} className="rounded-lg overflow-hidden border">
                       {url && photo.file_type !== "pdf" ? (
