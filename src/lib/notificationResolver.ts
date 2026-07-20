@@ -1,33 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, type LucideIcon } from "lucide-react";
 
-/**
- * The one shared reference_type/type -> route + icon resolver. Replaces the
- * three previously-independent copies (NotificationBell's inline handleClick,
- * the Notifications page's own handleClick, and each page's own icon-by-type
- * switch) — all three now call into this module instead of hardcoding routes.
- *
- * View slugs differ by role for the same entity ("issued-quotes" for the
- * contractor, "approvals" for business, "quotes" for the homeowner) so this
- * resolves the viewer's own role first (cached per session) rather than
- * bouncing through the generic /dashboard redirect the way the old bell code
- * did for job/invoice/issued_quote — that redirect trick only worked because
- * those slugs happened to collide across roles for THOSE cases; it silently
- * breaks for anything whose slug diverges (issued_quote/quote did, message did
- * too — the old code hardcoded business only for "message", which was wrong
- * for a contractor or homeowner recipient).
- */
-
 export type ViewerRole = "personal" | "business" | "contractor" | null;
 
 export interface ResolvableNotification {
   type: string;
   reference_type: string | null;
+  reference_id: string | null;
 }
 
 let cachedRole: ViewerRole | undefined;
 
-/** Exposed for callers that already know the role and want to skip the lookup. */
 export function primeViewerRole(role: ViewerRole) {
   cachedRole = role;
 }
@@ -79,20 +62,26 @@ export function notificationIcon(type: string): LucideIcon {
 export async function resolveNotificationRoute(notif: ResolvableNotification): Promise<string> {
   const role = await getViewerRole();
   const base = role === "contractor" ? "/dashboard/contractor" : role === "business" ? "/dashboard/business" : "/dashboard/homeowner";
+  const refId = notif.reference_id;
 
   switch (notif.reference_type) {
     case "enquiry":
-      // Enquiries are contractor-only today — no role ambiguity.
       return "/dashboard/contractor?view=enquiries";
 
     case "issued_quote":
     case "quote":
-      if (role === "contractor") return "/dashboard/contractor?view=issued-quotes";
+      if (role === "contractor") {
+        return refId
+          ? `/dashboard/contractor?view=issued-quotes&quote=${refId}`
+          : "/dashboard/contractor?view=issued-quotes";
+      }
       if (role === "business") return "/dashboard/business?view=approvals";
       return "/dashboard/homeowner?view=quotes";
 
     case "job":
-      return `${base}?view=jobs`;
+      return refId
+        ? `${base}?view=jobs&jobId=${refId}`
+        : `${base}?view=jobs`;
 
     case "invoice":
       return `${base}?view=invoices`;
@@ -106,11 +95,11 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
       return `${base}?view=messages`;
 
     case "term_engagement":
-      return role === "contractor" ? "/dashboard/contractor?view=panel-compliance" : "/dashboard/business?view=tenders";
+      return role === "contractor"
+        ? `/dashboard/contractor?view=panel-compliance`
+        : `/dashboard/business?view=tenders`;
 
     default:
-      // Rows with no reference_type — fall back on type-specific routing,
-      // then the generic role redirect as a last resort.
       if (notif.type === "schedule_proposed" || notif.type === "job_confirmed") {
         return "/dashboard/contractor";
       }
