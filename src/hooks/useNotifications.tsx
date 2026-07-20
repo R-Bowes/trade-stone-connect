@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { wasRecentAction } from "@/lib/recentActions";
-import { resolveNotificationRoute } from "@/lib/notificationResolver";
+import { resolveNotificationRoute, primeViewerRole } from "@/lib/notificationResolver";
+import type { ViewerRole } from "@/lib/notificationResolver";
 
 export interface Notification {
   id: string;
@@ -30,9 +31,14 @@ export function useNotifications() {
 
     const { data: profileRow } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, user_type")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    // Prime the resolver cache so click-time lookups are synchronous
+    if (profileRow?.user_type) {
+      primeViewerRole(profileRow.user_type as ViewerRole);
+    }
 
     const { data, error } = await supabase
       .from("notifications")
@@ -83,10 +89,6 @@ export function useNotifications() {
             const newNotif = payload.new as unknown as Notification;
             setNotifications((prev) => [newNotif, ...prev]);
 
-            // Self-caused: a small number of triggers notify the acting
-            // party too (see src/lib/recentActions.ts) — the row still
-            // lands in the list/badge, but the toast is redundant with the
-            // local toast the acting call site already showed.
             if (wasRecentAction(newNotif.reference_id)) return;
 
             resolveNotificationRoute(newNotif).then((route) => {

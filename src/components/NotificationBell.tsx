@@ -25,11 +25,20 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleClick = async (notif: Notification) => {
+  const handleClick = (notif: Notification) => {
     if (!notif.is_read) markAsRead(notif.id);
-    const route = await resolveNotificationRoute(notif);
-    navigate(route);
     setOpen(false);
+    try {
+      resolveNotificationRoute(notif).then((route) => {
+        navigate(route);
+      }).catch((err) => {
+        console.error("Notification route resolution failed:", err);
+        navigate("/dashboard");
+      });
+    } catch (err) {
+      console.error("Notification click failed:", err);
+      navigate("/dashboard");
+    }
   };
 
   return (
