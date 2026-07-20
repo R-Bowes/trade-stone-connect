@@ -137,10 +137,8 @@ const Header = () => {
     </div>
   );
 
-  // B8: the brand mark takes a logged-in user back to their own dashboard,
-  // not the public marketing homepage — clicking it from inside a dashboard
-  // previously always bounced you out to "/", which reads as "log me out."
-  const homeHref = user && profile
+  // Role-aware base path — used for the home icon, dropdown nav, and brand mark
+  const dashboardPath = user && profile
     ? profile.user_type === "contractor"
       ? "/dashboard/contractor"
       : profile.user_type === "business"
@@ -148,10 +146,22 @@ const Header = () => {
       : "/dashboard/homeowner"
     : "/";
 
+  const profilePath = profile?.user_type === "contractor"
+    ? `${dashboardPath}?view=canvas-editor`
+    : `${dashboardPath}?view=settings`;
+
+  const settingsPath = `${dashboardPath}?view=settings`;
+
+  const dropdownNavItems = [
+    { icon: "ti-layout-dashboard", label: "My dashboard", href: dashboardPath },
+    { icon: "ti-user", label: "My profile", href: profilePath },
+    { icon: "ti-settings", label: "Account settings", href: settingsPath },
+  ];
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-300 bg-white">
       <div className="container flex h-16 items-center justify-between px-4">
-        <Link to={homeHref} className="flex items-center gap-2.5">
+        <Link to={dashboardPath} className="flex items-center gap-2.5">
           <img src={tradestoneLogo} alt="TradeStone logo" className="h-7 w-auto" />
           <span
             className="leading-none uppercase tracking-wide"
@@ -166,24 +176,21 @@ const Header = () => {
           <NavLink to="/marketplace" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Marketplace</NavLink>
           <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Hire</NavLink>
           <NavLink to="/contracts" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Contracts</NavLink>
-          {/* Legacy Lovable Projects flow — hidden pending the new tendering engine UI
-              (TENDERING-SCHEMA.md). Route still live at /projects; re-enable when replaced.
-          <NavLink
-            to="/projects"
-            className={({ isActive }) =>
-              isActive
-                ? "font-semibold text-orange-500"
-                : "hover:text-slate-900"
-            }
-          >
-            Projects
-          </NavLink>
-          */}
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
+              {/* Home / dashboard shortcut icon */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(dashboardPath)}
+                title="Go to dashboard"
+              >
+                <i className="ti ti-home" style={{ fontSize: 18 }} />
+              </Button>
+
               <NotificationBell />
 
               {/* Avatar chip + dropdown */}
@@ -243,12 +250,8 @@ const Header = () => {
                       )}
                     </div>
 
-                    {/* Nav items */}
-                    {[
-                      { icon: "ti-layout-dashboard", label: "My dashboard", href: "/dashboard/contractor" },
-                      { icon: "ti-user", label: "My profile", href: "/dashboard/contractor?view=canvas-editor" },
-                      { icon: "ti-settings", label: "Account settings", href: "/dashboard/contractor?view=settings" },
-                    ].map((item) => (
+                    {/* Nav items — role-aware */}
+                    {dropdownNavItems.map((item) => (
                       <button
                         key={item.label}
                         onClick={() => handleDropdownNav(item.href)}
@@ -326,47 +329,19 @@ const Header = () => {
             <NavLink to="/marketplace" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Marketplace</NavLink>
             <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Hire</NavLink>
             <NavLink to="/contracts" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Contracts</NavLink>
-            {/* Legacy Lovable Projects flow — hidden pending the new tendering engine UI
-                (TENDERING-SCHEMA.md). Route still live at /projects; re-enable when replaced.
-            <NavLink
-              to="/projects"
-              onClick={() => setIsMenuOpen(false)}
-              className={({ isActive }) =>
-                isActive
-                  ? "flex items-center gap-2 font-semibold text-orange-500"
-                  : "flex items-center gap-2"
-              }
-            >
-              <FolderKanban className="h-4 w-4" />
-              Projects
-            </NavLink>
-            */}
             {user ? (
               <>
-                <Link
-                  to="/dashboard/contractor"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-2"
-                >
-                  <i className="ti ti-layout-dashboard" style={{ fontSize: 16 }} />
-                  My dashboard
-                </Link>
-                <Link
-                  to="/dashboard/contractor?view=canvas-editor"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-2"
-                >
-                  <i className="ti ti-user" style={{ fontSize: 16 }} />
-                  My profile
-                </Link>
-                <Link
-                  to="/dashboard/contractor?view=settings"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-2"
-                >
-                  <i className="ti ti-settings" style={{ fontSize: 16 }} />
-                  Account settings
-                </Link>
+                {dropdownNavItems.map((item) => (
+                  <Link
+                    key={item.label}
+                    to={item.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center gap-2"
+                  >
+                    <i className={`ti ${item.icon}`} style={{ fontSize: 16 }} />
+                    {item.label}
+                  </Link>
+                ))}
                 <Button variant="outline" size="sm" onClick={handleLogout} className="text-red-600 border-red-200 hover:bg-red-50">
                   <i className="ti ti-logout mr-1" style={{ fontSize: 16 }} />
                   Log out
