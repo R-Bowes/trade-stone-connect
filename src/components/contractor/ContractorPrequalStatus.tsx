@@ -296,7 +296,9 @@ export function ContractorPrequalStatus({ profileId }: Props) {
                               <label className="shrink-0">
                                 <input
                                   type="file"
-                                  className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
+                                  className="hidden"
+                                  disabled={uploadingKey === uploadKey}
+                                  onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file) handleUpload(entry, item, file);
                                     e.target.value = "";
