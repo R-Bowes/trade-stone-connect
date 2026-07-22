@@ -12,7 +12,7 @@ interface ProfileData {
 }
 
 const QR_OPTIONS = {
-  width: 220,
+  width: 180,
   margin: 2,
   color: { dark: "#1a2744", light: "#ffffff" },
 };
@@ -259,8 +259,9 @@ const ShareProfileView = () => {
           borderRadius: 12,
           padding: 24,
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: 24,
+          gap: 16,
         }}
       >
         <div
@@ -271,15 +272,15 @@ const ShareProfileView = () => {
             flexShrink: 0,
           }}
         >
-          <canvas ref={canvasRef} width={220} height={220} />
+          <canvas ref={canvasRef} width={180} height={180} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, textAlign: "center", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Your TS code</span>
           <span
             style={{
               fontFamily: "'Roboto Mono', monospace",
               color: "#f07820",
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 600,
               letterSpacing: "0.08em",
             }}
@@ -299,7 +300,7 @@ const ShareProfileView = () => {
           >
             {profileUrl}
           </span>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
             <button
               style={outlineButtonStyle}
               onClick={handleDownloadPNG}
@@ -332,7 +333,7 @@ const ShareProfileView = () => {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: 12,
         }}
       >

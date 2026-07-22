@@ -102,7 +102,7 @@ export function PipelineCard({
       className={`cursor-pointer hover:shadow-md transition-shadow ${e.band === "needs_you" ? "border-amber-200" : ""}`}
       onClick={() => onOpenThread(e)}
     >
-      <CardContent className="p-4 flex items-center justify-between gap-4">
+      <CardContent className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium truncate">{e.clientName}</span>
@@ -127,13 +127,13 @@ export function PipelineCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
           {e.stage === "enquiry" ? (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" style={PRIMARY_STYLE} onClick={stop(() => onOpenEnquiry(e, "quote"))}>Send quote</Button>
-              <Button variant="outline" size="sm" onClick={stop(() => onOpenEnquiry(e, "site_visit"))}>Site visit</Button>
-              <Button variant="outline" size="sm" onClick={stop(() => onOpenEnquiry(e, "respond"))}>Request info</Button>
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={stop(() => onOpenEnquiry(e, "reject"))}>
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <Button size="sm" className="flex-1 md:flex-none" style={PRIMARY_STYLE} onClick={stop(() => onOpenEnquiry(e, "quote"))}>Send quote</Button>
+              <Button variant="outline" size="sm" className="flex-1 md:flex-none" onClick={stop(() => onOpenEnquiry(e, "site_visit"))}>Site visit</Button>
+              <Button variant="outline" size="sm" className="flex-1 md:flex-none" onClick={stop(() => onOpenEnquiry(e, "respond"))}>Request info</Button>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive flex-1 md:flex-none" onClick={stop(() => onOpenEnquiry(e, "reject"))}>
                 Decline
               </Button>
             </div>
