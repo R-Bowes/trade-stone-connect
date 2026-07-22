@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   useProfileEditor,
   type SectionInstance,
@@ -579,6 +580,7 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
   const { photos, uploading, uploadPhoto, deletePhoto } = useGalleryPhotos(galleryId);
   const fileRef = useRef<HTMLInputElement>(null);
   const gallery = galleries.find(g => g.id === galleryId);
+  const { toast } = useToast();
 
   const handleTitleChange = async (title: string) => {
     updateSection(section.id, { label: title });
@@ -618,7 +620,13 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
           </button>
         )}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f).catch(err => console.error("Upload failed:", err)); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => {
+        const f = e.target.files?.[0];
+        if (f) uploadPhoto(f).catch((err: any) => {
+          toast({ title: "Upload failed", description: String(err?.message ?? err), variant: "destructive" });
+        });
+        e.target.value = "";
+      }} />
       <div style={{ fontSize: 11, color: "#9ca3af" }}>{photos.length} photo{photos.length !== 1 ? "s" : ""}</div>
     </div>
   );
