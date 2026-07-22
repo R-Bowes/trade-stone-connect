@@ -1104,9 +1104,9 @@ function TopBar({ draft, isDirty, saving, publishing, onSave, onPublish, profile
   const pillBg = pillGreen ? "#16a34a" : ORANGE;
 
   return (
-    <div style={{ height: 48, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, flexShrink: 0, zIndex: 30 }}>
+    <div style={{ height: 48, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 8, flexShrink: 0, zIndex: 30, overflow: "hidden" }}>
       <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: ORANGE, flexShrink: 0 }}>TradeStone</span>
-      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, flexShrink: 0 }}>
+      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
         {draft.displayName || "Profile"}
       </span>
       <span style={{ background: pillBg, color: "white", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, flexShrink: 0 }}>{pillLabel}</span>
@@ -1114,23 +1114,27 @@ function TopBar({ draft, isDirty, saving, publishing, onSave, onPublish, profile
       <div style={{ flex: 1 }} />
 
       {profile?.ts_profile_code && (
-        <a
-          href={`/contractor/${profile.ts_profile_code}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none", padding: "5px 10px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6 }}
-        >
-          <i className="ti ti-external-link" style={{ fontSize: 13 }} />Preview
-        </a>
+        <span className="hidden md:inline-flex">
+          <a
+            href={`/contractor/${profile.ts_profile_code}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none", padding: "5px 10px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6 }}
+          >
+            <i className="ti ti-external-link" style={{ fontSize: 13 }} />Preview
+          </a>
+        </span>
       )}
 
-      <button
-        onClick={handleSave}
-        disabled={saving || !isDirty}
-        style={{ background: isDirty ? "rgba(255,255,255,0.12)" : "transparent", border: "1px solid rgba(255,255,255,0.2)", color: isDirty ? "white" : "rgba(255,255,255,0.35)", fontWeight: 600, fontSize: 13, padding: "6px 14px", borderRadius: 6, cursor: isDirty ? "pointer" : "default", fontFamily: "inherit" }}
-      >
-        {saving ? "Saving…" : savedFlash ? "Saved" : "Save"}
-      </button>
+      <span className="hidden md:inline-flex">
+        <button
+          onClick={handleSave}
+          disabled={saving || !isDirty}
+          style={{ background: isDirty ? "rgba(255,255,255,0.12)" : "transparent", border: "1px solid rgba(255,255,255,0.2)", color: isDirty ? "white" : "rgba(255,255,255,0.35)", fontWeight: 600, fontSize: 13, padding: "6px 14px", borderRadius: 6, cursor: isDirty ? "pointer" : "default", fontFamily: "inherit" }}
+        >
+          {saving ? "Saving…" : savedFlash ? "Saved" : "Save"}
+        </button>
+      </span>
 
       <button
         onClick={onPublish}
