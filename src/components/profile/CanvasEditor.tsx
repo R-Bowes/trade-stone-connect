@@ -497,7 +497,7 @@ function HeroPanel({ draft, updateDraft }: { draft: ProfileDraft; updateDraft: (
       <FieldLabel>Location</FieldLabel>
       <PanelInput value={draft.locationDisplay} onChange={v => updateDraft({ locationDisplay: v })} placeholder="e.g. London" />
       <FieldLabel>Cover photo</FieldLabel>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); }} />
+      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); }} />
       {draft.coverUrl && (
         <div style={{ marginBottom: 10, borderRadius: 6, overflow: "hidden", height: 80 }}>
           <img src={draft.coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -618,7 +618,7 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
           </button>
         )}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
       <div style={{ fontSize: 11, color: "#9ca3af" }}>{photos.length} photo{photos.length !== 1 ? "s" : ""}</div>
     </div>
   );

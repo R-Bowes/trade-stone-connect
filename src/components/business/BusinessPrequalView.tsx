@@ -497,7 +497,7 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
                           <label className="text-xs">
                             <input
                               type="file"
-                              className="hidden"
+                              className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
                               disabled={uploadingKey === item.key}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];

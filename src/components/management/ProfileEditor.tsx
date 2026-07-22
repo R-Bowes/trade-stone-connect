@@ -390,7 +390,7 @@ export function ProfileEditor() {
             ref={coverInputRef}
             type="file"
             accept="image/*"
-            style={{ display: "none" }}
+            style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
             onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ""; }}
           />
           <button
@@ -575,7 +575,7 @@ export function ProfileEditor() {
               ref={photoInputRef}
               type="file"
               accept="image/*"
-              style={{ display: "none" }}
+              style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ""; }}
             />
             <button

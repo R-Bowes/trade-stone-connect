@@ -1315,7 +1315,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
                   <label className="inline-block">
                     <input
                       type="file"
-                      className="hidden"
+                      className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
                       disabled={uploading}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
