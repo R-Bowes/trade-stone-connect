@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
+import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import SidebarHelpButton from "@/components/help/SidebarHelpButton";
 import TutorialModal from "@/components/help/TutorialModal";
@@ -524,53 +525,99 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: 12,
           }}
         >
-          {isMobile && (
-            <button
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-              style={{
-                width: 40,
-                height: 40,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#1a2744",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                padding: 0,
-              }}
-            >
-              <i className="ti ti-menu" style={{ fontSize: 22 }} />
-            </button>
-          )}
-          <div>
-            <h1
-              className="font-heading text-2xl font-bold"
-              data-tour="dashboard-header"
-              style={{ margin: 0 }}
-            >
-              {currentTitle}
-            </h1>
-            {currentSubtitle && (
-              <p
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+            {isMobile && (
+              <button
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open menu"
                 style={{
-                  margin: 0,
-                  fontSize: "0.8rem",
-                  color: "#6b7280",
-                  fontFamily: "Lexend, sans-serif",
-                  fontWeight: 400,
-                  lineHeight: 1.4,
+                  width: 40,
+                  height: 40,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#1a2744",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 0,
                 }}
               >
-                {currentSubtitle}
-              </p>
+                <i className="ti ti-menu" style={{ fontSize: 22 }} />
+              </button>
             )}
+            <div>
+              <h1
+                className="font-heading text-2xl font-bold"
+                data-tour="dashboard-header"
+                style={{ margin: 0 }}
+              >
+                {currentTitle}
+              </h1>
+              {currentSubtitle && (
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.8rem",
+                    color: "#6b7280",
+                    fontFamily: "Lexend, sans-serif",
+                    fontWeight: 400,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {currentSubtitle}
+                </p>
+              )}
+            </div>
           </div>
+          {isMobile && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button
+                onClick={() => navigate("/")}
+                aria-label="Home"
+                style={{
+                  width: 36,
+                  height: 36,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#1a2744",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                <i className="ti ti-home-2" style={{ fontSize: 20 }} />
+              </button>
+              <button
+                onClick={() => navigate("/contractors")}
+                aria-label="Hire"
+                style={{
+                  width: 36,
+                  height: 36,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#1a2744",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                <i className="ti ti-search" style={{ fontSize: 20 }} />
+              </button>
+              <NotificationBell />
+            </div>
+          )}
         </div>
         <main
           style={{
