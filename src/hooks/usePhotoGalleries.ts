@@ -158,6 +158,9 @@ export function useGalleryPhotos(galleryId: string | null) {
         });
       if (insertError) throw insertError;
       await load();
+    } catch (err) {
+      console.error("Gallery photo upload failed:", err);
+      throw err;
     } finally {
       setUploading(false);
     }

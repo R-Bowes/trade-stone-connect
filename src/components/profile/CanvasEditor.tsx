@@ -618,7 +618,7 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
           </button>
         )}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f).catch(err => console.error("Upload failed:", err)); e.target.value = ""; }} />
       <div style={{ fontSize: 11, color: "#9ca3af" }}>{photos.length} photo{photos.length !== 1 ? "s" : ""}</div>
     </div>
   );
