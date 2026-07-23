@@ -530,27 +530,6 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
-            {isMobile && (
-              <button
-                onClick={() => setMobileOpen(true)}
-                aria-label="Open menu"
-                style={{
-                  width: 40,
-                  height: 40,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#1a2744",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  padding: 0,
-                }}
-              >
-                <i className="ti ti-menu" style={{ fontSize: 22 }} />
-              </button>
-            )}
             <div>
               <h1
                 className="font-heading text-2xl font-bold"
@@ -624,12 +603,75 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             flex: 1,
             minWidth: 0,
             overflowY: activeView === "messages" ? "auto" : undefined,
+            paddingBottom: isMobile ? 72 : undefined,
           }}
         >
           {children}
         </main>
       </div>
     </div>
+
+    {/* Mobile bottom tab bar — primary navigation on mobile, replaces the
+        hamburger. "More" opens the existing sidebar for everything else. */}
+    {isMobile && (
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 56,
+          paddingBottom: "env(safe-area-inset-bottom)",
+          background: "white",
+          borderTop: "1px solid #e5e7eb",
+          display: "flex",
+          alignItems: "center",
+          zIndex: 40,
+        }}
+      >
+        {[
+          { key: "dashboard", icon: "ti-layout-dashboard", label: "Dashboard" },
+          { key: "jobs", icon: "ti-briefcase", label: "Jobs" },
+          { key: "schedule", icon: "ti-calendar", label: "Schedule" },
+          { key: "more", icon: "ti-menu", label: "More" },
+        ].map((tab) => {
+          const isActive = tab.key === "more" ? mobileOpen : activeView === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => {
+                if (tab.key === "more") {
+                  setMobileOpen(true);
+                } else {
+                  navigate(`/dashboard/contractor?view=${tab.key}`);
+                  setMobileOpen(false);
+                }
+              }}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                height: "100%",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: isActive ? "#f07820" : "#9ca3af",
+                padding: 0,
+              }}
+            >
+              <i className={`ti ${tab.icon}`} style={{ fontSize: 22 }} />
+              <span style={{ fontSize: 10, fontFamily: "Lexend, sans-serif", fontWeight: 500 }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    )}
+
     <TutorialModal />
     <HelpModal />
     <WhatIsNewModal />
