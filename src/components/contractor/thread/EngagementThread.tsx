@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -211,6 +211,15 @@ export function EngagementThread({
 
             {detail.enquiry && (
               <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2"
+                  onClick={() => document.getElementById("thread-photos")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                >
+                  <Camera className="h-4 w-4" />
+                  Quick access: Photos & Notes
+                </Button>
                 <ThreadEnquirySection enquiry={detail.enquiry} />
                 <Separator />
               </>

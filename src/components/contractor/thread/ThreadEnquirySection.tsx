@@ -47,7 +47,9 @@ export function ThreadEnquirySection({ enquiry }: { enquiry: ThreadEnquiry }) {
         )}
       </div>
       {enquiry.photo_urls && enquiry.photo_urls.length > 0 && (
-        <EnquiryPhotoThumbnails paths={enquiry.photo_urls} label="Customer photos" />
+        <div id="thread-photos">
+          <EnquiryPhotoThumbnails paths={enquiry.photo_urls} label="Customer photos" />
+        </div>
       )}
     </div>
   );

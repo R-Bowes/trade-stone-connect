@@ -170,6 +170,31 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
         supabase.functions
           .invoke("notify-contractor", { body: { enquiry_id: result.enquiry_id } })
           .catch(console.error);
+
+        if (photos && photos.length > 0) {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData.user) {
+            const uploadedPaths: string[] = [];
+            for (const file of Array.from(photos)) {
+              const ext = file.name.split(".").pop() || "jpg";
+              const path = `${authData.user.id}/${result.enquiry_id}/${crypto.randomUUID()}.${ext}`;
+              const { error: uploadError } = await supabase.storage
+                .from("enquiry-photos")
+                .upload(path, file);
+              if (uploadError) {
+                console.error("Enquiry photo upload failed:", uploadError);
+                continue;
+              }
+              uploadedPaths.push(path);
+            }
+            if (uploadedPaths.length > 0) {
+              await supabase
+                .from("enquiries")
+                .update({ photo_urls: uploadedPaths })
+                .eq("id", result.enquiry_id);
+            }
+          }
+        }
       }
 
       toast({
@@ -306,6 +331,7 @@ const QuoteRequestDialog = ({ isOpen, onClose, contractorId, contractorName }: Q
                 id="photos"
                 type="file"
                 accept="image/*"
+                capture="environment"
                 multiple
                 onChange={(e) => {
   const files = e.target.files;
