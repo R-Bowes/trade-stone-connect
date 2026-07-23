@@ -728,8 +728,9 @@ export default function JobPhotosTab({
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                capture="environment"
                 multiple
-                className="hidden"
+                className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) handleFilesSelect(e.target.files);
                   e.target.value = "";
