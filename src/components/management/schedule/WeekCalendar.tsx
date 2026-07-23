@@ -96,7 +96,7 @@ export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }:
   };
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export function WeekCalendar({ events, onEventClick, onSlotClick, onEventDrop }:
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
+          <div className="min-w-[600px]">
             {/* Day headers */}
             <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
               <div className="p-2 text-xs text-muted-foreground" />

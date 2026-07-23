@@ -142,8 +142,8 @@ export function ScheduleManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h2 className="font-heading text-2xl font-bold">Schedule & Availability</h2>
         <Button onClick={() => { setEditingEvent(null); setDefaultDate(undefined); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-2" />
@@ -152,11 +152,11 @@ export function ScheduleManagement() {
       </div>
 
       <Tabs value={innerTab} onValueChange={(tab) => navigate(`/dashboard/contractor?view=schedule&tab=${tab}`)}>
-        <TabsList>
-          <TabsTrigger value="calendar" className="gap-1"><CalendarDays className="h-4 w-4" />Calendar</TabsTrigger>
-          <TabsTrigger value="upcoming" className="gap-1"><List className="h-4 w-4" />Upcoming</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-1"><Clock className="h-4 w-4" />Availability</TabsTrigger>
-          <TabsTrigger value="quote-scheduling" className="gap-1"><Handshake className="h-4 w-4" />Quote Scheduling</TabsTrigger>
+        <TabsList className="w-full overflow-x-auto flex-nowrap justify-start">
+          <TabsTrigger value="calendar" className="gap-1 shrink-0"><CalendarDays className="h-4 w-4" />Calendar</TabsTrigger>
+          <TabsTrigger value="upcoming" className="gap-1 shrink-0"><List className="h-4 w-4" />Upcoming</TabsTrigger>
+          <TabsTrigger value="availability" className="gap-1 shrink-0"><Clock className="h-4 w-4" />Availability</TabsTrigger>
+          <TabsTrigger value="quote-scheduling" className="gap-1 shrink-0"><Handshake className="h-4 w-4" />Quote Scheduling</TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">

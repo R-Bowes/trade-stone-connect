@@ -602,6 +602,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           style={{
             flex: 1,
             minWidth: 0,
+            overflowX: "hidden",
             overflowY: activeView === "messages" ? "auto" : undefined,
             paddingBottom: isMobile ? 72 : undefined,
           }}
