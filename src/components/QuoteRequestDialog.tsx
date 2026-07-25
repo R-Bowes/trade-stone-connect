@@ -63,6 +63,24 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// iOS reports HEIC inconsistently — sometimes "image/heic"/"image/heif",
+// sometimes a blank type when the file arrives via the Files app rather
+// than the native Photos picker. Checking the extension too catches the
+// case a browser mis-reports. Matches JobPhotosTab.tsx's isHeic().
+function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+  return type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const heic2any = (await import("heic2any")).default;
+  const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
+  const blob = Array.isArray(result) ? result[0] : result;
+  const stem = file.name.replace(/\.[^./]+$/, "");
+  return new File([blob], `${stem}.jpg`, { type: "image/jpeg" });
+}
+
 const QuoteRequestDialog = ({
   isOpen,
   onClose,
@@ -435,18 +453,44 @@ const QuoteRequestDialog = ({
                 capture="environment"
                 multiple
                 className="sr-only"
-                onChange={(e) => {
-                  const files = e.target.files;
+                onChange={async (e) => {
+                  const input = e.target;
+                  const files = input.files;
                   if (!files || files.length === 0) return;
+                  const selected = Array.from(files);
+                  input.value = "";
+
+                  const processed: File[] = [];
+                  const failed: string[] = [];
+                  for (const file of selected) {
+                    if (isHeic(file)) {
+                      try {
+                        processed.push(await convertHeicToJpeg(file));
+                      } catch (err) {
+                        console.error("HEIC conversion failed:", err);
+                        failed.push(file.name);
+                      }
+                    } else {
+                      processed.push(file);
+                    }
+                  }
+
+                  if (failed.length > 0) {
+                    toast({
+                      title: "Some photos couldn't be processed",
+                      description: failed.join(", "),
+                      variant: "destructive",
+                    });
+                  }
+
                   setPhotos((prev) => {
-                    const combined = [...prev, ...Array.from(files)];
+                    const combined = [...prev, ...processed];
                     if (combined.length > 5) {
                       toast({ title: "Too many photos", description: "You can upload up to 5 photos.", variant: "destructive" });
                       return combined.slice(0, 5);
                     }
                     return combined;
                   });
-                  e.target.value = "";
                 }}
               />
               {photos.length > 0 && (
