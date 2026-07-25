@@ -263,26 +263,32 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
                   <i className="ti ti-map-pin text-muted-foreground" style={{ fontSize: 16 }} />
                   <span>{enquiry.location || "—"}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <i className="ti ti-tool text-muted-foreground" style={{ fontSize: 16 }} />
-                  <span>{enquiry.job_type ? (JOB_TYPE_LABELS[enquiry.job_type] ?? enquiry.job_type) : "—"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="ti ti-clock text-muted-foreground" style={{ fontSize: 16 }} />
-                  <span>{enquiry.preferred_timeline || "—"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="ti ti-currency-pound text-muted-foreground" style={{ fontSize: 16 }} />
-                  <span>{enquiry.budget_range || "—"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="ti ti-flag text-muted-foreground" style={{ fontSize: 16 }} />
-                  {enquiry.priority ? (
+                {enquiry.job_type && (
+                  <div className="flex items-center gap-2">
+                    <i className="ti ti-tool text-muted-foreground" style={{ fontSize: 16 }} />
+                    <span>{JOB_TYPE_LABELS[enquiry.job_type] ?? enquiry.job_type}</span>
+                  </div>
+                )}
+                {enquiry.preferred_timeline && (
+                  <div className="flex items-center gap-2">
+                    <i className="ti ti-clock text-muted-foreground" style={{ fontSize: 16 }} />
+                    <span>{enquiry.preferred_timeline}</span>
+                  </div>
+                )}
+                {enquiry.budget_range && (
+                  <div className="flex items-center gap-2">
+                    <i className="ti ti-currency-pound text-muted-foreground" style={{ fontSize: 16 }} />
+                    <span>{enquiry.budget_range}</span>
+                  </div>
+                )}
+                {enquiry.priority && (
+                  <div className="flex items-center gap-2">
+                    <i className="ti ti-flag text-muted-foreground" style={{ fontSize: 16 }} />
                     <Badge variant="outline" className={PRIORITY_BADGE[enquiry.priority] ?? ""}>
                       {PRIORITY_LABELS[enquiry.priority] ?? enquiry.priority}
                     </Badge>
-                  ) : <span>—</span>}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
