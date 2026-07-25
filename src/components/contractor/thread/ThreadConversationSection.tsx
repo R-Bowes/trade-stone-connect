@@ -67,6 +67,7 @@ export function ThreadConversationSection({ enquiryId, quoteId, jobId }: ThreadC
         </div>
         <div className="border-t p-2 flex items-end gap-2">
           <Textarea
+            id="thread-message-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

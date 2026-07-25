@@ -26,6 +26,9 @@ import { ThreadSchedulingSection } from "./ThreadSchedulingSection";
 import { ThreadJobSection, type ThreadJob } from "./ThreadJobSection";
 import { ThreadInvoiceSection, type ThreadInvoice } from "./ThreadInvoiceSection";
 
+// NEEDS_YOU primary action = orange fill — matches PipelineCard's PRIMARY_STYLE.
+const PRIMARY_STYLE = { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" };
+
 interface EngagementDetail {
   enquiry: ThreadEnquiry | null;
   quote: (ThreadQuote & { enquiry_id: string | null }) | null;
@@ -112,12 +115,14 @@ export function EngagementThread({
   open,
   onClose,
   onChanged,
+  onOpenEnquiry,
 }: {
   engagement: PipelineEngagement | null;
   contractorId: string;
   open: boolean;
   onClose: () => void;
   onChanged: () => void;
+  onOpenEnquiry: (engagement: PipelineEngagement, dialog: "quote" | "reject" | "respond" | "site_visit") => void;
 }) {
   const [detail, setDetail] = useState<EngagementDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,6 +162,22 @@ export function EngagementThread({
   };
 
   const canArchive = !!detail?.quote && !detail?.job && detail.quote.status !== "lapsed";
+
+  // useContractorPipeline only ever produces stage:"enquiry" engagements for
+  // enquiries with status IN ('new','replied') — same guard PipelineCard uses.
+  const isActionableEnquiry = engagement?.stage === "enquiry";
+
+  const handleOpenEnquiryDialog = (dialog: "quote" | "reject" | "site_visit") => {
+    if (!engagement) return;
+    onClose();
+    onOpenEnquiry(engagement, dialog);
+  };
+
+  const handleRequestInfo = () => {
+    const el = document.getElementById("thread-message-input") as HTMLTextAreaElement | null;
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.focus();
+  };
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -205,6 +226,27 @@ export function EngagementThread({
                 )}
               </div>
               <Badge variant="secondary">{engagement.stageLabel}</Badge>
+              {isActionableEnquiry && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button size="sm" style={PRIMARY_STYLE} onClick={() => handleOpenEnquiryDialog("quote")}>
+                    Send quote
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenEnquiryDialog("site_visit")}>
+                    Site visit
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleRequestInfo}>
+                    Request info
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleOpenEnquiryDialog("reject")}
+                  >
+                    Decline
+                  </Button>
+                </div>
+              )}
             </div>
 
             <Separator />

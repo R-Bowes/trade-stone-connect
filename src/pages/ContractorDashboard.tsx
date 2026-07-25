@@ -714,6 +714,7 @@ const ContractorDashboard = () => {
             open={!!openEngagement}
             onClose={() => setOpenEngagement(null)}
             onChanged={refetchPipeline}
+            onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
           />
         )}
 
