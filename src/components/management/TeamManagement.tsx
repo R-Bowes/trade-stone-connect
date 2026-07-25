@@ -389,17 +389,6 @@ export function TeamManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-heading text-2xl font-bold">Team Management</h2>
-          <p className="text-muted-foreground">Manage your workers, certifications and availability</p>
-        </div>
-        <Button onClick={openAddDialog}>
-          <i className="ti ti-plus mr-2" />
-          Add team member
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center justify-between p-4">
@@ -430,21 +419,27 @@ export function TeamManagement() {
         </Card>
       </div>
 
-      <div className="flex gap-2">
-        {(["all", "active", "inactive", "suspended"] as StatusFilter[]).map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={cn(
-              "rounded-full px-3 py-1 text-sm font-medium capitalize transition-colors",
-              statusFilter === status
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80",
-            )}
-          >
-            {status}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex gap-2">
+          {(["all", "active", "inactive", "suspended"] as StatusFilter[]).map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={cn(
+                "rounded-full px-3 py-1 text-sm font-medium capitalize transition-colors",
+                statusFilter === status
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <Button onClick={openAddDialog}>
+          <i className="ti ti-plus mr-2" />
+          Add team member
+        </Button>
       </div>
 
       {filteredMembers.length === 0 ? (
