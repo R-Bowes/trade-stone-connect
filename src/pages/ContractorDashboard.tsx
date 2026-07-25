@@ -24,6 +24,7 @@ import { ProfileEditor } from "@/components/management/ProfileEditor";
 import { CanvasEditor } from "@/components/profile/CanvasEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
+import { AvailabilityManagement } from "@/components/management/AvailabilityManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
@@ -674,6 +675,7 @@ const ContractorDashboard = () => {
 
           <TabsContent value="contracts"><ContractManagement /></TabsContent>
           <TabsContent value="team"><TeamManagement /></TabsContent>
+          <TabsContent value="availability"><AvailabilityManagement /></TabsContent>
           <TabsContent value="timesheets"><TimesheetManagement /></TabsContent>
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
           <TabsContent value="documents"><DocumentManagement /></TabsContent>
