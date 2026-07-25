@@ -60,6 +60,11 @@ type JobInfo = {
   created_at: string;
 };
 
+type SiteVisitInfo = {
+  confirmed: { start_time: string } | null;
+  pendingCount: number;
+};
+
 const JOB_TYPE_LABELS: Record<string, string> = {
   repair: "Repair",
   service: "Service",
@@ -117,6 +122,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [quote, setQuote] = useState<QuoteInfo | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
+  const [siteVisit, setSiteVisit] = useState<SiteVisitInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -133,6 +139,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
       setCustomer(null);
       setQuote(null);
       setJob(null);
+      setSiteVisit(null);
 
       if (enquiry.customer_id) {
         const { data } = await supabase
@@ -160,6 +167,25 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
           .eq("issued_quote_id", quoteRow.id)
           .maybeSingle();
         if (!cancelled) setJob((jobRow as JobInfo) ?? null);
+      }
+
+      const { data: visitRows } = await supabase
+        .from("schedule_events")
+        .select("start_time, status")
+        .eq("enquiry_id", enquiry.id)
+        .eq("event_type", "site_visit");
+
+      if (!cancelled) {
+        const rows = visitRows ?? [];
+        const confirmedRow = rows.find((r) => r.status === "accepted") ?? null;
+        setSiteVisit(
+          rows.length > 0
+            ? {
+                confirmed: confirmedRow ? { start_time: confirmedRow.start_time } : null,
+                pendingCount: rows.filter((r) => r.status === "proposed").length,
+              }
+            : null,
+        );
       }
 
       if (!cancelled) setLoading(false);
@@ -334,6 +360,18 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
                   text="Enquiry received"
                   timestamp={formatDateTime(enquiry.created_at)}
                 />
+                {siteVisit?.confirmed && (
+                  <TimelineEntry
+                    dotClass="bg-green-500"
+                    text={`Site visit confirmed — ${format(parseISO(siteVisit.confirmed.start_time), "d MMM yyyy")}`}
+                  />
+                )}
+                {siteVisit && !siteVisit.confirmed && siteVisit.pendingCount > 0 && (
+                  <TimelineEntry
+                    dotClass="bg-blue-500"
+                    text={`Site visit proposed — awaiting client response (${siteVisit.pendingCount} date${siteVisit.pendingCount !== 1 ? "s" : ""})`}
+                  />
+                )}
                 {quote && (
                   <TimelineEntry
                     dotClass="bg-blue-500"
@@ -370,12 +408,12 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
   );
 }
 
-function TimelineEntry({ dotClass, text, timestamp }: { dotClass: string; text: string; timestamp: string }) {
+function TimelineEntry({ dotClass, text, timestamp }: { dotClass: string; text: string; timestamp?: string }) {
   return (
     <div className="relative">
       <span className={`absolute -left-[1.32rem] top-1 h-2.5 w-2.5 rounded-full ${dotClass}`} />
       <p className="text-sm">{text}</p>
-      <p className="text-xs text-muted-foreground">{timestamp}</p>
+      {timestamp && <p className="text-xs text-muted-foreground">{timestamp}</p>}
     </div>
   );
 }

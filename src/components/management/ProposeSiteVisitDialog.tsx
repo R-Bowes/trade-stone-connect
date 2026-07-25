@@ -9,6 +9,7 @@ import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 type Enquiry = {
   id: string;
   contractor_id: string | null;
+  customer_id?: string | null;
   job_description: string;
   location: string;
   preferred_time_of_day?: string | null;
@@ -59,6 +60,24 @@ export function ProposeSiteVisitDialog({ open, onOpenChange, enquiry, onSuccess 
 
       const { error } = await supabase.from("schedule_events").insert(rows);
       if (error) throw error;
+
+      if (enquiry.customer_id) {
+        const { data: contractorProfile } = await supabase
+          .from("profiles")
+          .select("full_name, company_name")
+          .eq("id", contractorId)
+          .maybeSingle();
+        const contractorName = contractorProfile?.company_name || contractorProfile?.full_name || "Your contractor";
+
+        await supabase.from("notifications").insert({
+          user_id: enquiry.customer_id,
+          title: "Site visit proposed",
+          message: `${contractorName} has proposed dates for a site visit`,
+          type: "site_visit_proposed",
+          reference_id: enquiry.id,
+          reference_type: "enquiry",
+        });
+      }
 
       toast({
         title: "Site visit proposed",

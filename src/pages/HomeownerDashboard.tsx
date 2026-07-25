@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { HomeownerMessageInbox } from "@/components/homeowner/HomeownerMessageInbox";
+import { SiteVisitReviewDialog } from "@/components/homeowner/SiteVisitReviewDialog";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
@@ -44,6 +45,13 @@ interface PendingInvoice {
   due_date: string;
 }
 
+interface PendingSiteVisit {
+  enquiryId: string;
+  title: string;
+  contractorName: string | null;
+  slotCount: number;
+}
+
 function HomeownerOverview({ profileId, userId }: { profileId: string; userId: string }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -53,6 +61,8 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
+  const [pendingSiteVisits, setPendingSiteVisits] = useState<PendingSiteVisit[]>([]);
+  const [siteVisitDialogEnquiryId, setSiteVisitDialogEnquiryId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -111,6 +121,43 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
       );
       setOutstandingAmount(unpaid.reduce((sum, inv) => sum + Number(inv.total), 0));
 
+      // Site visit proposals are read via the schedule_events RLS policy
+      // scoped to the customer's own enquiries — no need to filter by
+      // customer here, only by the pending status.
+      const { data: visitRows } = await supabase
+        .from("schedule_events")
+        .select("id, enquiry_id, start_time")
+        .eq("event_type", "site_visit")
+        .eq("status", "proposed")
+        .order("start_time", { ascending: true });
+
+      const enquiryIds = [...new Set((visitRows ?? []).map((r) => r.enquiry_id).filter((id): id is string => !!id))];
+      if (enquiryIds.length > 0) {
+        const { data: enqRows } = await supabase
+          .from("enquiries")
+          .select("id, title, job_description, contractor_id")
+          .in("id", enquiryIds);
+
+        const contractorIds = [...new Set((enqRows ?? []).map((e) => e.contractor_id).filter((id): id is string => !!id))];
+        const { data: contractorRows } = contractorIds.length > 0
+          ? await supabase.from("profiles").select("id, full_name, company_name").in("id", contractorIds)
+          : { data: [] as { id: string; full_name: string | null; company_name: string | null }[] };
+        const contractorNameMap = new Map(
+          (contractorRows ?? []).map((c) => [c.id, c.company_name || c.full_name || "Contractor"]),
+        );
+
+        setPendingSiteVisits(
+          (enqRows ?? []).map((e) => ({
+            enquiryId: e.id,
+            title: e.title || e.job_description?.slice(0, 60) || "Enquiry",
+            contractorName: e.contractor_id ? contractorNameMap.get(e.contractor_id) ?? null : null,
+            slotCount: (visitRows ?? []).filter((r) => r.enquiry_id === e.id).length,
+          })),
+        );
+      } else {
+        setPendingSiteVisits([]);
+      }
+
       setLoading(false);
     };
 
@@ -121,7 +168,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
     });
   }, [profileId, userId, reloadKey]);
 
-  const awaitingYou = pendingQuotes.length + pendingInvoices.length;
+  const awaitingYou = pendingQuotes.length + pendingInvoices.length + pendingSiteVisits.length;
 
   if (loading) {
     return (
@@ -191,6 +238,22 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
             <p className="text-sm text-muted-foreground">You are all up to date.</p>
           ) : (
             <div className="space-y-2">
+              {pendingSiteVisits.map((v) => (
+                <div
+                  key={v.enquiryId}
+                  className="flex items-center justify-between gap-4 p-3 rounded-lg border"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">Site visit: {v.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {v.contractorName ?? "Contractor"} proposed {v.slotCount} date{v.slotCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => setSiteVisitDialogEnquiryId(v.enquiryId)}>
+                    Review
+                  </Button>
+                </div>
+              ))}
               {pendingQuotes.map((q) => (
                 <div
                   key={q.id}
@@ -300,6 +363,15 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
           </div>
         )}
       </div>
+
+      {siteVisitDialogEnquiryId && (
+        <SiteVisitReviewDialog
+          enquiryId={siteVisitDialogEnquiryId}
+          open={!!siteVisitDialogEnquiryId}
+          onOpenChange={(o) => { if (!o) setSiteVisitDialogEnquiryId(null); }}
+          onResolved={() => setReloadKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }
