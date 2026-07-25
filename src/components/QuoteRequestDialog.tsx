@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Camera, Lock } from "lucide-react";
+import { Loader2, Camera, Lock, X } from "lucide-react";
 
 interface QuoteRequestDialogProps {
   isOpen: boolean;
@@ -94,7 +94,8 @@ const QuoteRequestDialog = ({
   const [timeline, setTimeline] = useState("");
   const [budgetRange, setBudgetRange] = useState("");
   const [accessNotes, setAccessNotes] = useState("");
-  const [photos, setPhotos] = useState<FileList | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
   // Auth check + profile fetch
   useEffect(() => {
@@ -137,6 +138,16 @@ const QuoteRequestDialog = ({
     loadProfile();
   }, [isOpen, navigate, onClose, toast]);
 
+  // Generate object-URL previews for the current photo selection, revoking
+  // the previous batch whenever the selection changes or the dialog unmounts.
+  useEffect(() => {
+    const urls = photos.map((file) => URL.createObjectURL(file));
+    setPhotoPreviewUrls(urls);
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [photos]);
+
   // Reset form when dialog closes
   useEffect(() => {
     if (!isOpen) {
@@ -148,9 +159,13 @@ const QuoteRequestDialog = ({
       setTimeline("");
       setBudgetRange("");
       setAccessNotes("");
-      setPhotos(null);
+      setPhotos([]);
     }
   }, [isOpen]);
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,11 +229,11 @@ const QuoteRequestDialog = ({
           .invoke("notify-contractor", { body: { enquiry_id: result.enquiry_id } })
           .catch(console.error);
 
-        if (photos && photos.length > 0) {
+        if (photos.length > 0) {
           const { data: authData } = await supabase.auth.getUser();
           if (authData.user) {
             const uploadedPaths: string[] = [];
-            for (const file of Array.from(photos)) {
+            for (const file of photos) {
               const ext = file.name.split(".").pop() || "jpg";
               const path = `${authData.user.id}/${result.enquiry_id}/${crypto.randomUUID()}.${ext}`;
               const { error: uploadError } = await supabase.storage
@@ -422,18 +437,39 @@ const QuoteRequestDialog = ({
                 className="sr-only"
                 onChange={(e) => {
                   const files = e.target.files;
-                  if (files && files.length > 5) {
-                    toast({ title: "Too many photos", description: "You can upload up to 5 photos.", variant: "destructive" });
-                    e.target.value = "";
-                    return;
-                  }
-                  setPhotos(files);
+                  if (!files || files.length === 0) return;
+                  setPhotos((prev) => {
+                    const combined = [...prev, ...Array.from(files)];
+                    if (combined.length > 5) {
+                      toast({ title: "Too many photos", description: "You can upload up to 5 photos.", variant: "destructive" });
+                      return combined.slice(0, 5);
+                    }
+                    return combined;
+                  });
+                  e.target.value = "";
                 }}
               />
-              {photos && photos.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {photos.length} of 5 photo{photos.length !== 1 ? "s" : ""} selected
-                </p>
+              {photos.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {photoPreviewUrls.map((url, index) => (
+                      <div key={url} className="relative h-20 w-20 shrink-0 rounded-md overflow-hidden border">
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          aria-label="Remove photo"
+                          className="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {photos.length} photo{photos.length !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
               )}
             </div>
 
