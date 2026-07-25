@@ -5,12 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, CalendarDays, Clock, List, Handshake } from "lucide-react";
+import { Plus, Loader2, CalendarDays, List, Handshake } from "lucide-react";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { useSchedule, type ScheduleEvent } from "@/hooks/useSchedule";
 import { WeekCalendar } from "./schedule/WeekCalendar";
 import { UpcomingEvents } from "./schedule/UpcomingEvents";
-import { AvailabilityManager } from "./schedule/AvailabilityManager";
 import { EventFormDialog } from "./schedule/EventFormDialog";
 
 
@@ -144,7 +143,7 @@ export function ScheduleManagement() {
   return (
     <div className="space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-        <h2 className="font-heading text-2xl font-bold">Schedule & Availability</h2>
+        <h2 className="font-heading text-2xl font-bold">Schedule</h2>
         <Button onClick={() => { setEditingEvent(null); setDefaultDate(undefined); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-2" />
           Add Event
@@ -155,7 +154,6 @@ export function ScheduleManagement() {
         <TabsList className="w-full overflow-x-auto flex-nowrap justify-start">
           <TabsTrigger value="calendar" className="gap-1 shrink-0"><CalendarDays className="h-4 w-4" />Calendar</TabsTrigger>
           <TabsTrigger value="upcoming" className="gap-1 shrink-0"><List className="h-4 w-4" />Upcoming</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-1 shrink-0"><Clock className="h-4 w-4" />Availability</TabsTrigger>
           <TabsTrigger value="quote-scheduling" className="gap-1 shrink-0"><Handshake className="h-4 w-4" />Quote Scheduling</TabsTrigger>
         </TabsList>
 
@@ -170,10 +168,6 @@ export function ScheduleManagement() {
 
         <TabsContent value="upcoming" className="mt-4">
           <UpcomingEvents events={events} onEdit={handleEventClick} onDelete={deleteEvent} />
-        </TabsContent>
-
-        <TabsContent value="availability" className="mt-4">
-          <AvailabilityManager contractorId={contractorProfileId} />
         </TabsContent>
 
         <TabsContent value="quote-scheduling" className="mt-4 space-y-3">
