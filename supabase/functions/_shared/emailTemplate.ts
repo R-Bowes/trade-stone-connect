@@ -9,7 +9,8 @@ export type EmailType =
   | "quote_request_confirmation"
   | "quote_action"
   | "overdue_invoice"
-  | "payment_received";
+  | "payment_received"
+  | "cert_expiry";
 
 // ── Per-type data shapes ──────────────────────────────────────────────────────
 
@@ -53,12 +54,24 @@ export interface PaymentReceivedData {
   ctaUrl: string;
 }
 
+export interface CertExpiryData {
+  contractorName: string;
+  certs: Array<{
+    workerName: string;
+    certName: string;
+    expiryDate: string;      // human-readable date string
+    daysRemaining: number;
+  }>;
+  ctaUrl: string;
+}
+
 export type EmailData =
   | NewEnquiryData
   | QuoteRequestConfirmationData
   | QuoteActionData
   | OverdueInvoiceData
-  | PaymentReceivedData;
+  | PaymentReceivedData
+  | CertExpiryData;
 
 // ── Colour / accent map ───────────────────────────────────────────────────────
 
@@ -68,6 +81,7 @@ const ACCENT: Record<EmailType, { bar: string; pill: string; pillBg: string; btn
   quote_action:                 { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
   overdue_invoice:              { bar: "#ef4444", pill: "#dc2626", pillBg: "#fef2f2", btn: "#dc2626" },
   payment_received:             { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
+  cert_expiry:                  { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
 };
 
 // ── Shared shell ──────────────────────────────────────────────────────────────
@@ -182,6 +196,23 @@ function headline(text: string): string {
 
 function subtext(text: string): string {
   return `<div style="font-size:13px;font-weight:400;color:#6b7280;line-height:1.65;margin-bottom:24px;">${text}</div>`;
+}
+
+// ── Cert expiry list table ────────────────────────────────────────────────────
+
+function certExpiryTable(certs: CertExpiryData["certs"]): string {
+  const headerCell = (label: string) =>
+    `<td style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.07em;padding:8px 12px;">${label}</td>`;
+  const rows = certs.map((c) => `<tr>
+      <td style="font-size:12px;font-weight:600;color:#1a2744;padding:10px 12px;border-bottom:1px solid #eef0f3;">${c.workerName}</td>
+      <td style="font-size:12px;color:#374151;padding:10px 12px;border-bottom:1px solid #eef0f3;">${c.certName}</td>
+      <td style="font-size:12px;color:#374151;padding:10px 12px;border-bottom:1px solid #eef0f3;white-space:nowrap;">${c.expiryDate}</td>
+      <td style="font-size:12px;font-weight:600;color:#d97706;padding:10px 12px;border-bottom:1px solid #eef0f3;white-space:nowrap;">${c.daysRemaining} day${c.daysRemaining === 1 ? "" : "s"}</td>
+    </tr>`).join("");
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fb;border:1px solid #e5e7eb;border-left:3px solid #f59e0b;border-radius:6px;margin-bottom:24px;overflow:hidden;">
+    <tr>${headerCell("Worker")}${headerCell("Certification")}${headerCell("Expires")}${headerCell("Remaining")}</tr>
+    ${rows}
+  </table>`;
 }
 
 // ── buildEmail ────────────────────────────────────────────────────────────────
@@ -304,6 +335,21 @@ export function buildEmail(type: EmailType, data: EmailData): string {
       ].join("\n");
       return shell(type, inner);
     }
+
+    // ── 06 Certification expiring soon → contractor ──────────────────────────
+    case "cert_expiry": {
+      const d = data as CertExpiryData;
+      const count = d.certs.length;
+      const inner = [
+        pill(type, "Certification Expiring"),
+        headline(count === 1 ? "A team certification is expiring soon" : `${count} team certifications are expiring soon`),
+        subtext(`Hi ${d.contractorName}, the following team certification${count === 1 ? " is" : "s are"} due to expire within the next 30 days. Renew or update the record before it lapses.`),
+        certExpiryTable(d.certs),
+        ctaButton(type, "Manage Team Certifications", d.ctaUrl),
+        footerNote("Sent because you are a registered contractor on TradeStone."),
+      ].join("\n");
+      return shell(type, inner);
+    }
   }
 }
 
@@ -329,5 +375,7 @@ export function buildSubject(type: EmailType, data: EmailData): string {
       const d = data as PaymentReceivedData;
       return `Payment received — ${d.invoiceRef} — TradeStone`;
     }
+    case "cert_expiry":
+      return "Team certification expiring soon";
   }
 }
