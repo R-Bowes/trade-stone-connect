@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -2014,24 +2039,33 @@ export type Database = {
       }
       job_assignments: {
         Row: {
+          assigned_date: string | null
           created_at: string
           id: string
           is_contractor: boolean
           job_id: string
+          notes: string | null
+          role_on_job: string | null
           team_member_id: string | null
         }
         Insert: {
+          assigned_date?: string | null
           created_at?: string
           id?: string
           is_contractor?: boolean
           job_id: string
+          notes?: string | null
+          role_on_job?: string | null
           team_member_id?: string | null
         }
         Update: {
+          assigned_date?: string | null
           created_at?: string
           id?: string
           is_contractor?: boolean
           job_id?: string
+          notes?: string | null
+          role_on_job?: string | null
           team_member_id?: string | null
         }
         Relationships: [
@@ -5240,48 +5274,198 @@ export type Database = {
           },
         ]
       }
+      team_member_absences: {
+        Row: {
+          absence_type: string
+          created_at: string
+          end_date: string
+          id: string
+          notes: string | null
+          start_date: string
+          status: string
+          team_member_id: string
+        }
+        Insert: {
+          absence_type: string
+          created_at?: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          start_date: string
+          status?: string
+          team_member_id: string
+        }
+        Update: {
+          absence_type?: string
+          created_at?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          start_date?: string
+          status?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_absences_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_member_certifications: {
+        Row: {
+          cert_name: string
+          cert_type: string
+          created_at: string
+          document_url: string | null
+          expiry_date: string | null
+          id: string
+          issued_date: string | null
+          reference_number: string | null
+          status: string
+          team_member_id: string
+        }
+        Insert: {
+          cert_name: string
+          cert_type: string
+          created_at?: string
+          document_url?: string | null
+          expiry_date?: string | null
+          id?: string
+          issued_date?: string | null
+          reference_number?: string | null
+          status?: string
+          team_member_id: string
+        }
+        Update: {
+          cert_name?: string
+          cert_type?: string
+          created_at?: string
+          document_url?: string | null
+          expiry_date?: string | null
+          id?: string
+          issued_date?: string | null
+          reference_number?: string | null
+          status?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_certifications_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_member_working_patterns: {
+        Row: {
+          day_of_week: number
+          end_time: string | null
+          id: string
+          is_working: boolean
+          start_time: string | null
+          team_member_id: string
+        }
+        Insert: {
+          day_of_week: number
+          end_time?: string | null
+          id?: string
+          is_working?: boolean
+          start_time?: string | null
+          team_member_id: string
+        }
+        Update: {
+          day_of_week?: number
+          end_time?: string | null
+          id?: string
+          is_working?: boolean
+          start_time?: string | null
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_working_patterns_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           contractor_id: string
           created_at: string
-          email: string
+          day_rate: number | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          employment_type: string | null
           full_name: string
           hourly_rate: number | null
           id: string
-          is_active: boolean
+          next_of_kin: string | null
+          notes: string | null
+          overtime_rate: number | null
           phone: string | null
           profile_id: string | null
           role: string
+          start_date: string | null
           status: string | null
+          trade: string | null
           updated_at: string
+          utr_number: string | null
         }
         Insert: {
           contractor_id: string
           created_at?: string
-          email: string
+          day_rate?: number | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          employment_type?: string | null
           full_name: string
           hourly_rate?: number | null
           id?: string
-          is_active?: boolean
+          next_of_kin?: string | null
+          notes?: string | null
+          overtime_rate?: number | null
           phone?: string | null
           profile_id?: string | null
           role: string
+          start_date?: string | null
           status?: string | null
+          trade?: string | null
           updated_at?: string
+          utr_number?: string | null
         }
         Update: {
           contractor_id?: string
           created_at?: string
-          email?: string
+          day_rate?: number | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          employment_type?: string | null
           full_name?: string
           hourly_rate?: number | null
           id?: string
-          is_active?: boolean
+          next_of_kin?: string | null
+          notes?: string | null
+          overtime_rate?: number | null
           phone?: string | null
           profile_id?: string | null
           role?: string
+          start_date?: string | null
           status?: string | null
+          trade?: string | null
           updated_at?: string
+          utr_number?: string | null
         }
         Relationships: [
           {
@@ -6317,47 +6501,65 @@ export type Database = {
       }
       timesheets: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           arrived_at: string | null
+          break_minutes: number | null
           contractor_id: string
           created_at: string
           date: string
           description: string | null
           hours: number
           id: string
+          is_overtime: boolean | null
           job_id: string | null
           left_at: string | null
           project_name: string | null
+          rate_applied: number | null
           status: string
+          timesheet_week: string | null
           updated_at: string
           worker_id: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           arrived_at?: string | null
+          break_minutes?: number | null
           contractor_id: string
           created_at?: string
           date: string
           description?: string | null
           hours: number
           id?: string
+          is_overtime?: boolean | null
           job_id?: string | null
           left_at?: string | null
           project_name?: string | null
+          rate_applied?: number | null
           status?: string
+          timesheet_week?: string | null
           updated_at?: string
           worker_id?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           arrived_at?: string | null
+          break_minutes?: number | null
           contractor_id?: string
           created_at?: string
           date?: string
           description?: string | null
           hours?: number
           id?: string
+          is_overtime?: boolean | null
           job_id?: string | null
           left_at?: string | null
           project_name?: string | null
+          rate_applied?: number | null
           status?: string
+          timesheet_week?: string | null
           updated_at?: string
           worker_id?: string | null
         }
@@ -6994,6 +7196,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       asset_category: [
