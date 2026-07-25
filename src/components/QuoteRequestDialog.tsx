@@ -260,7 +260,7 @@ const QuoteRequestDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto overflow-x-hidden box-border">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <Avatar className="h-11 w-11">
