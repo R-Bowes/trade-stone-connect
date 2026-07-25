@@ -64,9 +64,15 @@ interface QuoteSubmissionRequest {
   preferred_window_start?: string | null;
   preferred_window_end?: string | null;
   preferred_time_of_day?: string | null;
+  job_type?: string | null;
+  priority?: string | null;
+  access_notes?: string | null;
   additional_details?: Record<string, string> | null;
   contractorName: string;
 }
+
+const JOB_TYPE_VALUES = ["repair", "service", "installation", "inspection", "emergency_callout", "other"];
+const PRIORITY_VALUES = ["low", "medium", "high", "emergency"];
 
 // Input validation
 const validateInput = (data: QuoteSubmissionRequest): string | null => {
@@ -109,6 +115,18 @@ const validateInput = (data: QuoteSubmissionRequest): string | null => {
   // letting a malformed value surface as an opaque insert error.
   if (data.preferred_time_of_day && !["am", "pm", "any"].includes(data.preferred_time_of_day)) {
     return "Invalid preferred_time_of_day";
+  }
+
+  if (data.job_type && !JOB_TYPE_VALUES.includes(data.job_type)) {
+    return "Invalid job_type";
+  }
+
+  if (data.priority && !PRIORITY_VALUES.includes(data.priority)) {
+    return "Invalid priority";
+  }
+
+  if (data.access_notes && (typeof data.access_notes !== "string" || data.access_notes.length > 2000)) {
+    return "Invalid access_notes";
   }
 
   return null;
@@ -312,7 +330,11 @@ const handler = async (req: Request): Promise<Response> => {
           customer_email: customerEmail,
           customer_phone: requestData.customer_phone?.trim() || null,
           contractor_id: contractorProfileId,
+          title: projectTitle,
           job_description: requestData.project_description.trim(),
+          job_type: requestData.job_type || null,
+          priority: requestData.priority || null,
+          access_notes: requestData.access_notes ? sanitizeText(requestData.access_notes) : null,
           location: requestData.project_location?.trim() || '',
           preferred_timeline: requestData.timeline || null,
           budget_range: requestData.budget_range || null,

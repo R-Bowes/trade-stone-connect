@@ -780,6 +780,8 @@ const ContractorProfile = () => {
         onClose={() => setIsQuoteOpen(false)}
         contractorId={profile.id}
         contractorName={profile.full_name ?? ""}
+        contractorTsCode={profile.ts_profile_code}
+        contractorAvatarUrl={profile.avatar_url ?? profile.logo_url}
       />
 
       {profile.user_id && (

@@ -977,3 +977,201 @@ Links back to the dropped business_members.site_scope column (v1 rebuild).
 - Cancellation notice text + model cancellation form stored versioned; appears in acceptance email and job record PDF.
 - B2B jobs: not applicable, flow skipped entirely (keys off client type, same flag as RAMS gate).
 - **Needs a solicitor's eye on the notice wording before launch** — pattern is standard but the text carries legal weight. Not professional advice from TradeStone; the platform serves the contractor's notice for them.
+
+Profile customisation — "replace your website" feature set
+
+Status: Designed, not built. Build only after core job flow is validated with a real user. These features close the gap between the profile editor and a standalone contractor website. Build in priority order listed below.
+
+Build prerequisite: All six features slot into the existing profile editor widget system (profile_widgets table, CanvasEditor.tsx, section type registry). No changes to the widget architecture itself — just new section types and one new table (testimonials only). Run Step-0 schema report against live DB before building any item.
+
+1. Freeform content block
+
+Priority: Highest — covers the widest range of "I can't do X on my profile." Contractors need to explain their process, list guarantees, describe aftercare, write FAQs. The bio section covers "about me" but trades often need multiple distinct text sections ("Our Process", "Warranty Information", "Why Choose Us", "Areas We Cover").
+
+Section type: content — repeatable, max 5 instances, reorderable, togglable.
+
+Editor panel fields:
+
+Section heading input (saves to meta.heading, same as other sections)
+Content body textarea with markdown-lite formatting: bold, bullet list, numbered list, and links only. No images (use galleries), no headings (the section heading covers that), no colours, no custom fonts.
+Character limit: 2,000.
+
+Data model: No new table. Lives in profile_widgets.meta as { heading: string, body: string }. Body stored as markdown-lite string, rendered on public profile.
+
+Canvas preview: Renders heading and body with formatting applied. Truncates at ~200 chars with "…" to keep canvas blocks consistent height.
+
+Public profile rendering: Heading in Lexend 600, body in Source Serif 4 400. Bullet/numbered lists render natively. Links render as orange text. Max-width prose container for readability.
+
+What it doesn't do: No images, custom fonts, background colours, or columns. Those break brand consistency. Visual content goes in galleries or projects.
+
+2. Social media links
+
+Priority: Table stakes for any "replace your website" pitch. Trivial to build.
+
+Section type: social — single instance (not repeatable), reorderable, togglable.
+
+Editor panel fields:
+
+Section heading input (default: "Find us online" — editable)
+One URL input per platform, each with platform icon beside it and placeholder showing expected format:
+Instagram — https://instagram.com/yourhandle
+Facebook — https://facebook.com/yourpage
+TikTok — https://tiktok.com/@yourhandle
+YouTube — https://youtube.com/@yourchannel
+LinkedIn — https://linkedin.com/in/yourname
+Twitter/X — https://x.com/yourhandle
+Only filled URLs render on public profile — empties are ignored.
+Light client-side validation: must start with https:// and contain the expected domain. Auto-prepend https:// if missing. Wrong-domain hint ("This doesn't look like an Instagram URL") but doesn't block saving — contractors sometimes use Linktree or custom domains.
+
+Data model: No new table. Lives in profile_widgets.meta as { heading: string, links: { platform: string, url: string }[] }. Only non-empty URLs stored.
+
+Canvas preview: Row of platform icons with handle/page name extracted from URL shown beside each. Empty state: "No social links added" in muted text.
+
+Public profile rendering: Horizontal row of platform icons as circular icon buttons (navy background, white icon, 40px). Opens link in new tab. Centres if few, spaces evenly if four or more. No text labels below — icons are universally recognised.
+
+What it doesn't do: No follower counts, feed embeds, or "latest posts" widget. API rate limits and auth tokens make those maintenance nightmares. Simple links only.
+
+3. Video embed
+
+Priority: High impact for the right trades (kitchen fitters, landscapers, bathroom installers). Moderate effort.
+
+Section type: video — repeatable, max 3 instances, reorderable, togglable.
+
+Editor panel fields:
+
+Section heading input (default: "Watch our work" — editable)
+Video URL input with placeholder: "Paste a YouTube, Vimeo or TikTok link"
+Caption textarea (optional, max 200 chars)
+Thumbnail preview once valid URL pasted — pulled from oEmbed endpoint. If URL invalid or unsupported: "We support YouTube, Vimeo and TikTok links"
+
+URL parsing — client-side regex extracts video ID from:
+
+YouTube: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/
+Vimeo: vimeo.com/
+TikTok: tiktok.com/@user/video/
+
+Store raw URL in data model. Parse and build embed iframe at render time.
+
+Data model: No new table. Lives in profile_widgets.meta as { heading: string, videoUrl: string, caption: string | null }. Each instance is a separate profile_widgets row with type: "video" — same pattern as gallery.
+
+Canvas preview: Thumbnail image with centred play button overlay. Caption below in muted text. Not a live embed — keeps editor fast.
+
+Public profile rendering: Responsive 16:9 iframe embed with rounded corners and subtle shadow. Caption below in Source Serif 4 400 italic. Lazy-loaded — iframe loads on scroll into view, otherwise shows thumbnail with play overlay. Each instance is independent with its own heading.
+
+Security: Embed iframe uses sandbox="allow-scripts allow-same-origin" and allow="encrypted-media". Iframe src constructed from parsed video ID, never from raw user input directly — prevents injection.
+
+What it doesn't do: No file upload (TradeStone is not a video host). No auto-play. No inline recording. No MP4/Dropbox/Drive links — only YouTube, Vimeo, TikTok.
+
+4. Before/after pairs on projects
+
+Priority: High visual impact for transformation trades. Moderate effort.
+
+Not a new section type — enhances the existing project showcase section. Each project can optionally have one before/after photo pair.
+
+Editor panel changes (added to existing project panel):
+
+"Before & after" label with toggle switch — off by default
+When on: two side-by-side upload slots (dashed upload areas labelled "BEFORE" and "AFTER")
+Upload uses contractor-photos bucket, path: {userId}/projects/{projectId}/{before|after}.{ext}
+Each slot shows uploaded image with delete X to replace
+Both must be filled to render — hint: "Add both photos for the before & after to appear"
+Optional caption input below pair (max 150 chars)
+
+Data model — new columns on contractor_projects table:
+
+sql
+-- DO NOT RUN
+ALTER TABLE contractor_projects
+  ADD COLUMN before_photo_url text,
+  ADD COLUMN after_photo_url text,
+  ADD COLUMN comparison_caption text;
+
+Toggle state inferred: if both URLs non-null, pair renders.
+
+Canvas preview: Small split-view thumbnail on project card — left half before, right half after, thin white vertical divider.
+
+Public profile rendering — interactive slider (Option A, locked): Single image container with draggable vertical divider. Client slides left/ right to reveal before/after. Slider handle is circular navy button with left/right arrow icon. CSS + range input implementation, no library.
+
+Labels "BEFORE" and "AFTER" at bottom-left and bottom-right as white text on dark scrim, always visible regardless of slider position.
+
+Caption below in Source Serif 4 400 italic.
+
+Mobile: Slider works on touch/drag. Full-width container, 3:2 aspect ratio.
+
+What it doesn't do: No multiple pairs per project (use gallery for stages). No automatic image alignment. No animation or transition effects.
+
+5. Featured testimonials
+
+Priority: Low effort for pinning (flag exists). Manual testimonials require a new table.
+
+Two parts: pinning verified reviews and adding manual pre-TradeStone testimonials.
+
+Part A — Pinning existing reviews:
+
+The is_featured flag already exists on reviews. Max 3 pinned.
+
+Editor panel changes: Pin icon button on each review row — filled star when pinned, outline when not. Tap to toggle is_featured. Fourth pin attempt shows hint: "Maximum 3 featured reviews. Unpin one to feature another."
+
+Public profile rendering: Pinned reviews in highlighted strip — larger quote text in Source Serif 4 400 italic, client name and date below, subtle orange left border. Vertical stack, not carousel. Pinned reviews removed from general reviews list (no duplication).
+
+Part B — Manual testimonials:
+
+Contractors have years of happy clients from before TradeStone. Unverified quotes need clear labelling.
+
+Trust model: Manual testimonials get "Unverified" label in muted text. TradeStone-sourced reviews get "Verified on TradeStone" with checkmark. Same pattern as Trustpilot. Over time, verified reviews naturally become more prominent.
+
+Editor panel: "+ Add testimonial" button at bottom of reviews panel. Inline fields:
+
+Client name (required, max 50 chars)
+Quote text (required, max 300 chars)
+Date (optional, month/year picker)
+Project type (optional, free text — "Kitchen renovation")
+
+Manual testimonials share the same pin toggle and max 3 pinned limit with verified reviews. A contractor could pin 2 verified + 1 manual, or 3 manual.
+
+Data model:
+
+sql
+-- DO NOT RUN
+CREATE TABLE contractor_testimonials (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contractor_id uuid NOT NULL REFERENCES profiles(id),
+  client_name text NOT NULL,
+  quote_text text NOT NULL,
+  testimonial_date date,
+  project_type text,
+  is_featured boolean NOT NULL DEFAULT false,
+  display_order int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+RLS: contractor CRUD on own rows (two-step profiles lookup). Public SELECT for published profiles.
+
+Public profile rendering: Pinned section mixes verified and manual in display order. Identical visual treatment except verified/unverified label. No star ratings on manual testimonials — that's a verified review feature only. No client email, photo, or job link.
+
+6. Service area map
+
+Priority: Lowest — data already exists, hire page handles discovery. Nice trust signal on the profile.
+
+Section type: service_area — single instance (not repeatable), reorderable, togglable.
+
+Editor panel fields:
+
+Section heading input (default: "Where we work")
+Location display (read-only from profiles.location) with "Edit in account settings" link
+Working radius display (read-only from profiles.working_radius_miles) with same settings link
+No map interaction in editor — data set elsewhere, section controls visibility only
+
+Data model: No new table, no new columns. profile_widgets row stores { heading: string } in meta. Map renders from existing profiles.location and profiles.working_radius_miles.
+
+Public profile rendering: Small static map image showing contractor location with shaded circle for working radius. Uses free tile provider (OpenStreetMap via Leaflet.js or static map image API) — no Google Maps costs. Non-interactive.
+
+Below map: "Based in {location} · Works within {radius} miles."
+
+Radius circle uses semi-transparent orange fill (
+#f07820 at 20% opacity).
+
+Mobile: Full width, 2:1 aspect ratio.
+
+What it doesn't do: No exact address. No directions or "get a route" link. No interactive zoom/pan. No polygon service areas — circle from radius is sufficient.

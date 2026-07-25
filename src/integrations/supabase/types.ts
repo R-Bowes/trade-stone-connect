@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -1363,6 +1338,7 @@ export type Database = {
       }
       enquiries: {
         Row: {
+          access_notes: string | null
           additional_details: string | null
           asset_id: string | null
           budget_range: string | null
@@ -1392,6 +1368,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          access_notes?: string | null
           additional_details?: string | null
           asset_id?: string | null
           budget_range?: string | null
@@ -1421,6 +1398,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          access_notes?: string | null
           additional_details?: string | null
           asset_id?: string | null
           budget_range?: string | null
@@ -7016,9 +6994,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       asset_category: [

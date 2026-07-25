@@ -50,6 +50,7 @@ import { useContractorPipeline, type PipelineEngagement, type PipelineEnquiryRef
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { PipelineCard } from "@/components/contractor/work/PipelineCard";
 import { EngagementThread } from "@/components/contractor/thread/EngagementThread";
+import { EnquiryDetailSheet, type EnquiryDetail } from "@/components/contractor/EnquiryDetailSheet";
 import { Inbox, CheckCircle2 } from "lucide-react";
 
 type EnquiryForDialog = {
@@ -78,6 +79,8 @@ const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
   const [enquiryDialog, setEnquiryDialog] = useState<"quote" | "reject" | "respond" | "site_visit" | null>(null);
+  const [detailEnquiry, setDetailEnquiry] = useState<EnquiryDetail | null>(null);
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -286,7 +289,7 @@ const ContractorDashboard = () => {
       }
 
       const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
-        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
+        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
         .eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
       if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
       else setEnquiries(enquiriesData || []);
@@ -340,7 +343,7 @@ const ContractorDashboard = () => {
   const reloadEnquiries = async () => {
     if (!user) return;
     const { data } = await supabase.from('enquiries')
-      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
+      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
       .eq('contractor_id', user.id).order('created_at', { ascending: false });
     setEnquiries(data || []);
   };
@@ -566,7 +569,11 @@ const ContractorDashboard = () => {
             ) : (
               <div className="space-y-4">
                 {enquiries.map((enquiry) => (
-                  <Card key={enquiry.id} className="hover:shadow-lg transition-shadow">
+                  <Card
+                    key={enquiry.id}
+                    className="hover:shadow-lg hover:border-primary/40 transition-all cursor-pointer"
+                    onClick={() => { setDetailEnquiry(enquiry as EnquiryDetail); setDetailSheetOpen(true); }}
+                  >
                     <CardContent className="p-6">
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
@@ -582,20 +589,23 @@ const ContractorDashboard = () => {
                             <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 md:min-w-[160px]">
-                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
-                            <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}><Send className="h-3 w-3 mr-1" />Send Quote</Button>
-                          )}
-                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
-                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'site_visit')}><Calendar className="h-3 w-3 mr-1" />Propose Site Visit</Button>
-                          )}
-                          {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
-                            <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}><MessageSquare className="h-3 w-3 mr-1" />Request Info</Button>
-                          )}
-                          {(enquiry.status === 'new' || enquiry.status === 'replied') && (
-                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => openEnquiryDialog(enquiry, 'reject')}><XCircle className="h-3 w-3 mr-1" />Decline</Button>
-                          )}
+                        <div className="flex items-center gap-3 md:min-w-[160px] justify-end" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-col gap-2">
+                            {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
+                              <Button size="sm" onClick={() => openEnquiryDialog(enquiry, 'quote')}><Send className="h-3 w-3 mr-1" />Send Quote</Button>
+                            )}
+                            {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
+                              <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'site_visit')}><Calendar className="h-3 w-3 mr-1" />Propose Site Visit</Button>
+                            )}
+                            {enquiry.status !== 'converted' && enquiry.status !== 'declined' && (
+                              <Button variant="outline" size="sm" onClick={() => openEnquiryDialog(enquiry, 'respond')}><MessageSquare className="h-3 w-3 mr-1" />Request Info</Button>
+                            )}
+                            {(enquiry.status === 'new' || enquiry.status === 'replied') && (
+                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => openEnquiryDialog(enquiry, 'reject')}><XCircle className="h-3 w-3 mr-1" />Decline</Button>
+                            )}
+                          </div>
                         </div>
+                        <i className="ti ti-chevron-right text-muted-foreground shrink-0 hidden md:block" style={{ fontSize: 18 }} />
                       </div>
                     </CardContent>
                   </Card>
@@ -688,6 +698,14 @@ const ContractorDashboard = () => {
             <ProposeSiteVisitDialog open={enquiryDialog === 'site_visit'} onOpenChange={(open) => { if (!open) closeEnquiryDialog(); }} enquiry={activeEnquiry} onSuccess={reloadEnquiriesAndPipeline} />
           </>
         )}
+
+        <EnquiryDetailSheet
+          enquiry={detailEnquiry}
+          open={detailSheetOpen}
+          onOpenChange={setDetailSheetOpen}
+          onSendQuote={(enquiry) => { setDetailSheetOpen(false); openEnquiryDialog(enquiry, 'quote'); }}
+          onDecline={(enquiry) => { setDetailSheetOpen(false); openEnquiryDialog(enquiry, 'reject'); }}
+        />
 
         {profileId && (
           <EngagementThread
