@@ -480,9 +480,10 @@ export function TeamManagement() {
         saving={saving}
       />
 
-      {certMember && (
+      {certMember && contractorId && (
         <CertificationsDialog
           member={certMember}
+          contractorId={contractorId}
           onClose={() => setCertMember(null)}
           onChanged={loadTeam}
         />
@@ -853,18 +854,23 @@ function CertStatusPill({ status }: { status: string }) {
   return <Badge className={map[status] ?? map.not_verified}>{label[status] ?? status}</Badge>;
 }
 
+const CERT_DOCUMENT_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,application/pdf";
+
 function CertificationsDialog({
   member,
+  contractorId,
   onClose,
   onChanged,
 }: {
   member: TeamMember;
+  contractorId: string;
   onClose: () => void;
   onChanged: () => void;
 }) {
   const [certs, setCerts] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingCert, setEditingCert] = useState<Certification | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Certification | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -873,6 +879,7 @@ function CertificationsDialog({
   const [refNumber, setRefNumber] = useState("");
   const [issuedDate, setIssuedDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const loadCerts = useCallback(async () => {
     setLoading(true);
@@ -894,15 +901,46 @@ function CertificationsDialog({
     loadCerts();
   }, [loadCerts]);
 
-  const resetAddForm = () => {
+  const resetForm = () => {
+    setEditingCert(null);
     setCertType("");
     setCertName("");
     setRefNumber("");
     setIssuedDate("");
     setExpiryDate("");
+    setSelectedFile(null);
   };
 
-  const handleAddCert = async () => {
+  const openAddForm = () => {
+    resetForm();
+    setFormOpen(true);
+  };
+
+  const openEditForm = (cert: Certification) => {
+    setEditingCert(cert);
+    setCertType(cert.cert_type);
+    setCertName(cert.cert_name);
+    setRefNumber(cert.reference_number ?? "");
+    setIssuedDate(cert.issued_date ?? "");
+    setExpiryDate(cert.expiry_date ?? "");
+    setSelectedFile(null);
+    setFormOpen(true);
+  };
+
+  const handleViewDocument = async (cert: Certification) => {
+    if (!cert.document_url) return;
+    const { data, error } = await supabase.storage
+      .from("team-certs")
+      .createSignedUrl(cert.document_url, 60);
+    if (error || !data) {
+      console.error("Error creating signed URL:", error);
+      toast.error("Failed to open document");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleSaveCert = async () => {
     if (!certType) {
       toast.error("Certification type is required");
       return;
@@ -913,25 +951,51 @@ function CertificationsDialog({
     }
     setSaving(true);
     try {
+      let documentUrl = editingCert?.document_url ?? null;
+
+      if (selectedFile) {
+        const path = `${contractorId}/${member.id}/${Date.now()}_${selectedFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("team-certs")
+          .upload(path, selectedFile);
+        if (uploadError) throw uploadError;
+        documentUrl = path;
+      }
+
       const status = computeCertStatus(expiryDate || null);
-      const { error } = await supabase.from("team_member_certifications").insert({
-        team_member_id: member.id,
+      const payload = {
         cert_type: certType,
         cert_name: certName.trim(),
         reference_number: refNumber.trim() || null,
         issued_date: issuedDate || null,
         expiry_date: expiryDate || null,
         status,
-      });
-      if (error) throw error;
-      toast.success("Certification added");
-      setAddOpen(false);
-      resetAddForm();
+        document_url: documentUrl,
+      };
+
+      if (editingCert) {
+        const { error } = await supabase
+          .from("team_member_certifications")
+          .update(payload)
+          .eq("id", editingCert.id);
+        if (error) throw error;
+        toast.success("Certification updated");
+      } else {
+        const { error } = await supabase.from("team_member_certifications").insert({
+          team_member_id: member.id,
+          ...payload,
+        });
+        if (error) throw error;
+        toast.success("Certification added");
+      }
+
+      setFormOpen(false);
+      resetForm();
       loadCerts();
       onChanged();
     } catch (error) {
-      console.error("Error adding certification:", error);
-      toast.error("Failed to add certification");
+      console.error("Error saving certification:", error);
+      toast.error(editingCert ? "Failed to update certification" : "Failed to add certification");
     } finally {
       setSaving(false);
     }
@@ -972,12 +1036,24 @@ function CertificationsDialog({
             ) : (
               certs.map((cert) => (
                 <div key={cert.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
-                  <div className="min-w-0">
+                  <button
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => openEditForm(cert)}
+                  >
                     <p className="truncate text-sm font-medium">{cert.cert_name}</p>
                     <p className="text-xs text-muted-foreground">
                       {cert.reference_number ? `${cert.reference_number} · ` : ""}Expires {formatDate(cert.expiry_date)}
                     </p>
-                  </div>
+                    {cert.document_url && (
+                      <span
+                        role="button"
+                        onClick={(e) => { e.stopPropagation(); handleViewDocument(cert); }}
+                        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        <i className="ti ti-file-text" /> View document
+                      </span>
+                    )}
+                  </button>
                   <div className="flex shrink-0 items-center gap-2">
                     <CertStatusPill status={cert.status} />
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget(cert)}>
@@ -989,16 +1065,16 @@ function CertificationsDialog({
             )}
           </div>
 
-          <Button variant="outline" onClick={() => setAddOpen(true)}>
+          <Button variant="outline" onClick={openAddForm}>
             <i className="ti ti-plus mr-2" /> Add certification
           </Button>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetAddForm(); }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) resetForm(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add certification</DialogTitle>
+            <DialogTitle>{editingCert ? "Edit certification" : "Add certification"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1039,8 +1115,41 @@ function CertificationsDialog({
                 <Input id="expiry_date" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
               </div>
             </div>
-            <Button onClick={handleAddCert} disabled={saving} className="w-full">
-              {saving ? "Saving…" : "Add certification"}
+            <div className="space-y-2">
+              <Label htmlFor="cert_document">Certificate document</Label>
+              {editingCert?.document_url && !selectedFile && (
+                <div className="flex items-center justify-between rounded-md border p-2 text-xs">
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <i className="ti ti-file-text" /> Current document on file
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleViewDocument(editingCert)}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    View
+                  </button>
+                </div>
+              )}
+              <Input
+                id="cert_document"
+                type="file"
+                accept={CERT_DOCUMENT_ACCEPT}
+                onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+              />
+              {selectedFile && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {selectedFile.name}
+                </p>
+              )}
+              {editingCert?.document_url && (
+                <p className="text-xs text-muted-foreground">
+                  Choosing a file will replace the current document.
+                </p>
+              )}
+            </div>
+            <Button onClick={handleSaveCert} disabled={saving} className="w-full">
+              {saving ? "Saving…" : editingCert ? "Update certification" : "Add certification"}
             </Button>
           </div>
         </DialogContent>
