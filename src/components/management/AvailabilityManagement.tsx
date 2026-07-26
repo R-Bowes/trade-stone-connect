@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,6 +38,7 @@ import type { Database } from "@/integrations/supabase/types";
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type WorkingPattern = Database["public"]["Tables"]["team_member_working_patterns"]["Row"];
 type Absence = Database["public"]["Tables"]["team_member_absences"]["Row"];
+type ContractorAbsence = Database["public"]["Tables"]["contractor_absences"]["Row"];
 type JobStub = { id: string; title: string; status: string; scheduled_start: string | null };
 type AssignmentStub = { id: string; team_member_id: string | null; assigned_date: string | null; job: JobStub | null };
 
@@ -117,25 +117,25 @@ interface DayStats {
 }
 
 export function AvailabilityManagement() {
-  const navigate = useNavigate();
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [patterns, setPatterns] = useState<WorkingPattern[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [assignments, setAssignments] = useState<AssignmentStub[]>([]);
   const [scheduledJobs, setScheduledJobs] = useState<JobStub[]>([]);
-  const [contractorOverrideCount, setContractorOverrideCount] = useState(0);
+  const [contractorAbsences, setContractorAbsences] = useState<ContractorAbsence[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const [availabilityOpen, setAvailabilityOpen] = useState(true);
+  const [timeOffOpen, setTimeOffOpen] = useState(true);
   const [patternsOpen, setPatternsOpen] = useState(true);
   const [absencesOpen, setAbsencesOpen] = useState(true);
 
   const [patternTarget, setPatternTarget] = useState<{ member: TeamMember; dayOfWeek: number } | null>(null);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
+  const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
 
   const [absenceWorkerFilter, setAbsenceWorkerFilter] = useState<string>("all");
   const [absenceTypeFilter, setAbsenceTypeFilter] = useState<string>("all");
@@ -223,14 +223,6 @@ export function AvailabilityManagement() {
         .lte("scheduled_start", addDays(gridEnd, 1).toISOString());
       if (jobsError) throw jobsError;
       setScheduledJobs(jobRows ?? []);
-
-      const { count: overrideCount, error: overrideError } = await supabase
-        .from("contractor_availability_overrides")
-        .select("id", { count: "exact", head: true })
-        .eq("contractor_id", cId)
-        .gte("date", toISODate(new Date()));
-      if (overrideError) throw overrideError;
-      setContractorOverrideCount(overrideCount ?? 0);
     } catch (error) {
       console.error("Error loading availability data:", error);
       toast.error("Failed to load availability data");
@@ -239,8 +231,28 @@ export function AvailabilityManagement() {
     }
   }, [contractorId, getContractorId, gridStartISO, gridEndISO]);
 
+  const loadContractorAbsences = useCallback(async () => {
+    const cId = contractorId ?? (await getContractorId());
+    if (!cId) return;
+
+    const { data, error } = await supabase
+      .from("contractor_absences")
+      .select("*")
+      .eq("contractor_id", cId)
+      .gte("end_date", toISODate(new Date()))
+      .order("start_date", { ascending: true });
+
+    if (error) {
+      console.error("Error loading time off:", error);
+      toast.error("Failed to load time off");
+      return;
+    }
+    setContractorAbsences(data ?? []);
+  }, [contractorId, getContractorId]);
+
   useEffect(() => {
     loadData();
+    loadContractorAbsences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridStartISO, gridEndISO]);
 
@@ -361,6 +373,22 @@ export function AvailabilityManagement() {
 
   const memberName = (id: string | null) => teamMembers.find((m) => m.id === id)?.full_name ?? "Unknown";
 
+  const handleCancelTimeOff = async (absence: ContractorAbsence) => {
+    try {
+      const { error } = await supabase
+        .from("contractor_absences")
+        .update({ status: "cancelled" })
+        .eq("id", absence.id);
+      if (error) throw error;
+      toast.success("Time off cancelled");
+      loadContractorAbsences();
+      loadData();
+    } catch (error) {
+      console.error("Error cancelling time off:", error);
+      toast.error("Failed to cancel time off");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center p-12">
@@ -440,29 +468,47 @@ export function AvailabilityManagement() {
         </div>
       </div>
 
-      <Collapsible open={availabilityOpen} onOpenChange={setAvailabilityOpen}>
+      <Collapsible open={timeOffOpen} onOpenChange={setTimeOffOpen}>
         <Card>
           <CollapsibleTrigger asChild>
             <button className="flex w-full items-center justify-between p-4 text-left">
-              <span className="font-heading text-lg font-semibold">Your availability</span>
-              <i className={cn("ti ti-chevron-down transition-transform", availabilityOpen && "rotate-180")} />
+              <span className="font-heading text-lg font-semibold">Your time off</span>
+              <i className={cn("ti ti-chevron-down transition-transform", timeOffOpen && "rotate-180")} />
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="space-y-3 pt-0">
-              <p className="text-sm text-muted-foreground">
-                You're counted as available Mon–Fri. To block specific dates, use Date overrides on the Schedule page.
-              </p>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-                <div>
-                  <p className="text-sm font-medium">Upcoming blocked dates</p>
-                  <p className="text-2xl font-bold">{contractorOverrideCount}</p>
-                </div>
-                <Button variant="outline" onClick={() => navigate("/dashboard/contractor?view=schedule")}>
-                  <i className="ti ti-calendar-off mr-2" />
-                  Manage date overrides
+            <CardContent className="space-y-4 pt-0">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">You're counted as available Mon–Fri by default.</p>
+                <Button onClick={() => setTimeOffDialogOpen(true)}>
+                  <i className="ti ti-plus mr-2" />
+                  Log time off
                 </Button>
               </div>
+
+              {contractorAbsences.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No upcoming time off logged.</p>
+              ) : (
+                <div className="space-y-2">
+                  {contractorAbsences.map((absence) => (
+                    <div key={absence.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
+                            {absence.absence_type}
+                          </Badge>
+                          <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
+                          <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
+                        </div>
+                        {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => handleCancelTimeOff(absence)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </CollapsibleContent>
         </Card>
@@ -660,6 +706,18 @@ export function AvailabilityManagement() {
           onClose={() => setAbsenceDialogOpen(false)}
           onSaved={() => {
             setAbsenceDialogOpen(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {timeOffDialogOpen && contractorId && (
+        <LogTimeOffDialog
+          contractorId={contractorId}
+          onClose={() => setTimeOffDialogOpen(false)}
+          onSaved={() => {
+            setTimeOffDialogOpen(false);
+            loadContractorAbsences();
             loadData();
           }}
         />
@@ -887,6 +945,101 @@ function LogAbsenceDialog({
           </div>
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? "Saving…" : "Log absence"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LogTimeOffDialog({
+  contractorId,
+  onClose,
+  onSaved,
+}: {
+  contractorId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [absenceType, setAbsenceType] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!absenceType) {
+      toast.error("Select a type");
+      return;
+    }
+    if (!startDate || !endDate) {
+      toast.error("Start and end dates are required");
+      return;
+    }
+    if (endDate < startDate) {
+      toast.error("End date must be on or after the start date");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("contractor_absences").insert({
+        contractor_id: contractorId,
+        absence_type: absenceType,
+        start_date: startDate,
+        end_date: endDate,
+        notes: notes.trim() || null,
+        status: "approved",
+      });
+      if (error) throw error;
+      toast.success("Time off logged");
+      onSaved();
+    } catch (error) {
+      console.error("Error logging time off:", error);
+      toast.error("Failed to log time off");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Log time off</DialogTitle>
+          <DialogDescription>Record your own holiday, sickness or other time off</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="time_off_type">Type</Label>
+            <Select value={absenceType} onValueChange={setAbsenceType}>
+              <SelectTrigger id="time_off_type">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {ABSENCE_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="time_off_start">Start date</Label>
+              <Input id="time_off_start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="time_off_end">End date</Label>
+              <Input id="time_off_end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="time_off_notes">Notes</Label>
+            <Textarea id="time_off_notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? "Saving…" : "Log time off"}
           </Button>
         </div>
       </DialogContent>

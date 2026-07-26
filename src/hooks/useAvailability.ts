@@ -42,9 +42,11 @@ const RANGE_DAYS = 90;
  */
 export function useAvailability(contractorId: string) {
   // Vestigial — no consumer should read these directly anymore. Kept only
-  // for backward compatibility with the existing hook return shape.
+  // for backward compatibility with the existing hook return shape. The RPC
+  // doesn't read contractor_availability_overrides, so overrides is never
+  // populated.
   const [slots] = useState<AvailabilitySlot[]>([]);
-  const [overrides, setOverrides] = useState<ContractorAvailabilityOverride[]>([]);
+  const [overrides] = useState<ContractorAvailabilityOverride[]>([]);
   const [availabilityByDate, setAvailabilityByDate] = useState<
     Map<string, { is_available: boolean; remaining_capacity: number }>
   >(new Map());
@@ -53,7 +55,6 @@ export function useAvailability(contractorId: string) {
   const fetchData = useCallback(async () => {
     if (!contractorId) {
       setAvailabilityByDate(new Map());
-      setOverrides([]);
       return;
     }
 
@@ -62,18 +63,11 @@ export function useAvailability(contractorId: string) {
     const startStr = format(new Date(), "yyyy-MM-dd");
     const endStr = format(addDays(new Date(), RANGE_DAYS), "yyyy-MM-dd");
 
-    const [{ data: rpcData }, { data: overridesData }] = await Promise.all([
-      supabase.rpc("get_contractor_availability", {
-        p_contractor_id: contractorId,
-        p_start_date: startStr,
-        p_end_date: endStr,
-      }),
-      supabase
-        .from("contractor_availability_overrides")
-        .select("id, contractor_id, date, am_available, pm_available, reason")
-        .eq("contractor_id", contractorId)
-        .order("date", { ascending: true }),
-    ]);
+    const { data: rpcData } = await supabase.rpc("get_contractor_availability", {
+      p_contractor_id: contractorId,
+      p_start_date: startStr,
+      p_end_date: endStr,
+    });
 
     const map = new Map<string, { is_available: boolean; remaining_capacity: number }>();
     for (const row of rpcData ?? []) {
@@ -81,7 +75,6 @@ export function useAvailability(contractorId: string) {
     }
 
     setAvailabilityByDate(map);
-    setOverrides(overridesData ?? []);
     setLoading(false);
   }, [contractorId]);
 
@@ -143,86 +136,5 @@ export function useAvailability(contractorId: string) {
     getNextAvailable,
     getAvailabilityForRange,
     refetch: fetchData,
-  };
-}
-
-// ─── useContractorAvailabilityManager ────────────────────────────────────────
-
-/**
- * Write-enabled hook for the contractor managing their own availability.
- * Extends useAvailability with mutation helpers.
- * RLS enforces ownership server-side; no auth.uid() comparison needed here.
- */
-export function useContractorAvailabilityManager(contractorId: string) {
-  const base = useAvailability(contractorId);
-  const { refetch } = base;
-
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /**
-   * Adds a one-off override for a specific date.
-   * Existing override for the same date is left in place — callers should
-   * call removeOverride first if they intend to replace it.
-   */
-  const addOverride = useCallback(
-    async (date: Date, amAvailable: boolean, pmAvailable: boolean, reason?: string): Promise<void> => {
-      if (!contractorId) return;
-      setSaving(true);
-      setError(null);
-      try {
-        const { error: insertError } = await supabase
-          .from("contractor_availability_overrides")
-          .insert({
-            contractor_id: contractorId,
-            date: format(date, "yyyy-MM-dd"),
-            am_available: amAvailable,
-            pm_available: pmAvailable,
-            reason: reason ?? null,
-          });
-        if (insertError) throw insertError;
-        await refetch();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to add override";
-        setError(msg);
-        throw e;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [contractorId, refetch],
-  );
-
-  /**
-   * Removes a single override by its primary key.
-   */
-  const removeOverride = useCallback(
-    async (overrideId: string): Promise<void> => {
-      setSaving(true);
-      setError(null);
-      try {
-        const { error: deleteError } = await supabase
-          .from("contractor_availability_overrides")
-          .delete()
-          .eq("id", overrideId);
-        if (deleteError) throw deleteError;
-        await refetch();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to remove override";
-        setError(msg);
-        throw e;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [refetch],
-  );
-
-  return {
-    ...base,
-    saving,
-    error,
-    addOverride,
-    removeOverride,
   };
 }
