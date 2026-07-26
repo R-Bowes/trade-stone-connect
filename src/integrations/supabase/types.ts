@@ -944,6 +944,48 @@ export type Database = {
           },
         ]
       }
+      contractor_working_patterns: {
+        Row: {
+          contractor_id: string
+          day_of_week: number
+          end_time: string | null
+          id: string
+          is_working: boolean
+          start_time: string | null
+        }
+        Insert: {
+          contractor_id: string
+          day_of_week: number
+          end_time?: string | null
+          id?: string
+          is_working?: boolean
+          start_time?: string | null
+        }
+        Update: {
+          contractor_id?: string
+          day_of_week?: number
+          end_time?: string | null
+          id?: string
+          is_working?: boolean
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_working_patterns_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_working_patterns_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contracts: {
         Row: {
           client_email: string

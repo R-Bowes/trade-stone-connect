@@ -37,12 +37,32 @@ import type { Database } from "@/integrations/supabase/types";
 
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type WorkingPattern = Database["public"]["Tables"]["team_member_working_patterns"]["Row"];
+type ContractorWorkingPattern = Database["public"]["Tables"]["contractor_working_patterns"]["Row"];
 type Absence = Database["public"]["Tables"]["team_member_absences"]["Row"];
 type ContractorAbsence = Database["public"]["Tables"]["contractor_absences"]["Row"];
 type JobStub = { id: string; title: string; status: string; scheduled_start: string | null };
 type AssignmentStub = { id: string; team_member_id: string | null; assigned_date: string | null; job: JobStub | null };
 
+type PatternTarget =
+  | { kind: "contractor"; dayOfWeek: number }
+  | { kind: "member"; member: TeamMember; dayOfWeek: number };
+
+interface AbsenceRow {
+  id: string;
+  workerId: string;
+  workerName: string;
+  absence_type: string;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+  status: string;
+  isContractor: boolean;
+}
+
+const SELF_VALUE = "self";
+
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const FULL_DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const ABSENCE_TYPES = [
   { value: "holiday", label: "Holiday" },
@@ -64,6 +84,7 @@ const STATUS_BADGE: Record<string, string> = {
   requested: "bg-amber-100 text-amber-800 hover:bg-amber-100",
   approved: "bg-green-100 text-green-800 hover:bg-green-100",
   declined: "bg-red-100 text-red-800 hover:bg-red-100",
+  cancelled: "bg-gray-100 text-gray-700 hover:bg-gray-100",
 };
 
 function toISODate(date: Date): string {
@@ -106,6 +127,14 @@ function daysBetweenInclusive(start: string, end: string): number {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
 }
 
+function patternCellLabel(isWorking: boolean, pattern?: { start_time: string | null; end_time: string | null } | null): string {
+  if (!isWorking) return "Off";
+  if (pattern?.start_time && pattern?.end_time) {
+    return `${pattern.start_time.slice(0, 5)}–${pattern.end_time.slice(0, 5)}`;
+  }
+  return "All day";
+}
+
 interface DayStats {
   dateISO: string;
   availableCount: number;
@@ -120,22 +149,21 @@ export function AvailabilityManagement() {
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [patterns, setPatterns] = useState<WorkingPattern[]>([]);
+  const [contractorPatterns, setContractorPatterns] = useState<ContractorWorkingPattern[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
+  const [contractorAbsences, setContractorAbsences] = useState<ContractorAbsence[]>([]);
   const [assignments, setAssignments] = useState<AssignmentStub[]>([]);
   const [scheduledJobs, setScheduledJobs] = useState<JobStub[]>([]);
-  const [contractorAbsences, setContractorAbsences] = useState<ContractorAbsence[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const [timeOffOpen, setTimeOffOpen] = useState(true);
   const [patternsOpen, setPatternsOpen] = useState(true);
   const [absencesOpen, setAbsencesOpen] = useState(true);
 
-  const [patternTarget, setPatternTarget] = useState<{ member: TeamMember; dayOfWeek: number } | null>(null);
+  const [patternTarget, setPatternTarget] = useState<PatternTarget | null>(null);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
-  const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
 
   const [absenceWorkerFilter, setAbsenceWorkerFilter] = useState<string>("all");
   const [absenceTypeFilter, setAbsenceTypeFilter] = useState<string>("all");
@@ -214,15 +242,32 @@ export function AvailabilityManagement() {
         setAssignments((assignmentsRes.data ?? []) as unknown as AssignmentStub[]);
       }
 
-      const { data: jobRows, error: jobsError } = await supabase
-        .from("jobs")
-        .select("id, title, status, scheduled_start")
-        .eq("contractor_id", cId)
-        .in("status", ["scheduled", "in_progress"])
-        .gte("scheduled_start", gridStart.toISOString())
-        .lte("scheduled_start", addDays(gridEnd, 1).toISOString());
-      if (jobsError) throw jobsError;
-      setScheduledJobs(jobRows ?? []);
+      const [jobsRes, contractorPatternsRes, contractorAbsencesRes] = await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, title, status, scheduled_start")
+          .eq("contractor_id", cId)
+          .in("status", ["scheduled", "in_progress"])
+          .gte("scheduled_start", gridStart.toISOString())
+          .lte("scheduled_start", addDays(gridEnd, 1).toISOString()),
+        supabase
+          .from("contractor_working_patterns")
+          .select("*")
+          .eq("contractor_id", cId),
+        supabase
+          .from("contractor_absences")
+          .select("*")
+          .eq("contractor_id", cId)
+          .order("start_date", { ascending: false }),
+      ]);
+
+      if (jobsRes.error) throw jobsRes.error;
+      if (contractorPatternsRes.error) throw contractorPatternsRes.error;
+      if (contractorAbsencesRes.error) throw contractorAbsencesRes.error;
+
+      setScheduledJobs(jobsRes.data ?? []);
+      setContractorPatterns(contractorPatternsRes.data ?? []);
+      setContractorAbsences(contractorAbsencesRes.data ?? []);
     } catch (error) {
       console.error("Error loading availability data:", error);
       toast.error("Failed to load availability data");
@@ -231,28 +276,8 @@ export function AvailabilityManagement() {
     }
   }, [contractorId, getContractorId, gridStartISO, gridEndISO]);
 
-  const loadContractorAbsences = useCallback(async () => {
-    const cId = contractorId ?? (await getContractorId());
-    if (!cId) return;
-
-    const { data, error } = await supabase
-      .from("contractor_absences")
-      .select("*")
-      .eq("contractor_id", cId)
-      .gte("end_date", toISODate(new Date()))
-      .order("start_date", { ascending: true });
-
-    if (error) {
-      console.error("Error loading time off:", error);
-      toast.error("Failed to load time off");
-      return;
-    }
-    setContractorAbsences(data ?? []);
-  }, [contractorId, getContractorId]);
-
   useEffect(() => {
     loadData();
-    loadContractorAbsences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridStartISO, gridEndISO]);
 
@@ -319,22 +344,38 @@ export function AvailabilityManagement() {
     return days;
   }, [gridStartISO, gridEndISO]);
 
-  const handleSavePattern = async (dayOfWeek: number, isWorking: boolean, startTime: string, endTime: string) => {
-    if (!patternTarget) return;
+  const handleSavePattern = async (isWorking: boolean, startTime: string, endTime: string) => {
+    if (!patternTarget || !contractorId) return;
     try {
-      const { error } = await supabase
-        .from("team_member_working_patterns")
-        .upsert(
-          {
-            team_member_id: patternTarget.member.id,
-            day_of_week: dayOfWeek,
-            is_working: isWorking,
-            start_time: isWorking ? (startTime || null) : null,
-            end_time: isWorking ? (endTime || null) : null,
-          },
-          { onConflict: "team_member_id,day_of_week" },
-        );
-      if (error) throw error;
+      if (patternTarget.kind === "contractor") {
+        const { error } = await supabase
+          .from("contractor_working_patterns")
+          .upsert(
+            {
+              contractor_id: contractorId,
+              day_of_week: patternTarget.dayOfWeek,
+              is_working: isWorking,
+              start_time: isWorking ? (startTime || null) : null,
+              end_time: isWorking ? (endTime || null) : null,
+            },
+            { onConflict: "contractor_id,day_of_week" },
+          );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("team_member_working_patterns")
+          .upsert(
+            {
+              team_member_id: patternTarget.member.id,
+              day_of_week: patternTarget.dayOfWeek,
+              is_working: isWorking,
+              start_time: isWorking ? (startTime || null) : null,
+              end_time: isWorking ? (endTime || null) : null,
+            },
+            { onConflict: "team_member_id,day_of_week" },
+          );
+        if (error) throw error;
+      }
       toast.success("Working pattern updated");
       setPatternTarget(null);
       loadData();
@@ -344,24 +385,50 @@ export function AvailabilityManagement() {
     }
   };
 
+  const mergedAbsences = useMemo<AbsenceRow[]>(() => {
+    const teamRows: AbsenceRow[] = absences.map((a) => ({
+      id: a.id,
+      workerId: a.team_member_id ?? "",
+      workerName: teamMembers.find((m) => m.id === a.team_member_id)?.full_name ?? "Unknown",
+      absence_type: a.absence_type,
+      start_date: a.start_date,
+      end_date: a.end_date,
+      notes: a.notes,
+      status: a.status,
+      isContractor: false,
+    }));
+    const contractorRows: AbsenceRow[] = contractorAbsences.map((a) => ({
+      id: a.id,
+      workerId: SELF_VALUE,
+      workerName: "You",
+      absence_type: a.absence_type,
+      start_date: a.start_date,
+      end_date: a.end_date,
+      notes: a.notes,
+      status: a.status,
+      isContractor: true,
+    }));
+    return [...teamRows, ...contractorRows].sort((a, b) => a.start_date.localeCompare(b.start_date));
+  }, [absences, contractorAbsences, teamMembers]);
+
   const filteredAbsences = useMemo(() => {
-    return absences.filter((a) => {
-      if (absenceWorkerFilter !== "all" && a.team_member_id !== absenceWorkerFilter) return false;
+    return mergedAbsences.filter((a) => {
+      if (absenceWorkerFilter !== "all" && a.workerId !== absenceWorkerFilter) return false;
       if (absenceTypeFilter !== "all" && a.absence_type !== absenceTypeFilter) return false;
       if (absenceFromFilter && a.end_date < absenceFromFilter) return false;
       if (absenceToFilter && a.start_date > absenceToFilter) return false;
       return true;
     });
-  }, [absences, absenceWorkerFilter, absenceTypeFilter, absenceFromFilter, absenceToFilter]);
+  }, [mergedAbsences, absenceWorkerFilter, absenceTypeFilter, absenceFromFilter, absenceToFilter]);
 
   const pendingAbsences = useMemo(() => absences.filter((a) => a.status === "requested"), [absences]);
 
-  const handleAbsenceStatus = async (absence: Absence, status: "approved" | "declined") => {
+  const handleAbsenceStatus = async (absenceId: string, status: "approved" | "declined") => {
     try {
       const { error } = await supabase
         .from("team_member_absences")
         .update({ status })
-        .eq("id", absence.id);
+        .eq("id", absenceId);
       if (error) throw error;
       toast.success(status === "approved" ? "Absence approved" : "Absence declined");
       loadData();
@@ -371,23 +438,22 @@ export function AvailabilityManagement() {
     }
   };
 
-  const memberName = (id: string | null) => teamMembers.find((m) => m.id === id)?.full_name ?? "Unknown";
-
-  const handleCancelTimeOff = async (absence: ContractorAbsence) => {
+  const handleCancelContractorAbsence = async (absenceId: string) => {
     try {
       const { error } = await supabase
         .from("contractor_absences")
         .update({ status: "cancelled" })
-        .eq("id", absence.id);
+        .eq("id", absenceId);
       if (error) throw error;
-      toast.success("Time off cancelled");
-      loadContractorAbsences();
+      toast.success("Absence cancelled");
       loadData();
     } catch (error) {
-      console.error("Error cancelling time off:", error);
-      toast.error("Failed to cancel time off");
+      console.error("Error cancelling absence:", error);
+      toast.error("Failed to cancel absence");
     }
   };
+
+  const memberName = (id: string | null) => teamMembers.find((m) => m.id === id)?.full_name ?? "Unknown";
 
   if (loading) {
     return (
@@ -468,52 +534,6 @@ export function AvailabilityManagement() {
         </div>
       </div>
 
-      <Collapsible open={timeOffOpen} onOpenChange={setTimeOffOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <button className="flex w-full items-center justify-between p-4 text-left">
-              <span className="font-heading text-lg font-semibold">Your time off</span>
-              <i className={cn("ti ti-chevron-down transition-transform", timeOffOpen && "rotate-180")} />
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4 pt-0">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">You're counted as available Mon–Fri by default.</p>
-                <Button onClick={() => setTimeOffDialogOpen(true)}>
-                  <i className="ti ti-plus mr-2" />
-                  Log time off
-                </Button>
-              </div>
-
-              {contractorAbsences.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">No upcoming time off logged.</p>
-              ) : (
-                <div className="space-y-2">
-                  {contractorAbsences.map((absence) => (
-                    <div key={absence.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
-                            {absence.absence_type}
-                          </Badge>
-                          <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
-                          <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
-                        </div>
-                        {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => handleCancelTimeOff(absence)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
       <Collapsible open={patternsOpen} onOpenChange={setPatternsOpen}>
         <Card>
           <CollapsibleTrigger asChild>
@@ -524,57 +544,66 @@ export function AvailabilityManagement() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="pt-0">
-              {teamMembers.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">No active team members yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[160px]">Worker</TableHead>
-                        {DAY_LABELS.map((label) => (
-                          <TableHead key={label} className="text-center">{label}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {teamMembers.map((member) => (
-                        <TableRow key={member.id}>
-                          <TableCell className="font-medium">{member.full_name}</TableCell>
-                          {DAY_LABELS.map((_, dow) => {
-                            const pattern = patterns.find((p) => p.team_member_id === member.id && p.day_of_week === dow);
-                            const isWorking = pattern ? pattern.is_working : isWorkingByDefault(dow);
-                            return (
-                              <TableCell key={dow} className="text-center">
-                                <button
-                                  onClick={() => setPatternTarget({ member, dayOfWeek: dow })}
-                                  className={cn(
-                                    "flex h-10 w-full flex-col items-center justify-center rounded-md border text-xs transition-colors",
-                                    isWorking
-                                      ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
-                                      : "border-dashed text-muted-foreground hover:bg-muted",
-                                  )}
-                                >
-                                  {isWorking ? (
-                                    <>
-                                      <i className="ti ti-check" />
-                                      {pattern?.start_time && pattern?.end_time && (
-                                        <span className="text-[10px]">{pattern.start_time.slice(0, 5)}–{pattern.end_time.slice(0, 5)}</span>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <i className="ti ti-minus" />
-                                  )}
-                                </button>
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[160px]">Worker</TableHead>
+                      {DAY_LABELS.map((label) => (
+                        <TableHead key={label} className="text-center">{label}</TableHead>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow className="bg-muted/40">
+                      <TableCell className="font-semibold">You</TableCell>
+                      {DAY_LABELS.map((_, dow) => {
+                        const pattern = contractorPatterns.find((p) => p.day_of_week === dow);
+                        const isWorking = pattern ? pattern.is_working : isWorkingByDefault(dow);
+                        return (
+                          <TableCell key={dow} className="text-center">
+                            <button
+                              onClick={() => setPatternTarget({ kind: "contractor", dayOfWeek: dow })}
+                              className={cn(
+                                "flex h-10 w-full items-center justify-center rounded-md border text-xs font-medium transition-colors",
+                                isWorking
+                                  ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                                  : "border-dashed text-muted-foreground hover:bg-muted",
+                              )}
+                            >
+                              {patternCellLabel(isWorking, pattern)}
+                            </button>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    {teamMembers.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.full_name}</TableCell>
+                        {DAY_LABELS.map((_, dow) => {
+                          const pattern = patterns.find((p) => p.team_member_id === member.id && p.day_of_week === dow);
+                          const isWorking = pattern ? pattern.is_working : isWorkingByDefault(dow);
+                          return (
+                            <TableCell key={dow} className="text-center">
+                              <button
+                                onClick={() => setPatternTarget({ kind: "member", member, dayOfWeek: dow })}
+                                className={cn(
+                                  "flex h-10 w-full items-center justify-center rounded-md border text-xs font-medium transition-colors",
+                                  isWorking
+                                    ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                                    : "border-dashed text-muted-foreground hover:bg-muted",
+                                )}
+                              >
+                                {patternCellLabel(isWorking, pattern)}
+                              </button>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </CollapsibleContent>
         </Card>
@@ -621,8 +650,8 @@ export function AvailabilityManagement() {
                           {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                         </div>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleAbsenceStatus(absence, "declined")}>Decline</Button>
-                          <Button size="sm" onClick={() => handleAbsenceStatus(absence, "approved")}>Approve</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleAbsenceStatus(absence.id, "declined")}>Decline</Button>
+                          <Button size="sm" onClick={() => handleAbsenceStatus(absence.id, "approved")}>Approve</Button>
                         </div>
                       </div>
                     ))
@@ -635,6 +664,7 @@ export function AvailabilityManagement() {
                       <SelectTrigger className="w-44"><SelectValue placeholder="Worker" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All workers</SelectItem>
+                        <SelectItem value={SELF_VALUE}>You</SelectItem>
                         {teamMembers.map((m) => (
                           <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
                         ))}
@@ -660,7 +690,7 @@ export function AvailabilityManagement() {
                       {filteredAbsences.map((absence) => (
                         <div key={absence.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                           <div>
-                            <p className="text-sm font-medium">{memberName(absence.team_member_id)}</p>
+                            <p className="text-sm font-medium">{absence.workerName}</p>
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
                                 {absence.absence_type}
@@ -670,7 +700,20 @@ export function AvailabilityManagement() {
                             </div>
                             {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                           </div>
-                          <Badge className={STATUS_BADGE[absence.status] ?? STATUS_BADGE.requested}>{absence.status}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className={STATUS_BADGE[absence.status] ?? STATUS_BADGE.requested}>{absence.status}</Badge>
+                            {absence.isContractor && absence.status === "approved" && (
+                              <Button size="sm" variant="outline" onClick={() => handleCancelContractorAbsence(absence.id)}>
+                                Cancel
+                              </Button>
+                            )}
+                            {!absence.isContractor && absence.status === "requested" && (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => handleAbsenceStatus(absence.id, "declined")}>Decline</Button>
+                                <Button size="sm" onClick={() => handleAbsenceStatus(absence.id, "approved")}>Approve</Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -692,32 +735,25 @@ export function AvailabilityManagement() {
 
       {patternTarget && (
         <PatternDialog
-          member={patternTarget.member}
+          targetName={patternTarget.kind === "contractor" ? "You" : patternTarget.member.full_name}
           dayOfWeek={patternTarget.dayOfWeek}
-          existing={patterns.find((p) => p.team_member_id === patternTarget.member.id && p.day_of_week === patternTarget.dayOfWeek) ?? null}
+          existing={
+            patternTarget.kind === "contractor"
+              ? contractorPatterns.find((p) => p.day_of_week === patternTarget.dayOfWeek) ?? null
+              : patterns.find((p) => p.team_member_id === patternTarget.member.id && p.day_of_week === patternTarget.dayOfWeek) ?? null
+          }
           onClose={() => setPatternTarget(null)}
           onSave={handleSavePattern}
         />
       )}
 
-      {absenceDialogOpen && (
+      {absenceDialogOpen && contractorId && (
         <LogAbsenceDialog
+          contractorId={contractorId}
           teamMembers={teamMembers}
           onClose={() => setAbsenceDialogOpen(false)}
           onSaved={() => {
             setAbsenceDialogOpen(false);
-            loadData();
-          }}
-        />
-      )}
-
-      {timeOffDialogOpen && contractorId && (
-        <LogTimeOffDialog
-          contractorId={contractorId}
-          onClose={() => setTimeOffDialogOpen(false)}
-          onSaved={() => {
-            setTimeOffDialogOpen(false);
-            loadContractorAbsences();
             loadData();
           }}
         />
@@ -778,17 +814,17 @@ function DayDetailDialog({ dateISO, stats, onClose }: { dateISO: string; stats: 
 }
 
 function PatternDialog({
-  member,
+  targetName,
   dayOfWeek,
   existing,
   onClose,
   onSave,
 }: {
-  member: TeamMember;
+  targetName: string;
   dayOfWeek: number;
-  existing: WorkingPattern | null;
+  existing: { is_working: boolean; start_time: string | null; end_time: string | null } | null;
   onClose: () => void;
-  onSave: (dayOfWeek: number, isWorking: boolean, startTime: string, endTime: string) => void;
+  onSave: (isWorking: boolean, startTime: string, endTime: string) => void;
 }) {
   const defaultWorking = existing ? existing.is_working : dayOfWeek <= 4;
   const [isWorking, setIsWorking] = useState(defaultWorking);
@@ -799,8 +835,8 @@ function PatternDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{member.full_name} — {DAY_LABELS[dayOfWeek]}</DialogTitle>
-          <DialogDescription>Set this worker's regular working pattern for {DAY_LABELS[dayOfWeek]}</DialogDescription>
+          <DialogTitle>{targetName} — {FULL_DAY_LABELS[dayOfWeek]}</DialogTitle>
+          <DialogDescription>Set the regular working pattern for {FULL_DAY_LABELS[dayOfWeek]}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -829,7 +865,7 @@ function PatternDialog({
         </div>
 
         <DialogFooter>
-          <Button onClick={() => onSave(dayOfWeek, isWorking, startTime, endTime)} className="w-full">
+          <Button onClick={() => onSave(isWorking, startTime, endTime)} className="w-full">
             Save
           </Button>
         </DialogFooter>
@@ -839,10 +875,12 @@ function PatternDialog({
 }
 
 function LogAbsenceDialog({
+  contractorId,
   teamMembers,
   onClose,
   onSaved,
 }: {
+  contractorId: string;
   teamMembers: TeamMember[];
   onClose: () => void;
   onSaved: () => void;
@@ -874,16 +912,28 @@ function LogAbsenceDialog({
 
     setSaving(true);
     try {
-      const status = absenceType === "holiday" ? "requested" : "approved";
-      const { error } = await supabase.from("team_member_absences").insert({
-        team_member_id: workerId,
-        absence_type: absenceType,
-        start_date: startDate,
-        end_date: endDate,
-        notes: notes.trim() || null,
-        status,
-      });
-      if (error) throw error;
+      if (workerId === SELF_VALUE) {
+        const { error } = await supabase.from("contractor_absences").insert({
+          contractor_id: contractorId,
+          absence_type: absenceType,
+          start_date: startDate,
+          end_date: endDate,
+          notes: notes.trim() || null,
+          status: "approved",
+        });
+        if (error) throw error;
+      } else {
+        const status = absenceType === "holiday" ? "requested" : "approved";
+        const { error } = await supabase.from("team_member_absences").insert({
+          team_member_id: workerId,
+          absence_type: absenceType,
+          start_date: startDate,
+          end_date: endDate,
+          notes: notes.trim() || null,
+          status,
+        });
+        if (error) throw error;
+      }
       toast.success("Absence logged");
       onSaved();
     } catch (error) {
@@ -899,7 +949,7 @@ function LogAbsenceDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Log absence</DialogTitle>
-          <DialogDescription>Record holiday, sickness or other time off for a team member</DialogDescription>
+          <DialogDescription>Record holiday, sickness or other time off</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -910,6 +960,7 @@ function LogAbsenceDialog({
                 <SelectValue placeholder="Select worker" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={SELF_VALUE}>You</SelectItem>
                 {teamMembers.map((m) => (
                   <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
                 ))}
@@ -945,101 +996,6 @@ function LogAbsenceDialog({
           </div>
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? "Saving…" : "Log absence"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function LogTimeOffDialog({
-  contractorId,
-  onClose,
-  onSaved,
-}: {
-  contractorId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [absenceType, setAbsenceType] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!absenceType) {
-      toast.error("Select a type");
-      return;
-    }
-    if (!startDate || !endDate) {
-      toast.error("Start and end dates are required");
-      return;
-    }
-    if (endDate < startDate) {
-      toast.error("End date must be on or after the start date");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const { error } = await supabase.from("contractor_absences").insert({
-        contractor_id: contractorId,
-        absence_type: absenceType,
-        start_date: startDate,
-        end_date: endDate,
-        notes: notes.trim() || null,
-        status: "approved",
-      });
-      if (error) throw error;
-      toast.success("Time off logged");
-      onSaved();
-    } catch (error) {
-      console.error("Error logging time off:", error);
-      toast.error("Failed to log time off");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Log time off</DialogTitle>
-          <DialogDescription>Record your own holiday, sickness or other time off</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="time_off_type">Type</Label>
-            <Select value={absenceType} onValueChange={setAbsenceType}>
-              <SelectTrigger id="time_off_type">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                {ABSENCE_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="time_off_start">Start date</Label>
-              <Input id="time_off_start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time_off_end">End date</Label>
-              <Input id="time_off_end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="time_off_notes">Notes</Label>
-            <Textarea id="time_off_notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-          </div>
-          <Button onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? "Saving…" : "Log time off"}
           </Button>
         </div>
       </DialogContent>
