@@ -89,7 +89,7 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
     : null;
 
   const handleClick = () => {
-    navigate(`/contractor/${contractor.tsCode}`);
+    navigate(`/contractor/${contractor.tsCode}`, { state: { source: "marketplace" } });
   };
 
   // Logo takes priority over avatar, then falls back to initials

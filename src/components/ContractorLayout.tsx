@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Header from "@/components/Header";
 import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,9 +67,16 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "documents", label: "Documents", icon: "ti-files" },
       { value: "canvas-editor", label: "Profile editor", icon: "ti-layout-columns" },
       { value: "share-profile", label: "Share profile", icon: "ti-qrcode" },
+      { value: "kpi-insights", label: "KPI & Insights", icon: "ti-chart-line" },
     ],
   },
 ];
+
+// Routes that live outside the /dashboard/contractor?view= pattern but still
+// render inside this sidebar shell.
+const STANDALONE_ROUTES: Record<string, string> = {
+  "kpi-insights": "/kpi-insights",
+};
 
 const VIEW_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -98,6 +105,7 @@ const VIEW_LABELS: Record<string, string> = {
   "profile-editor": "Profile Editor",
   "share-profile": "Share profile",
   "business-card-editor": "Business card editor",
+  "kpi-insights": "KPI & Insights",
 };
 
 const VIEW_SUBTITLES: Record<string, string> = {
@@ -124,6 +132,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   documents: "Store and share certificates, contracts and compliance documents",
   "share-profile": "Download branded assets to use on your van, business cards, and emails",
   "business-card-editor": "Design and download your branded business cards",
+  "kpi-insights": "Understand your revenue, visibility, win rate and growth over time",
 };
 
 interface ContractorLayoutProps {
@@ -147,7 +156,9 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const activeView = searchParams.get("view") ?? "dashboard";
+  const location = useLocation();
+  const standaloneEntry = Object.entries(STANDALONE_ROUTES).find(([, path]) => path === location.pathname);
+  const activeView = standaloneEntry ? standaloneEntry[0] : (searchParams.get("view") ?? "dashboard");
 
   // Unread message count for sidebar badge
   const { conversations } = useConversations();
@@ -179,7 +190,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   }, []);
 
   const handleNav = (value: string) => {
-    navigate(`/dashboard/contractor?view=${value}`);
+    navigate(STANDALONE_ROUTES[value] ?? `/dashboard/contractor?view=${value}`);
     setMobileOpen(false);
   };
 

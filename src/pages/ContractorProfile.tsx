@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, type ReactNode } from "react";
 import Header from "@/components/Header";
 import QuoteRequestDialog from "@/components/QuoteRequestDialog";
@@ -416,10 +416,16 @@ function PreviewBanner({ onPublish, publishing }: { onPublish: () => void; publi
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+type ViewSource = "marketplace" | "direct" | "panel";
+
 const ContractorProfile = () => {
   // Supports both /contractor/:code and /hire/:slug
   const { code, slug } = useParams<{ code?: string; slug?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Marketplace clicks pass state.source; a bare /contractor or /hire URL
+  // (typed, shared, bookmarked) has no state and counts as a direct visit.
+  const viewSource: ViewSource = (location.state as { source?: ViewSource } | null)?.source ?? "direct";
 
   const [profile, setProfile] = useState<PageProfile | null>(null);
   const [sections, setSections] = useState<CanvasSection[]>([]);
@@ -500,7 +506,24 @@ const ContractorProfile = () => {
       setProfile(assembled);
 
       const { data: { user } } = await supabase.auth.getUser();
-      setIsOwner(user?.id === assembled.user_id);
+      const owner = user?.id === assembled.user_id;
+      setIsOwner(owner);
+
+      if (user && !owner) {
+        const { data: viewerProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (viewerProfile?.id) {
+          supabase
+            .from("profile_view_events")
+            .insert({ profile_id: assembled.id, viewer_id: viewerProfile.id, source: viewSource })
+            .then(({ error }) => {
+              if (error) console.error("Failed to log profile view:", error);
+            });
+        }
+      }
 
       // profile_widgets: prefer the published snapshot, fall back to the live draft.
       const widgetSelect = "id, widget_key, label, is_enabled, display_order, published_order, section_ref_id, is_published, meta";
@@ -638,6 +661,7 @@ const ContractorProfile = () => {
     };
 
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, slug]);
 
   const handleEnquire = async () => {
@@ -782,6 +806,7 @@ const ContractorProfile = () => {
         contractorName={profile.full_name ?? ""}
         contractorTsCode={profile.ts_profile_code}
         contractorAvatarUrl={profile.avatar_url ?? profile.logo_url}
+        source={viewSource}
       />
 
       {profile.user_id && (
@@ -791,6 +816,7 @@ const ContractorProfile = () => {
           recipientUserId={profile.user_id}
           contractorName={profile.full_name ?? ""}
           contractorLocation={profile.location ?? ""}
+          source={viewSource}
         />
       )}
     </div>

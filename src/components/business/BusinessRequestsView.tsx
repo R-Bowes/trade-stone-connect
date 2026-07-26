@@ -258,6 +258,7 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
       location:         siteLocation(site),
       status:           "new",
       priority:         formPriority,
+      source:           "panel",
     }).select("id").single();
 
     setSubmitting(false);

@@ -18,6 +18,7 @@ interface ContractorMessageDialogProps {
   recipientUserId: string;
   contractorName: string;
   contractorLocation: string;
+  source?: "marketplace" | "direct" | "panel";
 }
 
 /**
@@ -33,6 +34,7 @@ export function ContractorMessageDialog({
   recipientUserId,
   contractorName,
   contractorLocation,
+  source = "marketplace",
 }: ContractorMessageDialogProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -80,6 +82,7 @@ export function ContractorMessageDialog({
           job_description: trimmed,
           location,
           status: "new",
+          source,
         })
         .select("id")
         .single();

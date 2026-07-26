@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -6,6 +6,7 @@ import { Search, MapPin, Loader2, Clock3, X } from "lucide-react";
 import { ContractorCard, ContractorCardData } from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
+import { supabase } from "@/integrations/supabase/client";
 
 type AvailabilityFilter = "all" | "available" | "unavailable";
 
@@ -44,6 +45,17 @@ const ContractorDirectory = () => {
       return true;
     });
   }, [availability, contractors]);
+
+  // Log a search appearance for every contractor returned by the current
+  // search, once per results set.
+  useEffect(() => {
+    if (contractors.length === 0) return;
+    supabase
+      .rpc("log_search_appearance", { p_profile_ids: contractors.map((c) => c.id) })
+      .then(({ error }) => {
+        if (error) console.error("Failed to log search appearances:", error);
+      });
+  }, [contractors]);
 
   return (
     <section id="directory" className="py-16 px-4">

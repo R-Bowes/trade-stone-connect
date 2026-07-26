@@ -39,6 +39,8 @@ import TenderDetail from "./pages/TenderDetail";
 import ProposalReview from "./pages/ProposalReview";
 import ProjectDelivery from "./pages/ProjectDelivery";
 import InvitePage from "./pages/InvitePage";
+import ContractorKPIInsights from "./pages/ContractorKPIInsights";
+import ContractorLayout from "./components/ContractorLayout";
 
 const queryClient = new QueryClient();
 
@@ -103,6 +105,7 @@ const App = () => (
           <Route path="/dashboard/business" element={<ProtectedRoute requiredRole="business"><BusinessDashboard /></ProtectedRoute>} />
           <Route path="/dashboard/business/settings" element={<ProtectedRoute requiredRole="business"><BusinessSettings /></ProtectedRoute>} />
           <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />
+          <Route path="/kpi-insights" element={<ProtectedRoute requiredRole="contractor"><ContractorLayout><ContractorKPIInsights /></ContractorLayout></ProtectedRoute>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/projects/:id" element={<ProtectedRoute><TenderDetail /></ProtectedRoute>} />

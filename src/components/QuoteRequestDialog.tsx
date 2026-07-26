@@ -19,6 +19,7 @@ interface QuoteRequestDialogProps {
   contractorName: string;
   contractorTsCode?: string | null;
   contractorAvatarUrl?: string | null;
+  source?: "marketplace" | "direct" | "panel";
 }
 
 const JOB_TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -88,6 +89,7 @@ const QuoteRequestDialog = ({
   contractorName,
   contractorTsCode,
   contractorAvatarUrl,
+  source = "marketplace",
 }: QuoteRequestDialogProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -225,6 +227,7 @@ const QuoteRequestDialog = ({
           timeline: timeline || null,
           additional_details: Object.keys(additionalDetails).length > 0 ? additionalDetails : null,
           contractorName,
+          source,
         },
       });
 

@@ -69,6 +69,7 @@ interface QuoteSubmissionRequest {
   access_notes?: string | null;
   additional_details?: Record<string, string> | null;
   contractorName: string;
+  source?: "marketplace" | "direct" | "panel";
 }
 
 const JOB_TYPE_VALUES = ["repair", "service", "installation", "inspection", "emergency_callout", "other"];
@@ -342,6 +343,9 @@ const handler = async (req: Request): Promise<Response> => {
           preferred_window_end: requestData.preferred_window_end || null,
           preferred_time_of_day: requestData.preferred_time_of_day || null,
           status: 'new',
+          source: requestData.source === 'direct' || requestData.source === 'panel'
+            ? requestData.source
+            : 'marketplace',
         })
         .select('id')
         .single();
