@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TeamAvatar } from "@/components/ui/TeamAvatar";
@@ -165,7 +164,6 @@ const emptyForm: EmptyFormState = {
 };
 
 export function TeamManagement() {
-  const navigate = useNavigate();
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [contractorProfile, setContractorProfile] = useState<ContractorProfile | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -183,6 +181,7 @@ export function TeamManagement() {
   const [absenceMember, setAbsenceMember] = useState<TeamMember | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<TeamMember | null>(null);
   const [photoTarget, setPhotoTarget] = useState<PhotoTarget | null>(null);
+  const [selfEditOpen, setSelfEditOpen] = useState(false);
 
   const getContractorId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -395,6 +394,30 @@ export function TeamManagement() {
     }
   };
 
+  const handleSaveSelf = async (fullName: string, hourlyRate: string) => {
+    if (!contractorId) return;
+    if (!fullName.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          hourly_rate: hourlyRate ? parseFloat(hourlyRate) : null,
+        })
+        .eq("id", contractorId);
+      if (error) throw error;
+      toast.success("Details updated");
+      setSelfEditOpen(false);
+      loadTeam();
+    } catch (error) {
+      console.error("Error updating your details:", error);
+      toast.error("Failed to update your details");
+    }
+  };
+
   const filteredMembers = members.filter((m) => statusFilter === "all" || m.status === statusFilter);
 
   const stats = {
@@ -470,7 +493,7 @@ export function TeamManagement() {
         {contractorProfile && (
           <YouCard
             profile={contractorProfile}
-            onEditProfile={() => navigate("/dashboard/contractor?view=profile-editor")}
+            onEditProfile={() => setSelfEditOpen(true)}
             onUploadPhoto={() => setPhotoTarget({ kind: "self" })}
           />
         )}
@@ -558,6 +581,14 @@ export function TeamManagement() {
             }
             await loadTeam();
           }}
+        />
+      )}
+
+      {selfEditOpen && contractorProfile && (
+        <SelfEditDialog
+          profile={contractorProfile}
+          onClose={() => setSelfEditOpen(false)}
+          onSave={handleSaveSelf}
         />
       )}
 
@@ -736,7 +767,7 @@ function YouCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onEditProfile}>
-                <i className="ti ti-edit mr-2" /> Edit profile
+                <i className="ti ti-edit mr-2" /> Edit details
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onUploadPhoto}>
                 <i className="ti ti-camera mr-2" /> Upload photo
@@ -753,6 +784,69 @@ function YouCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SelfEditDialog({
+  profile,
+  onClose,
+  onSave,
+}: {
+  profile: ContractorProfile;
+  onClose: () => void;
+  onSave: (fullName: string, hourlyRate: string) => Promise<void>;
+}) {
+  const [fullName, setFullName] = useState(profile.full_name ?? "");
+  const [hourlyRate, setHourlyRate] = useState(profile.hourly_rate !== null ? String(profile.hourly_rate) : "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(fullName, hourlyRate);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit your details</DialogTitle>
+          <DialogDescription>Update your name and hourly rate</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="self_full_name">Full name</Label>
+            <Input
+              id="self_full_name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Richard Bowes"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="self_hourly_rate">Hourly rate (£)</Label>
+            <Input
+              id="self_hourly_rate"
+              type="number"
+              step="0.01"
+              min="0"
+              value={hourlyRate}
+              onChange={(e) => setHourlyRate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
