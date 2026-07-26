@@ -1609,6 +1609,7 @@ export type Database = {
           priority: string | null
           project_id: string | null
           site_id: string | null
+          source: string | null
           status: string | null
           title: string | null
           trade: string | null
@@ -1639,6 +1640,7 @@ export type Database = {
           priority?: string | null
           project_id?: string | null
           site_id?: string | null
+          source?: string | null
           status?: string | null
           title?: string | null
           trade?: string | null
@@ -1669,6 +1671,7 @@ export type Database = {
           priority?: string | null
           project_id?: string | null
           site_id?: string | null
+          source?: string | null
           status?: string | null
           title?: string | null
           trade?: string | null
@@ -3696,6 +3699,59 @@ export type Database = {
           },
         ]
       }
+      profile_view_events: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          source: string
+          viewer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          source?: string
+          viewer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          source?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_view_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_view_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_view_events_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_view_events_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_widgets: {
         Row: {
           contractor_id: string
@@ -4909,6 +4965,42 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: false
             referencedRelation: "issued_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      search_appearance_daily: {
+        Row: {
+          appearance_count: number
+          appearance_date: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          appearance_count?: number
+          appearance_date?: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          appearance_count?: number
+          appearance_date?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_appearance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "search_appearance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -7277,6 +7369,10 @@ export type Database = {
       log_material_usage: {
         Args: { p_job_id: string; p_material_id: string; p_quantity: number }
         Returns: string
+      }
+      log_search_appearance: {
+        Args: { p_profile_ids: string[] }
+        Returns: undefined
       }
       mark_tender_invitation_viewed: {
         Args: { p_invitation_id: string }
