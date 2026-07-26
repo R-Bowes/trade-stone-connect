@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend,
+  LineChart, Line,
 } from "recharts";
 import {
   format, startOfMonth, endOfMonth, subMonths, subWeeks, startOfWeek, endOfWeek,
@@ -15,7 +15,7 @@ const ORANGE = "#f07820";
 const GREEN = "#16a34a";
 const AMBER = "#d97706";
 const RED = "#dc2626";
-const GREY = "#9ca3af";
+const BAR_GREEN = "#059669";
 
 type Period = "month" | "3months" | "12months" | "all";
 
@@ -110,13 +110,67 @@ function inRange(dateStr: string | null, start: Date, end: Date): boolean {
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <Card>
+    <Card className="border border-border">
       <CardContent className="pt-6">
-        <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#9ca3af" }}>{label}</div>
+        <div className="text-xs font-semibold tracking-wide" style={{ color: "#9ca3af" }}>{label}</div>
         <div className="text-2xl font-bold mt-1" style={{ color: NAVY, fontFamily: "'Roboto Mono', monospace" }}>{value}</div>
         {sub && <div className="text-xs mt-1" style={{ color: accent ?? "#6b7280" }}>{sub}</div>}
       </CardContent>
     </Card>
+  );
+}
+
+interface BarSegment {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function ProportionalBar({ segments }: { segments: BarSegment[] }) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  return (
+    <div>
+      <div style={{ display: "flex", width: "100%", height: 26, borderRadius: 6, overflow: "hidden", background: "#f3f4f6" }}>
+        {total === 0 ? (
+          <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>No data yet</span>
+          </div>
+        ) : (
+          segments.map(seg => {
+            const pct = (seg.value / total) * 100;
+            if (pct <= 0) return null;
+            return (
+              <div
+                key={seg.label}
+                style={{
+                  width: `${pct}%`,
+                  background: seg.color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "width 0.2s ease",
+                }}
+              >
+                {pct >= 8 && (
+                  <span style={{ fontSize: 11, color: "white", fontWeight: 600 }}>{pct.toFixed(0)}%</span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+        {segments.map(seg => {
+          const pct = total > 0 ? (seg.value / total) * 100 : 0;
+          return (
+            <div key={seg.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: seg.color, display: "inline-block", flexShrink: 0 }} />
+              {seg.label} {pct.toFixed(0)}%
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -236,6 +290,7 @@ const ContractorKPIInsights = () => {
     }
     const topClientAmount = Math.max(0, ...Array.from(byClient.values()));
     const topClientConcentration = revenue > 0 ? (topClientAmount / revenue) * 100 : 0;
+    const clientCount = byClient.size;
 
     const scheduledValue = jobs
       .filter(j => j.status === "scheduled" || j.status === "in_progress")
@@ -252,7 +307,7 @@ const ContractorKPIInsights = () => {
       monthlyRevenue.push({ label: format(mStart, "MMM"), revenue: total });
     }
 
-    return { revenue, avgJobValue, outstanding, topClientConcentration, cashFlowOutlook, monthlyRevenue };
+    return { revenue, avgJobValue, outstanding, topClientConcentration, clientCount, cashFlowOutlook, monthlyRevenue };
   }, [invoices, jobs, start, end]);
 
   // ── Visibility ───────────────────────────────────────────────────────
@@ -273,20 +328,13 @@ const ContractorKPIInsights = () => {
       weeklyViews.push({ label: format(wStart, "d MMM"), views: count });
     }
 
-    const sourceMonthly: { label: string; marketplace: number; direct: number; panel: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const mStart = startOfMonth(subMonths(now(), i));
-      const mEnd = endOfMonth(subMonths(now(), i));
-      const inMonth = enquiries.filter(e => inRange(e.created_at, mStart, mEnd));
-      sourceMonthly.push({
-        label: format(mStart, "MMM"),
-        marketplace: inMonth.filter(e => (e.source ?? "marketplace") === "marketplace").length,
-        direct: inMonth.filter(e => e.source === "direct").length,
-        panel: inMonth.filter(e => e.source === "panel").length,
-      });
-    }
+    const sourceTotals = {
+      marketplace: enquiriesInPeriod.filter(e => (e.source ?? "marketplace") === "marketplace").length,
+      direct: enquiriesInPeriod.filter(e => e.source === "direct").length,
+      panel: enquiriesInPeriod.filter(e => e.source === "panel").length,
+    };
 
-    return { profileViews, searchAppearancesTotal, viewToEnquiryRate, weeklyViews, sourceMonthly };
+    return { profileViews, searchAppearancesTotal, viewToEnquiryRate, weeklyViews, sourceTotals };
   }, [viewEvents, searchAppearances, enquiries, start, end]);
 
   // ── Win rate and speed ──────────────────────────────────────────────
@@ -415,6 +463,8 @@ const ContractorKPIInsights = () => {
     return { jobsCompleted, busiestDay, monthlyVolume };
   }, [jobs, start, end]);
 
+  const invoiceCollectionTotal = speed.collection[0].onTime + speed.collection[0].late + speed.collection[0].overdue;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -467,7 +517,7 @@ const ContractorKPIInsights = () => {
         <StatCard label="Cash flow outlook" value={gbp(money.cashFlowOutlook)} sub="Scheduled + unpaid" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <Card className="md:col-span-2">
+        <Card className="border border-border md:col-span-2">
           <CardHeader><CardTitle className="text-sm">Monthly revenue (last 6 months)</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
@@ -481,13 +531,15 @@ const ContractorKPIInsights = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border border-border">
           <CardHeader><CardTitle className="text-sm">Top client concentration</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold" style={{ color: money.topClientConcentration > 50 ? AMBER : NAVY }}>
               {money.topClientConcentration.toFixed(0)}%
             </div>
-            <p className="text-xs text-muted-foreground mt-2">of revenue from your largest single client this period</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              {money.clientCount === 0 ? "No paying clients yet" : money.clientCount === 1 ? "1 client" : `across ${money.clientCount} clients`}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -501,7 +553,7 @@ const ContractorKPIInsights = () => {
         <StatCard label="Enquiries" value={String(enquiries.filter(e => inRange(e.created_at, start, end)).length)} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        <Card>
+        <Card className="border border-border">
           <CardHeader><CardTitle className="text-sm">Weekly profile views (last 12 weeks)</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
@@ -515,21 +567,16 @@ const ContractorKPIInsights = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Enquiry source (last 6 months)</CardTitle></CardHeader>
+        <Card className="border border-border">
+          <CardHeader><CardTitle className="text-sm">Enquiry source</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={visibility.sourceMonthly}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" fontSize={12} />
-                <YAxis fontSize={12} allowDecimals={false} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="marketplace" stackId="src" fill={NAVY} name="Marketplace" />
-                <Bar dataKey="direct" stackId="src" fill={ORANGE} name="Direct" />
-                <Bar dataKey="panel" stackId="src" fill={GREY} name="Panel" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ProportionalBar
+              segments={[
+                { label: "Marketplace", value: visibility.sourceTotals.marketplace, color: NAVY },
+                { label: "Direct", value: visibility.sourceTotals.direct, color: ORANGE },
+                { label: "Panel", value: visibility.sourceTotals.panel, color: BAR_GREEN },
+              ]}
+            />
           </CardContent>
         </Card>
       </div>
@@ -548,21 +595,21 @@ const ContractorKPIInsights = () => {
         <StatCard label="Overdue invoices" value={String(speed.collection[0].overdue)} accent={speed.collection[0].overdue > 0 ? RED : undefined} />
       </div>
       <div className="mt-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Invoice collection this period</CardTitle></CardHeader>
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm">Invoice collection this period</CardTitle>
+            <span className="text-sm font-semibold" style={{ color: NAVY }}>
+              {invoiceCollectionTotal > 0 ? `${((speed.collection[0].onTime / invoiceCollectionTotal) * 100).toFixed(0)}% on time` : "No invoices yet"}
+            </span>
+          </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={speed.collection} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} fontSize={12} />
-                <YAxis type="category" dataKey="label" hide />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="onTime" stackId="c" fill={GREEN} name="On-time" />
-                <Bar dataKey="late" stackId="c" fill={AMBER} name="Late" />
-                <Bar dataKey="overdue" stackId="c" fill={RED} name="Overdue" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ProportionalBar
+              segments={[
+                { label: "On-time", value: speed.collection[0].onTime, color: BAR_GREEN },
+                { label: "Late", value: speed.collection[0].late, color: AMBER },
+                { label: "Overdue", value: speed.collection[0].overdue, color: RED },
+              ]}
+            />
           </CardContent>
         </Card>
       </div>
@@ -598,7 +645,7 @@ const ContractorKPIInsights = () => {
         <StatCard label="Busiest day" value={activity.busiestDay} />
       </div>
       <div className="mt-4 mb-8">
-        <Card>
+        <Card className="border border-border">
           <CardHeader><CardTitle className="text-sm">Monthly job volume (last 6 months)</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
