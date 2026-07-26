@@ -49,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "team", label: "Team", icon: "ti-users" },
       { value: "availability", label: "Availability", icon: "ti-calendar-check" },
       { value: "timesheets", label: "Timesheets", icon: "ti-clock" },
+      { value: "inventory", label: "My Kit", icon: "ti-toolbox" },
     ],
   },
   {
@@ -86,6 +87,7 @@ const VIEW_LABELS: Record<string, string> = {
   team: "Team",
   availability: "Availability",
   timesheets: "Timesheets",
+  inventory: "My Kit",
   invoices: "Invoices",
   financials: "Financials",
   clients: "CRM",
@@ -114,6 +116,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   team: "Add team members, set their role and daily rate",
   availability: "See who's working, log absences and check capacity against scheduled jobs",
   timesheets: "Review hours logged by you and your team against each job",
+  inventory: "Track your tools, materials and what's out on site",
   invoices: "Send invoices, track what's paid and chase outstanding amounts",
   financials: "See your earnings over time and understand where your money is coming from",
   clients: "Keep track of clients, note key contacts and log important conversations",

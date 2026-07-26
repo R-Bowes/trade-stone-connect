@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
+import { JobEquipmentMaterials } from "@/components/JobEquipmentMaterials";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
 import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
@@ -211,6 +212,7 @@ export function JobManagement() {
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [showEquipment, setShowEquipment] = useState(false);
   const [originOpen, setOriginOpen] = useState(false);
   const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
   const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
@@ -1074,6 +1076,17 @@ export function JobManagement() {
                         {showPhotos ? "Hide photos" : "Photos"}
                       </Button>
                     )}
+                    {contractorProfileId && selectedJob.status !== "cancelled" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setShowEquipment((v) => !v)}
+                      >
+                        <Wrench className="h-4 w-4 mr-1" />
+                        {showEquipment ? "Hide kit" : "Tools & materials"}
+                      </Button>
+                    )}
                   </div>
                   {/* Right: status actions */}
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1244,6 +1257,16 @@ export function JobManagement() {
                       jobId={selectedJob.id}
                       contractorProfileId={contractorProfileId}
                       isContractor={true}
+                    />
+                  </div>
+                )}
+
+                {/* Expandable tools & materials */}
+                {showEquipment && contractorProfileId && selectedJob.status !== "cancelled" && (
+                  <div className="rounded-md border p-4">
+                    <JobEquipmentMaterials
+                      jobId={selectedJob.id}
+                      contractorId={contractorProfileId}
                     />
                   </div>
                 )}

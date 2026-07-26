@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { TeamAvatar } from "@/components/ui/TeamAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,7 @@ type WorkingPattern = Database["public"]["Tables"]["team_member_working_patterns
 type ContractorWorkingPattern = Database["public"]["Tables"]["contractor_working_patterns"]["Row"];
 type Absence = Database["public"]["Tables"]["team_member_absences"]["Row"];
 type ContractorAbsence = Database["public"]["Tables"]["contractor_absences"]["Row"];
+type ContractorProfile = { avatar_url: string | null };
 type JobStub = { id: string; title: string; status: string; scheduled_start: string | null };
 type AssignmentStub = { id: string; team_member_id: string | null; assigned_date: string | null; job: JobStub | null };
 
@@ -147,6 +149,7 @@ interface DayStats {
 
 export function AvailabilityManagement() {
   const [contractorId, setContractorId] = useState<string | null>(null);
+  const [contractorProfile, setContractorProfile] = useState<ContractorProfile | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [patterns, setPatterns] = useState<WorkingPattern[]>([]);
   const [contractorPatterns, setContractorPatterns] = useState<ContractorWorkingPattern[]>([]);
@@ -242,7 +245,7 @@ export function AvailabilityManagement() {
         setAssignments((assignmentsRes.data ?? []) as unknown as AssignmentStub[]);
       }
 
-      const [jobsRes, contractorPatternsRes, contractorAbsencesRes] = await Promise.all([
+      const [jobsRes, contractorPatternsRes, contractorAbsencesRes, profileRes] = await Promise.all([
         supabase
           .from("jobs")
           .select("id, title, status, scheduled_start")
@@ -259,15 +262,22 @@ export function AvailabilityManagement() {
           .select("*")
           .eq("contractor_id", cId)
           .order("start_date", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("avatar_url")
+          .eq("id", cId)
+          .maybeSingle(),
       ]);
 
       if (jobsRes.error) throw jobsRes.error;
       if (contractorPatternsRes.error) throw contractorPatternsRes.error;
       if (contractorAbsencesRes.error) throw contractorAbsencesRes.error;
+      if (profileRes.error) throw profileRes.error;
 
       setScheduledJobs(jobsRes.data ?? []);
       setContractorPatterns(contractorPatternsRes.data ?? []);
       setContractorAbsences(contractorAbsencesRes.data ?? []);
+      setContractorProfile(profileRes.data ?? null);
     } catch (error) {
       console.error("Error loading availability data:", error);
       toast.error("Failed to load availability data");
@@ -556,7 +566,12 @@ export function AvailabilityManagement() {
                   </TableHeader>
                   <TableBody>
                     <TableRow className="bg-muted/40">
-                      <TableCell className="font-semibold">You</TableCell>
+                      <TableCell className="font-semibold">
+                        <div className="flex items-center gap-2">
+                          <TeamAvatar name="You" photoUrl={contractorProfile?.avatar_url} size="sm" />
+                          You
+                        </div>
+                      </TableCell>
                       {DAY_LABELS.map((_, dow) => {
                         const pattern = contractorPatterns.find((p) => p.day_of_week === dow);
                         const isWorking = pattern ? pattern.is_working : isWorkingByDefault(dow);
@@ -579,7 +594,12 @@ export function AvailabilityManagement() {
                     </TableRow>
                     {teamMembers.map((member) => (
                       <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.full_name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <TeamAvatar name={member.full_name} photoUrl={member.photo_url} size="sm" />
+                            {member.full_name}
+                          </div>
+                        </TableCell>
                         {DAY_LABELS.map((_, dow) => {
                           const pattern = patterns.find((p) => p.team_member_id === member.id && p.day_of_week === dow);
                           const isWorking = pattern ? pattern.is_working : isWorkingByDefault(dow);
@@ -638,16 +658,23 @@ export function AvailabilityManagement() {
                   ) : (
                     pendingAbsences.map((absence) => (
                       <div key={absence.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-                        <div>
-                          <p className="text-sm font-medium">{memberName(absence.team_member_id)}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
-                              {absence.absence_type}
-                            </Badge>
-                            <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
-                            <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
+                        <div className="flex items-start gap-2">
+                          <TeamAvatar
+                            name={memberName(absence.team_member_id)}
+                            photoUrl={teamMembers.find((m) => m.id === absence.team_member_id)?.photo_url}
+                            size="sm"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{memberName(absence.team_member_id)}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
+                                {absence.absence_type}
+                              </Badge>
+                              <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
+                              <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
+                            </div>
+                            {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                           </div>
-                          {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                         </div>
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => handleAbsenceStatus(absence.id, "declined")}>Decline</Button>
@@ -689,16 +716,27 @@ export function AvailabilityManagement() {
                     <div className="space-y-2">
                       {filteredAbsences.map((absence) => (
                         <div key={absence.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-                          <div>
-                            <p className="text-sm font-medium">{absence.workerName}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
-                                {absence.absence_type}
-                              </Badge>
-                              <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
-                              <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
+                          <div className="flex items-start gap-2">
+                            <TeamAvatar
+                              name={absence.workerName}
+                              photoUrl={
+                                absence.isContractor
+                                  ? contractorProfile?.avatar_url
+                                  : teamMembers.find((m) => m.id === absence.workerId)?.photo_url
+                              }
+                              size="sm"
+                            />
+                            <div>
+                              <p className="text-sm font-medium">{absence.workerName}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <Badge className={ABSENCE_TYPE_BADGE[absence.absence_type] ?? ABSENCE_TYPE_BADGE.other}>
+                                  {absence.absence_type}
+                                </Badge>
+                                <span>{formatDate(absence.start_date)} – {formatDate(absence.end_date)}</span>
+                                <span>({daysBetweenInclusive(absence.start_date, absence.end_date)} day{daysBetweenInclusive(absence.start_date, absence.end_date) === 1 ? "" : "s"})</span>
+                              </div>
+                              {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                             </div>
-                            {absence.notes && <p className="mt-1 text-xs text-muted-foreground">{absence.notes}</p>}
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge className={STATUS_BADGE[absence.status] ?? STATUS_BADGE.requested}>{absence.status}</Badge>
