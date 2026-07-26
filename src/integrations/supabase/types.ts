@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -693,6 +718,66 @@ export type Database = {
           },
         ]
       }
+      contractor_materials: {
+        Row: {
+          category: string
+          contractor_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          quantity_on_hand: number
+          reorder_level: number | null
+          supplier: string | null
+          unit: string
+          unit_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          contractor_id: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          quantity_on_hand?: number
+          reorder_level?: number | null
+          supplier?: string | null
+          unit: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          contractor_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          quantity_on_hand?: number
+          reorder_level?: number | null
+          supplier?: string | null
+          unit?: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_materials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_materials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_panel: {
         Row: {
           added_by: string | null
@@ -912,6 +997,78 @@ export type Database = {
           },
           {
             foreignKeyName: "contractor_projects_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_tools: {
+        Row: {
+          brand: string | null
+          category: string
+          condition: string
+          contractor_id: string
+          created_at: string
+          id: string
+          model: string | null
+          name: string
+          next_service_due: string | null
+          notes: string | null
+          purchase_cost: number | null
+          purchase_date: string | null
+          serial_number: string | null
+          service_type: string | null
+          updated_at: string
+          warranty_expiry: string | null
+        }
+        Insert: {
+          brand?: string | null
+          category: string
+          condition?: string
+          contractor_id: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          name: string
+          next_service_due?: string | null
+          notes?: string | null
+          purchase_cost?: number | null
+          purchase_date?: string | null
+          serial_number?: string | null
+          service_type?: string | null
+          updated_at?: string
+          warranty_expiry?: string | null
+        }
+        Update: {
+          brand?: string | null
+          category?: string
+          condition?: string
+          contractor_id?: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          name?: string
+          next_service_due?: string | null
+          notes?: string | null
+          purchase_cost?: number | null
+          purchase_date?: string | null
+          serial_number?: string | null
+          service_type?: string | null
+          updated_at?: string
+          warranty_expiry?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_tools_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_tools_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
@@ -2301,6 +2458,48 @@ export type Database = {
           },
         ]
       }
+      job_material_usage: {
+        Row: {
+          id: string
+          job_id: string
+          material_id: string
+          quantity_used: number
+          unit_cost_at_use: number | null
+          used_at: string
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          material_id: string
+          quantity_used: number
+          unit_cost_at_use?: number | null
+          used_at?: string
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          material_id?: string
+          quantity_used?: number
+          unit_cost_at_use?: number | null
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_material_usage_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_material_usage_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_message_notifications: {
         Row: {
           created_at: string
@@ -2768,6 +2967,45 @@ export type Database = {
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_tool_assignments: {
+        Row: {
+          assigned_at: string
+          id: string
+          job_id: string
+          returned_at: string | null
+          tool_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          id?: string
+          job_id: string
+          returned_at?: string | null
+          tool_id: string
+        }
+        Update: {
+          assigned_at?: string
+          id?: string
+          job_id?: string
+          returned_at?: string | null
+          tool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_tool_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_tool_assignments_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_tools"
             referencedColumns: ["id"]
           },
         ]
@@ -7001,6 +7239,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      log_material_usage: {
+        Args: { p_job_id: string; p_material_id: string; p_quantity: number }
+        Returns: string
+      }
       mark_tender_invitation_viewed: {
         Args: { p_invitation_id: string }
         Returns: undefined
@@ -7276,6 +7518,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       asset_category: [
