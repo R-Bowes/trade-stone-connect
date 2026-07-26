@@ -6900,6 +6900,41 @@ export type Database = {
           },
         ]
       }
+      tool_documents: {
+        Row: {
+          document_type: string
+          file_name: string
+          file_path: string
+          id: string
+          tool_id: string
+          uploaded_at: string
+        }
+        Insert: {
+          document_type?: string
+          file_name: string
+          file_path: string
+          id?: string
+          tool_id: string
+          uploaded_at?: string
+        }
+        Update: {
+          document_type?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          tool_id?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_documents_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_seen_announcements: {
         Row: {
           announcement_id: string

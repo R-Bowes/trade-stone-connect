@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useToolDocuments } from "@/hooks/useToolDocuments";
 import type { Database } from "@/integrations/supabase/types";
 
 type Tool = Database["public"]["Tables"]["contractor_tools"]["Row"];
@@ -55,6 +56,17 @@ const TOOL_CATEGORIES = [
 const CONDITIONS = ["excellent", "good", "fair", "poor", "decommissioned"] as const;
 
 const MATERIAL_UNITS = ["metres", "kg", "litres", "each", "box", "roll", "pack", "length"] as const;
+
+const DOCUMENT_TYPES = ["Receipt", "PAT Certificate", "Calibration Certificate", "Warranty", "Inspection Report", "Other"] as const;
+
+const DOCUMENT_ACCEPT = ".pdf,.jpg,.jpeg,.png";
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB
+
+const dateTimeFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+function formatDateTime(value: string) {
+  return dateTimeFmt.format(new Date(value));
+}
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -402,9 +414,10 @@ export function InventoryManagement() {
         onSaved={load}
       />
 
-      {detailTool && (
+      {detailTool && contractorId && (
         <ToolDetailDialog
           tool={detailTool}
+          contractorId={contractorId}
           onSite={onSiteByTool[detailTool.id] ?? null}
           onClose={() => setDetailTool(null)}
         />
@@ -517,10 +530,12 @@ function ToolCard({
 
 function ToolDetailDialog({
   tool,
+  contractorId,
   onSite,
   onClose,
 }: {
   tool: Tool;
+  contractorId: string;
   onSite: { job_id: string; title: string; job_number: number | null } | null;
   onClose: () => void;
 }) {
@@ -601,9 +616,156 @@ function ToolDetailDialog({
               </div>
             )}
           </div>
+
+          <ToolDocumentsSection toolId={tool.id} contractorId={contractorId} />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ToolDocumentsSection({ toolId, contractorId }: { toolId: string; contractorId: string }) {
+  const { documents, loading, uploadDocument, deleteDocument, getSignedUrl } = useToolDocuments(toolId);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentType, setDocumentType] = useState<string>(DOCUMENT_TYPES[0]);
+  const [uploading, setUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Database["public"]["Tables"]["tool_documents"]["Row"] | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+
+  const handleFileChange = (file: File | null) => {
+    if (file && file.size > MAX_DOCUMENT_SIZE) {
+      toast.error("File is too large — maximum size is 10MB");
+      return;
+    }
+    setSelectedFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast.error("Select a file to upload");
+      return;
+    }
+    setUploading(true);
+    try {
+      await uploadDocument(toolId, contractorId, selectedFile, documentType);
+      toast.success("Document uploaded");
+      setSelectedFile(null);
+      setDocumentType(DOCUMENT_TYPES[0]);
+      setFileInputKey((k) => k + 1);
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload document");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (docId: string, filePath: string) => {
+    setDownloadingId(docId);
+    try {
+      const url = await getSignedUrl(filePath);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Error opening document:", error);
+      toast.error("Failed to open document");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteDocument(deleteTarget.id, deleteTarget.file_path);
+      toast.success("Document removed");
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      toast.error("Failed to remove document");
+    }
+  };
+
+  return (
+    <div className="border-t pt-3 space-y-3">
+      <p className="text-sm font-medium">Documents</p>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : documents.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No documents attached. Upload receipts, certificates or inspection reports.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {documents.map((doc) => (
+            <div key={doc.id} className="flex items-center justify-between gap-2 rounded-md border p-2.5 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{doc.file_name}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <Badge className="text-xs font-normal bg-gray-100 text-gray-800 hover:bg-gray-100">{doc.document_type}</Badge>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={downloadingId === doc.id}
+                  onClick={() => handleDownload(doc.id, doc.file_path)}
+                >
+                  <i className={cn("ti", downloadingId === doc.id ? "ti-loader-2 animate-spin" : "ti-download", "text-muted-foreground")} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget(doc)}>
+                  <i className="ti ti-trash text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed p-3">
+        <div className="min-w-[160px] flex-1 space-y-1.5">
+          <Label htmlFor="doc_file" className="text-xs">File</Label>
+          <Input
+            key={fileInputKey}
+            id="doc_file"
+            type="file"
+            accept={DOCUMENT_ACCEPT}
+            onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+          />
+        </div>
+        <div className="min-w-[160px] space-y-1.5">
+          <Label htmlFor="doc_type" className="text-xs">Type</Label>
+          <Select value={documentType} onValueChange={setDocumentType}>
+            <SelectTrigger id="doc_type"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {DOCUMENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleUpload} disabled={uploading || !selectedFile}>
+          {uploading ? "Uploading…" : "Upload"}
+        </Button>
+      </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteTarget?.file_name}". This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
