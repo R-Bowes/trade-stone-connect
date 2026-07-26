@@ -36,8 +36,10 @@ import type { Database } from "@/integrations/supabase/types";
 type Timesheet = Database["public"]["Tables"]["timesheets"]["Row"];
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type Job = { id: string; title: string; status: string };
+type ContractorProfile = { full_name: string | null; hourly_rate: number | null };
 
 type StatusFilter = "all" | "pending" | "approved" | "queried";
+type EntryTarget = { kind: "self" } | { kind: "member"; member: TeamMember };
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -98,6 +100,7 @@ interface CellData {
 
 export function TimesheetManagement() {
   const [contractorId, setContractorId] = useState<string | null>(null);
+  const [contractorProfile, setContractorProfile] = useState<ContractorProfile | null>(null);
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [entries, setEntries] = useState<Timesheet[]>([]);
@@ -110,7 +113,7 @@ export function TimesheetManagement() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [reviewPending, setReviewPending] = useState(false);
 
-  const [dialogTarget, setDialogTarget] = useState<{ member: TeamMember; date: string } | null>(null);
+  const [dialogTarget, setDialogTarget] = useState<{ target: EntryTarget; date: string } | null>(null);
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const weekStartISO = toISODate(weekDays[0]);
@@ -137,7 +140,7 @@ export function TimesheetManagement() {
       }
       if (!contractorId) setContractorId(cId);
 
-      const [membersRes, entriesRes, jobsRes] = await Promise.all([
+      const [membersRes, entriesRes, jobsRes, profileRes] = await Promise.all([
         supabase
           .from("team_members")
           .select("*")
@@ -156,15 +159,22 @@ export function TimesheetManagement() {
           .eq("contractor_id", cId)
           .in("status", ["scheduled", "in_progress"])
           .order("title", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("full_name, hourly_rate")
+          .eq("id", cId)
+          .maybeSingle(),
       ]);
 
       if (membersRes.error) throw membersRes.error;
       if (entriesRes.error) throw entriesRes.error;
       if (jobsRes.error) throw jobsRes.error;
+      if (profileRes.error) throw profileRes.error;
 
       setTeamMembers(membersRes.data ?? []);
       setEntries(entriesRes.data ?? []);
       setActiveJobs(jobsRes.data ?? []);
+      setContractorProfile(profileRes.data ?? null);
 
       const jobIds = Array.from(new Set((entriesRes.data ?? []).map((e) => e.job_id).filter((id): id is string => !!id)));
       if (jobIds.length > 0) {
@@ -207,8 +217,10 @@ export function TimesheetManagement() {
     [teamMembers, workerFilter],
   );
 
-  const getCell = useCallback((memberId: string, dateISO: string): CellData => {
-    const cellEntries = filteredEntries.filter((e) => e.worker_id === memberId && e.date === dateISO);
+  const showSelfRow = workerFilter === "all";
+
+  const getCell = useCallback((workerId: string | null, dateISO: string): CellData => {
+    const cellEntries = filteredEntries.filter((e) => e.worker_id === workerId && e.date === dateISO);
     const totalHours = cellEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
     let status: CellData["status"] = "empty";
     if (cellEntries.some((e) => e.status === "queried")) status = "queried";
@@ -219,6 +231,7 @@ export function TimesheetManagement() {
 
   const rateFor = (entry: Timesheet, member: TeamMember | undefined) => {
     if (entry.rate_applied !== null) return Number(entry.rate_applied);
+    if (entry.worker_id === null) return Number(contractorProfile?.hourly_rate ?? 0);
     if (!member) return 0;
     if (entry.is_overtime && member.overtime_rate !== null) return Number(member.overtime_rate);
     return Number(member.hourly_rate ?? member.day_rate ?? 0);
@@ -237,10 +250,10 @@ export function TimesheetManagement() {
       if (entry.status === "approved") approved += 1;
     }
     return { totalHours, totalCost, pending, approved };
-  }, [filteredEntries, teamMembers]);
+  }, [filteredEntries, teamMembers, contractorProfile]);
 
-  const memberWeekTotal = (memberId: string) =>
-    weekDays.reduce((sum, day) => sum + getCell(memberId, toISODate(day)).totalHours, 0);
+  const workerWeekTotal = (workerId: string | null) =>
+    weekDays.reduce((sum, day) => sum + getCell(workerId, toISODate(day)).totalHours, 0);
 
   const handleApprove = async (entry: Timesheet) => {
     if (!contractorId) return;
@@ -298,10 +311,13 @@ export function TimesheetManagement() {
     const header = ["Worker", "Date", "Job", "Arrived", "Left", "Break", "Hours", "Overtime", "Rate", "Cost", "Status"];
     const rows = filteredEntries.map((entry) => {
       const member = teamMembers.find((m) => m.id === entry.worker_id);
+      const workerName = entry.worker_id === null
+        ? (contractorProfile?.full_name ?? "You")
+        : (member?.full_name ?? "Unknown");
       const rate = rateFor(entry, member);
       const cost = Number(entry.hours || 0) * rate;
       return [
-        member?.full_name ?? "Unknown",
+        workerName,
         entry.date,
         entry.job_id ? (jobTitles[entry.job_id] ?? "") : "",
         entry.arrived_at ?? "",
@@ -435,12 +451,6 @@ export function TimesheetManagement() {
           onQuery={handleQuery}
           onBulkApprove={handleBulkApprove}
         />
-      ) : displayedMembers.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            No active team members. Add team members to start logging their hours.
-          </CardContent>
-        </Card>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <Table>
@@ -457,8 +467,41 @@ export function TimesheetManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {showSelfRow && (
+                <TableRow className="bg-muted/40">
+                  <TableCell>
+                    <p className="font-semibold">You</p>
+                    {contractorProfile?.hourly_rate !== null && contractorProfile?.hourly_rate !== undefined && (
+                      <span className="text-xs text-muted-foreground">{formatGBP(contractorProfile.hourly_rate)}/hr</span>
+                    )}
+                  </TableCell>
+                  {weekDays.map((day) => {
+                    const iso = toISODate(day);
+                    const cell = getCell(null, iso);
+                    return (
+                      <TableCell key={iso} className="text-center">
+                        <button
+                          onClick={() => setDialogTarget({ target: { kind: "self" }, date: iso })}
+                          className={cn(
+                            "flex h-12 w-full items-center justify-center rounded-md border text-sm font-medium transition-colors",
+                            cell.status === "empty" && "border-dashed text-muted-foreground hover:bg-muted",
+                            cell.status === "pending" && "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100",
+                            cell.status === "approved" && "border-green-300 bg-green-50 text-green-800 hover:bg-green-100",
+                            cell.status === "queried" && "border-red-300 bg-red-50 text-red-800 hover:bg-red-100",
+                          )}
+                        >
+                          {cell.totalHours > 0 ? `${cell.totalHours}h` : ""}
+                        </button>
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className={cn("text-right font-semibold", workerWeekTotal(null) > 40 && "text-amber-600")}>
+                    {workerWeekTotal(null).toFixed(1)}h
+                  </TableCell>
+                </TableRow>
+              )}
               {displayedMembers.map((member) => {
-                const weekTotal = memberWeekTotal(member.id);
+                const weekTotal = workerWeekTotal(member.id);
                 const rate = member.hourly_rate !== null
                   ? `${formatGBP(member.hourly_rate)}/hr`
                   : member.day_rate !== null
@@ -479,7 +522,7 @@ export function TimesheetManagement() {
                       return (
                         <TableCell key={iso} className="text-center">
                           <button
-                            onClick={() => setDialogTarget({ member, date: iso })}
+                            onClick={() => setDialogTarget({ target: { kind: "member", member }, date: iso })}
                             className={cn(
                               "flex h-12 w-full items-center justify-center rounded-md border text-sm font-medium transition-colors",
                               cell.status === "empty" && "border-dashed text-muted-foreground hover:bg-muted",
@@ -506,10 +549,16 @@ export function TimesheetManagement() {
 
       {dialogTarget && (
         <EntryDialog
-          member={dialogTarget.member}
+          target={dialogTarget.target}
           date={dialogTarget.date}
-          entry={getCell(dialogTarget.member.id, dialogTarget.date).entries[0] ?? null}
+          entry={
+            dialogTarget.target.kind === "self"
+              ? getCell(null, dialogTarget.date).entries[0] ?? null
+              : getCell(dialogTarget.target.member.id, dialogTarget.date).entries[0] ?? null
+          }
           contractorId={contractorId}
+          contractorProfile={contractorProfile}
+          activeJobs={activeJobs}
           onClose={() => setDialogTarget(null)}
           onSaved={() => {
             setDialogTarget(null);
@@ -588,17 +637,21 @@ function PendingReviewTable({
 }
 
 function EntryDialog({
-  member,
+  target,
   date,
   entry,
   contractorId,
+  contractorProfile,
+  activeJobs,
   onClose,
   onSaved,
 }: {
-  member: TeamMember;
+  target: EntryTarget;
   date: string;
   entry: Timesheet | null;
   contractorId: string | null;
+  contractorProfile: ContractorProfile | null;
+  activeJobs: Job[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -613,13 +666,21 @@ function EntryDialog({
   const [isOvertime, setIsOvertime] = useState(entry?.is_overtime ?? false);
   const [saving, setSaving] = useState(false);
 
+  const memberId = target.kind === "member" ? target.member.id : null;
+  const workerName = target.kind === "self" ? "You" : target.member.full_name;
+
   useEffect(() => {
+    if (target.kind === "self") {
+      setJobs(activeJobs);
+      setJobsLoading(false);
+      return;
+    }
+    setJobsLoading(true);
     const loadJobs = async () => {
-      setJobsLoading(true);
       const { data, error } = await supabase
         .from("job_assignments")
         .select("job:jobs!inner(id, title, status)")
-        .eq("team_member_id", member.id)
+        .eq("team_member_id", memberId as string)
         .in("job.status", ["scheduled", "in_progress"]);
       if (error) {
         console.error("Error loading assigned jobs:", error);
@@ -633,7 +694,7 @@ function EntryDialog({
       setJobsLoading(false);
     };
     loadJobs();
-  }, [member.id]);
+  }, [target.kind, memberId, activeJobs]);
 
   useEffect(() => {
     if (arrivedAt && leftAt) {
@@ -642,9 +703,11 @@ function EntryDialog({
     }
   }, [arrivedAt, leftAt, breakMinutes]);
 
-  const rate = isOvertime && member.overtime_rate !== null
-    ? Number(member.overtime_rate)
-    : Number(member.hourly_rate ?? member.day_rate ?? 0);
+  const rate: number | null = target.kind === "self"
+    ? (contractorProfile?.hourly_rate ?? null)
+    : (isOvertime && target.member.overtime_rate !== null
+        ? Number(target.member.overtime_rate)
+        : Number(target.member.hourly_rate ?? target.member.day_rate ?? 0));
 
   const handleSave = async () => {
     const parsedHours = parseFloat(hours);
@@ -657,9 +720,9 @@ function EntryDialog({
     setSaving(true);
     try {
       const monday = getMonday(new Date(date));
-      const payload = {
+      const basePayload = {
         contractor_id: contractorId,
-        worker_id: member.id,
+        worker_id: target.kind === "self" ? null : target.member.id,
         job_id: jobId || null,
         date,
         hours: parsedHours,
@@ -668,10 +731,13 @@ function EntryDialog({
         left_at: leftAt || null,
         break_minutes: parseInt(breakMinutes, 10) || 0,
         is_overtime: isOvertime,
-        rate_applied: rate || null,
+        rate_applied: rate,
         timesheet_week: toISODate(monday),
-        status: entry?.status ?? "pending",
       };
+
+      const payload = target.kind === "self"
+        ? { ...basePayload, status: "approved", approved_at: new Date().toISOString(), approved_by: contractorId }
+        : { ...basePayload, status: entry?.status ?? "pending" };
 
       if (entry) {
         const { error } = await supabase.from("timesheets").update(payload).eq("id", entry.id);
@@ -712,7 +778,7 @@ function EntryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{entry ? "Edit" : "Add"} timesheet entry</DialogTitle>
-          <DialogDescription>{member.full_name} · {formatDate(date)}</DialogDescription>
+          <DialogDescription>{workerName} · {formatDate(date)}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -782,7 +848,9 @@ function EntryDialog({
               />
               Overtime
             </label>
-            <span className="text-sm text-muted-foreground">Rate: {formatGBP(rate)}/hr</span>
+            <span className="text-sm text-muted-foreground">
+              {rate !== null ? `Rate: ${formatGBP(rate)}/hr` : "Rate not set — enter hours manually"}
+            </span>
           </div>
         </div>
 
