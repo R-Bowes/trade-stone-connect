@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { TeamAvatar } from "@/components/ui/TeamAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,9 +47,19 @@ import type { Database } from "@/integrations/supabase/types";
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type Certification = Database["public"]["Tables"]["team_member_certifications"]["Row"];
 type Absence = Database["public"]["Tables"]["team_member_absences"]["Row"];
+type ContractorProfile = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  hourly_rate: number | null;
+  trades: string[] | null;
+};
 
 type StatusFilter = "all" | "active" | "inactive" | "suspended";
 type CertSummary = "valid" | "expiring_soon" | "expired" | "none";
+type PhotoTarget = { kind: "self" } | { kind: "member"; member: TeamMember };
+
+const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/heic";
 
 const ROLES = ["Tradesperson", "Apprentice", "Supervisor", "Labourer", "Site Manager", "Foreman", "Admin"] as const;
 
@@ -153,7 +165,9 @@ const emptyForm: EmptyFormState = {
 };
 
 export function TeamManagement() {
+  const navigate = useNavigate();
   const [contractorId, setContractorId] = useState<string | null>(null);
+  const [contractorProfile, setContractorProfile] = useState<ContractorProfile | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [activeJobCounts, setActiveJobCounts] = useState<Record<string, number>>({});
   const [certSummaries, setCertSummaries] = useState<Record<string, CertSummary>>({});
@@ -168,6 +182,7 @@ export function TeamManagement() {
   const [certMember, setCertMember] = useState<TeamMember | null>(null);
   const [absenceMember, setAbsenceMember] = useState<TeamMember | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<TeamMember | null>(null);
+  const [photoTarget, setPhotoTarget] = useState<PhotoTarget | null>(null);
 
   const getContractorId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -190,15 +205,24 @@ export function TeamManagement() {
       }
       if (!contractorId) setContractorId(cId);
 
-      const { data: memberRows, error: membersError } = await supabase
-        .from("team_members")
-        .select("*")
-        .eq("contractor_id", cId)
-        .order("full_name", { ascending: true });
+      const [membersRes, profileRes] = await Promise.all([
+        supabase
+          .from("team_members")
+          .select("*")
+          .eq("contractor_id", cId)
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, hourly_rate, trades")
+          .eq("id", cId)
+          .maybeSingle(),
+      ]);
 
-      if (membersError) throw membersError;
-      const list = memberRows ?? [];
+      if (membersRes.error) throw membersRes.error;
+      if (profileRes.error) throw profileRes.error;
+      const list = membersRes.data ?? [];
       setMembers(list);
+      setContractorProfile(profileRes.data ?? null);
 
       const memberIds = list.map((m) => m.id);
       if (memberIds.length === 0) {
@@ -442,29 +466,43 @@ export function TeamManagement() {
         </Button>
       </div>
 
-      {filteredMembers.length === 0 ? (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {contractorProfile && (
+          <YouCard
+            profile={contractorProfile}
+            onEditProfile={() => navigate("/dashboard/contractor?view=profile-editor")}
+            onUploadPhoto={() => setPhotoTarget({ kind: "self" })}
+          />
+        )}
+        {filteredMembers.map((member) => (
+          <MemberCard
+            key={member.id}
+            member={member}
+            activeJobs={activeJobCounts[member.id] ?? 0}
+            certSummary={certSummaries[member.id] ?? "none"}
+            onEdit={() => openEditDialog(member)}
+            onViewCerts={() => setCertMember(member)}
+            onLogAbsence={() => setAbsenceMember(member)}
+            onToggleStatus={() => setDeactivateTarget(member)}
+            onUploadPhoto={() => setPhotoTarget({ kind: "member", member })}
+          />
+        ))}
+      </div>
+
+      {filteredMembers.length === 0 && members.length > 0 && (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            {members.length === 0
-              ? "No team members yet. Add your first team member to start assigning them to jobs."
-              : "No team members match this filter."}
+            No team members match this filter.
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredMembers.map((member) => (
-            <MemberCard
-              key={member.id}
-              member={member}
-              activeJobs={activeJobCounts[member.id] ?? 0}
-              certSummary={certSummaries[member.id] ?? "none"}
-              onEdit={() => openEditDialog(member)}
-              onViewCerts={() => setCertMember(member)}
-              onLogAbsence={() => setAbsenceMember(member)}
-              onToggleStatus={() => setDeactivateTarget(member)}
-            />
-          ))}
-        </div>
+      )}
+
+      {members.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No team members yet. Add your first team member to start assigning them to jobs.
+          </CardContent>
+        </Card>
       )}
 
       <MemberFormDialog
@@ -493,6 +531,33 @@ export function TeamManagement() {
         <AbsenceDialog
           member={absenceMember}
           onClose={() => setAbsenceMember(null)}
+        />
+      )}
+
+      {photoTarget && contractorId && (
+        <PhotoUploadDialog
+          title={photoTarget.kind === "self" ? "Upload your photo" : `Upload photo — ${photoTarget.member.full_name}`}
+          displayName={photoTarget.kind === "self" ? (contractorProfile?.full_name ?? "You") : photoTarget.member.full_name}
+          currentPhotoUrl={photoTarget.kind === "self" ? (contractorProfile?.avatar_url ?? null) : photoTarget.member.photo_url}
+          uploadPath={
+            photoTarget.kind === "self"
+              ? `${contractorId}/avatar`
+              : `${contractorId}/members/${photoTarget.member.id}`
+          }
+          onClose={() => setPhotoTarget(null)}
+          onSave={async (url) => {
+            if (photoTarget.kind === "self") {
+              const { error } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", contractorId);
+              if (error) throw error;
+            } else {
+              const { error } = await supabase
+                .from("team_members")
+                .update({ photo_url: url })
+                .eq("id", photoTarget.member.id);
+              if (error) throw error;
+            }
+            await loadTeam();
+          }}
         />
       )}
 
@@ -551,6 +616,7 @@ function MemberCard({
   onViewCerts,
   onLogAbsence,
   onToggleStatus,
+  onUploadPhoto,
 }: {
   member: TeamMember;
   activeJobs: number;
@@ -559,6 +625,7 @@ function MemberCard({
   onViewCerts: () => void;
   onLogAbsence: () => void;
   onToggleStatus: () => void;
+  onUploadPhoto: () => void;
 }) {
   const rate = member.hourly_rate !== null
     ? `${formatGBP(member.hourly_rate)}/hr`
@@ -572,15 +639,18 @@ function MemberCard({
     <Card>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-lg font-semibold">{member.full_name}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Badge className={cn(ROLE_BADGE_CLASS[member.role] ?? "bg-gray-100 text-gray-800")}>
-                {member.role}
-              </Badge>
-              {employmentLabel && (
-                <span className="text-xs text-muted-foreground">{employmentLabel}</span>
-              )}
+          <div className="flex min-w-0 items-center gap-3">
+            <TeamAvatar name={member.full_name} photoUrl={member.photo_url} size="md" />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold">{member.full_name}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Badge className={cn(ROLE_BADGE_CLASS[member.role] ?? "bg-gray-100 text-gray-800")}>
+                  {member.role}
+                </Badge>
+                {employmentLabel && (
+                  <span className="text-xs text-muted-foreground">{employmentLabel}</span>
+                )}
+              </div>
             </div>
           </div>
           <DropdownMenu>
@@ -592,6 +662,9 @@ function MemberCard({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onEdit}>
                 <i className="ti ti-edit mr-2" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onUploadPhoto}>
+                <i className="ti ti-camera mr-2" /> Upload photo
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onViewCerts}>
                 <i className="ti ti-certificate mr-2" /> View certifications
@@ -626,6 +699,161 @@ function MemberCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function YouCard({
+  profile,
+  onEditProfile,
+  onUploadPhoto,
+}: {
+  profile: ContractorProfile;
+  onEditProfile: () => void;
+  onUploadPhoto: () => void;
+}) {
+  const name = profile.full_name ?? "You";
+  const trade = profile.trades?.[0] ?? null;
+  const rate = profile.hourly_rate !== null ? `${formatGBP(profile.hourly_rate)}/hr` : null;
+
+  return (
+    <Card className="border-orange-200">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <TeamAvatar name={name} photoUrl={profile.avatar_url} size="md" />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold">{name}</p>
+              <div className="mt-1">
+                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">You</Badge>
+              </div>
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <i className="ti ti-dots-vertical" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEditProfile}>
+                <i className="ti ti-edit mr-2" /> Edit profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onUploadPhoto}>
+                <i className="ti ti-camera mr-2" /> Upload photo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {trade && <p className="text-sm text-muted-foreground">{trade}</p>}
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">{rate ?? "No rate set"}</span>
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 capitalize">active</Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PhotoUploadDialog({
+  title,
+  displayName,
+  currentPhotoUrl,
+  uploadPath,
+  onClose,
+  onSave,
+}: {
+  title: string;
+  displayName: string;
+  currentPhotoUrl: string | null;
+  uploadPath: string;
+  onClose: () => void;
+  onSave: (url: string | null) => Promise<void>;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    setSaving(true);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("team-photos")
+        .upload(uploadPath, selectedFile, { upsert: true, contentType: selectedFile.type });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("team-photos").getPublicUrl(uploadPath);
+      await onSave(data.publicUrl);
+      toast.success("Photo uploaded");
+      onClose();
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+      toast.error("Failed to upload photo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setSaving(true);
+    try {
+      await onSave(null);
+      toast.success("Photo removed");
+      onClose();
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      toast.error("Failed to remove photo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>For best results, use a headshot photo on a white background</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex justify-center">
+            <TeamAvatar name={displayName} photoUrl={previewUrl ?? currentPhotoUrl} size="lg" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="photo_file">Photo</Label>
+            <Input
+              id="photo_file"
+              type="file"
+              accept={PHOTO_ACCEPT}
+              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          {currentPhotoUrl && (
+            <Button variant="destructive" onClick={handleRemove} disabled={saving} className="sm:mr-auto">
+              Remove photo
+            </Button>
+          )}
+          <Button onClick={handleUpload} disabled={saving || !selectedFile}>
+            {saving ? "Saving…" : "Upload"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

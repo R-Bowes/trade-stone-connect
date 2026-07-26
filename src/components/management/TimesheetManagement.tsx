@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { TeamAvatar } from "@/components/ui/TeamAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +37,7 @@ import type { Database } from "@/integrations/supabase/types";
 type Timesheet = Database["public"]["Tables"]["timesheets"]["Row"];
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type Job = { id: string; title: string; status: string };
-type ContractorProfile = { full_name: string | null; hourly_rate: number | null };
+type ContractorProfile = { full_name: string | null; hourly_rate: number | null; avatar_url: string | null };
 
 type StatusFilter = "all" | "pending" | "approved" | "queried";
 type EntryTarget = { kind: "self" } | { kind: "member"; member: TeamMember };
@@ -161,7 +162,7 @@ export function TimesheetManagement() {
           .order("title", { ascending: true }),
         supabase
           .from("profiles")
-          .select("full_name, hourly_rate")
+          .select("full_name, hourly_rate, avatar_url")
           .eq("id", cId)
           .maybeSingle(),
       ]);
@@ -470,10 +471,17 @@ export function TimesheetManagement() {
               {showSelfRow && (
                 <TableRow className="bg-muted/40">
                   <TableCell>
-                    <p className="font-semibold">You</p>
-                    {contractorProfile?.hourly_rate !== null && contractorProfile?.hourly_rate !== undefined && (
-                      <span className="text-xs text-muted-foreground">{formatGBP(contractorProfile.hourly_rate)}/hr</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <TeamAvatar name={contractorProfile?.full_name ?? "You"} photoUrl={contractorProfile?.avatar_url} size="sm" />
+                      <div>
+                        <p className="font-semibold">
+                          {contractorProfile?.full_name ?? "You"} <span className="font-normal text-muted-foreground">(You)</span>
+                        </p>
+                        {contractorProfile?.hourly_rate !== null && contractorProfile?.hourly_rate !== undefined && (
+                          <span className="text-xs text-muted-foreground">{formatGBP(contractorProfile.hourly_rate)}/hr</span>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                   {weekDays.map((day) => {
                     const iso = toISODate(day);
@@ -510,10 +518,15 @@ export function TimesheetManagement() {
                 return (
                   <TableRow key={member.id}>
                     <TableCell>
-                      <p className="font-medium">{member.full_name}</p>
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <Badge variant="secondary" className="text-xs">{member.role}</Badge>
-                        {rate && <span className="text-xs text-muted-foreground">{rate}</span>}
+                      <div className="flex items-center gap-2">
+                        <TeamAvatar name={member.full_name} photoUrl={member.photo_url} size="sm" />
+                        <div>
+                          <p className="font-medium">{member.full_name}</p>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <Badge variant="secondary" className="text-xs">{member.role}</Badge>
+                            {rate && <span className="text-xs text-muted-foreground">{rate}</span>}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                     {weekDays.map((day) => {
