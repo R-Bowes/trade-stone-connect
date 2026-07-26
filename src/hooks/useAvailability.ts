@@ -30,47 +30,44 @@ export interface DayAvailability {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const UNAVAILABLE: DayAvailability = { amAvailable: false, pmAvailable: false };
-
-/**
- * Derives AM/PM availability from a weekly slot's time window.
- * AM = contractor starts before noon; PM = contractor ends after noon.
- * String comparison is safe here because times are zero-padded "HH:MM".
- */
-function slotToDayAvailability(slot: AvailabilitySlot | undefined): DayAvailability {
-  if (!slot || !slot.is_available) return UNAVAILABLE;
-  return {
-    amAvailable: slot.start_time < "12:00",
-    pmAvailable: slot.end_time > "12:00",
-  };
-}
+const RANGE_DAYS = 90;
 
 // ─── useAvailability ──────────────────────────────────────────────────────────
 
 /**
  * Read-only hook. Safe to call from customer-facing views and profile pages.
- * Reads availability_slots (weekly pattern) and contractor_availability_overrides
- * (one-off date overrides) for the given contractor.
+ * Reads capacity-based availability via the get_contractor_availability RPC
+ * (working patterns minus absences minus assigned jobs, computed server-side)
+ * for the given contractor, 90 days out from today.
  */
 export function useAvailability(contractorId: string) {
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  // Vestigial — no consumer should read these directly anymore. Kept only
+  // for backward compatibility with the existing hook return shape.
+  const [slots] = useState<AvailabilitySlot[]>([]);
   const [overrides, setOverrides] = useState<ContractorAvailabilityOverride[]>([]);
+  const [availabilityByDate, setAvailabilityByDate] = useState<
+    Map<string, { is_available: boolean; remaining_capacity: number }>
+  >(new Map());
   const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!contractorId) {
-      setSlots([]);
+      setAvailabilityByDate(new Map());
       setOverrides([]);
       return;
     }
 
     setLoading(true);
 
-    const [{ data: slotsData }, { data: overridesData }] = await Promise.all([
-      supabase
-        .from("availability_slots")
-        .select("id, contractor_id, day_of_week, start_time, end_time, is_available")
-        .eq("contractor_id", contractorId)
-        .order("day_of_week", { ascending: true }),
+    const startStr = format(new Date(), "yyyy-MM-dd");
+    const endStr = format(addDays(new Date(), RANGE_DAYS), "yyyy-MM-dd");
+
+    const [{ data: rpcData }, { data: overridesData }] = await Promise.all([
+      supabase.rpc("get_contractor_availability", {
+        p_contractor_id: contractorId,
+        p_start_date: startStr,
+        p_end_date: endStr,
+      }),
       supabase
         .from("contractor_availability_overrides")
         .select("id, contractor_id, date, am_available, pm_available, reason")
@@ -78,7 +75,12 @@ export function useAvailability(contractorId: string) {
         .order("date", { ascending: true }),
     ]);
 
-    setSlots(slotsData ?? []);
+    const map = new Map<string, { is_available: boolean; remaining_capacity: number }>();
+    for (const row of rpcData ?? []) {
+      map.set(row.available_date, { is_available: row.is_available, remaining_capacity: row.remaining_capacity });
+    }
+
+    setAvailabilityByDate(map);
     setOverrides(overridesData ?? []);
     setLoading(false);
   }, [contractorId]);
@@ -88,32 +90,27 @@ export function useAvailability(contractorId: string) {
   }, [fetchData]);
 
   /**
-   * Returns AM/PM availability for a specific date.
-   * Overrides take priority over the weekly pattern.
-   * If neither exists, both flags are false.
+   * Returns availability for a specific date from the capacity map.
+   * The capacity model has no AM/PM granularity — both flags mirror the
+   * same whole-day is_available value. Unknown dates are unavailable.
    */
   const getSlotForDate = useCallback(
     (date: Date): DayAvailability => {
       const dateStr = format(date, "yyyy-MM-dd");
-
-      const override = overrides.find((o) => o.date === dateStr);
-      if (override) {
-        return { amAvailable: override.am_available, pmAvailable: override.pm_available };
-      }
-
-      const slot = slots.find((s) => s.day_of_week === date.getDay());
-      return slotToDayAvailability(slot);
+      const entry = availabilityByDate.get(dateStr);
+      if (!entry) return UNAVAILABLE;
+      return { amAvailable: entry.is_available, pmAvailable: entry.is_available };
     },
-    [overrides, slots],
+    [availabilityByDate],
   );
 
   /**
    * Scans forward from tomorrow up to 90 days.
-   * Returns the first date where at least one half-day is available, or null.
+   * Returns the first date where the capacity map shows is_available, or null.
    */
   const getNextAvailable = useCallback((): Date | null => {
     const tomorrow = addDays(new Date(), 1);
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < RANGE_DAYS; i++) {
       const candidate = addDays(tomorrow, i);
       const { amAvailable, pmAvailable } = getSlotForDate(candidate);
       if (amAvailable || pmAvailable) return candidate;
@@ -162,34 +159,6 @@ export function useContractorAvailabilityManager(contractorId: string) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  /**
-   * Replaces the contractor's weekly availability pattern.
-   * Uses delete-then-insert to match existing saveAvailability behaviour in useSchedule.ts.
-   */
-  const saveWeeklyPattern = useCallback(
-    async (
-      newSlots: { day_of_week: number; start_time: string; end_time: string; is_available: boolean }[],
-    ): Promise<void> => {
-      if (!contractorId) return;
-      setSaving(true);
-      setError(null);
-      try {
-        await supabase.from("availability_slots").delete().eq("contractor_id", contractorId);
-        const records = newSlots.map((s) => ({ ...s, contractor_id: contractorId }));
-        const { error: insertError } = await supabase.from("availability_slots").insert(records);
-        if (insertError) throw insertError;
-        await refetch();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to save weekly pattern";
-        setError(msg);
-        throw e;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [contractorId, refetch],
-  );
 
   /**
    * Adds a one-off override for a specific date.
@@ -253,7 +222,6 @@ export function useContractorAvailabilityManager(contractorId: string) {
     ...base,
     saving,
     error,
-    saveWeeklyPattern,
     addOverride,
     removeOverride,
   };

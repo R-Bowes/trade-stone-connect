@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -116,17 +117,20 @@ interface DayStats {
 }
 
 export function AvailabilityManagement() {
+  const navigate = useNavigate();
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [patterns, setPatterns] = useState<WorkingPattern[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [assignments, setAssignments] = useState<AssignmentStub[]>([]);
   const [scheduledJobs, setScheduledJobs] = useState<JobStub[]>([]);
+  const [contractorOverrideCount, setContractorOverrideCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  const [availabilityOpen, setAvailabilityOpen] = useState(true);
   const [patternsOpen, setPatternsOpen] = useState(true);
   const [absencesOpen, setAbsencesOpen] = useState(true);
 
@@ -219,6 +223,14 @@ export function AvailabilityManagement() {
         .lte("scheduled_start", addDays(gridEnd, 1).toISOString());
       if (jobsError) throw jobsError;
       setScheduledJobs(jobRows ?? []);
+
+      const { count: overrideCount, error: overrideError } = await supabase
+        .from("contractor_availability_overrides")
+        .select("id", { count: "exact", head: true })
+        .eq("contractor_id", cId)
+        .gte("date", toISODate(new Date()));
+      if (overrideError) throw overrideError;
+      setContractorOverrideCount(overrideCount ?? 0);
     } catch (error) {
       console.error("Error loading availability data:", error);
       toast.error("Failed to load availability data");
@@ -427,6 +439,34 @@ export function AvailabilityManagement() {
           })}
         </div>
       </div>
+
+      <Collapsible open={availabilityOpen} onOpenChange={setAvailabilityOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <button className="flex w-full items-center justify-between p-4 text-left">
+              <span className="font-heading text-lg font-semibold">Your availability</span>
+              <i className={cn("ti ti-chevron-down transition-transform", availabilityOpen && "rotate-180")} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              <p className="text-sm text-muted-foreground">
+                You're counted as available Mon–Fri. To block specific dates, use Date overrides on the Schedule page.
+              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Upcoming blocked dates</p>
+                  <p className="text-2xl font-bold">{contractorOverrideCount}</p>
+                </div>
+                <Button variant="outline" onClick={() => navigate("/dashboard/contractor?view=schedule")}>
+                  <i className="ti ti-calendar-off mr-2" />
+                  Manage date overrides
+                </Button>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Collapsible open={patternsOpen} onOpenChange={setPatternsOpen}>
         <Card>

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -6909,6 +6884,18 @@ export type Database = {
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
+      get_contractor_availability: {
+        Args: {
+          p_contractor_id: string
+          p_end_date: string
+          p_start_date: string
+        }
+        Returns: {
+          available_date: string
+          is_available: boolean
+          remaining_capacity: number
+        }[]
+      }
       get_secret: { Args: { p_name: string }; Returns: string }
       give_notice_on_term_engagement: {
         Args: { p_engagement_id: string; p_notice_effective_date: string }
@@ -7196,9 +7183,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       asset_category: [

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { QuoteScheduleNegotiation } from "@/components/recipient/QuoteScheduleNegotiation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import { formatQuoteRef } from "@/lib/documentRefs";
 import { useSchedule, type ScheduleEvent } from "@/hooks/useSchedule";
 import { WeekCalendar } from "./schedule/WeekCalendar";
 import { UpcomingEvents } from "./schedule/UpcomingEvents";
+import { AvailabilityManager } from "./schedule/AvailabilityManager";
 import { EventFormDialog } from "./schedule/EventFormDialog";
 
 
@@ -186,6 +187,16 @@ export function ScheduleManagement() {
           ))}
         </TabsContent>
       </Tabs>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Date overrides</CardTitle>
+          <CardDescription>Block specific dates when you're unavailable</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AvailabilityManager contractorId={contractorProfileId} />
+        </CardContent>
+      </Card>
 
       <EventFormDialog
         open={showForm}
