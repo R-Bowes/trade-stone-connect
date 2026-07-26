@@ -49,7 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "team", label: "Team", icon: "ti-users" },
       { value: "availability", label: "Availability", icon: "ti-calendar-check" },
       { value: "timesheets", label: "Timesheets", icon: "ti-clock" },
-      { value: "inventory", label: "My Kit", icon: "ti-toolbox" },
+      { value: "inventory", label: "My Kit", icon: "ti-tool" },
     ],
   },
   {
