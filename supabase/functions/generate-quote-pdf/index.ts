@@ -145,7 +145,9 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
     page.drawText(quote.business_name, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
   }
-  for (const line of [quote.client_email, quote.client_phone, quote.client_address].filter(Boolean)) {
+  // Platform communications invariant: no phone/email on generated documents
+  // — all contact goes via TradeStone messaging.
+  for (const line of [quote.client_address].filter(Boolean)) {
     page.drawText(line as string, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
   }
@@ -172,17 +174,17 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
   y -= 10;
 
   // ── Totals ────────────────────────────────────────────────────────────────
+  // A quotation is an offer document — it must never show live payment status
+  // (deposit_paid). That belongs on the completion certificate only, which is
+  // a post-completion record.
   ensureSpace(80);
-  y = drawTotalsBlock(page, y, quote.subtotal, quote.tax_rate, quote.tax_amount, quote.total, regular, bold, {
-    depositAmount: quote.deposit_required ? quote.deposit_amount : null,
-    depositPaid: quote.deposit_paid,
-  });
+  y = drawTotalsBlock(page, y, quote.subtotal, quote.tax_rate, quote.tax_amount, quote.total, regular, bold);
   if (quote.deposit_required && quote.deposit_percentage != null) {
     ensureSpace(14);
-    page.drawText(
-      `Deposit required: ${quote.deposit_percentage}% on acceptance`,
-      { x: MARGIN, y, size: 9, font: regular, color: MID },
-    );
+    const depositLine = quote.deposit_amount != null
+      ? `Deposit required: ${quote.deposit_percentage}% — £${quote.deposit_amount.toFixed(2)}`
+      : `Deposit required: ${quote.deposit_percentage}%`;
+    page.drawText(depositLine, { x: MARGIN, y, size: 9, font: regular, color: MID });
     y -= 20;
   }
 

@@ -157,10 +157,10 @@ export async function drawContractorHeader(
     page.drawText(contractor.ts_profile_code, { x: textX, y: cursorY, size: 10, font, color: MID });
   }
 
+  // Platform communications invariant: no phone/email on generated documents
+  // — all contact goes via TradeStone messaging.
   const detailLines = [
     contractor.address,
-    contractor.phone,
-    contractor.email,
     contractor.vat_number ? `VAT: ${contractor.vat_number}` : null,
   ].filter((l): l is string => Boolean(l));
 
