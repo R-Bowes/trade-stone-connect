@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -1076,6 +1051,63 @@ export type Database = {
           },
         ]
       }
+      contractor_vehicles: {
+        Row: {
+          business_use_percentage: number | null
+          contractor_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          method_locked_tax_year: string | null
+          mileage_method: string
+          name: string
+          registration: string | null
+          updated_at: string
+          vehicle_type: string
+        }
+        Insert: {
+          business_use_percentage?: number | null
+          contractor_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          method_locked_tax_year?: string | null
+          mileage_method?: string
+          name: string
+          registration?: string | null
+          updated_at?: string
+          vehicle_type?: string
+        }
+        Update: {
+          business_use_percentage?: number | null
+          contractor_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          method_locked_tax_year?: string | null
+          mileage_method?: string
+          name?: string
+          registration?: string | null
+          updated_at?: string
+          vehicle_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_vehicles_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_vehicles_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_working_patterns: {
         Row: {
           contractor_id: string
@@ -1774,6 +1806,61 @@ export type Database = {
           },
         ]
       }
+      expense_categories: {
+        Row: {
+          created_at: string
+          hmrc_category: string | null
+          id: string
+          is_active: boolean
+          name: string
+          owner_contractor_id: string | null
+          parent_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          hmrc_category?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          owner_contractor_id?: string | null
+          parent_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          hmrc_category?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          owner_contractor_id?: string | null
+          parent_id?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_owner_contractor_id_fkey"
+            columns: ["owner_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_categories_owner_contractor_id_fkey"
+            columns: ["owner_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -1920,6 +2007,66 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_settings: {
+        Row: {
+          business_type: string
+          contractor_id: string
+          created_at: string
+          default_payment_terms_days: number | null
+          financial_year_end_day: number | null
+          financial_year_end_month: number | null
+          flat_rate_percentage: number | null
+          flat_rate_start_date: string | null
+          id: string
+          updated_at: string
+          vat_number: string | null
+          vat_status: string
+        }
+        Insert: {
+          business_type?: string
+          contractor_id: string
+          created_at?: string
+          default_payment_terms_days?: number | null
+          financial_year_end_day?: number | null
+          financial_year_end_month?: number | null
+          flat_rate_percentage?: number | null
+          flat_rate_start_date?: string | null
+          id?: string
+          updated_at?: string
+          vat_number?: string | null
+          vat_status?: string
+        }
+        Update: {
+          business_type?: string
+          contractor_id?: string
+          created_at?: string
+          default_payment_terms_days?: number | null
+          financial_year_end_day?: number | null
+          financial_year_end_month?: number | null
+          flat_rate_percentage?: number | null
+          flat_rate_start_date?: string | null
+          id?: string
+          updated_at?: string
+          vat_number?: string | null
+          vat_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_settings_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_settings_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gdpr_erasure_log: {
         Row: {
           completed_at: string | null
@@ -1947,6 +2094,33 @@ export type Database = {
           performed_by?: string | null
           requested_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      hmrc_mileage_rates: {
+        Row: {
+          effective_from: string
+          effective_to: string | null
+          id: string
+          rate_per_mile: number
+          threshold_miles: number | null
+          vehicle_type: string
+        }
+        Insert: {
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          rate_per_mile: number
+          threshold_miles?: number | null
+          vehicle_type: string
+        }
+        Update: {
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          rate_per_mile?: number
+          threshold_miles?: number | null
+          vehicle_type?: string
         }
         Relationships: []
       }
@@ -7649,9 +7823,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       asset_category: [
