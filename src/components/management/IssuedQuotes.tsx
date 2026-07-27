@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
 import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
@@ -135,20 +136,24 @@ function QuoteDetailPanel({
   quote,
   versionChain,
   saving,
+  downloadingPdf,
   onEdit,
   onSend,
   onRevise,
   onSelectVersion,
   onOpenThread,
+  onDownloadPdf,
 }: {
   quote: IssuedQuote;
   versionChain: IssuedQuote[];
   saving: boolean;
+  downloadingPdf: boolean;
   onEdit: () => void;
   onSend: () => void;
   onRevise: () => void;
   onSelectVersion: (q: IssuedQuote) => void;
   onOpenThread: (quoteId: string) => void;
+  onDownloadPdf: () => void;
 }) {
   const eyebrow = quote.version > 1
     ? `${formatQuoteRef(quote.quote_number)} · v${quote.version}`
@@ -285,6 +290,12 @@ function QuoteDetailPanel({
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button variant="outline" size="sm" onClick={onDownloadPdf} disabled={downloadingPdf}>
+            {downloadingPdf
+              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              : <i className="ti ti-download h-3.5 w-3.5 mr-1.5" />}
+            Download PDF
+          </Button>
           <Button variant="outline" size="sm" onClick={() => onOpenThread(quote.id)}>
             <MessageSquare className="h-3.5 w-3.5 mr-1.5" />Open thread
           </Button>
@@ -538,7 +549,26 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const { toast } = useToast();
+
+  const handleDownloadPdf = useCallback(async (quoteId: string) => {
+    setDownloadingPdf(true);
+    try {
+      const { url } = await invokeEdgeFunction<{ url: string }>("generate-quote-pdf", {
+        body: { quote_id: quoteId },
+      });
+      window.open(url, "_blank");
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Could not generate the quote PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }, [toast]);
 
   const displayQuotes = useMemo(() => latestVersions(allQuotes), [allQuotes]);
 
@@ -820,11 +850,13 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
               quote={selectedQuote}
               versionChain={versionChain}
               saving={saving}
+              downloadingPdf={downloadingPdf}
               onEdit={() => startEdit(selectedQuote)}
               onSend={handleSendDraft}
               onRevise={handleRevise}
               onSelectVersion={(q) => { setSelectedQuote(q); setEditMode(false); setEditData(null); }}
               onOpenThread={(quoteId) => navigate(`/dashboard/contractor?view=dashboard&thread=${quoteId}`)}
+              onDownloadPdf={() => handleDownloadPdf(selectedQuote.id)}
             />
           )}
           {selectedQuote && editMode && editData && (

@@ -28,6 +28,7 @@ import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, type Job 
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
 import { JobStageStrip } from "@/components/JobStageStrip";
@@ -132,7 +133,26 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const [portfolioApproved, setPortfolioApproved] = useState(job.portfolio_approved);
   const [origin, setOrigin] = useState<JobOrigin | null>(null);
   const [originLoading, setOriginLoading] = useState(false);
+  const [downloadingCertificate, setDownloadingCertificate] = useState(false);
   const { toast } = useToast();
+
+  const handleDownloadCertificate = async () => {
+    setDownloadingCertificate(true);
+    try {
+      const { url } = await invokeEdgeFunction<{ url: string }>("generate-completion-pdf", {
+        body: { job_id: job.id },
+      });
+      window.open(url, "_blank");
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Could not generate the completion certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingCertificate(false);
+    }
+  };
 
   const sc = statusConfig[job.status] || statusConfig.not_started;
   const StatusIcon = sc.icon;
@@ -443,6 +463,18 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
                       {format(new Date(job.signed_off_at), "dd MMM yyyy 'at' HH:mm")}
                     </p>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={downloadingCertificate}
+                    onClick={handleDownloadCertificate}
+                  >
+                    {downloadingCertificate
+                      ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      : <i className="ti ti-download h-4 w-4 mr-1.5" />}
+                    Download Certificate
+                  </Button>
                 </CardContent>
               </Card>
             )

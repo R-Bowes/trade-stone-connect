@@ -1,0 +1,420 @@
+// Deploy: supabase functions deploy generate-completion-pdf
+// Required secrets: SUPABASE_URL, ADMIN_SECRET_KEY
+// Storage bucket: generated-documents (private) — see
+// 20260727150000_generated_documents_bucket_and_rls.sql
+//
+// HARD RULE: this PDF shows ONLY the accepted contractor's quote for the job
+// it is generated for. It is scoped by jobs.issued_quote_id — never by
+// job_id on the quotes table — so it can never surface a losing bid under
+// the Projects competing-quotes model.
+
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { PDFDocument, StandardFonts } from "npm:pdf-lib@1.17.1";
+import {
+  createBrandedPage,
+  drawContractorHeader,
+  drawLineItemsTable,
+  drawTotalsBlock,
+  formatDocNumber,
+  DARK,
+  MID,
+  NAVY,
+  MARGIN,
+  PAGE_WIDTH,
+  LineItem,
+} from "../_shared/pdfBranding.ts";
+
+const ALLOWED_ORIGINS = [
+  "https://tradesltd.co.uk",
+  "https://www.tradesltd.co.uk",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+
+const getCorsHeaders = (origin: string | null): HeadersInit => {
+  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+};
+
+const jsonResponse = (status: number, payload: Record<string, unknown>, cors: HeadersInit) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+
+function fmtDateTime(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  }).replace(",", ",");
+}
+
+function normalizeItems(raw: unknown): LineItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const r = item as Record<string, unknown>;
+    const quantity = Number(r.quantity ?? 0);
+    const unitPrice = Number(r.unit_price ?? r.unitPrice ?? 0);
+    const total = Number(r.total ?? quantity * unitPrice);
+    return {
+      description: String(r.description ?? ""),
+      quantity,
+      unit_price: unitPrice,
+      total,
+    };
+  });
+}
+
+interface ContractorProfile {
+  full_name: string | null;
+  company_name: string | null;
+  ts_profile_code: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  vat_number: string | null;
+  logo_url: string | null;
+}
+
+interface Job {
+  id: string;
+  job_number: number;
+  title: string;
+  location: string | null;
+  contractor_id: string;
+  customer_id: string;
+  issued_quote_id: string | null;
+  created_at: string;
+  actual_start: string | null;
+  completed_at: string | null;
+  contractor_signed_off_at: string | null;
+  signed_off_at: string | null;
+}
+
+interface IssuedQuoteSummary {
+  created_at: string;
+  accepted_at: string | null;
+  client_name: string;
+  items: unknown;
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  total: number;
+}
+
+interface PhotoRow {
+  storage_path: string | null;
+}
+
+interface PaidInvoice {
+  invoice_number: number;
+  total: number;
+  paid_date: string | null;
+}
+
+async function buildCompletionPdf(
+  job: Job,
+  contractor: ContractorProfile,
+  quote: IssuedQuoteSummary | null,
+  clientName: string,
+  photos: PhotoRow[],
+  invoice: PaidInvoice | null,
+  fetchPhotoBytes: (path: string) => Promise<Uint8Array | null>,
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  let { page, y } = createBrandedPage(pdfDoc, { font: regular });
+
+  const ensureSpace = (needed: number) => {
+    if (y - needed < MARGIN + 40) {
+      ({ page, y } = createBrandedPage(pdfDoc, { font: regular }));
+    }
+  };
+
+  y = await drawContractorHeader(page, y, contractor, regular, bold);
+
+  const jobRef = formatDocNumber("J", contractor.ts_profile_code ?? "", job.job_number);
+
+  ensureSpace(60);
+  y -= 10;
+  page.drawText("COMPLETION CERTIFICATE", { x: MARGIN, y, size: 20, font: bold, color: NAVY });
+  const refW = bold.widthOfTextAtSize(jobRef, 12);
+  page.drawText(jobRef, { x: PAGE_WIDTH - MARGIN - refW, y: y + 4, size: 12, font: bold, color: NAVY });
+  y -= 22;
+
+  page.drawText(job.title, { x: MARGIN, y, size: 13, font: bold, color: DARK });
+  y -= 16;
+  page.drawText(`Client: ${clientName}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
+  y -= 13;
+  if (job.location) {
+    page.drawText(`Location: ${job.location}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
+    y -= 13;
+  }
+  y -= 12;
+
+  // ── Timeline ─────────────────────────────────────────────────────────────
+  ensureSpace(24);
+  page.drawText("TIMELINE", { x: MARGIN, y, size: 8, font: bold, color: MID });
+  y -= 16;
+
+  const timelineEntries: Array<{ label: string; date: string | null }> = [
+    { label: "Job created", date: fmtDateTime(job.created_at) },
+    { label: "Quote issued", date: quote ? fmtDateTime(quote.created_at) : null },
+    { label: "Quote accepted", date: quote ? fmtDateTime(quote.accepted_at) : null },
+    { label: "Job started", date: fmtDateTime(job.actual_start) },
+    { label: "Job completed", date: fmtDateTime(job.completed_at) },
+    { label: "Contractor signed off", date: fmtDateTime(job.contractor_signed_off_at) },
+    { label: "Client signed off", date: fmtDateTime(job.signed_off_at) },
+  ];
+
+  for (const entry of timelineEntries) {
+    if (!entry.date) continue;
+    ensureSpace(16);
+    page.drawCircle({ x: MARGIN + 3, y: y + 3, size: 2.5, color: NAVY });
+    page.drawText(entry.label, { x: MARGIN + 14, y, size: 9, font: bold, color: DARK });
+    page.drawText(entry.date, { x: MARGIN + 180, y, size: 9, font: regular, color: MID });
+    y -= 16;
+  }
+  y -= 10;
+
+  // ── Quote breakdown (accepted contractor only) ──────────────────────────────
+  if (quote) {
+    ensureSpace(24);
+    page.drawText("QUOTE BREAKDOWN", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    const items = normalizeItems(quote.items);
+    ensureSpace(20 * (items.length + 1) + 20);
+    y = drawLineItemsTable(page, y, items, regular, bold);
+    y -= 10;
+
+    ensureSpace(70);
+    y = drawTotalsBlock(page, y, quote.subtotal, quote.tax_rate, quote.tax_amount, quote.total, regular, bold);
+    y -= 10;
+  }
+
+  // ── Photos ────────────────────────────────────────────────────────────────
+  const MAX_PHOTOS = 12;
+  const shownPhotos = photos.slice(0, MAX_PHOTOS);
+  if (shownPhotos.length > 0) {
+    ensureSpace(24);
+    page.drawText("SITE PHOTOS", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    const cols = 3;
+    const gap = 10;
+    const cellW = (PAGE_WIDTH - 2 * MARGIN - gap * (cols - 1)) / cols;
+    const cellH = cellW * 0.75;
+
+    let col = 0;
+    ensureSpace(cellH + 10);
+    let rowY = y;
+
+    for (const photo of shownPhotos) {
+      if (!photo.storage_path) continue;
+      const bytes = await fetchPhotoBytes(photo.storage_path);
+      if (!bytes) continue; // fetch failed — skip gracefully
+
+      let image;
+      try {
+        image = photo.storage_path.match(/\.png$/i)
+          ? await pdfDoc.embedPng(bytes)
+          : await pdfDoc.embedJpg(bytes);
+      } catch {
+        continue; // corrupt/unsupported image bytes — skip gracefully
+      }
+
+      if (col === cols) {
+        col = 0;
+        rowY -= cellH + gap;
+        y = rowY;
+        ensureSpace(cellH + 10);
+        rowY = y;
+      }
+
+      const dim = image.scaleToFit(cellW, cellH);
+      const cellX = MARGIN + col * (cellW + gap);
+      page.drawImage(image, {
+        x: cellX + (cellW - dim.width) / 2,
+        y: rowY - cellH + (cellH - dim.height) / 2,
+        width: dim.width,
+        height: dim.height,
+      });
+      col++;
+    }
+    y = rowY - cellH - 14;
+
+    if (photos.length > MAX_PHOTOS) {
+      ensureSpace(14);
+      page.drawText("Additional photos available on TradeStone", {
+        x: MARGIN, y, size: 8, font: regular, color: MID,
+      });
+      y -= 16;
+    }
+  }
+
+  // ── Payment ──────────────────────────────────────────────────────────────
+  if (invoice) {
+    ensureSpace(50);
+    page.drawText("PAYMENT", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+    const invRef = formatDocNumber("INV", contractor.ts_profile_code ?? "", invoice.invoice_number);
+    page.drawText(`Invoice: ${invRef}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    y -= 13;
+    page.drawText(`Amount paid: £${invoice.total.toFixed(2)}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    y -= 13;
+    if (invoice.paid_date) {
+      page.drawText(`Date paid: ${fmtDateTime(invoice.paid_date)}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+      y -= 13;
+    }
+  }
+
+  return pdfDoc.save();
+}
+
+serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const cors = getCorsHeaders(origin);
+
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("ADMIN_SECRET_KEY")!,
+      { auth: { persistSession: false } },
+    );
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return jsonResponse(401, { error: "Unauthorized" }, cors);
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !userData.user) return jsonResponse(401, { error: "Unauthorized" }, cors);
+
+    const body = await req.json();
+    const { job_id } = body as { job_id?: string };
+    if (!job_id) return jsonResponse(400, { error: "job_id is required" }, cors);
+
+    const { data: job, error: jobErr } = await supabase
+      .from("jobs")
+      .select(
+        "id, job_number, title, location, contractor_id, customer_id, issued_quote_id, " +
+        "created_at, actual_start, completed_at, contractor_signed_off_at, signed_off_at",
+      )
+      .eq("id", job_id)
+      .maybeSingle();
+    if (jobErr) {
+      console.error("[generate-completion-pdf] job fetch failed:", jobErr);
+      return jsonResponse(500, { error: "Failed to load job" }, cors);
+    }
+    if (!job) return jsonResponse(404, { error: "Job not found" }, cors);
+
+    if (userData.user.id !== job.contractor_id && userData.user.id !== job.customer_id) {
+      return jsonResponse(403, { error: "Forbidden" }, cors);
+    }
+
+    const { data: contractor, error: contractorErr } = await supabase
+      .from("profiles")
+      .select("full_name, company_name, ts_profile_code, address, phone, email, vat_number, logo_url")
+      .eq("id", job.contractor_id)
+      .single();
+    if (contractorErr || !contractor) {
+      console.error("[generate-completion-pdf] contractor profile fetch failed:", contractorErr);
+      return jsonResponse(500, { error: "Failed to load contractor profile" }, cors);
+    }
+
+    // Accepted-contractor-only quote scope: keyed strictly off
+    // jobs.issued_quote_id, never job_id on the quotes table.
+    let quote: IssuedQuoteSummary | null = null;
+    if (job.issued_quote_id) {
+      const { data: quoteRow } = await supabase
+        .from("issued_quotes")
+        .select("created_at, accepted_at, client_name, items, subtotal, tax_rate, tax_amount, total")
+        .eq("id", job.issued_quote_id)
+        .maybeSingle();
+      quote = quoteRow as IssuedQuoteSummary | null;
+    }
+
+    let clientName = quote?.client_name ?? null;
+    if (!clientName) {
+      const { data: clientProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", job.customer_id)
+        .maybeSingle();
+      clientName = clientProfile?.full_name ?? "Client";
+    }
+
+    const { data: photoRows } = await supabase
+      .from("job_photos")
+      .select("storage_path, photo_approval_status, visibility")
+      .eq("job_id", job_id)
+      .or("photo_approval_status.eq.approved,visibility.in.(both,public)")
+      .limit(12);
+    const photos = (photoRows ?? []) as PhotoRow[];
+
+    const { data: invoiceRow } = await supabase
+      .from("invoices")
+      .select("invoice_number, total, paid_date")
+      .eq("job_id", job_id)
+      .eq("status", "paid")
+      .maybeSingle();
+    const invoice = invoiceRow as PaidInvoice | null;
+
+    const fetchPhotoBytes = async (path: string): Promise<Uint8Array | null> => {
+      try {
+        const { data, error } = await supabase.storage.from("job-photos").download(path);
+        if (error || !data) return null;
+        return new Uint8Array(await data.arrayBuffer());
+      } catch {
+        return null;
+      }
+    };
+
+    let pdfBytes: Uint8Array;
+    try {
+      pdfBytes = await buildCompletionPdf(
+        job as Job,
+        contractor as ContractorProfile,
+        quote,
+        clientName,
+        photos,
+        invoice,
+        fetchPhotoBytes,
+      );
+    } catch (err) {
+      console.error("[generate-completion-pdf] PDF generation failed:", err);
+      return jsonResponse(500, { error: "Failed to generate PDF" }, cors);
+    }
+
+    const filePath = `completions/${job_id}.pdf`;
+    const { error: uploadErr } = await supabase.storage
+      .from("generated-documents")
+      .upload(filePath, pdfBytes, { contentType: "application/pdf", upsert: true });
+    if (uploadErr) {
+      console.error("[generate-completion-pdf] upload failed:", uploadErr);
+      return jsonResponse(500, { error: "Failed to upload PDF" }, cors);
+    }
+
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from("generated-documents")
+      .createSignedUrl(filePath, 60 * 60 * 48);
+    if (signErr || !signedData) {
+      console.error("[generate-completion-pdf] signed URL failed:", signErr);
+      return jsonResponse(500, { error: "Failed to create download link" }, cors);
+    }
+
+    return jsonResponse(200, { url: signedData.signedUrl }, cors);
+  } catch (err) {
+    console.error("[generate-completion-pdf] unexpected error:", err);
+    return jsonResponse(500, { error: "Internal server error" }, cors);
+  }
+});

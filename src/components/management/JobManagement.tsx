@@ -40,6 +40,7 @@ import JobPhotosTab from "@/components/JobPhotosTab";
 import { JobEquipmentMaterials } from "@/components/JobEquipmentMaterials";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
@@ -216,7 +217,26 @@ export function JobManagement() {
   const [originOpen, setOriginOpen] = useState(false);
   const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
   const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleDownloadCertificate = async (jobId: string) => {
+    setDownloadingCertificateId(jobId);
+    try {
+      const { url } = await invokeEdgeFunction<{ url: string }>("generate-completion-pdf", {
+        body: { job_id: jobId },
+      });
+      window.open(url, "_blank");
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Could not generate the completion certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingCertificateId(null);
+    }
+  };
   const { createInvoice } = useInvoices();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1246,6 +1266,19 @@ export function JobManagement() {
                           Job record
                         </Button>
                       </span>
+                    )}
+                    {selectedJob.status === "complete" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={downloadingCertificateId === selectedJob.id}
+                        onClick={() => handleDownloadCertificate(selectedJob.id)}
+                      >
+                        {downloadingCertificateId === selectedJob.id
+                          ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                          : <i className="ti ti-download h-4 w-4 mr-1.5" />}
+                        Download Certificate
+                      </Button>
                     )}
                   </div>
                 </div>

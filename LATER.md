@@ -58,22 +58,6 @@ is clean.
 
 ---
 
-## "Request a Visit" — structured enquiry action
-
-**What it is**
-A dedicated action on an enquiry (alongside Accept & Quote / Respond /
-Decline) letting a contractor propose a site visit against their availability,
-which the homeowner accepts — instead of arranging it informally in the
-Respond free-text message or job thread.
-
-**Why later**
-Keeps measure-up scheduling on-platform (reduces leakage). Leans on the
-smart-scheduling piece (offering dates from contractor availability). Adds a
-state to the enquiry flow before a quote exists — not core-flow-critical, so
-parked.
-
----
-
 ## Enriched enquiry — homeowner-submitted dimensions, photos, documents
 
 **What it is**
@@ -526,9 +510,7 @@ Deposit itself carries no platform fee.
 - Availability calendar with date-range picker
 - Multi-item hire bundles
 - Long-term rental (>30 days — different tax/legal treatment)
-- Commercial hire companies listing fleet (separate merchant relationship)</new_string>
-</invoke>
-
+- Commercial hire companies listing fleet (separate merchant relationship)
 
 ## Mobile
 - **Native app (React Native)** — iOS/Android, offline timesheets/job notes,
@@ -559,14 +541,6 @@ Deposit itself carries no platform fee.
 ## Tech debt / known issues to revisit
 
 - Standardise all Edge Functions on `SITE_URL`; remove `PUBLIC_URL` and `PUBLIC_APP_URL` reads.
-- ~~`notify_job_note_added` references a possibly non-existent `jobs.client_id`~~
-  **Fixed** (readiness-audit R1-3, `20260718100000_fix_job_note_and_invoice_response_triggers.sql`):
-  confirmed the column was renamed to `customer_id`; every job-note INSERT was
-  rolling back with "column client_id does not exist" — job notes were
-  non-functional in both directions, not just silently unnotified.
-  `notify_invoice_response`'s `COALESCE(int, text)` type-mismatch bug (same
-  migration, R1-4) is fixed too, mirroring `notify_quote_response`'s existing
-  LPAD pattern.
 - Job sign-off approval — `jobs.portfolio_approved` column unused; business
   Approvals view is quote-approvals only until job sign-off is scoped.
 - Business tier SLA per-contractor pairing (matching `applies_to_trade` to a
@@ -1175,3 +1149,65 @@ Radius circle uses semi-transparent orange fill (
 Mobile: Full width, 2:1 aspect ratio.
 
 What it doesn't do: No exact address. No directions or "get a route" link. No interactive zoom/pan. No polygon service areas — circle from radius is sufficient.
+
+---
+
+## Payment reliability warnings
+
+**Purpose:** Surface payment track record when a contractor is about to engage with a client (quote creation, enquiry review, tender application). Builds platform trust and protects contractors from repeat late-payers.
+
+**Trigger points (UI banners):**
+- `SendQuoteDialog` — before issuing a quote
+- Enquiry detail view — when reviewing an inbound request
+- Tender application stepper — before applying to a business tender
+- B2B panel overview — aggregated reliability per business account
+
+**Display rules:**
+- Show: count of outstanding invoices + longest overdue age in days
+- Example copy: "This account has 2 outstanding invoices with another party, oldest 47 days overdue"
+- RAG colouring: amber 1–30 days, red 31+ days, no banner if clean
+- Never reveal: other contractor's identity, invoice amounts, or job details
+- Lookback window: 12 months rolling (invoices older than 12 months excluded)
+- Exclude: invoices with status `disputed` (requires adding dispute status — see below)
+
+**Data source:**
+Query `invoices` where `client_id = target_profile_id` AND (`status = 'overdue'` OR (`status = 'sent'` AND `due_date < NOW()`)) AND `created_at > NOW() - INTERVAL '12 months'` AND `status != 'disputed'`. Aggregate across all contractors, not just the viewing contractor.
+
+**Schema additions:**
+
+```sql
+-- DO NOT RUN
+-- Add disputed status to invoices (extend existing status enum/check)
+-- Exact constraint shape TBD — run Step-0 against live DB first
+
+-- Optional: materialised summary for performance at scale
+CREATE TABLE payment_reliability_summary (
+  profile_id       UUID PRIMARY KEY REFERENCES profiles(id),
+  outstanding_count INTEGER NOT NULL DEFAULT 0,
+  oldest_overdue_days INTEGER,
+  last_calculated  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS: contractors can SELECT where profile_id matches the client
+-- they are about to quote/engage. Business panel managers can
+-- SELECT for any contractor on their panel.
+-- SECURITY DEFINER function to recalculate on invoice status change.
+```
+
+**Privacy & fairness considerations:**
+- No public-facing "score" — information shown only to the party about to transact
+- Disputed invoices excluded to prevent weaponising non-payment flags
+- Client can see their own record (future: self-service dashboard showing "Your payment profile")
+- Consider: grace period before flag activates (e.g. 7 days past due, not immediate)
+- Consider: contractor-side equivalent for B2B clients ("This contractor has X disputed invoices")
+- GDPR: payment reliability is legitimate interest for platform trust; include in Privacy Policy data processing schedule
+
+**Dependencies:**
+- Invoice dispute status (not yet built)
+- Reliable `due_date` population on all invoices
+- Core job flow clean + first real user validated (LATER.md discipline)
+
+**Not in scope:**
+- Automated credit checks or external bureau integration
+- Public contractor/client ratings or reviews
+- Automatic service refusal based on payment history
