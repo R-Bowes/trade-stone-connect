@@ -3562,6 +3562,93 @@ export type Database = {
           },
         ]
       }
+      mileage_trips: {
+        Row: {
+          claim_amount: number
+          contractor_id: string
+          created_at: string
+          from_location: string
+          id: string
+          job_id: string | null
+          miles: number
+          project_id: string | null
+          purpose: string | null
+          tax_year: string
+          to_location: string
+          trip_date: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          claim_amount?: number
+          contractor_id: string
+          created_at?: string
+          from_location: string
+          id?: string
+          job_id?: string | null
+          miles: number
+          project_id?: string | null
+          purpose?: string | null
+          tax_year: string
+          to_location: string
+          trip_date?: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          claim_amount?: number
+          contractor_id?: string
+          created_at?: string
+          from_location?: string
+          id?: string
+          job_id?: string | null
+          miles?: number
+          project_id?: string | null
+          purpose?: string | null
+          tax_year?: string
+          to_location?: string
+          trip_date?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mileage_trips_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mileage_trips_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mileage_trips_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mileage_trips_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mileage_trips_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string

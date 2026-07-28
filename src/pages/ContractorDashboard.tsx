@@ -31,7 +31,7 @@ import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import { CRMManagement } from "@/components/management/CRMManagement";
 import { FinancialsManagement } from "@/components/management/FinancialsManagement";
-import { FinanceSettings } from "@/components/management/FinanceSettings";
+import { FinanceHub } from "@/components/management/FinanceHub";
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { JobManagement } from "@/components/management/JobManagement";
@@ -683,7 +683,7 @@ const ContractorDashboard = () => {
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
           <TabsContent value="documents"><DocumentManagement /></TabsContent>
           <TabsContent value="financials"><FinancialsManagement /></TabsContent>
-          <TabsContent value="finance-settings"><FinanceSettings /></TabsContent>
+          <TabsContent value="finance-settings"><FinanceHub /></TabsContent>
           <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
           <TabsContent value="clients"><CRMManagement /></TabsContent>
           <TabsContent value="settings"><ProfileManagement /></TabsContent>
