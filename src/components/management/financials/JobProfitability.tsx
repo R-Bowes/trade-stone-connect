@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
 
@@ -275,7 +276,22 @@ export function JobProfitability() {
                 <TableRow>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("jobNumber")}>Job</TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("clientName")}>Client</TableHead>
-                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort("quotedAmount")}>Quoted</TableHead>
+                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort("quotedAmount")}>
+                    <span className="inline-flex items-center gap-1 justify-end">
+                      Quoted
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <i
+                            className="ti ti-info-circle text-muted-foreground cursor-help"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Variance arrows show when the invoiced amount differs from the quoted amount by more than 10%
+                        </TooltipContent>
+                      </Tooltip>
+                    </span>
+                  </TableHead>
                   <TableHead className="text-right cursor-pointer" onClick={() => handleSort("invoicedAmount")}>Invoiced</TableHead>
                   <TableHead className="text-right cursor-pointer" onClick={() => handleSort("totalCosts")}>Costs</TableHead>
                   <TableHead className="text-right cursor-pointer" onClick={() => handleSort("profit")}>Profit</TableHead>
@@ -285,11 +301,16 @@ export function JobProfitability() {
               </TableHeader>
               <TableBody>
                 {sorted.map((j) => {
-                  const varianceIsSignificant = j.quotedAmount > 0 && Math.abs(j.variance) / j.quotedAmount > 0.1;
+                  // Arrows only make sense once there's something to compare
+                  // the quote against — a job with nothing invoiced yet isn't
+                  // "over" or "under" quoted, it just hasn't been billed.
+                  const varianceIsSignificant =
+                    j.invoicedAmount > 0 && j.quotedAmount > 0 && Math.abs(j.variance) / j.quotedAmount > 0.1;
                   // variance = quotedAmount - invoicedAmount. Positive means you
                   // invoiced LESS than quoted (over-quoted the job); negative
                   // means you invoiced MORE than quoted (under-quoted it).
                   const isOverQuoted = j.variance > 0;
+                  const variancePercent = j.quotedAmount > 0 ? (Math.abs(j.variance) / j.quotedAmount) * 100 : 0;
                   return (
                     <TableRow key={j.jobId}>
                       <TableCell className="font-mono text-sm">J-{String(j.jobNumber).padStart(4, "0")}</TableCell>
@@ -297,12 +318,20 @@ export function JobProfitability() {
                       <TableCell className="text-right">
                         {gbp(j.quotedAmount)}
                         {varianceIsSignificant && (
-                          <span
-                            className={`ml-1 text-xs ${isOverQuoted ? "text-amber-600" : "text-red-600"}`}
-                            title={isOverQuoted ? "Over-quoted" : "Under-quoted"}
-                          >
-                            {isOverQuoted ? "↑" : "↓"}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className={`ml-1 text-xs cursor-help ${isOverQuoted ? "text-amber-600" : "text-red-600"}`}
+                              >
+                                {isOverQuoted ? "↑" : "↓"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {isOverQuoted
+                                ? `Over-quoted — you invoiced less than quoted (by ${variancePercent.toFixed(0)}%)`
+                                : `Under-quoted — you invoiced more than quoted (by ${variancePercent.toFixed(0)}%)`}
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </TableCell>
                       <TableCell className="text-right">{gbp(j.invoicedAmount)}</TableCell>
