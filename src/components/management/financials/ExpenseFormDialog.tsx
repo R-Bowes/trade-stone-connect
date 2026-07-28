@@ -72,6 +72,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
   const [vatAmount, setVatAmount] = useState("0");
   const [vatAmountTouched, setVatAmountTouched] = useState(false);
   const [vatReclaimable, setVatReclaimable] = useState(false);
+  const [vatReclaimableTouched, setVatReclaimableTouched] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [jobId, setJobId] = useState<string>("");
@@ -115,12 +116,17 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setJobs(jobRows ?? []);
       setProjects(projectRows ?? []);
 
-      if (!expense) {
+      // Only apply the finance_settings default if this is a new expense and
+      // the contractor hasn't already toggled the switch by hand — the fetch
+      // above is async, so without this guard a slow response can land after
+      // the click and silently stomp the user's choice back to the default.
+      if (!expense && !vatReclaimableTouched) {
         setVatReclaimable(settingsRow?.vat_status === "standard");
       }
     };
 
     loadContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, expense]);
 
   useEffect(() => {
@@ -151,6 +157,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVatAmount(String(expense.vat_amount ?? 0));
       setVatAmountTouched(true);
       setVatReclaimable(!!expense.vat_reclaimable);
+      setVatReclaimableTouched(true);
       setPaymentMethod(expense.payment_method || "card");
       setJobId(expense.job_id || "");
       setProjectId(expense.project_id || "");
@@ -168,6 +175,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVatAmount("0");
       setVatAmountTouched(false);
       setVatReclaimable(false);
+      setVatReclaimableTouched(false);
       setPaymentMethod("card");
       setJobId("");
       setProjectId("");
@@ -323,7 +331,13 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
                 </div>
                 <div className="flex items-center justify-between">
                   <Label>VAT reclaimable</Label>
-                  <Switch checked={vatReclaimable} onCheckedChange={setVatReclaimable} />
+                  <Switch
+                    checked={vatReclaimable}
+                    onCheckedChange={(checked) => {
+                      setVatReclaimable(checked);
+                      setVatReclaimableTouched(true);
+                    }}
+                  />
                 </div>
               </>
             )}
