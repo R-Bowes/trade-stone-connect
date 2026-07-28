@@ -56,7 +56,6 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Money",
     items: [
       { value: "invoices", label: "Invoices", icon: "ti-receipt" },
-      { value: "financials", label: "Financials", icon: "ti-chart-bar" },
       { value: "finance-settings", label: "Finance", icon: "ti-wallet" },
     ],
   },
@@ -97,7 +96,6 @@ const VIEW_LABELS: Record<string, string> = {
   timesheets: "Timesheets",
   inventory: "My Kit",
   invoices: "Invoices",
-  financials: "Financials",
   "finance-settings": "Finance",
   clients: "CRM",
   photos: "Photos",
@@ -128,7 +126,6 @@ const VIEW_SUBTITLES: Record<string, string> = {
   timesheets: "Review hours logged by you and your team against each job",
   inventory: "Track your tools, materials and what's out on site",
   invoices: "Send invoices, track what's paid and chase outstanding amounts",
-  financials: "See your earnings over time and understand where your money is coming from",
   "finance-settings": "Manage your business settings and log business mileage",
   clients: "Keep track of clients, note key contacts and log important conversations",
   photos: "Browse job photos by project or upload new ones from site",

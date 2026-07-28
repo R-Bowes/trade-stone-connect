@@ -26,6 +26,7 @@ import {
 import { format } from "date-fns";
 import { useMileage, type MileageTrip } from "@/hooks/useMileage";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -152,6 +153,23 @@ export function MileageTracking() {
   const vehicleName = (id: string) => vehicles.find((v) => v.id === id)?.name ?? "—";
   const jobTitle = (id: string | null) => (id ? jobs.find((j) => j.id === id)?.title ?? "—" : "—");
 
+  const handleExport = () => {
+    downloadCsv(
+      tradestoneCsvFilename("mileage"),
+      ["Date", "From", "To", "Miles", "Vehicle", "Purpose", "Job", "Claim Amount"],
+      filteredTrips.map((trip) => [
+        trip.trip_date,
+        trip.from_location,
+        trip.to_location,
+        Number(trip.miles).toString(),
+        vehicleName(trip.vehicle_id),
+        trip.purpose ?? "",
+        jobTitle(trip.job_id),
+        Number(trip.claim_amount).toFixed(2),
+      ]),
+    );
+  };
+
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicle_id);
   const milesNum = parseFloat(form.miles) || 0;
 
@@ -225,15 +243,20 @@ export function MileageTracking() {
           <h2 className="font-heading text-2xl font-bold">Mileage</h2>
           <p className="text-sm text-muted-foreground">Tax year {currentTaxYear}</p>
         </div>
-        <Button
-          onClick={() => {
-            setEditingTrip(null);
-            setDialogOpen(true);
-          }}
-          disabled={vehicles.length === 0}
-        >
-          <i className="ti ti-plus mr-1" /> Add Trip
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExport}>
+            <i className="ti ti-download mr-1" /> Export CSV
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingTrip(null);
+              setDialogOpen(true);
+            }}
+            disabled={vehicles.length === 0}
+          >
+            <i className="ti ti-plus mr-1" /> Add Trip
+          </Button>
+        </div>
       </div>
 
       {vehicles.length === 0 && (

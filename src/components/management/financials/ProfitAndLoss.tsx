@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { useFinanceSummary, type Period } from "@/hooks/useFinanceSummary";
+import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
 
 const CHART_COLORS = [
   "hsl(221, 83%, 53%)", "hsl(262, 83%, 58%)", "hsl(24, 95%, 53%)",
@@ -34,6 +36,23 @@ export function ProfitAndLoss() {
     return data;
   }, [pnl.expensesByCategory, pnl.totalMileage]);
 
+  const handleExport = () => {
+    const rows: (string | number)[][] = [
+      ["INCOME", ""],
+      ["Invoiced income (paid)", gbp(pnl.totalIncome)],
+      ["Total Income", gbp(pnl.totalIncome)],
+      ["", ""],
+      ["COST OF SALES", ""],
+      ...pnl.expensesByCategory.filter((c) => c.amount > 0).map((c) => [c.category, gbp(c.amount)]),
+      ...(pnl.totalMileage > 0 ? [["Mileage Claims", gbp(pnl.totalMileage)]] : []),
+      ["Total Costs", gbp(pnl.totalCosts)],
+      ["", ""],
+      ["Gross Profit", gbp(pnl.grossProfit)],
+      ["Profit Margin", `${pnl.profitMargin.toFixed(1)}%`],
+    ];
+    downloadCsv(tradestoneCsvFilename("pnl"), ["Category", "Amount"], rows);
+  };
+
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading P&amp;L…</div>;
   }
@@ -54,6 +73,9 @@ export function ProfitAndLoss() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={handleExport}>
+            <i className="ti ti-download mr-1" /> Export CSV
+          </Button>
         </div>
       </div>
 

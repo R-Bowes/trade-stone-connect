@@ -30,7 +30,6 @@ import { InventoryManagement } from "@/components/management/InventoryManagement
 import { ContractManagement } from "@/components/management/ContractManagement";
 import { ScheduleManagement } from "@/components/management/ScheduleManagement";
 import { CRMManagement } from "@/components/management/CRMManagement";
-import { FinancialsManagement } from "@/components/management/FinancialsManagement";
 import { FinanceHub } from "@/components/management/FinanceHub";
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
@@ -120,7 +119,7 @@ const ContractorDashboard = () => {
     { target: '[data-tour="tab-team"]', title: "Team Management", description: "Add team members, manage roles, and set hourly rates.", placement: "bottom", action: () => setActiveTab("team") },
     { target: '[data-tour="tab-schedule"]', title: "Schedule & Calendar", description: "Plan your jobs, set availability, and manage appointments.", placement: "bottom", action: () => setActiveTab("schedule") },
     { target: '[data-tour="tab-clients"]', title: "Client CRM", description: "Build your client database and nurture relationships.", placement: "bottom", action: () => setActiveTab("clients") },
-    { target: '[data-tour="tab-financials"]', title: "Financial Tracking", description: "Track income and expenses and get a clear picture of your finances.", placement: "bottom", action: () => setActiveTab("financials") },
+    { target: '[data-tour="tab-financials"]', title: "Financial Tracking", description: "Track income and expenses and get a clear picture of your finances.", placement: "bottom", action: () => setActiveTab("finance-settings") },
     { target: '[data-tour="tab-profile"]', title: "Your Profile", description: "Complete your profile to appear in the contractor directory.", placement: "bottom", action: () => setActiveTab("profile") },
   ], []);
 
@@ -682,7 +681,6 @@ const ContractorDashboard = () => {
           <TabsContent value="inventory"><InventoryManagement /></TabsContent>
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
           <TabsContent value="documents"><DocumentManagement /></TabsContent>
-          <TabsContent value="financials"><FinancialsManagement /></TabsContent>
           <TabsContent value="finance-settings"><FinanceHub /></TabsContent>
           <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
           <TabsContent value="clients"><CRMManagement /></TabsContent>

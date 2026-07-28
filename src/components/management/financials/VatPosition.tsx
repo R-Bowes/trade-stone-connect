@@ -1,9 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useFinanceSummary, type Period } from "@/hooks/useFinanceSummary";
+import { useFinanceSummary, type Period, type QuarterVat } from "@/hooks/useFinanceSummary";
+import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
 
 const PERIOD_LABELS: Record<Period, string> = {
   currentTaxYear: "This tax year",
@@ -57,6 +59,19 @@ function PeriodSelector({
 export function VatPosition() {
   const { vatPosition, period, setPeriod, customRange, setCustomRange, loading } = useFinanceSummary();
 
+  const handleExport = () => {
+    downloadCsv(
+      tradestoneCsvFilename("vat_position"),
+      ["Quarter", "Output VAT", "Input VAT", "Net VAT"],
+      vatPosition.quarterlyBreakdown.map((q: QuarterVat) => [
+        q.quarter,
+        q.outputVat.toFixed(2),
+        q.inputVat.toFixed(2),
+        q.netVat.toFixed(2),
+      ]),
+    );
+  };
+
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading VAT position…</div>;
   }
@@ -68,9 +83,16 @@ export function VatPosition() {
           <h2 className="font-heading text-2xl font-bold">VAT Position</h2>
           <p className="text-sm text-muted-foreground">Track your VAT position and prepare for returns</p>
         </div>
-        {vatPosition.vatStatus !== "not_registered" && (
-          <PeriodSelector period={period} setPeriod={setPeriod} customRange={customRange} setCustomRange={setCustomRange} />
-        )}
+        <div className="flex items-center gap-2">
+          {vatPosition.vatStatus !== "not_registered" && (
+            <PeriodSelector period={period} setPeriod={setPeriod} customRange={customRange} setCustomRange={setCustomRange} />
+          )}
+          {vatPosition.vatStatus !== "not_registered" && (
+            <Button variant="outline" onClick={handleExport}>
+              <i className="ti ti-download mr-1" /> Export CSV
+            </Button>
+          )}
+        </div>
       </div>
 
       {vatPosition.vatStatus === "not_registered" && (
