@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +72,12 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
   const [vatAmount, setVatAmount] = useState("0");
   const [vatAmountTouched, setVatAmountTouched] = useState(false);
   const [vatReclaimable, setVatReclaimable] = useState(false);
-  const [vatReclaimableTouched, setVatReclaimableTouched] = useState(false);
+  // Ref, not state: the async loadContext closure below only runs once per
+  // dialog-open and reads this synchronously when its fetch resolves. A
+  // state value would be captured stale at effect-creation time and would
+  // never see a click that happened after the effect started — silently
+  // overwriting the user's toggle once the network request landed.
+  const vatReclaimableTouchedRef = useRef(false);
 
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [jobId, setJobId] = useState<string>("");
@@ -118,15 +123,16 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
 
       // Only apply the finance_settings default if this is a new expense and
       // the contractor hasn't already toggled the switch by hand — the fetch
-      // above is async, so without this guard a slow response can land after
-      // the click and silently stomp the user's choice back to the default.
-      if (!expense && !vatReclaimableTouched) {
+      // above is async, so without this ref guard a slow response can land
+      // after the click and silently stomp the user's choice back to the
+      // default (a plain state guard would be read stale here, see the ref
+      // declaration above).
+      if (!expense && !vatReclaimableTouchedRef.current) {
         setVatReclaimable(settingsRow?.vat_status === "standard");
       }
     };
 
     loadContext();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, expense]);
 
   useEffect(() => {
@@ -157,7 +163,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVatAmount(String(expense.vat_amount ?? 0));
       setVatAmountTouched(true);
       setVatReclaimable(!!expense.vat_reclaimable);
-      setVatReclaimableTouched(true);
+      vatReclaimableTouchedRef.current = true;
       setPaymentMethod(expense.payment_method || "card");
       setJobId(expense.job_id || "");
       setProjectId(expense.project_id || "");
@@ -175,7 +181,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVatAmount("0");
       setVatAmountTouched(false);
       setVatReclaimable(false);
-      setVatReclaimableTouched(false);
+      vatReclaimableTouchedRef.current = false;
       setPaymentMethod("card");
       setJobId("");
       setProjectId("");
@@ -334,8 +340,8 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
                   <Switch
                     checked={vatReclaimable}
                     onCheckedChange={(checked) => {
+                      vatReclaimableTouchedRef.current = true;
                       setVatReclaimable(checked);
-                      setVatReclaimableTouched(true);
                     }}
                   />
                 </div>
