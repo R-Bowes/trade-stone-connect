@@ -10,7 +10,8 @@ import {
   DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, Edit, Receipt,
   Search, Download, ExternalLink, Loader2
 } from "lucide-react";
-import { useExpenses, EXPENSE_CATEGORIES, type Expense } from "@/hooks/useExpenses";
+import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { ExpenseFormDialog } from "@/components/management/financials/ExpenseFormDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -32,6 +33,7 @@ export function FinancialsManagement() {
     expenses, loading, addExpense, updateExpense, deleteExpense,
     uploadReceipt, getSignedReceiptUrl, totalExpenses, expensesByCategory
   } = useExpenses();
+  const { categories: expenseCategoryTree, getCategoryName } = useExpenseCategories();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -93,6 +95,19 @@ export function FinancialsManagement() {
     }
     return months;
   }, [expenses]);
+
+  // Flat list of category display names for the filter dropdown, matching the
+  // denormalised text stored on each expense ("Parent" or "Parent > Sub")
+  const categoryFilterOptions = useMemo(() => {
+    const names: string[] = [];
+    for (const parent of expenseCategoryTree) {
+      names.push(parent.name);
+      for (const child of parent.children) {
+        names.push(`${parent.name} > ${child.name}`);
+      }
+    }
+    return names;
+  }, [expenseCategoryTree]);
 
   // Category breakdown sorted
   const categoryBreakdown = useMemo(() => {
@@ -233,7 +248,7 @@ export function FinancialsManagement() {
               <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {EXPENSE_CATEGORIES.map(c => (
+                {categoryFilterOptions.map(c => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
@@ -261,6 +276,8 @@ export function FinancialsManagement() {
                       <TableHead>Description</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Vendor</TableHead>
+                      <TableHead>Payment method</TableHead>
+                      <TableHead className="text-right">VAT</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -275,8 +292,18 @@ export function FinancialsManagement() {
                             {expense.is_recurring && <Badge variant="outline" className="text-xs mt-1">Recurring</Badge>}
                           </div>
                         </TableCell>
-                        <TableCell><Badge className={getCategoryColor(expense.category)}>{expense.category}</Badge></TableCell>
+                        <TableCell>
+                          <Badge className={getCategoryColor(expense.category)}>
+                            {expense.category_id ? getCategoryName(expense.category_id) : expense.category}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{expense.vendor || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground capitalize">
+                          {(expense.payment_method || "card").replace("_", " ")}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {expense.vat_amount ? `£${Number(expense.vat_amount).toFixed(2)}` : "—"}
+                        </TableCell>
                         <TableCell className="text-right font-medium">£{Number(expense.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">

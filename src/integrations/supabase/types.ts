@@ -1865,6 +1865,7 @@ export type Database = {
         Row: {
           amount: number
           category: string
+          category_id: string | null
           contractor_id: string
           created_at: string
           description: string
@@ -1873,16 +1874,19 @@ export type Database = {
           is_recurring: boolean
           job_id: string | null
           notes: string | null
+          payment_method: string | null
           project_id: string | null
           receipt_url: string | null
           updated_at: string
           vat_amount: number | null
+          vat_rate: number | null
           vat_reclaimable: boolean | null
           vendor: string | null
         }
         Insert: {
           amount: number
           category?: string
+          category_id?: string | null
           contractor_id: string
           created_at?: string
           description: string
@@ -1891,16 +1895,19 @@ export type Database = {
           is_recurring?: boolean
           job_id?: string | null
           notes?: string | null
+          payment_method?: string | null
           project_id?: string | null
           receipt_url?: string | null
           updated_at?: string
           vat_amount?: number | null
+          vat_rate?: number | null
           vat_reclaimable?: boolean | null
           vendor?: string | null
         }
         Update: {
           amount?: number
           category?: string
+          category_id?: string | null
           contractor_id?: string
           created_at?: string
           description?: string
@@ -1909,14 +1916,23 @@ export type Database = {
           is_recurring?: boolean
           job_id?: string | null
           notes?: string | null
+          payment_method?: string | null
           project_id?: string | null
           receipt_url?: string | null
           updated_at?: string
           vat_amount?: number | null
+          vat_rate?: number | null
           vat_reclaimable?: boolean | null
           vendor?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_job_id_fkey"
             columns: ["job_id"]

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,28 +6,58 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Upload } from "lucide-react";
-import { EXPENSE_CATEGORIES, type Expense } from "@/hooks/useExpenses";
+import { Loader2 } from "lucide-react";
+import { type Expense } from "@/hooks/useExpenses";
+import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { supabase } from "@/integrations/supabase/client";
+
+const VAT_RATES = [
+  { value: "20", label: "20% (Standard)" },
+  { value: "5", label: "5% (Reduced)" },
+  { value: "0", label: "0% (Zero-rated / exempt)" },
+  { value: "no_vat", label: "No VAT" },
+] as const;
+
+const PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "other", label: "Other" },
+] as const;
+
+type JobOption = { id: string; title: string; project_id: string | null };
+type ProjectOption = { id: string; title: string };
+
+export type ExpenseFormData = {
+  category_id: string | null;
+  description: string;
+  amount: number;
+  vat_rate: number;
+  vat_amount: number;
+  vat_reclaimable: boolean;
+  payment_method: string;
+  job_id: string | null;
+  project_id: string | null;
+  expense_date: string;
+  vendor: string | null;
+  notes: string | null;
+  is_recurring: boolean;
+  receipt_url: string | null;
+};
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSave: (data: {
-    category: string;
-    description: string;
-    amount: number;
-    expense_date: string;
-    vendor: string | null;
-    notes: string | null;
-    is_recurring: boolean;
-    receipt_url: string | null;
-  }) => Promise<void>;
+  onSave: (data: ExpenseFormData) => Promise<void>;
   onUploadReceipt: (file: File) => Promise<string>;
   expense?: Expense | null;
 };
 
 export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expense }: Props) {
-  const [category, setCategory] = useState("General");
+  const { categories, flatCategories, loading: categoriesLoading } = useExpenseCategories();
+
+  const [parentId, setParentId] = useState<string>("");
+  const [subId, setSubId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
@@ -38,9 +68,74 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [vatRateChoice, setVatRateChoice] = useState<string>("no_vat");
+  const [vatAmount, setVatAmount] = useState("0");
+  const [vatAmountTouched, setVatAmountTouched] = useState(false);
+  const [vatReclaimable, setVatReclaimable] = useState(false);
+
+  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [jobId, setJobId] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>("");
+
+  const [jobs, setJobs] = useState<JobOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+
+  // Load contractor's active jobs/projects and default VAT reclaimable from finance_settings
+  useEffect(() => {
+    if (!open) return;
+
+    const loadContext = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profileRow) return;
+
+      const [{ data: jobRows }, { data: projectRows }, { data: settingsRow }] = await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, title, project_id")
+          .eq("contractor_id", profileRow.id)
+          .not("status", "in", "(complete,cancelled)"),
+        supabase
+          .from("projects")
+          .select("id, title")
+          .eq("lead_contractor_id", profileRow.id),
+        supabase
+          .from("finance_settings")
+          .select("vat_status")
+          .eq("contractor_id", profileRow.id)
+          .maybeSingle(),
+      ]);
+
+      setJobs(jobRows ?? []);
+      setProjects(projectRows ?? []);
+
+      if (!expense) {
+        setVatReclaimable(settingsRow?.vat_status === "standard");
+      }
+    };
+
+    loadContext();
+  }, [open, expense]);
+
   useEffect(() => {
     if (expense) {
-      setCategory(expense.category);
+      const cat = flatCategories.find((c) => c.id === expense.category_id);
+      if (cat?.parent_id) {
+        setParentId(cat.parent_id);
+        setSubId(cat.id);
+      } else if (cat) {
+        setParentId(cat.id);
+        setSubId("");
+      } else {
+        setParentId("");
+        setSubId("");
+      }
       setDescription(expense.description);
       setAmount(String(expense.amount));
       setExpenseDate(expense.expense_date);
@@ -48,8 +143,20 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setNotes(expense.notes || "");
       setIsRecurring(expense.is_recurring);
       setReceiptUrl(expense.receipt_url);
+      setVatRateChoice(
+        expense.vat_rate === null || expense.vat_rate === undefined
+          ? "no_vat"
+          : String(expense.vat_rate),
+      );
+      setVatAmount(String(expense.vat_amount ?? 0));
+      setVatAmountTouched(true);
+      setVatReclaimable(!!expense.vat_reclaimable);
+      setPaymentMethod(expense.payment_method || "card");
+      setJobId(expense.job_id || "");
+      setProjectId(expense.project_id || "");
     } else {
-      setCategory("General");
+      setParentId("");
+      setSubId("");
       setDescription("");
       setAmount("");
       setExpenseDate(new Date().toISOString().split("T")[0]);
@@ -57,8 +164,32 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setNotes("");
       setIsRecurring(false);
       setReceiptUrl(null);
+      setVatRateChoice("no_vat");
+      setVatAmount("0");
+      setVatAmountTouched(false);
+      setVatReclaimable(false);
+      setPaymentMethod("card");
+      setJobId("");
+      setProjectId("");
     }
-  }, [expense, open]);
+  }, [expense, open, flatCategories]);
+
+  // Auto-calculate VAT amount from amount x rate, unless the user has overridden it
+  useEffect(() => {
+    if (vatAmountTouched) return;
+    if (vatRateChoice === "no_vat") {
+      setVatAmount("0");
+      return;
+    }
+    const rate = Number(vatRateChoice) / 100;
+    const gross = parseFloat(amount) || 0;
+    setVatAmount((gross * rate).toFixed(2));
+  }, [amount, vatRateChoice, vatAmountTouched]);
+
+  const subcategories = useMemo(
+    () => categories.find((c) => c.id === parentId)?.children ?? [],
+    [categories, parentId],
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,14 +204,28 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
     setUploading(false);
   };
 
+  const handleJobChange = (value: string) => {
+    setJobId(value);
+    const job = jobs.find((j) => j.id === value);
+    if (job?.project_id) {
+      setProjectId(job.project_id);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       await onSave({
-        category,
+        category_id: subId || parentId || null,
         description,
         amount: parseFloat(amount),
+        vat_rate: vatRateChoice === "no_vat" ? 0 : Number(vatRateChoice),
+        vat_amount: vatRateChoice === "no_vat" ? 0 : parseFloat(vatAmount) || 0,
+        vat_reclaimable: vatRateChoice === "no_vat" ? false : vatReclaimable,
+        payment_method: paymentMethod,
+        job_id: jobId || null,
+        project_id: projectId || null,
         expense_date: expenseDate,
         vendor: vendor || null,
         notes: notes || null,
@@ -103,15 +248,37 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={parentId}
+              onValueChange={(value) => {
+                setParentId(value);
+                setSubId("");
+              }}
+              disabled={categoriesLoading}
+            >
+              <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
               <SelectContent>
-                {EXPENSE_CATEGORIES.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {subcategories.length > 0 && (
+            <div className="space-y-2">
+              <Label>Subcategory</Label>
+              <Select value={subId || "none"} onValueChange={(v) => setSubId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No subcategory</SelectItem>
+                  {subcategories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Description *</Label>
@@ -129,9 +296,81 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
             </div>
           </div>
 
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-2">
+              <Label>VAT rate</Label>
+              <Select value={vatRateChoice} onValueChange={(v) => { setVatRateChoice(v); setVatAmountTouched(false); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_RATES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {vatRateChoice !== "no_vat" && (
+              <>
+                <div className="space-y-2">
+                  <Label>VAT amount (£)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={vatAmount}
+                    onChange={(e) => { setVatAmount(e.target.value); setVatAmountTouched(true); }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label>VAT reclaimable</Label>
+                  <Switch checked={vatReclaimable} onCheckedChange={setVatReclaimable} />
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Vendor</Label>
             <Input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="e.g. Screwfix, Travis Perkins" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Payment method</Label>
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PAYMENT_METHODS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Job (optional)</Label>
+              <Select value={jobId || "none"} onValueChange={(v) => handleJobChange(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="No job" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No job</SelectItem>
+                  {jobs.map((j) => (
+                    <SelectItem key={j.id} value={j.id}>{j.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Project (optional)</Label>
+              <Select value={projectId || "none"} onValueChange={(v) => setProjectId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="No project" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No project</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

@@ -19,8 +19,15 @@ export type Expense = {
   id: string;
   contractor_id: string;
   category: string;
+  category_id: string | null;
   description: string;
   amount: number;
+  vat_amount: number | null;
+  vat_rate: number | null;
+  vat_reclaimable: boolean | null;
+  payment_method: string | null;
+  job_id: string | null;
+  project_id: string | null;
   expense_date: string;
   receipt_url: string | null;
   vendor: string | null;
@@ -31,20 +38,6 @@ export type Expense = {
 };
 
 export type ExpenseInsert = Omit<Expense, "id" | "created_at" | "updated_at">;
-
-export const EXPENSE_CATEGORIES = [
-  "Materials",
-  "Tools & Equipment",
-  "Vehicle & Fuel",
-  "Insurance",
-  "Subcontractor Payments",
-  "Office & Admin",
-  "Marketing",
-  "Training & Licenses",
-  "Utilities",
-  "Rent",
-  "General",
-] as const;
 
 export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -79,7 +72,19 @@ export function useExpenses() {
     fetchExpenses();
   }, [fetchExpenses]);
 
-  const addExpense = async (expense: Omit<ExpenseInsert, "contractor_id">) => {
+  const resolveCategoryName = async (categoryId: string | null): Promise<string> => {
+    if (!categoryId) return "General";
+    const { data } = await supabase
+      .from("expense_categories")
+      .select("name, parent:parent_id(name)")
+      .eq("id", categoryId)
+      .maybeSingle();
+
+    if (!data) return "General";
+    return data.parent ? `${data.parent.name} > ${data.name}` : data.name;
+  };
+
+  const addExpense = async (expense: Omit<ExpenseInsert, "contractor_id" | "category">) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -89,8 +94,11 @@ export function useExpenses() {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    const category = await resolveCategoryName(expense.category_id);
+
     const { error } = await supabase.from("expenses").insert({
       ...expense,
+      category,
       contractor_id: profileRow?.id,
     });
 
@@ -103,8 +111,13 @@ export function useExpenses() {
     fetchExpenses();
   };
 
-  const updateExpense = async (id: string, updates: Partial<ExpenseInsert>) => {
-    const { error } = await supabase.from("expenses").update(updates).eq("id", id);
+  const updateExpense = async (id: string, updates: Partial<Omit<ExpenseInsert, "category">>) => {
+    const patch: Partial<ExpenseInsert> = { ...updates };
+    if ("category_id" in updates) {
+      patch.category = await resolveCategoryName(updates.category_id ?? null);
+    }
+
+    const { error } = await supabase.from("expenses").update(patch).eq("id", id);
 
     if (error) {
       toast({ title: "Error", description: "Failed to update expense", variant: "destructive" });
