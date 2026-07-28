@@ -135,19 +135,16 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
     loadContext();
   }, [open, expense]);
 
+  // Reset/populate the whole form when the dialog opens or switches between
+  // add and edit. Deliberately does NOT depend on flatCategories — that data
+  // loads asynchronously (useExpenseCategories fetches it), and including it
+  // here caused this effect to re-fire mid-edit whenever the category fetch
+  // resolved, wiping every field the user had already filled in (including
+  // silently reverting vatReclaimable and collapsing the VAT section by
+  // resetting vatRateChoice back to "no_vat"). Category selection is
+  // resolved separately below, once flatCategories is actually available.
   useEffect(() => {
     if (expense) {
-      const cat = flatCategories.find((c) => c.id === expense.category_id);
-      if (cat?.parent_id) {
-        setParentId(cat.parent_id);
-        setSubId(cat.id);
-      } else if (cat) {
-        setParentId(cat.id);
-        setSubId("");
-      } else {
-        setParentId("");
-        setSubId("");
-      }
       setDescription(expense.description);
       setAmount(String(expense.amount));
       setExpenseDate(expense.expense_date);
@@ -186,7 +183,26 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setJobId("");
       setProjectId("");
     }
-  }, [expense, open, flatCategories]);
+  }, [expense, open]);
+
+  // Resolve the edited expense's category parent/sub selection once category
+  // data is available. Isolated from the effect above so a late-arriving
+  // category fetch only ever touches parentId/subId, never the rest of the
+  // form.
+  useEffect(() => {
+    if (!expense) return;
+    const cat = flatCategories.find((c) => c.id === expense.category_id);
+    if (cat?.parent_id) {
+      setParentId(cat.parent_id);
+      setSubId(cat.id);
+    } else if (cat) {
+      setParentId(cat.id);
+      setSubId("");
+    } else {
+      setParentId("");
+      setSubId("");
+    }
+  }, [expense, flatCategories]);
 
   // Auto-calculate VAT amount from amount x rate, unless the user has overridden it
   useEffect(() => {
