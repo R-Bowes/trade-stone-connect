@@ -11,24 +11,26 @@ import {
 } from "@/components/ui/dialog";
 import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
-  Search, Send, CheckCircle, Loader2, Download
+  Search, Send, CheckCircle, Loader2, Download, Banknote
 } from "lucide-react";
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
+import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaymentDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
 
 export function InvoiceManagement() {
   const {
     invoices, loading, createInvoice, updateInvoice, deleteInvoice,
-    markAsPaid, markAsSent, totalRevenue, totalPending, totalOverdue,
+    markAsPaid, markAsSent, recordManualPayment, totalRevenue, totalPending, totalOverdue,
   } = useInvoices();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [recordPaymentInvoice, setRecordPaymentInvoice] = useState<Invoice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientTsCodeMap, setClientTsCodeMap] = useState<Record<string, string>>({});
@@ -268,6 +270,11 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           </Button>
                         )}
+                        {inv.status !== "paid" && inv.status !== "draft" && (
+                          <Button variant="ghost" size="sm" onClick={() => setRecordPaymentInvoice(inv)} title="Record Payment">
+                            <Banknote className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -290,6 +297,14 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
         onClose={() => { setDialogOpen(false); setEditingInvoice(null); }}
         onSave={handleSave}
         invoice={editingInvoice}
+      />
+
+      {/* Record Payment Dialog */}
+      <RecordPaymentDialog
+        open={!!recordPaymentInvoice}
+        invoice={recordPaymentInvoice}
+        onClose={() => setRecordPaymentInvoice(null)}
+        onConfirm={(payment) => recordManualPayment(recordPaymentInvoice!, payment)}
       />
 
       {/* Invoice Preview Dialog */}

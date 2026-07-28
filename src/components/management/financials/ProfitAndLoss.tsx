@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +10,8 @@ import {
 } from "recharts";
 import { useFinanceSummary, type Period } from "@/hooks/useFinanceSummary";
 import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
+import { getTaxYear } from "@/hooks/useMileage";
+import { YearEndPackDialog } from "@/components/management/financials/YearEndPackDialog";
 
 const CHART_COLORS = [
   "hsl(221, 83%, 53%)", "hsl(262, 83%, 58%)", "hsl(24, 95%, 53%)",
@@ -29,6 +31,16 @@ const gbp = (n: number) => `£${n.toLocaleString("en-GB", { minimumFractionDigit
 
 export function ProfitAndLoss() {
   const { pnl, period, setPeriod, customRange, setCustomRange, loading } = useFinanceSummary();
+  const [yearEndOpen, setYearEndOpen] = useState(false);
+
+  const isFullTaxYearPeriod = period === "currentTaxYear" || period === "previousTaxYear";
+  const yearEndDefaultTaxYear = period === "previousTaxYear"
+    ? (() => {
+        const current = getTaxYear(new Date());
+        const startYear = parseInt(current.split("-")[0], 10) - 1;
+        return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
+      })()
+    : getTaxYear(new Date());
 
   const pieData = useMemo(() => {
     const data = pnl.expensesByCategory.filter((c) => c.amount > 0).map((c) => ({ name: c.category, value: c.amount }));
@@ -76,6 +88,11 @@ export function ProfitAndLoss() {
           <Button variant="outline" onClick={handleExport}>
             <i className="ti ti-download mr-1" /> Export CSV
           </Button>
+          {isFullTaxYearPeriod && (
+            <Button variant="outline" onClick={() => setYearEndOpen(true)}>
+              <i className="ti ti-file-invoice mr-1" /> Generate Year-End Pack
+            </Button>
+          )}
         </div>
       </div>
 
@@ -273,6 +290,8 @@ export function ProfitAndLoss() {
           </div>
         </CardContent>
       </Card>
+
+      <YearEndPackDialog open={yearEndOpen} onClose={() => setYearEndOpen(false)} defaultTaxYear={yearEndDefaultTaxYear} />
     </div>
   );
 }

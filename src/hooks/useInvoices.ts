@@ -13,6 +13,8 @@ export type InvoiceItem = {
   total: number;
 };
 
+export type ManualPaymentMethod = "bank_transfer" | "cash" | "cheque" | "other";
+
 export function useInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,6 +144,77 @@ export function useInvoices() {
     await updateInvoice(id, { status: "paid", paid_date: today });
   };
 
+  const MANUAL_PAYMENT_METHOD_LABELS: Record<ManualPaymentMethod, string> = {
+    bank_transfer: "Bank Transfer (BACS)",
+    cash: "Cash",
+    cheque: "Cheque",
+    other: "Other",
+  };
+
+  // Records a payment that happened outside the platform (BACS/cash/cheque).
+  // Does not touch Stripe-paid invoices or the stripe-webhook flow at all —
+  // this is purely an additional manual path.
+  const recordManualPayment = async (
+    invoice: Invoice,
+    payment: { paymentDate: string; amount: number; method: ManualPaymentMethod; reference: string },
+  ) => {
+    if (payment.amount !== Number(invoice.total)) {
+      toast({ title: "Error", description: "Partial payments are not yet supported", variant: "destructive" });
+      throw new Error("Partial payments are not yet supported");
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!profileRow) return;
+
+    const notes = payment.reference
+      ? `${MANUAL_PAYMENT_METHOD_LABELS[payment.method]} — Ref: ${payment.reference}`
+      : MANUAL_PAYMENT_METHOD_LABELS[payment.method];
+
+    const { error: paymentError } = await supabase.from("payments").insert({
+      invoice_id: invoice.id,
+      amount: payment.amount,
+      payer_id: invoice.recipient_id,
+      payee_id: profileRow.id,
+      status: "completed",
+      type: "manual",
+      platform_fee: 0,
+      contractor_payout: payment.amount,
+      stripe_payment_intent_id: null,
+      notes,
+    });
+
+    if (paymentError) {
+      toast({ title: "Error", description: "Failed to record payment", variant: "destructive" });
+      throw paymentError;
+    }
+
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .update({
+        status: "paid",
+        paid_date: payment.paymentDate,
+        recipient_response: "paid",
+        amount_due: 0,
+      })
+      .eq("id", invoice.id);
+
+    if (invoiceError) {
+      toast({ title: "Error", description: "Payment recorded, but failed to update the invoice", variant: "destructive" });
+      throw invoiceError;
+    }
+
+    toast({ title: "Payment recorded", description: "The invoice has been marked as paid." });
+    await fetchInvoices();
+  };
+
   const markAsSent = async (id: string) => {
     await sendInvoice(id);
     toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
@@ -167,6 +240,7 @@ export function useInvoices() {
     deleteInvoice,
     markAsPaid,
     markAsSent,
+    recordManualPayment,
     sendInvoice,
     totalRevenue,
     totalPending,

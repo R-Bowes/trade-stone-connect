@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FinanceDashboard } from "@/components/management/financials/FinanceDashboard";
 import { ExpenseList } from "@/components/management/financials/ExpenseList";
 import { MileageTracking } from "@/components/management/financials/MileageTracking";
 import { ProfitAndLoss } from "@/components/management/financials/ProfitAndLoss";
@@ -8,9 +10,14 @@ import { AgedDebtors } from "@/components/management/financials/AgedDebtors";
 import { FinanceSettings } from "@/components/management/FinanceSettings";
 
 export function FinanceHub() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+
   return (
-    <Tabs defaultValue="expenses">
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
       <TabsList className="ml-6 mt-6 flex-wrap h-auto">
+        <TabsTrigger value="dashboard">
+          <i className="ti ti-layout-dashboard mr-1" /> Dashboard
+        </TabsTrigger>
         <TabsTrigger value="expenses">
           <i className="ti ti-receipt-2 mr-1" /> Expenses
         </TabsTrigger>
@@ -34,6 +41,9 @@ export function FinanceHub() {
         </TabsTrigger>
       </TabsList>
 
+      <TabsContent value="dashboard">
+        <FinanceDashboard onNavigate={setActiveTab} />
+      </TabsContent>
       <TabsContent value="expenses">
         <ExpenseList />
       </TabsContent>
