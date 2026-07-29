@@ -355,7 +355,7 @@ function QuoteEditPanel({
     if (field === "description") {
       item.description = raw;
     } else {
-      (item as Record<string, number>)[field] = Number(raw);
+      item[field] = Number(raw);
     }
     item.total = item.quantity * item.unit_price;
     items[idx] = item;
@@ -748,7 +748,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
         client_name: selectedQuote.client_name,
         client_email: selectedQuote.client_email,
         recipient_id: selectedQuote.recipient_id,
-        items: selectedQuote.items as unknown as Record<string, unknown>[],
+        items: selectedQuote.items.map(i => ({ ...i })),
         subtotal: selectedQuote.subtotal,
         tax_rate: selectedQuote.tax_rate,
         tax_amount: selectedQuote.tax_amount,

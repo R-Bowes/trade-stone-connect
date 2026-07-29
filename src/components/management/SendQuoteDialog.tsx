@@ -11,6 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
 import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
+import type { Database } from "@/integrations/supabase/types";
+
+// quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
+// allocator) — never generated client-side, hence the Omit here.
+type IssuedQuoteInsert = Omit<Database["public"]["Tables"]["issued_quotes"]["Insert"], "quote_number">;
 
 const TIME_OF_DAY_LABEL: Record<string, string> = {
   am: "Mornings (AM)",
@@ -164,35 +169,37 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         total: quantity * unit_price,
       }));
 
+      const quotePayload: IssuedQuoteInsert = {
+        contractor_id: contractorProfile.id,
+        recipient_id: recipientId,
+        enquiry_id: enquiry.id,
+        // client_* fields are required by NOT NULL constraints — written to DB only,
+        // never rendered in any UI component. Contact reveal governed by 48hr rule.
+        client_name: enquiry.customer_name ?? "",
+        client_email: enquiry.customer_email ?? "",
+        client_phone: enquiry.customer_phone ?? null,
+        client_type: "customer",
+        title: title.trim(),
+        description: description.trim() || null,
+        items: lineItems,
+        subtotal,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total,
+        valid_until: validUntil,
+        notes: notes.trim() || null,
+        completion_time: completionTime || null,
+        deposit_required: depositRequired,
+        deposit_percentage: depositRequired ? depositPercentage : 0,
+        deposit_amount: depositRequired ? depositAmount : null,
+        terms: terms.trim() || null,
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      };
+
       const { data: insertedQuote, error: quoteError } = await supabase
         .from("issued_quotes")
-        .insert({
-          contractor_id: contractorProfile.id,
-          recipient_id: recipientId,
-          enquiry_id: enquiry.id,
-          // client_* fields are required by NOT NULL constraints — written to DB only,
-          // never rendered in any UI component. Contact reveal governed by 48hr rule.
-          client_name: enquiry.customer_name ?? "",
-          client_email: enquiry.customer_email ?? "",
-          client_phone: enquiry.customer_phone ?? null,
-          client_type: "customer",
-          title: title.trim(),
-          description: description.trim() || null,
-          items: lineItems,
-          subtotal,
-          tax_rate: taxRate,
-          tax_amount: taxAmount,
-          total,
-          valid_until: validUntil,
-          notes: notes.trim() || null,
-          completion_time: completionTime || null,
-          deposit_required: depositRequired,
-          deposit_percentage: depositRequired ? depositPercentage : 0,
-          deposit_amount: depositRequired ? depositAmount : null,
-          terms: terms.trim() || null,
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        })
+        .insert(quotePayload as Database["public"]["Tables"]["issued_quotes"]["Insert"])
         .select("id")
         .single();
 

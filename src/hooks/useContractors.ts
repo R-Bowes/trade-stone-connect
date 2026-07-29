@@ -26,13 +26,8 @@ export interface Contractor {
   updated_at: string;
 }
 
-const CONTRACTOR_SELECT = `
-  id, user_id, full_name, company_name, ts_profile_code, user_type,
-  trades, location, working_radius, bio, avatar_url, logo_url,
-  hourly_rate, years_experience, is_available, is_verified,
-  rating, review_count, completed_jobs, is_active,
-  created_at, updated_at
-`.trim();
+const CONTRACTOR_SELECT =
+  "id, user_id, full_name, company_name, ts_profile_code, user_type, trades, location, working_radius, bio, avatar_url, logo_url, hourly_rate, years_experience, is_available, is_verified, rating, review_count, completed_jobs, is_active, created_at, updated_at" as const;
 
 // Escape SQL ILIKE special characters to prevent pattern injection
 const escapeILIKE = (str: string): string => {

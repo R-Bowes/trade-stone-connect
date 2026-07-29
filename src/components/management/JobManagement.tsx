@@ -112,7 +112,7 @@ type TeamMember = {
   id: string;
   full_name: string;
   role: string;
-  is_active: boolean;
+  status: "active" | "inactive" | "suspended";
 };
 
 type JobAssignment = {
@@ -258,11 +258,11 @@ export function JobManagement() {
 
     const { data: teamData } = await supabase
       .from("team_members")
-      .select("id, full_name, role, is_active")
+      .select("id, full_name, role, status")
       .eq("contractor_id", profileRow.id)
-      .eq("is_active", true)
+      .eq("status", "active")
       .order("full_name");
-    setTeamMembers(teamData || []);
+    setTeamMembers((teamData || []) as TeamMember[]);
 
     const { data, error } = await supabase
       .from("jobs")

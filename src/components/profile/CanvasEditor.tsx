@@ -312,7 +312,7 @@ function ReviewsContent({ draft, reviews, section }: { draft: ProfileDraft; revi
 }
 
 function TeamContent({ draft, members }: { draft: ProfileDraft; members: TeamMemberRow[] }) {
-  const active = members.filter(m => m.is_active);
+  const active = members.filter(m => m.status === "active");
   return (
     <div style={{ padding: "20px 24px" }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.teamHeading}</div>
@@ -744,7 +744,7 @@ function TeamPanelContent({ section, updateSection, draft, updateDraft, members,
 
   const handleAdd = async () => {
     if (!name.trim()) return;
-    await addMember({ full_name: name.trim(), role: role || null, email: null, phone: null, hourly_rate: null, display_order: members.length });
+    await addMember({ full_name: name.trim(), role: role || null, email: null, phone: null, hourly_rate: null });
     setAdding(false); setName(""); setRole("");
   };
 
@@ -753,7 +753,7 @@ function TeamPanelContent({ section, updateSection, draft, updateDraft, members,
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Our team" />
       <FieldLabel>Members</FieldLabel>
-      {members.filter(m => m.is_active).map(m => (
+      {members.filter(m => m.status === "active").map(m => (
         <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{m.full_name}</div>

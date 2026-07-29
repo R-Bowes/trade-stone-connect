@@ -259,7 +259,7 @@ export function useJobPhotos(jobId: string | null) {
 // rather than a table nothing ever populated. Read-only repoint — no
 // dual-write, and no assignment UI exists on the client side.
 export function useJobTeam(jobId: string | null) {
-  const [teamMembers, setTeamMembers] = useState<(JobTeamMember & { full_name?: string; role_title?: string })[]>([]);
+  const [teamMembers, setTeamMembers] = useState<(JobTeamMember & { full_name?: string; role?: string })[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadTeam = async () => {
@@ -273,7 +273,7 @@ export function useJobTeam(jobId: string | null) {
       setTeamMembers((data || []).map((d: any) => ({
         ...d,
         full_name: d.team_members?.full_name,
-        role_title: d.team_members?.role,
+        role: d.team_members?.role,
       })));
     }
     setLoading(false);

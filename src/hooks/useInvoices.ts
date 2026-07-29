@@ -66,7 +66,7 @@ export function useInvoices() {
     await fetchInvoices();
   };
 
-  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id"> & { contractor_id?: string; quote_id?: string | null }) => {
+  const createInvoice = async (invoice: Omit<InvoiceInsert, "contractor_id" | "invoice_number"> & { contractor_id?: string; quote_id?: string | null }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -84,7 +84,7 @@ export function useInvoices() {
         ...invoice,
         status: sendNow ? "draft" : invoice.status,
         contractor_id: profileRow?.id,
-      })
+      } as InvoiceInsert)
       .select("id")
       .single();
 

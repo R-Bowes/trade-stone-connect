@@ -53,10 +53,17 @@ export type JobState =
   | { kind: "job"; status: "scheduled" | "in_progress" | "snagging" | "cancelled" }
   | { kind: "job"; status: "complete"; contractorSignedOff: boolean };
 
-export type InvoiceState = {
-  kind: "invoice";
-  status: "draft" | "sent" | "overdue" | "paid" | "void";
-};
+// A discriminated union (one variant per status), not a single flat object —
+// TS only narrows the whole state to `never` in the exhaustiveness check
+// below (presentInvoice's assertNever) when status is a real union
+// discriminant across multiple object types, not a literal-union property
+// on one object type.
+export type InvoiceState =
+  | { kind: "invoice"; status: "draft" }
+  | { kind: "invoice"; status: "sent" }
+  | { kind: "invoice"; status: "overdue" }
+  | { kind: "invoice"; status: "paid" }
+  | { kind: "invoice"; status: "void" };
 
 export type EntityState = EnquiryState | QuoteState | SchedulingState | JobState | InvoiceState;
 

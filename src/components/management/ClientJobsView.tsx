@@ -357,7 +357,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
                     </div>
                     <div>
                       <p className="font-medium text-sm">{tm.full_name || "Unknown"}</p>
-                      <p className="text-xs text-muted-foreground">{tm.role_title || tm.role}</p>
+                      <p className="text-xs text-muted-foreground">{tm.role}</p>
                     </div>
                   </div>
                 ))}
