@@ -14,29 +14,29 @@ export function FinanceHub() {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="ml-6 mt-6 flex-wrap h-auto">
-        <TabsTrigger value="dashboard">
+      <TabsList className="ml-6 mt-6 flex w-[calc(100%-1.5rem)] flex-nowrap justify-start overflow-x-auto scrollbar-hide md:w-auto md:inline-flex">
+        <TabsTrigger value="dashboard" className="shrink-0">
           <i className="ti ti-layout-dashboard mr-1" /> Dashboard
         </TabsTrigger>
-        <TabsTrigger value="expenses">
+        <TabsTrigger value="expenses" className="shrink-0">
           <i className="ti ti-receipt-2 mr-1" /> Expenses
         </TabsTrigger>
-        <TabsTrigger value="mileage">
+        <TabsTrigger value="mileage" className="shrink-0">
           <i className="ti ti-road mr-1" /> Mileage
         </TabsTrigger>
-        <TabsTrigger value="pnl">
+        <TabsTrigger value="pnl" className="shrink-0">
           <i className="ti ti-report-money mr-1" /> P&amp;L
         </TabsTrigger>
-        <TabsTrigger value="vat">
+        <TabsTrigger value="vat" className="shrink-0">
           <i className="ti ti-receipt-tax mr-1" /> VAT
         </TabsTrigger>
-        <TabsTrigger value="profitability">
+        <TabsTrigger value="profitability" className="shrink-0">
           <i className="ti ti-chart-bar mr-1" /> Profitability
         </TabsTrigger>
-        <TabsTrigger value="debtors">
+        <TabsTrigger value="debtors" className="shrink-0">
           <i className="ti ti-alert-triangle mr-1" /> Debtors
         </TabsTrigger>
-        <TabsTrigger value="settings">
+        <TabsTrigger value="settings" className="shrink-0">
           <i className="ti ti-settings mr-1" /> Settings
         </TabsTrigger>
       </TabsList>
