@@ -79,6 +79,10 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
     return localStorage.getItem("hw_collapsed") === "true";
   });
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
@@ -86,6 +90,13 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
   useEffect(() => {
     localStorage.setItem("hw_collapsed", String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -104,10 +115,14 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
   const handleNav = (value: string) => {
     if (value === "find") {
       navigate("/contractors");
+      setMobileOpen(false);
       return;
     }
     navigate(`/dashboard/homeowner?view=${value}`);
+    setMobileOpen(false);
   };
+
+  const effectiveCollapsed = isMobile ? false : collapsed;
 
   const initials = profile?.full_name
     ? profile.full_name
@@ -123,17 +138,47 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
   return (
     <>
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Mobile backdrop */}
+      {isMobile && mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 49,
+            background: "rgba(0,0,0,0.4)",
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        style={{
-          width: collapsed ? 52 : 220,
-          transition: "width 0.2s ease",
-          background: "#1a2744",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
+        style={
+          isMobile
+            ? {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                height: "100vh",
+                width: 280,
+                zIndex: 50,
+                transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+                transition: "transform 0.25s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }
+            : {
+                width: collapsed ? 52 : 220,
+                transition: "width 0.2s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 0,
+                overflow: "hidden",
+              }
+        }
       >
         {/* Toggle row */}
         <div
@@ -141,41 +186,64 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
             padding: "12px 10px",
             display: "flex",
             alignItems: "center",
+            justifyContent: isMobile ? "flex-end" : "flex-start",
             flexShrink: 0,
           }}
         >
-          <button
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(255,255,255,0.8)",
-              padding: 4,
-              borderRadius: 4,
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-              lineHeight: 1,
-            }}
-          >
-            <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+                fontSize: 22,
+              }}
+            >
+              ×
+            </button>
+          ) : (
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+            >
+              <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
+            </button>
+          )}
         </div>
 
         {/* Profile block */}
         <div
           style={{
             borderBottom: "1px solid rgba(255,255,255,0.08)",
-            padding: collapsed ? "10px 0 12px" : "0 10px 14px",
+            padding: effectiveCollapsed ? "10px 0 12px" : "0 10px 14px",
             display: "flex",
-            flexDirection: collapsed ? "column" : "row",
+            flexDirection: effectiveCollapsed ? "column" : "row",
             alignItems: "center",
-            gap: collapsed ? 0 : 10,
+            gap: effectiveCollapsed ? 0 : 10,
             overflow: "hidden",
             flexShrink: 0,
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
           }}
         >
           {/* Initials avatar — homeowners have no company logo */}
@@ -198,7 +266,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
           >
             {initials}
           </div>
-          {!collapsed && profile && (
+          {!effectiveCollapsed && profile && (
             <div style={{ overflow: "hidden", minWidth: 0 }}>
               <div
                 style={{
@@ -239,7 +307,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
         >
           {NAV_GROUPS.map((group) => (
             <div key={group.group}>
-              {!collapsed && (
+              {!effectiveCollapsed && (
                 <div
                   style={{
                     padding: "8px 12px 4px",
@@ -260,14 +328,14 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
                   <button
                     key={item.value}
                     onClick={() => handleNav(item.value)}
-                    title={collapsed ? item.label : undefined}
+                    title={effectiveCollapsed ? item.label : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
                       width: "100%",
-                      padding: collapsed ? "9px 0" : "7px 12px",
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      padding: effectiveCollapsed ? "9px 0" : "7px 12px",
+                      justifyContent: effectiveCollapsed ? "center" : "flex-start",
                       background: isActive ? "rgba(240,120,32,0.18)" : "transparent",
                       border: "none",
                       borderLeft: isActive ? "3px solid #f07820" : "3px solid transparent",
@@ -286,7 +354,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
                       className={`ti ${item.icon}`}
                       style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}
                     />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!effectiveCollapsed && <span>{item.label}</span>}
                   </button>
                 );
               })}
@@ -294,7 +362,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
           ))}
         </nav>
 
-        <SidebarHelpButton collapsed={collapsed} />
+        <SidebarHelpButton collapsed={effectiveCollapsed} />
       </aside>
 
       {/* Main column */}
@@ -305,9 +373,12 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
           flexDirection: "column",
           overflow: "hidden",
           minWidth: 0,
+          width: isMobile ? "100vw" : undefined,
         }}
       >
-        <Header />
+        <div className="hidden md:block">
+          <Header />
+        </div>
         {/* Topbar: current view title */}
         <div
           style={{
@@ -315,8 +386,32 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
           }}
         >
+          {isMobile && (
+            <button
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              style={{
+                width: 40,
+                height: 40,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#1a2744",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                padding: 0,
+              }}
+            >
+              <i className="ti ti-menu" style={{ fontSize: 22 }} />
+            </button>
+          )}
           <h1
             className="font-heading text-2xl font-bold"
             style={{ margin: 0 }}
@@ -324,9 +419,82 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
             {currentTitle}
           </h1>
         </div>
-        <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
+        <main
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            paddingBottom: isMobile ? 72 : undefined,
+          }}
+        >
+          {children}
+        </main>
       </div>
     </div>
+
+    {/* Mobile bottom tab bar */}
+    {isMobile && (
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 56,
+          paddingBottom: "env(safe-area-inset-bottom)",
+          background: "white",
+          borderTop: "1px solid #e5e7eb",
+          display: "flex",
+          alignItems: "center",
+          zIndex: 40,
+        }}
+      >
+        {[
+          { key: "dashboard", icon: "ti-layout-dashboard", label: "Home" },
+          { key: "jobs", icon: "ti-briefcase", label: "Jobs" },
+          { key: "invoices", icon: "ti-file-invoice", label: "Invoices" },
+          { key: "messages", icon: "ti-message", label: "Messages" },
+          { key: "more", icon: "ti-menu", label: "More" },
+        ].map((tab) => {
+          const isActive =
+            tab.key === "more"
+              ? mobileOpen || !["dashboard", "jobs", "invoices", "messages"].includes(activeView)
+              : !mobileOpen && activeView === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => {
+                if (tab.key === "more") {
+                  setMobileOpen(true);
+                } else {
+                  navigate(`/dashboard/homeowner?view=${tab.key}`);
+                  setMobileOpen(false);
+                }
+              }}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                height: "100%",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: isActive ? "#f07820" : "#9ca3af",
+                padding: 0,
+              }}
+            >
+              <i className={`ti ${tab.icon}`} style={{ fontSize: 22 }} />
+              <span style={{ fontSize: 10, fontFamily: "Lexend, sans-serif", fontWeight: 500 }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    )}
+
     <TutorialModal />
     <HelpModal />
     <WhatIsNewModal />
