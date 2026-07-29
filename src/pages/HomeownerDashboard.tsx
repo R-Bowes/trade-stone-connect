@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { HomeownerMessageInbox } from "@/components/homeowner/HomeownerMessageInbox";
+import ContractorDirectory from "@/components/ContractorDirectory";
 import { SiteVisitReviewDialog } from "@/components/homeowner/SiteVisitReviewDialog";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -196,7 +197,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
             <p className="text-sm text-muted-foreground">Browse trusted, verified contractors near you</p>
           </div>
           <Button
-            onClick={() => navigate("/contractors")}
+            onClick={() => navigate("/dashboard/homeowner?view=hire")}
             className="w-full md:w-auto text-white"
             style={{ backgroundColor: "#f07820" }}
           >
@@ -608,6 +609,9 @@ export default function HomeownerDashboard() {
 
       case "invoices":
         return <div className="p-6"><ReceivedInvoices /></div>;
+
+      case "hire":
+        return <ContractorDirectory />;
 
       case "messages":
   return (

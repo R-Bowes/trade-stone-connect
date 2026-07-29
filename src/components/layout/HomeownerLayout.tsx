@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import SidebarHelpButton from "@/components/help/SidebarHelpButton";
@@ -36,7 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: "Hire",
     items: [
-      { value: "find", label: "Find a contractor", icon: "ti-search" },
+      { value: "hire", label: "Find a contractor", icon: "ti-search" },
     ],
   },
   {
@@ -59,7 +59,7 @@ const VIEW_LABELS: Record<string, string> = {
   jobs:      "Jobs",
   quotes:    "Quotes",
   enquiries: "Enquiries",
-  find:      "Find a Contractor",
+  hire:      "Find a Contractor",
   invoices:  "Invoices & Payments",
   messages:  "Messages",
   settings:  "Settings",
@@ -84,7 +84,6 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
     typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
   );
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
 
@@ -114,11 +113,6 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
   }, []);
 
   const handleNav = (value: string) => {
-    if (value === "find") {
-      navigate("/contractors");
-      setMobileOpen(false);
-      return;
-    }
     navigate(`/dashboard/homeowner?view=${value}`);
     setMobileOpen(false);
   };
@@ -324,7 +318,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
                 </div>
               )}
               {group.items.map((item) => {
-                const isActive = item.value !== "find" && activeView === item.value;
+                const isActive = activeView === item.value;
                 return (
                   <button
                     key={item.value}
@@ -458,9 +452,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
         ].map((tab) => {
           const isActive =
             tab.key === "more"
-              ? mobileOpen || !["dashboard", "jobs", "messages"].includes(activeView)
-              : tab.key === "hire"
-              ? !mobileOpen && location.pathname === "/contractors"
+              ? mobileOpen || !["dashboard", "jobs", "hire", "messages"].includes(activeView)
               : !mobileOpen && activeView === tab.key;
           return (
             <button
@@ -468,12 +460,8 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
               onClick={() => {
                 if (tab.key === "more") {
                   setMobileOpen(true);
-                } else if (tab.key === "hire") {
-                  navigate("/contractors");
-                  setMobileOpen(false);
                 } else {
-                  navigate(`/dashboard/homeowner?view=${tab.key}`);
-                  setMobileOpen(false);
+                  handleNav(tab.key);
                 }
               }}
               style={{
