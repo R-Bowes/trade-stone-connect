@@ -8,6 +8,7 @@ export interface ReceivedInvoice {
   client_name: string;
   client_email: string;
   contractor_id: string;
+  contractor_name: string;
   recipient_id: string | null;
   recipient_response: string | null;
   responded_at: string | null;
@@ -43,9 +44,23 @@ export function useReceivedInvoices() {
       if (error) {
         console.error("Error fetching received invoices:", error);
         toast({ title: "Error", description: "Failed to load invoices", variant: "destructive" });
-      } else {
-        setInvoices((data || []) as unknown as ReceivedInvoice[]);
+        return;
       }
+
+      const rows = (data || []) as unknown as Omit<ReceivedInvoice, "contractor_name">[];
+
+      const contractorIds = [...new Set(rows.map((r) => r.contractor_id).filter((id): id is string => !!id))];
+      const { data: contractorRows } = contractorIds.length > 0
+        ? await supabase.from("profiles").select("id, full_name, company_name").in("id", contractorIds)
+        : { data: [] as { id: string; full_name: string | null; company_name: string | null }[] };
+      const contractorNameMap = new Map(
+        (contractorRows ?? []).map((c) => [c.id, c.company_name || c.full_name || "Unknown"]),
+      );
+
+      setInvoices(rows.map((r) => ({
+        ...r,
+        contractor_name: contractorNameMap.get(r.contractor_id) ?? "Unknown",
+      })));
     } finally {
       setLoading(false);
     }

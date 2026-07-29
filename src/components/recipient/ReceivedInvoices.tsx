@@ -192,7 +192,7 @@ export function ReceivedInvoices() {
                   {getResponseBadge(inv)}
                 </div>
                 <div className="text-sm text-muted-foreground space-y-0.5">
-                  <p>From: {inv.client_name}</p>
+                  <p>From: {inv.contractor_name}</p>
                   <p>Due: {format(new Date(inv.due_date), "dd MMM yyyy")}</p>
                 </div>
                 <div className="flex items-center justify-between gap-2">
@@ -225,7 +225,7 @@ export function ReceivedInvoices() {
                     <TableCell className="font-medium font-mono">
                       {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
                     </TableCell>
-                    <TableCell>{inv.client_name}</TableCell>
+                    <TableCell>{inv.contractor_name}</TableCell>
                     <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
                     <TableCell>{getResponseBadge(inv)}</TableCell>
