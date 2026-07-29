@@ -188,6 +188,24 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
 
   return (
     <div className="p-6 space-y-6">
+      {/* Find a contractor CTA */}
+      <Card className="border-l-4 border-orange-400 bg-orange-50">
+        <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h3 className="font-heading text-lg font-semibold">Need work done?</h3>
+            <p className="text-sm text-muted-foreground">Browse trusted, verified contractors near you</p>
+          </div>
+          <Button
+            onClick={() => navigate("/contractors")}
+            className="w-full md:w-auto text-white"
+            style={{ backgroundColor: "#f07820" }}
+          >
+            <i className="ti ti-search mr-2" style={{ fontSize: 16 }} />
+            Find a contractor
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>

@@ -20,7 +20,17 @@ export function ReceivedInvoices() {
     open: false, invoice: null,
   });
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
   const { toast } = useToast();
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -121,6 +131,34 @@ export function ReceivedInvoices() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
+  const renderActions = (inv: ReceivedInvoice) =>
+    inv.recipient_response === "paid" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => handleDownload(inv)}
+        disabled={downloading === inv.id}
+      >
+        {downloading === inv.id
+          ? <Loader2 className="h-4 w-4 animate-spin" />
+          : <Download className="h-4 w-4 mr-1" />}
+        Download
+      </Button>
+    ) : (
+      <>
+        <PayInvoiceButton
+          invoiceId={inv.id}
+          status={inv.recipient_response || "pending"}
+        />
+        <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
+          <Pause className="h-4 w-4 mr-1" />Stall
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => handleQuery(inv)}>
+          <HelpCircle className="h-4 w-4 mr-1" />Query
+        </Button>
+      </>
+    );
+
   if (loading) {
     return <div className="flex justify-center items-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
@@ -141,65 +179,68 @@ export function ReceivedInvoices() {
     <div className="space-y-4">
       <h2 className="font-heading text-2xl font-bold">Received Invoices</h2>
       <TransactionFeeNotice />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>From</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium font-mono">
+
+      {isMobile ? (
+        <div className="space-y-3">
+          {invoices.map((inv) => (
+            <Card key={inv.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium font-mono">
                     {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
-                  </TableCell>
-                  <TableCell>{inv.client_name}</TableCell>
-                  <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
-                  <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
-                  <TableCell>{getResponseBadge(inv)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {inv.recipient_response === "paid" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDownload(inv)}
-                          disabled={downloading === inv.id}
-                        >
-                          {downloading === inv.id
-                            ? <Loader2 className="h-4 w-4 animate-spin" />
-                            : <Download className="h-4 w-4 mr-1" />}
-                          Download
-                        </Button>
-                      ) : (
-                        <>
-                          <PayInvoiceButton
-                            invoiceId={inv.id}
-                            status={inv.recipient_response || "pending"}
-                          />
-                          <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
-                            <Pause className="h-4 w-4 mr-1" />Stall
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleQuery(inv)}>
-                            <HelpCircle className="h-4 w-4 mr-1" />Query
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
+                  </span>
+                  {getResponseBadge(inv)}
+                </div>
+                <div className="text-sm text-muted-foreground space-y-0.5">
+                  <p>From: {inv.client_name}</p>
+                  <p>Due: {format(new Date(inv.due_date), "dd MMM yyyy")}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold">£{Number(inv.total).toFixed(2)}</span>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {renderActions(inv)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>From</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {invoices.map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-medium font-mono">
+                      {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
+                    </TableCell>
+                    <TableCell>{inv.client_name}</TableCell>
+                    <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
+                    <TableCell>{getResponseBadge(inv)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {renderActions(inv)}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {messageDialog.invoice && (
         <MessageDialog

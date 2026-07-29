@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Header from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import SidebarHelpButton from "@/components/help/SidebarHelpButton";
@@ -84,6 +84,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
     typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
   );
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
 
@@ -451,13 +452,15 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
         {[
           { key: "dashboard", icon: "ti-layout-dashboard", label: "Home" },
           { key: "jobs", icon: "ti-briefcase", label: "Jobs" },
-          { key: "invoices", icon: "ti-file-invoice", label: "Invoices" },
+          { key: "hire", icon: "ti-search", label: "Hire" },
           { key: "messages", icon: "ti-message", label: "Messages" },
           { key: "more", icon: "ti-menu", label: "More" },
         ].map((tab) => {
           const isActive =
             tab.key === "more"
-              ? mobileOpen || !["dashboard", "jobs", "invoices", "messages"].includes(activeView)
+              ? mobileOpen || !["dashboard", "jobs", "messages"].includes(activeView)
+              : tab.key === "hire"
+              ? !mobileOpen && location.pathname === "/contractors"
               : !mobileOpen && activeView === tab.key;
           return (
             <button
@@ -465,6 +468,9 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
               onClick={() => {
                 if (tab.key === "more") {
                   setMobileOpen(true);
+                } else if (tab.key === "hire") {
+                  navigate("/contractors");
+                  setMobileOpen(false);
                 } else {
                   navigate(`/dashboard/homeowner?view=${tab.key}`);
                   setMobileOpen(false);
