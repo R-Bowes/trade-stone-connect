@@ -26,3 +26,7 @@ verify_jwt = false
 [functions.cert-expiry-check]
 # Internal/service-to-service — cron-invoked only, not by end users
 verify_jwt = false
+
+[functions.insurance-expiry-check]
+# Internal/service-to-service — cron-invoked only, not by end users
+verify_jwt = false

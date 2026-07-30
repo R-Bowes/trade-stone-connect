@@ -592,35 +592,47 @@ export type Database = {
         Row: {
           contractor_id: string
           created_at: string | null
+          credential_type: string | null
           display_order: number | null
+          document_path: string | null
+          expires_at: string | null
           id: string
           issuer: string | null
           name: string
           reference_number: string | null
           updated_at: string | null
           verified: boolean | null
+          verified_at: string | null
         }
         Insert: {
           contractor_id: string
           created_at?: string | null
+          credential_type?: string | null
           display_order?: number | null
+          document_path?: string | null
+          expires_at?: string | null
           id?: string
           issuer?: string | null
           name: string
           reference_number?: string | null
           updated_at?: string | null
           verified?: boolean | null
+          verified_at?: string | null
         }
         Update: {
           contractor_id?: string
           created_at?: string | null
+          credential_type?: string | null
           display_order?: number | null
+          document_path?: string | null
+          expires_at?: string | null
           id?: string
           issuer?: string | null
           name?: string
           reference_number?: string | null
           updated_at?: string | null
           verified?: boolean | null
+          verified_at?: string | null
         }
         Relationships: [
           {
@@ -979,6 +991,54 @@ export type Database = {
           },
         ]
       }
+      contractor_register_checks: {
+        Row: {
+          checked_at: string
+          contractor_id: string
+          expires_at: string | null
+          id: string
+          raw_response: Json | null
+          register_name: string
+          registration_number: string | null
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          contractor_id: string
+          expires_at?: string | null
+          id?: string
+          raw_response?: Json | null
+          register_name: string
+          registration_number?: string | null
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          contractor_id?: string
+          expires_at?: string | null
+          id?: string
+          raw_response?: Json | null
+          register_name?: string
+          registration_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_register_checks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_register_checks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_tools: {
         Row: {
           brand: string | null
@@ -1103,6 +1163,87 @@ export type Database = {
             foreignKeyName: "contractor_vehicles_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_verification: {
+        Row: {
+          companies_house_checked_at: string | null
+          companies_house_status: string | null
+          contractor_id: string
+          created_at: string
+          current_tier: number
+          dbs_expires_at: string | null
+          dbs_verified: boolean
+          identity_verified: boolean
+          insurance_expires_at: string | null
+          insurance_verified: boolean
+          last_register_check_at: string | null
+          phone_verified: boolean
+          suspended: boolean
+          suspended_at: string | null
+          suspended_reason: string | null
+          tier_2_achieved_at: string | null
+          tier_3_achieved_at: string | null
+          tier_4_achieved_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          companies_house_checked_at?: string | null
+          companies_house_status?: string | null
+          contractor_id: string
+          created_at?: string
+          current_tier?: number
+          dbs_expires_at?: string | null
+          dbs_verified?: boolean
+          identity_verified?: boolean
+          insurance_expires_at?: string | null
+          insurance_verified?: boolean
+          last_register_check_at?: string | null
+          phone_verified?: boolean
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
+          tier_2_achieved_at?: string | null
+          tier_3_achieved_at?: string | null
+          tier_4_achieved_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          companies_house_checked_at?: string | null
+          companies_house_status?: string | null
+          contractor_id?: string
+          created_at?: string
+          current_tier?: number
+          dbs_expires_at?: string | null
+          dbs_verified?: boolean
+          identity_verified?: boolean
+          insurance_expires_at?: string | null
+          insurance_verified?: boolean
+          last_register_check_at?: string | null
+          phone_verified?: boolean
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
+          tier_2_achieved_at?: string | null
+          tier_3_achieved_at?: string | null
+          tier_4_achieved_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
@@ -7546,9 +7687,17 @@ export type Database = {
         Returns: boolean
       }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
+      check_contractor_compliance: {
+        Args: { p_contractor_id: string }
+        Returns: Json
+      }
       check_sla_breaches: { Args: never; Returns: undefined }
       clone_tender_for_retender: {
         Args: { p_engagement_id: string }
+        Returns: string
+      }
+      compliance_doc_contractor_id: {
+        Args: { p_name: string }
         Returns: string
       }
       contractor_can_view_tender: {

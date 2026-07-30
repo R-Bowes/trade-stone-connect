@@ -10,7 +10,8 @@ export type EmailType =
   | "quote_action"
   | "overdue_invoice"
   | "payment_received"
-  | "cert_expiry";
+  | "cert_expiry"
+  | "insurance_expiry";
 
 // ── Per-type data shapes ──────────────────────────────────────────────────────
 
@@ -65,13 +66,21 @@ export interface CertExpiryData {
   ctaUrl: string;
 }
 
+export interface InsuranceExpiryData {
+  contractorName: string;
+  expiryDate: string;      // human-readable date string
+  daysRemaining: number;
+  ctaUrl: string;
+}
+
 export type EmailData =
   | NewEnquiryData
   | QuoteRequestConfirmationData
   | QuoteActionData
   | OverdueInvoiceData
   | PaymentReceivedData
-  | CertExpiryData;
+  | CertExpiryData
+  | InsuranceExpiryData;
 
 // ── Colour / accent map ───────────────────────────────────────────────────────
 
@@ -82,6 +91,7 @@ const ACCENT: Record<EmailType, { bar: string; pill: string; pillBg: string; btn
   overdue_invoice:              { bar: "#ef4444", pill: "#dc2626", pillBg: "#fef2f2", btn: "#dc2626" },
   payment_received:             { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
   cert_expiry:                  { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
+  insurance_expiry:             { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
 };
 
 // ── Shared shell ──────────────────────────────────────────────────────────────
@@ -350,6 +360,23 @@ export function buildEmail(type: EmailType, data: EmailData): string {
       ].join("\n");
       return shell(type, inner);
     }
+
+    // ── 07 Public liability insurance expiring soon → contractor ─────────────
+    case "insurance_expiry": {
+      const d = data as InsuranceExpiryData;
+      const inner = [
+        pill(type, "Insurance Expiring"),
+        headline("Your public liability insurance is expiring soon"),
+        subtext(`Hi ${d.contractorName}, your public liability insurance on file is due to expire on <strong>${d.expiryDate}</strong>. Upload a renewed certificate before it lapses to stay at your current verification tier — if it expires, your verification will drop to Tier 2 and you may lose access to jobs that require Tier 3.`),
+        detailCard([
+          { label: "Expires",   value: d.expiryDate },
+          { label: "Remaining", value: `<span style="color:#d97706;font-weight:600;">${d.daysRemaining} day${d.daysRemaining === 1 ? "" : "s"}</span>` },
+        ]),
+        ctaButton(type, "Update Insurance Details", d.ctaUrl),
+        footerNote("Sent because you are a registered contractor on TradeStone."),
+      ].join("\n");
+      return shell(type, inner);
+    }
   }
 }
 
@@ -377,5 +404,9 @@ export function buildSubject(type: EmailType, data: EmailData): string {
     }
     case "cert_expiry":
       return "Team certification expiring soon";
+    case "insurance_expiry": {
+      const d = data as InsuranceExpiryData;
+      return `Insurance expiring in ${d.daysRemaining} day${d.daysRemaining === 1 ? "" : "s"} — TradeStone`;
+    }
   }
 }

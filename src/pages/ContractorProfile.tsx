@@ -86,6 +86,18 @@ interface Credential {
   verified: boolean | null;
 }
 
+interface VerifiedCredential {
+  id: string;
+  name: string;
+  issuer: string | null; // awarding body
+}
+
+interface VerifiedRegisterCheck {
+  id: string;
+  register_name: string;
+  registration_number: string | null;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const NAVY = "#1a2744";
@@ -333,6 +345,71 @@ function CredentialsBlock({ section, credentials }: { section: CanvasSection; cr
   );
 }
 
+const TIER_BADGES: Record<number, { label: string; icon: string }> = {
+  2: { label: "Identity Verified", icon: "ti-user-check" },
+  3: { label: "Compliance Verified", icon: "ti-shield-check" },
+  4: { label: "Credential Verified", icon: "ti-award" },
+};
+
+const REGISTER_LABELS: Record<string, string> = {
+  gas_safe: "Gas Safe",
+  niceic: "NICEIC",
+  napit: "NAPIT",
+  fgas: "F-Gas",
+};
+
+function VerificationBadgeBlock({ tier, registerChecks, credentials }: {
+  tier: number | null;
+  registerChecks: VerifiedRegisterCheck[];
+  credentials: VerifiedCredential[];
+}) {
+  // Tier 1 (Claimed) shows nothing at all — no badge, no section.
+  if (!tier || tier < 2) return null;
+  const badge = TIER_BADGES[tier];
+  if (!badge) return null;
+
+  return (
+    <SectionCard heading="Verification">
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: (registerChecks.length || credentials.length) ? 14 : 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(22,163,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <i className={`ti ${badge.icon}`} style={{ fontSize: 19, color: "#16a34a" }} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{badge.label}</div>
+          <div style={{ fontSize: 12, color: "#888" }}>Verified by TradeStone</div>
+        </div>
+      </div>
+
+      {registerChecks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: credentials.length ? 10 : 0 }}>
+          {registerChecks.map(rc => (
+            <div key={rc.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <i className="ti ti-circle-check" style={{ fontSize: 15, color: "#16a34a", flexShrink: 0 }} />
+              <span style={{ color: NAVY, fontWeight: 600 }}>{REGISTER_LABELS[rc.register_name] ?? rc.register_name}</span>
+              {rc.registration_number && (
+                <span style={{ color: "#aaa", fontFamily: "'Roboto Mono', monospace", fontSize: 11 }}>{rc.registration_number}</span>
+              )}
+              <span style={{ color: "#888", fontSize: 11 }}>&middot; verified against the live register</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {credentials.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {credentials.map(c => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <i className="ti ti-award" style={{ fontSize: 15, color: "#16a34a", flexShrink: 0 }} />
+              <span style={{ color: NAVY, fontWeight: 600 }}>{c.name}</span>
+              {c.issuer && <span style={{ color: "#888", fontSize: 11 }}>&middot; {c.issuer}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function AvailabilityBlock({ section, availability, profile }: { section: CanvasSection; availability: AvailabilityInfo; profile: PageProfile }) {
   return (
     <SectionCard heading={getSectionLabel(section)}>
@@ -435,6 +512,9 @@ const ContractorProfile = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [verificationTier, setVerificationTier] = useState<number | null>(null);
+  const [verifiedRegisterChecks, setVerifiedRegisterChecks] = useState<VerifiedRegisterCheck[]>([]);
+  const [verifiedCredentials, setVerifiedCredentials] = useState<VerifiedCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -568,6 +648,35 @@ const ContractorProfile = () => {
       const needsCredentials = enabledSections.some(s => s.widget_key === "credentials");
 
       const fetches: Promise<void>[] = [];
+
+      // Verification tier badge — always shown, not tied to widget enablement.
+      // current_tier is read via the SECURITY DEFINER compliance-gate RPC
+      // (granted to anon) rather than a direct table read, since
+      // contractor_verification has no public SELECT policy.
+      fetches.push(
+        supabase
+          .rpc("check_contractor_compliance", { p_contractor_id: profileId })
+          .then(({ data }) => {
+            const tier = (data as { current_tier?: number } | null)?.current_tier;
+            setVerificationTier(typeof tier === "number" ? tier : null);
+          })
+      );
+      fetches.push(
+        supabase
+          .from("contractor_register_checks")
+          .select("id, register_name, registration_number")
+          .eq("contractor_id", profileId)
+          .eq("status", "verified")
+          .then(({ data }) => setVerifiedRegisterChecks((data ?? []) as VerifiedRegisterCheck[]))
+      );
+      fetches.push(
+        supabase
+          .from("contractor_credentials")
+          .select("id, name, issuer")
+          .eq("contractor_id", profileId)
+          .eq("verified", true)
+          .then(({ data }) => setVerifiedCredentials((data ?? []) as VerifiedCredential[]))
+      );
 
       if (needsGallery) {
         const galleryIds = enabledSections
@@ -771,6 +880,9 @@ const ContractorProfile = () => {
         <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
           {/* Hero — always first */}
           <HeroBlock profile={profile} availability={availability} coverUrl={profile.cover_url} />
+
+          {/* Verification tier badge — always shown when Tier 2+, not a configurable widget */}
+          <VerificationBadgeBlock tier={verificationTier} registerChecks={verifiedRegisterChecks} credentials={verifiedCredentials} />
 
           {/* Enabled sections in widget order */}
           {enabledSections.map(renderSection)}

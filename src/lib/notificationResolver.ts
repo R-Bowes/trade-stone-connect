@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, type LucideIcon } from "lucide-react";
+import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, ShieldAlert, type LucideIcon } from "lucide-react";
 
 export type ViewerRole = "personal" | "business" | "contractor" | null;
 
@@ -42,6 +42,8 @@ export function notificationIcon(type: string): LucideIcon {
       return Briefcase;
     case "job_note":
       return StickyNote;
+    case "insurance_expiring":
+      return ShieldAlert;
     case "invoice_response":
       return FileText;
     case "quote_response":
@@ -98,6 +100,9 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
       return role === "contractor"
         ? `/dashboard/contractor?view=panel-compliance`
         : `/dashboard/business?view=tenders`;
+
+    case "contractor_verification":
+      return "/dashboard/contractor?view=verification";
 
     default:
       if (notif.type === "schedule_proposed" || notif.type === "job_confirmed") {
