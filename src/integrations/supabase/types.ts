@@ -1039,6 +1039,117 @@ export type Database = {
           },
         ]
       }
+      contractor_score_history: {
+        Row: {
+          confidence: string | null
+          contractor_id: string
+          id: string
+          recorded_at: string
+          score_type: string
+          score_value: number | null
+          signal_count: number | null
+        }
+        Insert: {
+          confidence?: string | null
+          contractor_id: string
+          id?: string
+          recorded_at?: string
+          score_type: string
+          score_value?: number | null
+          signal_count?: number | null
+        }
+        Update: {
+          confidence?: string | null
+          contractor_id?: string
+          id?: string
+          recorded_at?: string
+          score_type?: string
+          score_value?: number | null
+          signal_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_score_history_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_score_history_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_scores: {
+        Row: {
+          composite_score: number | null
+          contractor_id: string
+          craft_confidence: string | null
+          craft_score: number | null
+          craft_signal_count: number
+          created_at: string
+          last_calculated_at: string
+          service_confidence: string | null
+          service_review_count: number
+          service_score: number | null
+          updated_at: string
+          value_confidence: string | null
+          value_score: number | null
+          value_signal_count: number
+        }
+        Insert: {
+          composite_score?: number | null
+          contractor_id: string
+          craft_confidence?: string | null
+          craft_score?: number | null
+          craft_signal_count?: number
+          created_at?: string
+          last_calculated_at?: string
+          service_confidence?: string | null
+          service_review_count?: number
+          service_score?: number | null
+          updated_at?: string
+          value_confidence?: string | null
+          value_score?: number | null
+          value_signal_count?: number
+        }
+        Update: {
+          composite_score?: number | null
+          contractor_id?: string
+          craft_confidence?: string | null
+          craft_score?: number | null
+          craft_signal_count?: number
+          created_at?: string
+          last_calculated_at?: string
+          service_confidence?: string | null
+          service_review_count?: number
+          service_score?: number | null
+          updated_at?: string
+          value_confidence?: string | null
+          value_score?: number | null
+          value_signal_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_scores_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_scores_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_tools: {
         Row: {
           brand: string | null
@@ -5657,6 +5768,30 @@ export type Database = {
           },
         ]
       }
+      score_calculation_runs: {
+        Row: {
+          contractor_count: number
+          duration_ms: number
+          finished_at: string
+          id: string
+          started_at: string
+        }
+        Insert: {
+          contractor_count: number
+          duration_ms: number
+          finished_at?: string
+          id?: string
+          started_at: string
+        }
+        Update: {
+          contractor_count?: number
+          duration_ms?: number
+          finished_at?: string
+          id?: string
+          started_at?: string
+        }
+        Relationships: []
+      }
       search_appearance_daily: {
         Row: {
           appearance_count: number
@@ -7799,6 +7934,39 @@ export type Database = {
           },
         ]
       }
+      trade_averages: {
+        Row: {
+          avg_craft: number | null
+          avg_service: number | null
+          avg_value: number | null
+          calculated_at: string
+          id: string
+          region: string | null
+          sample_size: number | null
+          trade: string
+        }
+        Insert: {
+          avg_craft?: number | null
+          avg_service?: number | null
+          avg_value?: number | null
+          calculated_at?: string
+          id?: string
+          region?: string | null
+          sample_size?: number | null
+          trade: string
+        }
+        Update: {
+          avg_craft?: number | null
+          avg_service?: number | null
+          avg_value?: number | null
+          calculated_at?: string
+          id?: string
+          region?: string | null
+          sample_size?: number | null
+          trade?: string
+        }
+        Relationships: []
+      }
       user_seen_announcements: {
         Row: {
           announcement_id: string
@@ -8040,10 +8208,19 @@ export type Database = {
         Args: { p_application_id: string }
         Returns: boolean
       }
+      calculate_contractor_scores: {
+        Args: { p_contractor_id: string }
+        Returns: undefined
+      }
+      calculate_trade_averages: { Args: never; Returns: undefined }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_contractor_compliance: {
         Args: { p_contractor_id: string }
         Returns: Json
+      }
+      check_review_anomalies: {
+        Args: { p_contractor_id: string }
+        Returns: undefined
       }
       check_sla_breaches: { Args: never; Returns: undefined }
       clone_tender_for_retender: {
@@ -8190,6 +8367,8 @@ export type Database = {
         }
         Returns: string
       }
+      recalculate_all_scores: { Args: never; Returns: undefined }
+      recency_decay_weight: { Args: { p_timestamp: string }; Returns: number }
       release_schedule_block: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -8220,6 +8399,10 @@ export type Database = {
       tender_status_for_application: {
         Args: { p_application_id: string }
         Returns: string
+      }
+      value_variance_to_score: {
+        Args: { p_variance_pct: number }
+        Returns: number
       }
       withdraw_or_decline_engagement_rate_version: {
         Args: { p_rate_id: string }
