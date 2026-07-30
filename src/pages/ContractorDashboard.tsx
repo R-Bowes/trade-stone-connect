@@ -34,6 +34,7 @@ import { FinanceHub } from "@/components/management/FinanceHub";
 import { InvoiceManagement } from "@/components/management/InvoiceManagement";
 import { DocumentManagement } from "@/components/management/DocumentManagement";
 import { VerificationManagement } from "@/components/management/VerificationManagement";
+import { ScoreBreakdown } from "@/components/management/ScoreBreakdown";
 import { JobManagement } from "@/components/management/JobManagement";
 import { IssuedQuotes } from "@/components/management/IssuedQuotes";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
@@ -683,6 +684,7 @@ const ContractorDashboard = () => {
           <TabsContent value="photos"><PhotoGallery /></TabsContent>
           <TabsContent value="documents"><DocumentManagement /></TabsContent>
           <TabsContent value="verification"><VerificationManagement /></TabsContent>
+          <TabsContent value="my-scores"><ScoreBreakdown /></TabsContent>
           <TabsContent value="finance-settings"><FinanceHub /></TabsContent>
           <TabsContent value="schedule"><ScheduleManagement /></TabsContent>
           <TabsContent value="clients"><CRMManagement /></TabsContent>

@@ -69,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "share-profile", label: "Share profile", icon: "ti-qrcode" },
       { value: "kpi-insights", label: "KPI & Insights", icon: "ti-chart-line" },
       { value: "verification", label: "Verification", icon: "ti-shield-check" },
+      { value: "my-scores", label: "My Scores", icon: "ti-chart-donut" },
     ],
   },
 ];

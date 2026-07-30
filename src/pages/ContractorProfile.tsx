@@ -6,7 +6,7 @@ import { ContractorMessageDialog } from "@/components/ContractorMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAvailability } from "@/hooks/useAvailability";
 import { HeroBlock, type AvailabilityInfo } from "@/components/profile/ProfileWidgets";
-import { isToday, isTomorrow, format } from "date-fns";
+import { isToday, isTomorrow, format, formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,9 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { ScoreGauge } from "@/components/scoring/ScoreGauge";
+import { computeTrend, SCORE_EXPLANATIONS, type ScoreConfidence } from "@/lib/scoring";
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,6 +118,45 @@ interface Endorsement {
   endorsement_text: string | null;
   created_at: string;
   endorser: { full_name: string | null; company_name: string | null } | null;
+}
+
+interface ContractorScoresRow {
+  craft_score: number | null;
+  craft_confidence: ScoreConfidence | null;
+  craft_signal_count: number;
+  service_score: number | null;
+  service_confidence: ScoreConfidence | null;
+  service_review_count: number;
+  value_score: number | null;
+  value_confidence: ScoreConfidence | null;
+  value_signal_count: number;
+}
+
+interface ScoreHistoryRow {
+  score_type: "craft" | "service" | "value";
+  score_value: number | null;
+  confidence: ScoreConfidence | null;
+  recorded_at: string;
+}
+
+interface TradeAverageRow {
+  trade: string;
+  region: string | null;
+  avg_craft: number | null;
+  avg_service: number | null;
+  avg_value: number | null;
+}
+
+interface ServiceReviewRow {
+  id: string;
+  communication: 1 | 2 | 3;
+  reliability: 1 | 2 | 3;
+  property_respect: 1 | 2 | 3;
+  expectation_management: 1 | 2 | 3;
+  costs_communicated_clearly: boolean | null;
+  free_text: string | null;
+  created_at: string;
+  reviewer: { full_name: string | null } | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -482,6 +524,180 @@ function EndorsementsBlock({ endorsements, canEndorse, alreadyEndorsed, onEndors
   );
 }
 
+const SCORE_ROW_META: { key: "craft" | "service" | "value"; label: string; icon: string }[] = [
+  { key: "craft", label: "Craft", icon: "ti-hammer" },
+  { key: "service", label: "Service", icon: "ti-message" },
+  { key: "value", label: "Value", icon: "ti-receipt" },
+];
+
+function HomeownerScoresBlock({ scores }: { scores: ContractorScoresRow | null }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  if (!scores) return null;
+
+  const byKey = {
+    craft: { score: scores.craft_score, confidence: scores.craft_confidence },
+    service: { score: scores.service_score, confidence: scores.service_confidence },
+    value: { score: scores.value_score, confidence: scores.value_confidence },
+  };
+
+  return (
+    <SectionCard heading="TradeStone Scores">
+      <p style={{ fontSize: 11, color: "#999", marginTop: -6, marginBottom: 12 }}>
+        Craft, Service and Value are assessed independently by whoever is actually qualified to judge each — not a single star rating.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {SCORE_ROW_META.map(({ key, label, icon }) => {
+          const { score, confidence } = byKey[key];
+          const isBuilding = confidence === "building" || confidence == null;
+          return (
+            <div key={key}>
+              <button
+                onClick={() => setExpanded((cur) => (cur === key ? null : key))}
+                style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <i className={`ti ${icon}`} style={{ fontSize: 16, color: isBuilding ? "#bbb" : ORANGE, width: 18, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: isBuilding ? "#999" : NAVY, width: 60, flexShrink: 0 }}>{label}</span>
+                  <div style={{ flex: 1 }}>
+                    <ScoreGauge score={score} confidence={confidence} variant="compact" />
+                  </div>
+                  <span style={{ fontSize: 11, color: "#aaa", flexShrink: 0, width: 44, textAlign: "right" }}>
+                    {confidence === "established" ? "" : confidence === "provisional" ? "Early" : "Building"}
+                  </span>
+                  <i className={`ti ti-chevron-${expanded === key ? "up" : "down"}`} style={{ fontSize: 13, color: "#ccc" }} />
+                </div>
+              </button>
+              {expanded === key && (
+                <p style={{ fontSize: 12, color: "#888", marginTop: 6, marginLeft: 28, lineHeight: 1.5 }}>
+                  {SCORE_EXPLANATIONS[key]}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </SectionCard>
+  );
+}
+
+function DetailedScorecardBlock({ scores, history, tradeAverage }: {
+  scores: ContractorScoresRow | null;
+  history: ScoreHistoryRow[];
+  tradeAverage: TradeAverageRow | null;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!scores) return null;
+
+  const rows: { key: "craft" | "service" | "value"; label: string; score: number | null; confidence: ScoreConfidence | null; count: number; countLabel: string; avg: number | null | undefined }[] = [
+    { key: "craft", label: "Craft", score: scores.craft_score, confidence: scores.craft_confidence, count: scores.craft_signal_count, countLabel: "completed jobs", avg: tradeAverage?.avg_craft },
+    { key: "service", label: "Service", score: scores.service_score, confidence: scores.service_confidence, count: scores.service_review_count, countLabel: "reviews", avg: tradeAverage?.avg_service },
+    { key: "value", label: "Value", score: scores.value_score, confidence: scores.value_confidence, count: scores.value_signal_count, countLabel: "priced jobs", avg: tradeAverage?.avg_value },
+  ];
+
+  return (
+    <SectionCard heading="Detailed scores">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+      >
+        <span style={{ fontSize: 13, color: "#888" }}>Full breakdown with trend and trade comparison</span>
+        <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 15, color: "#999" }} />
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 16 }}>
+          {rows.map((r) => {
+            const sparkData = history
+              .filter((h) => h.score_type === r.key && h.score_value !== null)
+              .map((h) => ({ date: h.recorded_at, value: h.score_value as number }));
+            const trend = computeTrend(r.score, history, r.key);
+            return (
+              <div key={r.key} style={{ borderTop: "1px solid #f0f0f0", paddingTop: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{r.label}</div>
+                  <div style={{ fontSize: 13, fontFamily: "'Roboto Mono', monospace", color: r.confidence === "established" ? ORANGE : "#999" }}>
+                    {r.score !== null ? `${r.score.toFixed(1)} / 10` : "Building"}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+                  Confidence: {r.confidence ?? "building"} &middot; Based on {r.count} {r.countLabel}
+                  {trend !== "new" && <> &middot; {trend === "up" ? "Improving" : trend === "down" ? "Declining" : "Stable"}</>}
+                </div>
+                {r.avg != null && (
+                  <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+                    Trade average{tradeAverage?.region ? ` (${tradeAverage.region})` : " (national)"}: {r.avg.toFixed(1)}
+                  </div>
+                )}
+                {sparkData.length >= 2 && (
+                  <div style={{ height: 40, marginTop: 6 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={sparkData}>
+                        <YAxis domain={[0, 10]} hide />
+                        <Line type="monotone" dataKey="value" stroke={ORANGE} strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function ServiceReviewsBlock({ reviews }: { reviews: ServiceReviewRow[] }) {
+  if (reviews.length === 0) return null;
+
+  const dimLabel = (v: 1 | 2 | 3) => (v === 1 ? "Below" : v === 2 ? "Met" : "Exceeded");
+  const dimColor = (v: 1 | 2 | 3) => (v === 1 ? "#dc2626" : v === 2 ? "#f59e0b" : "#16a34a");
+  const avg = (nums: number[]) => nums.reduce((a, b) => a + b, 0) / nums.length;
+
+  const dims: { key: keyof Pick<ServiceReviewRow, "communication" | "reliability" | "property_respect" | "expectation_management">; label: string }[] = [
+    { key: "communication", label: "Communication" },
+    { key: "reliability", label: "Reliability" },
+    { key: "property_respect", label: "Property respect" },
+    { key: "expectation_management", label: "Expectations" },
+  ];
+
+  return (
+    <SectionCard heading="Client feedback">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid #f0f0f0" }}>
+        {dims.map((d) => (
+          <div key={d.key} style={{ fontSize: 11, color: "#888" }}>
+            {d.label}: <strong style={{ color: NAVY }}>{avg(reviews.map((r) => r[d.key])).toFixed(1)}/3</strong>
+          </div>
+        ))}
+        <div style={{ fontSize: 11, color: "#888" }}>{reviews.length} review{reviews.length === 1 ? "" : "s"}</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {reviews.slice(0, 10).map((r) => (
+          <div key={r.id} style={{ paddingBottom: 14, borderBottom: "1px solid #f5f5f5" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: NAVY }}>{r.reviewer?.full_name || "Verified client"}</span>
+              <span style={{ fontSize: 11, color: "#aaa" }}>{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: r.free_text ? 8 : 0 }}>
+              {dims.map((d) => (
+                <span key={d.key} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: `${dimColor(r[d.key])}14`, color: dimColor(r[d.key]) }}>
+                  {d.label}: {dimLabel(r[d.key])}
+                </span>
+              ))}
+              {r.costs_communicated_clearly !== null && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#f3f4f6", color: "#6b7280" }}>
+                  Costs clear: {r.costs_communicated_clearly ? "Yes" : "No"}
+                </span>
+              )}
+            </div>
+            {r.free_text && <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.5 }}>{r.free_text}</p>}
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
 function AvailabilityBlock({ section, availability, profile }: { section: CanvasSection; availability: AvailabilityInfo; profile: PageProfile }) {
   return (
     <SectionCard heading={getSectionLabel(section)}>
@@ -593,6 +809,12 @@ const ContractorProfile = () => {
   const [endorseDialogOpen, setEndorseDialogOpen] = useState(false);
   const [endorseText, setEndorseText] = useState("");
   const [endorseSubmitting, setEndorseSubmitting] = useState(false);
+  const [contractorScores, setContractorScores] = useState<ContractorScoresRow | null>(null);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryRow[]>([]);
+  const [tradeAverage, setTradeAverage] = useState<TradeAverageRow | null>(null);
+  const [serviceReviews, setServiceReviews] = useState<ServiceReviewRow[]>([]);
+  const [detailedScoresOpen, setDetailedScoresOpen] = useState(false);
+  const [viewerAuthed, setViewerAuthed] = useState(false);
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -667,6 +889,7 @@ const ContractorProfile = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const owner = user?.id === assembled.user_id;
       setIsOwner(owner);
+      setViewerAuthed(!!user);
 
       if (user && !owner) {
         const { data: viewerProfile } = await supabase
@@ -777,6 +1000,44 @@ const ContractorProfile = () => {
           .order("created_at", { ascending: false })
           .then(({ data }) => setEndorsements((data ?? []) as unknown as Endorsement[]))
       );
+      fetches.push(
+        supabase
+          .from("contractor_scores")
+          .select("craft_score, craft_confidence, craft_signal_count, service_score, service_confidence, service_review_count, value_score, value_confidence, value_signal_count")
+          .eq("contractor_id", profileId)
+          .maybeSingle()
+          .then(({ data }) => setContractorScores((data as ContractorScoresRow | null) ?? null))
+      );
+      fetches.push(
+        supabase
+          .from("contractor_score_history")
+          .select("score_type, score_value, confidence, recorded_at")
+          .eq("contractor_id", profileId)
+          .gte("recorded_at", new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString())
+          .order("recorded_at", { ascending: true })
+          .then(({ data }) => setScoreHistory((data ?? []) as ScoreHistoryRow[]))
+      );
+      fetches.push(
+        supabase
+          .from("service_reviews")
+          .select("id, communication, reliability, property_respect, expectation_management, costs_communicated_clearly, free_text, created_at, reviewer:profiles!service_reviews_reviewer_id_fkey(full_name)")
+          .eq("contractor_id", profileId)
+          .eq("suppressed", false)
+          .order("created_at", { ascending: false })
+          .then(({ data }) => setServiceReviews((data ?? []) as unknown as ServiceReviewRow[]))
+      );
+      if (pub && (pub as any).trades?.[0]) {
+        fetches.push(
+          supabase
+            .from("trade_averages")
+            .select("trade, region, avg_craft, avg_service, avg_value")
+            .eq("trade", (pub as any).trades[0])
+            .or(`region.eq.${(pub as any).location ?? ""},region.is.null`)
+            .order("region", { ascending: false, nullsFirst: false })
+            .limit(1)
+            .then(({ data }) => setTradeAverage((data?.[0] as TradeAverageRow | undefined) ?? null))
+        );
+      }
 
       if (needsGallery) {
         const galleryIds = enabledSections
@@ -1020,6 +1281,14 @@ const ContractorProfile = () => {
             onEndorse={() => setEndorseDialogOpen(true)}
             onRetract={handleRetractEndorsement}
           />
+
+          <HomeownerScoresBlock scores={contractorScores} />
+
+          {viewerAuthed && (
+            <DetailedScorecardBlock scores={contractorScores} history={scoreHistory} tradeAverage={tradeAverage} />
+          )}
+
+          <ServiceReviewsBlock reviews={serviceReviews} />
 
           {/* Enabled sections in widget order */}
           {enabledSections.map(renderSection)}

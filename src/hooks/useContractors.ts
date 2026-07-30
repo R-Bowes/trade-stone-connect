@@ -70,7 +70,34 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
       const { data, error } = await query;
       if (error) throw error;
 
-      return { contractors: data as Contractor[] };
+      const contractors = (data ?? []) as Contractor[];
+
+      // SCORING.md Phase 4 Step 4: composite_score ranks contractors that
+      // have one, but is never attached to/returned on the Contractor
+      // objects — it must never be displayed, only used to order results
+      // here. There was no existing ordering to preserve (no .order() on
+      // this query before this change) — contractors with a composite sort
+      // first (descending), contractors with a NULL composite (building
+      // confidence — no completed jobs yet) keep their original relative
+      // order and are appended after, never buried or hidden.
+      if (contractors.length > 0) {
+        const { data: scoreRows } = await supabase
+          .from("contractor_scores")
+          .select("contractor_id, composite_score")
+          .in("contractor_id", contractors.map((c) => c.id));
+
+        const compositeById = new Map((scoreRows ?? []).map((r) => [r.contractor_id, r.composite_score]));
+        contractors.sort((a, b) => {
+          const scoreA = compositeById.get(a.id) ?? null;
+          const scoreB = compositeById.get(b.id) ?? null;
+          if (scoreA === null && scoreB === null) return 0;
+          if (scoreA === null) return 1;
+          if (scoreB === null) return -1;
+          return scoreB - scoreA;
+        });
+      }
+
+      return { contractors };
     },
   });
 };
