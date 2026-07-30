@@ -23,8 +23,9 @@ import {
   ShieldCheck,
   Calendar,
   Wrench,
+  ClipboardList,
 } from "lucide-react";
-import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, type Job } from "@/hooks/useJobs";
+import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, useServiceReview, type Job, type ServiceReviewInput, type ServiceReview } from "@/hooks/useJobs";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
@@ -115,6 +116,8 @@ export function ClientJobsView() {
   );
 }
 
+const REVIEW_DELAY_MS = 48 * 60 * 60 * 1000;
+
 function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const { notes, addNote } = useJobNotes(job.id);
   const { photos } = useJobPhotos(job.id);
@@ -126,6 +129,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const { urls: signedPhotoUrls } = useSignedPhotoUrls("job-photos", photoPaths);
   const { teamMembers } = useJobTeam(job.id);
   const { review, submitReview } = useJobReview(job.id);
+  const { serviceReview, submitServiceReview } = useServiceReview(job.id);
   const [newNote, setNewNote] = useState("");
   const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team" | "review" | "origin">("overview");
   const [rating, setRating] = useState(5);
@@ -157,6 +161,10 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const sc = statusConfig[job.status] || statusConfig.not_started;
   const StatusIcon = sc.icon;
   const hasOrigin = !!job.issued_quote_id || !!job.engagement_id;
+  const isComplete = job.status === "complete" || job.status === "completed";
+  const msSinceCompletion = job.completed_at ? Date.now() - new Date(job.completed_at).getTime() : null;
+  const serviceReviewUnlocked = msSinceCompletion !== null && msSinceCompletion >= REVIEW_DELAY_MS;
+  const showServiceReviewPrompt = isComplete && serviceReviewUnlocked && !serviceReview;
 
   const openOrigin = () => {
     setActiveSection("origin");
@@ -418,9 +426,35 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
         </Card>
       )}
 
+      {/* Service review — separate structured feedback from the star rating above */}
+      {activeSection === "review" && isComplete && (
+        <ServiceReviewCard
+          serviceReview={serviceReview}
+          unlocked={serviceReviewUnlocked}
+          completedAt={job.completed_at}
+          onSubmit={submitServiceReview}
+        />
+      )}
+
       {/* Overview */}
       {activeSection === "overview" && (
         <div className="grid gap-4 md:grid-cols-3">
+          {showServiceReviewPrompt && (
+            <Card className="md:col-span-3 border-primary/30 bg-primary/5">
+              <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                <ClipboardList className="h-8 w-8 text-primary flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold">How was your experience?</p>
+                  <p className="text-sm text-muted-foreground font-serif">
+                    You've had a couple of days to live with the work — we'd love to hear how it went.
+                  </p>
+                </div>
+                <Button onClick={() => setActiveSection("review")} className="text-white flex-shrink-0" style={{ backgroundColor: "#f07820" }}>
+                  Rate this job
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("notes")}>
             <CardContent className="p-6 text-center">
               <StickyNote className="h-8 w-8 mx-auto mb-2 text-primary" />
@@ -482,5 +516,162 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Structured service review (SCORING.md Phase 2 Step 6) ────────────────
+// Four 3-point dimensions + the Value score's single client input. Distinct
+// from the star-rating "review" card above — see file header note.
+
+const DIMENSION_LABELS: { key: keyof Omit<ServiceReviewInput, "costs_communicated_clearly" | "free_text">; label: string; help: string }[] = [
+  { key: "communication", label: "Communication", help: "Did they keep you informed, respond to questions, explain what they were doing?" },
+  { key: "reliability", label: "Reliability", help: "Did they show up when agreed, stick to the timeline, let you know if anything changed?" },
+  { key: "property_respect", label: "Respect for property", help: "Did they protect floors, clean up, leave the space in a reasonable state?" },
+  { key: "expectation_management", label: "Expectation management", help: "When something changed or an issue arose, did they explain it clearly before acting?" },
+];
+
+const SCALE_OPTIONS: { value: 1 | 2 | 3; label: string }[] = [
+  { value: 1, label: "Below expectations" },
+  { value: 2, label: "Met expectations" },
+  { value: 3, label: "Exceeded expectations" },
+];
+
+function ServiceReviewCard({ serviceReview, unlocked, completedAt, onSubmit }: {
+  serviceReview: ServiceReview | null;
+  unlocked: boolean;
+  completedAt: string | null;
+  onSubmit: (input: ServiceReviewInput) => Promise<void>;
+}) {
+  const [scores, setScores] = useState<Record<string, 1 | 2 | 3 | undefined>>({});
+  const [costsClear, setCostsClear] = useState<boolean | null>(null);
+  const [freeText, setFreeText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  if (serviceReview) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Your service review</CardTitle>
+          <CardDescription className="font-serif">Thanks — this has already been submitted and can't be changed.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {DIMENSION_LABELS.map((d) => (
+            <div key={d.key} className="flex items-center justify-between text-sm">
+              <span>{d.label}</span>
+              <Badge variant="secondary">{SCALE_OPTIONS.find((o) => o.value === serviceReview[d.key])?.label}</Badge>
+            </div>
+          ))}
+          <div className="flex items-center justify-between text-sm">
+            <span>Costs communicated clearly</span>
+            <Badge variant="secondary">{serviceReview.costs_communicated_clearly ? "Yes" : "No"}</Badge>
+          </div>
+          {serviceReview.free_text && <p className="text-sm text-muted-foreground font-serif pt-2 border-t">{serviceReview.free_text}</p>}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!unlocked) {
+    const unlockDate = completedAt ? new Date(new Date(completedAt).getTime() + REVIEW_DELAY_MS) : null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Rate your experience</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground font-serif">
+            We ask you to wait a couple of days so you can properly live with the work before rating it.
+            {unlockDate && ` You'll be able to leave this review from ${format(unlockDate, "d MMM yyyy 'at' HH:mm")}.`}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const allAnswered = DIMENSION_LABELS.every((d) => scores[d.key] !== undefined) && costsClear !== null;
+
+  const handleSubmit = async () => {
+    if (!allAnswered) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        communication: scores.communication!,
+        reliability: scores.reliability!,
+        property_respect: scores.property_respect!,
+        expectation_management: scores.expectation_management!,
+        costs_communicated_clearly: costsClear,
+        free_text: freeText.trim() || null,
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Rate your experience</CardTitle>
+        <CardDescription className="font-serif">
+          Four quick questions about how it felt working with this contractor — not about the quality of the work itself.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {DIMENSION_LABELS.map((d) => (
+          <div key={d.key}>
+            <p className="text-sm font-medium">{d.label}</p>
+            <p className="text-xs text-muted-foreground font-serif mb-2">{d.help}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {SCALE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setScores((prev) => ({ ...prev, [d.key]: opt.value }))}
+                  className={`rounded-lg border px-2 py-2.5 text-xs font-medium text-center transition-colors ${
+                    scores[d.key] === opt.value
+                      ? "border-transparent text-white"
+                      : "border-input bg-background hover:bg-muted"
+                  }`}
+                  style={scores[d.key] === opt.value ? { backgroundColor: "#f07820" } : undefined}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div>
+          <p className="text-sm font-medium">Were all costs communicated clearly before work began?</p>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setCostsClear(true)}
+              className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${costsClear === true ? "border-transparent text-white" : "border-input bg-background hover:bg-muted"}`}
+              style={costsClear === true ? { backgroundColor: "#f07820" } : undefined}
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              onClick={() => setCostsClear(false)}
+              className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${costsClear === false ? "border-transparent text-white" : "border-input bg-background hover:bg-muted"}`}
+              style={costsClear === false ? { backgroundColor: "#f07820" } : undefined}
+            >
+              No
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-2">Anything else to add? (optional)</p>
+          <Textarea value={freeText} onChange={(e) => setFreeText(e.target.value)} rows={3} placeholder="Optional comments..." />
+        </div>
+
+        <Button onClick={handleSubmit} disabled={!allAnswered || submitting} className="w-full text-white" style={{ backgroundColor: "#1a2744" }}>
+          {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Submit review
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

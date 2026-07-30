@@ -1357,6 +1357,126 @@ export type Database = {
           },
         ]
       }
+      craft_signals: {
+        Row: {
+          contractor_id: string
+          decay_anchor: string
+          id: string
+          job_complexity: number | null
+          job_id: string
+          raw_data: Json | null
+          recorded_at: string
+          signal_type: string
+          signal_value: number
+        }
+        Insert: {
+          contractor_id: string
+          decay_anchor?: string
+          id?: string
+          job_complexity?: number | null
+          job_id: string
+          raw_data?: Json | null
+          recorded_at?: string
+          signal_type: string
+          signal_value: number
+        }
+        Update: {
+          contractor_id?: string
+          decay_anchor?: string
+          id?: string
+          job_complexity?: number | null
+          job_id?: string
+          raw_data?: Json | null
+          recorded_at?: string
+          signal_type?: string
+          signal_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "craft_signals_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_signals_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_signals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      craft_timer_windows: {
+        Row: {
+          callback_id: string | null
+          contractor_id: string
+          evaluated_at: string | null
+          id: string
+          job_id: string
+          outcome: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          callback_id?: string | null
+          contractor_id: string
+          evaluated_at?: string | null
+          id?: string
+          job_id: string
+          outcome?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          callback_id?: string | null
+          contractor_id?: string
+          evaluated_at?: string | null
+          id?: string
+          job_id?: string
+          outcome?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "craft_timer_windows_callback_id_fkey"
+            columns: ["callback_id"]
+            isOneToOne: false
+            referencedRelation: "job_callbacks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_timer_windows_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_timer_windows_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_timer_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_activities: {
         Row: {
           activity_date: string
@@ -2641,6 +2761,97 @@ export type Database = {
           },
         ]
       }
+      job_callbacks: {
+        Row: {
+          additional_charge: boolean | null
+          callback_job_id: string | null
+          classified_at: string | null
+          classified_by: string | null
+          contractor_id: string
+          fault_classification: string
+          id: string
+          notes: string | null
+          original_job_id: string
+          raised_at: string
+          raised_by: string
+          resolved: boolean
+          resolved_at: string | null
+        }
+        Insert: {
+          additional_charge?: boolean | null
+          callback_job_id?: string | null
+          classified_at?: string | null
+          classified_by?: string | null
+          contractor_id: string
+          fault_classification?: string
+          id?: string
+          notes?: string | null
+          original_job_id: string
+          raised_at?: string
+          raised_by: string
+          resolved?: boolean
+          resolved_at?: string | null
+        }
+        Update: {
+          additional_charge?: boolean | null
+          callback_job_id?: string | null
+          classified_at?: string | null
+          classified_by?: string | null
+          contractor_id?: string
+          fault_classification?: string
+          id?: string
+          notes?: string | null
+          original_job_id?: string
+          raised_at?: string
+          raised_by?: string
+          resolved?: boolean
+          resolved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_callbacks_callback_job_id_fkey"
+            columns: ["callback_job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_original_job_id_fkey"
+            columns: ["original_job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_checklist_items: {
         Row: {
           checked_at: string | null
@@ -2982,6 +3193,7 @@ export type Database = {
           photo_approval_requested_at: string | null
           photo_approval_responded_at: string | null
           photo_approval_status: string
+          photo_stage: string | null
           photo_url: string | null
           portfolio: boolean
           stage_id: string | null
@@ -3003,6 +3215,7 @@ export type Database = {
           photo_approval_requested_at?: string | null
           photo_approval_responded_at?: string | null
           photo_approval_status?: string
+          photo_stage?: string | null
           photo_url?: string | null
           portfolio?: boolean
           stage_id?: string | null
@@ -3024,6 +3237,7 @@ export type Database = {
           photo_approval_requested_at?: string | null
           photo_approval_responded_at?: string | null
           photo_approval_status?: string
+          photo_stage?: string | null
           photo_url?: string | null
           portfolio?: boolean
           stage_id?: string | null
@@ -4009,6 +4223,62 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peer_endorsements: {
+        Row: {
+          created_at: string
+          endorsed_id: string
+          endorsement_text: string | null
+          endorser_craft_score_at_time: number | null
+          endorser_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          endorsed_id: string
+          endorsement_text?: string | null
+          endorser_craft_score_at_time?: number | null
+          endorser_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          endorsed_id?: string
+          endorsement_text?: string | null
+          endorser_craft_score_at_time?: number | null
+          endorser_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peer_endorsements_endorsed_id_fkey"
+            columns: ["endorsed_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_endorsements_endorsed_id_fkey"
+            columns: ["endorsed_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_endorsements_endorser_id_fkey"
+            columns: ["endorser_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_endorsements_endorser_id_fkey"
+            columns: ["endorser_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -5551,6 +5821,90 @@ export type Database = {
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "service_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_reviews: {
+        Row: {
+          communication: number
+          contractor_id: string
+          costs_communicated_clearly: boolean | null
+          created_at: string
+          expectation_management: number
+          free_text: string | null
+          id: string
+          job_id: string
+          property_respect: number
+          reliability: number
+          reviewer_id: string
+          suppressed: boolean
+          suppressed_reason: string | null
+        }
+        Insert: {
+          communication: number
+          contractor_id: string
+          costs_communicated_clearly?: boolean | null
+          created_at?: string
+          expectation_management: number
+          free_text?: string | null
+          id?: string
+          job_id: string
+          property_respect: number
+          reliability: number
+          reviewer_id: string
+          suppressed?: boolean
+          suppressed_reason?: string | null
+        }
+        Update: {
+          communication?: number
+          contractor_id?: string
+          costs_communicated_clearly?: boolean | null
+          created_at?: string
+          expectation_management?: number
+          free_text?: string | null
+          id?: string
+          job_id?: string
+          property_respect?: number
+          reliability?: number
+          reviewer_id?: string
+          suppressed?: boolean
+          suppressed_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_reviews_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]

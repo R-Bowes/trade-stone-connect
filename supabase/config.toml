@@ -30,3 +30,7 @@ verify_jwt = false
 [functions.insurance-expiry-check]
 # Internal/service-to-service — cron-invoked only, not by end users
 verify_jwt = false
+
+[functions.evaluate-craft-timers]
+# Internal/service-to-service — cron-invoked only, not by end users
+verify_jwt = false

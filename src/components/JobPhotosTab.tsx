@@ -38,12 +38,21 @@ interface JobPhotosTabProps {
 type ApprovalStatus = "not_requested" | "pending" | "approved" | "declined";
 type Visibility = "internal" | "customer";
 type FileType = "image" | "pdf";
+type PhotoStage = "before" | "during" | "after" | "completion";
+
+const PHOTO_STAGES: { value: PhotoStage; label: string }[] = [
+  { value: "before", label: "Before" },
+  { value: "during", label: "During" },
+  { value: "after", label: "After" },
+  { value: "completion", label: "Completion" },
+];
 
 interface JobPhoto {
   id: string;
   job_id: string;
   enquiry_id: string | null;
   stage_id: string | null;
+  photo_stage: PhotoStage | null;
   uploaded_by: string;
   uploaded_by_role: "contractor" | "customer";
   storage_path: string;
@@ -136,6 +145,7 @@ export default function JobPhotosTab({
   const [dragging, setDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState("");
+  const [photoStage, setPhotoStage] = useState<PhotoStage | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<Visibility>("internal");
@@ -246,6 +256,7 @@ export default function JobPhotosTab({
   const resetUploadForm = () => {
     setSelectedFiles([]);
     setCaption("");
+    setPhotoStage(null);
     setTags([]);
     setTagInput("");
     setVisibility("internal");
@@ -278,6 +289,7 @@ export default function JobPhotosTab({
       uploaded_by_role: "contractor",
       storage_path: path,
       caption: caption.trim() || null,
+      photo_stage: photoStage,
       tags,
       visibility,
       file_type: fileType,
@@ -541,6 +553,11 @@ export default function JobPhotosTab({
                       Portfolio
                     </span>
                   )}
+                  {photo.photo_stage && (
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded capitalize bg-black/60 text-white">
+                      {photo.photo_stage}
+                    </span>
+                  )}
                 </div>
 
                 {/* Card body */}
@@ -736,6 +753,25 @@ export default function JobPhotosTab({
                   e.target.value = "";
                 }}
               />
+            </div>
+
+            {/* Stage — feeds the Craft score's photo documentation signal */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Stage</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PHOTO_STAGES.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => setPhotoStage((cur) => (cur === s.value ? null : s.value))}
+                    className={`rounded-md border px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
+                      photoStage === s.value ? "border-transparent bg-primary text-primary-foreground" : "border-input bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Caption */}

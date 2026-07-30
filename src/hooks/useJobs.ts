@@ -16,6 +16,7 @@ export interface Job {
   start_date: string | null;
   end_date: string | null;
   actual_end: string | null;
+  completed_at: string | null;
   contract_value: number;
   portfolio_approved: boolean;
   signed_off_by: string | null;
@@ -344,4 +345,86 @@ export function useJobReview(jobId: string | null) {
   };
 
   return { review, loading, submitReview };
+}
+
+export interface ServiceReviewInput {
+  communication: 1 | 2 | 3;
+  reliability: 1 | 2 | 3;
+  property_respect: 1 | 2 | 3;
+  expectation_management: 1 | 2 | 3;
+  costs_communicated_clearly: boolean | null;
+  free_text: string | null;
+}
+
+export interface ServiceReview extends ServiceReviewInput {
+  id: string;
+  job_id: string;
+  contractor_id: string;
+  reviewer_id: string;
+  created_at: string;
+}
+
+// service_reviews is a private, structured signal source for the future
+// Craft/Service scoring engine — distinct from job_reviews (the public
+// single-star rating above). Both exist on the same completed job.
+export function useServiceReview(jobId: string | null) {
+  const [serviceReview, setServiceReview] = useState<ServiceReview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const loadServiceReview = async () => {
+    if (!jobId) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("service_reviews")
+      .select("*")
+      .eq("job_id", jobId)
+      .maybeSingle();
+    setServiceReview(data as ServiceReview | null);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadServiceReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
+  const submitServiceReview = async (input: ServiceReviewInput) => {
+    if (!jobId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!profileRow) return;
+
+    const { data: job } = await supabase
+      .from("jobs")
+      .select("contractor_id")
+      .eq("id", jobId)
+      .single();
+    if (!job) return;
+
+    const { data, error } = await supabase
+      .from("service_reviews")
+      .insert({
+        job_id: jobId,
+        reviewer_id: profileRow.id,
+        contractor_id: (job as any).contractor_id,
+        ...input,
+      })
+      .select()
+      .single();
+    if (error) {
+      toast({ title: "Error", description: "Failed to submit review", variant: "destructive" });
+    } else {
+      setServiceReview(data as ServiceReview);
+      toast({ title: "Review submitted", description: "Thank you for your feedback." });
+    }
+  };
+
+  return { serviceReview, loading, submitServiceReview };
 }

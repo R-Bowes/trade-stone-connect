@@ -7,6 +7,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAvailability } from "@/hooks/useAvailability";
 import { HeroBlock, type AvailabilityInfo } from "@/components/profile/ProfileWidgets";
 import { isToday, isTomorrow, format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -96,6 +107,14 @@ interface VerifiedRegisterCheck {
   id: string;
   register_name: string;
   registration_number: string | null;
+}
+
+interface Endorsement {
+  id: string;
+  endorser_id: string;
+  endorsement_text: string | null;
+  created_at: string;
+  endorser: { full_name: string | null; company_name: string | null } | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -410,6 +429,59 @@ function VerificationBadgeBlock({ tier, registerChecks, credentials }: {
   );
 }
 
+function EndorsementsBlock({ endorsements, canEndorse, alreadyEndorsed, onEndorse, onRetract }: {
+  endorsements: Endorsement[];
+  canEndorse: boolean;
+  alreadyEndorsed: boolean;
+  onEndorse: () => void;
+  onRetract: () => void;
+}) {
+  // Deliberately minimal (SCORING.md Step 7) — no display unless there's
+  // something to show or a verified peer contractor could act.
+  if (endorsements.length === 0 && !canEndorse) return null;
+
+  return (
+    <SectionCard heading="Peer endorsements">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: endorsements.length ? 14 : 0 }}>
+        <div style={{ fontSize: 13, color: "#888" }}>
+          {endorsements.length === 0
+            ? "No peer endorsements yet."
+            : `${endorsements.length} verified contractor${endorsements.length === 1 ? "" : "s"} ${endorsements.length === 1 ? "has" : "have"} endorsed this contractor`}
+        </div>
+        {canEndorse && (
+          alreadyEndorsed ? (
+            <button
+              onClick={onRetract}
+              style={{ background: "none", border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}
+            >
+              <i className="ti ti-circle-check" style={{ fontSize: 14, color: "#16a34a" }} /> Endorsed
+            </button>
+          ) : (
+            <button
+              onClick={onEndorse}
+              style={{ background: ORANGE, border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "white", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+            >
+              Endorse
+            </button>
+          )
+        )}
+      </div>
+      {endorsements.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {endorsements.filter(e => e.endorsement_text).map(e => (
+            <div key={e.id} style={{ fontSize: 13, color: "#555", fontStyle: "italic", borderLeft: "2px solid #eee", paddingLeft: 10 }}>
+              &ldquo;{e.endorsement_text}&rdquo;
+              <div style={{ fontSize: 11, color: "#aaa", fontStyle: "normal", marginTop: 2 }}>
+                &mdash; {e.endorser?.company_name || e.endorser?.full_name || "A verified contractor"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function AvailabilityBlock({ section, availability, profile }: { section: CanvasSection; availability: AvailabilityInfo; profile: PageProfile }) {
   return (
     <SectionCard heading={getSectionLabel(section)}>
@@ -515,6 +587,13 @@ const ContractorProfile = () => {
   const [verificationTier, setVerificationTier] = useState<number | null>(null);
   const [verifiedRegisterChecks, setVerifiedRegisterChecks] = useState<VerifiedRegisterCheck[]>([]);
   const [verifiedCredentials, setVerifiedCredentials] = useState<VerifiedCredential[]>([]);
+  const [endorsements, setEndorsements] = useState<Endorsement[]>([]);
+  const [viewerProfileId, setViewerProfileId] = useState<string | null>(null);
+  const [viewerCanEndorse, setViewerCanEndorse] = useState(false);
+  const [endorseDialogOpen, setEndorseDialogOpen] = useState(false);
+  const [endorseText, setEndorseText] = useState("");
+  const [endorseSubmitting, setEndorseSubmitting] = useState(false);
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -592,16 +671,29 @@ const ContractorProfile = () => {
       if (user && !owner) {
         const { data: viewerProfile } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, user_type")
           .eq("user_id", user.id)
           .maybeSingle();
         if (viewerProfile?.id) {
+          setViewerProfileId(viewerProfile.id);
           supabase
             .from("profile_view_events")
             .insert({ profile_id: assembled.id, viewer_id: viewerProfile.id, source: viewSource })
             .then(({ error }) => {
               if (error) console.error("Failed to log profile view:", error);
             });
+
+          // Endorsing requires the viewer themselves to be a verified (Tier
+          // 2+) contractor — checked via their own contractor_verification
+          // row, which their own RLS policy already lets them read.
+          if ((viewerProfile as { user_type?: string }).user_type === "contractor") {
+            supabase
+              .from("contractor_verification")
+              .select("current_tier")
+              .eq("contractor_id", viewerProfile.id)
+              .maybeSingle()
+              .then(({ data }) => setViewerCanEndorse((data?.current_tier ?? 1) >= 2));
+          }
         }
       }
 
@@ -676,6 +768,14 @@ const ContractorProfile = () => {
           .eq("contractor_id", profileId)
           .eq("verified", true)
           .then(({ data }) => setVerifiedCredentials((data ?? []) as VerifiedCredential[]))
+      );
+      fetches.push(
+        supabase
+          .from("peer_endorsements")
+          .select("id, endorser_id, endorsement_text, created_at, endorser:profiles!peer_endorsements_endorser_id_fkey(full_name, company_name)")
+          .eq("endorsed_id", profileId)
+          .order("created_at", { ascending: false })
+          .then(({ data }) => setEndorsements((data ?? []) as unknown as Endorsement[]))
       );
 
       if (needsGallery) {
@@ -786,6 +886,35 @@ const ContractorProfile = () => {
     setIsMessageOpen(true);
   };
 
+  const myEndorsement = endorsements.find((e) => e.endorser_id === viewerProfileId) ?? null;
+
+  const handleSubmitEndorsement = async () => {
+    if (!profile || !viewerProfileId) return;
+    setEndorseSubmitting(true);
+    try {
+      const { data, error } = await supabase
+        .from("peer_endorsements")
+        .insert({ endorser_id: viewerProfileId, endorsed_id: profile.id, endorsement_text: endorseText.trim() || null })
+        .select("id, endorser_id, endorsement_text, created_at, endorser:profiles!peer_endorsements_endorser_id_fkey(full_name, company_name)")
+        .single();
+      if (error) throw error;
+      setEndorsements((prev) => [data as unknown as Endorsement, ...prev]);
+      setEndorseDialogOpen(false);
+      setEndorseText("");
+      toast({ title: "Endorsement sent" });
+    } catch {
+      toast({ title: "Couldn't submit endorsement", variant: "destructive" });
+    } finally {
+      setEndorseSubmitting(false);
+    }
+  };
+
+  const handleRetractEndorsement = async () => {
+    if (!myEndorsement) return;
+    const { error } = await supabase.from("peer_endorsements").delete().eq("id", myEndorsement.id);
+    if (!error) setEndorsements((prev) => prev.filter((e) => e.id !== myEndorsement.id));
+  };
+
   const handlePublish = async () => {
     if (!profile) return;
     setPublishing(true);
@@ -884,6 +1013,14 @@ const ContractorProfile = () => {
           {/* Verification tier badge — always shown when Tier 2+, not a configurable widget */}
           <VerificationBadgeBlock tier={verificationTier} registerChecks={verifiedRegisterChecks} credentials={verifiedCredentials} />
 
+          <EndorsementsBlock
+            endorsements={endorsements}
+            canEndorse={viewerCanEndorse}
+            alreadyEndorsed={!!myEndorsement}
+            onEndorse={() => setEndorseDialogOpen(true)}
+            onRetract={handleRetractEndorsement}
+          />
+
           {/* Enabled sections in widget order */}
           {enabledSections.map(renderSection)}
 
@@ -931,6 +1068,27 @@ const ContractorProfile = () => {
           source={viewSource}
         />
       )}
+
+      <Dialog open={endorseDialogOpen} onOpenChange={setEndorseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Endorse {profile.full_name || "this contractor"}</DialogTitle>
+            <DialogDescription>What's your experience working with this contractor?</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={endorseText}
+            onChange={(e) => setEndorseText(e.target.value)}
+            placeholder="Optional — e.g. &quot;I've worked alongside them on three kitchens, solid electrical work.&quot;"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndorseDialogOpen(false)} disabled={endorseSubmitting}>Cancel</Button>
+            <Button onClick={handleSubmitEndorsement} disabled={endorseSubmitting}>
+              {endorseSubmitting ? "Submitting..." : "Submit endorsement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
