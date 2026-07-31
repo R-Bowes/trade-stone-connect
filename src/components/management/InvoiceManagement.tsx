@@ -211,7 +211,9 @@ export function InvoiceManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.map(inv => (
+                {filteredInvoices.map(inv => {
+                  const isPaid = inv.status === "paid" || inv.recipient_response === "paid";
+                  return (
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium font-mono">{formatInvoiceRef(inv.invoice_number)}</TableCell>
                     <TableCell>
@@ -260,31 +262,36 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
 }} title="Download PDF">
                           <Download className="h-4 w-4" />
                         </Button>
-                        {inv.status === "draft" && (
+                        {!isPaid && inv.status === "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
                             <Send className="h-4 w-4" />
                           </Button>
                         )}
-                        {inv.status !== "paid" && (
+                        {!isPaid && (
                           <Button variant="ghost" size="sm" onClick={() => markAsPaid(inv.id)} title="Mark as Paid">
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           </Button>
                         )}
-                        {inv.status !== "paid" && inv.status !== "draft" && (
+                        {!isPaid && inv.status !== "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => setRecordPaymentInvoice(inv)} title="Record Payment">
                             <Banknote className="h-4 w-4 text-blue-600" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv.id)} title="Delete">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {!isPaid && (
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!isPaid && (
+                          <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv.id)} title="Delete">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
