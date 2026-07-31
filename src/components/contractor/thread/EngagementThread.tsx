@@ -182,6 +182,17 @@ export function EngagementThread({
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-0" side="right">
+        <div className="sticky top-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full flex items-center gap-2 px-4 text-white"
+            style={{ background: "#1a2744", height: 48 }}
+          >
+            <i className="ti ti-arrow-left" style={{ fontSize: 18 }} />
+            <span className="text-sm font-medium">Pipeline</span>
+          </button>
+        </div>
         {!engagement || loading || !detail ? (
           <div className="flex items-center justify-center h-full py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

@@ -218,7 +218,18 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="sm:max-w-[640px] w-full overflow-y-auto p-0">
-          <div className="sticky top-0 z-10 bg-background border-b p-6">
+          <div className="sticky top-0 z-20">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="w-full flex items-center gap-2 px-4 text-white"
+              style={{ background: "#1a2744", height: 48 }}
+            >
+              <i className="ti ti-arrow-left" style={{ fontSize: 18 }} />
+              <span className="text-sm font-medium">Enquiries</span>
+            </button>
+          </div>
+          <div className="sticky top-12 z-10 bg-background border-b p-6">
             <SheetHeader className="text-left space-y-1">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">

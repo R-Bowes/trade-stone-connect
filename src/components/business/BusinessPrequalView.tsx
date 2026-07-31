@@ -419,7 +419,19 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
       )}
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0">
+          <div className="sticky top-0 z-20">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="w-full flex items-center gap-2 px-4 text-white"
+              style={{ background: "#1a2744", height: 48 }}
+            >
+              <i className="ti ti-arrow-left" style={{ fontSize: 18 }} />
+              <span className="text-sm font-medium">Panel Compliance</span>
+            </button>
+          </div>
+          <div className="p-6">
           {activeContractor && (
             <>
               <SheetHeader>
@@ -547,6 +559,7 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
               </SheetFooter>
             </>
           )}
+          </div>
         </SheetContent>
       </Sheet>
     </div>
