@@ -397,6 +397,7 @@ const ContractorDashboard = () => {
       icon: Wrench,
       trend: "up",
       onClick: () => setActiveTab("service-visits"),
+      mobileHidden: true,
     },
     {
       title: "Panels",
@@ -405,6 +406,7 @@ const ContractorDashboard = () => {
       icon: UserCheck,
       trend: "up",
       onClick: () => setActiveTab("panel-invites"),
+      mobileHidden: true,
     },
   ];
 
@@ -443,15 +445,84 @@ const ContractorDashboard = () => {
         >
 
           {/* Dashboard Tab */}
-          <TabsContent value="dashboard" className="space-y-8">
+          <TabsContent value="dashboard" className="flex flex-col gap-8">
             {profileId && <PanelInvites profileId={profileId} />}
 
             {!stripeAccountId && <StripeConnect />}
 
-            {/* Stats grid — 3 cols on md, 6 on lg */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Needs you / Waiting on others — first on mobile, second on desktop */}
+            <div className="order-1 md:order-2 flex flex-col gap-8">
+              {filterStage && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Filtering pipeline to <span className="font-medium capitalize">{filterStage}</span> engagements</span>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setFilterStage(null)}>Clear filter</Button>
+                </div>
+              )}
+
+              {pipelineLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+              ) : pipelineError ? (
+                <ErrorState message={pipelineError} onRetry={() => refetchPipeline()} />
+              ) : (
+                <div className="space-y-8">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Needs you</h3>
+                    {needsYouEngagements.length === 0 ? (
+                      <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
+                        <CheckCircle2 className="h-8 w-8 text-green-500" />
+                        <p className="text-sm text-muted-foreground">You're all caught up</p>
+                      </CardContent></Card>
+                    ) : (
+                      <div className="space-y-3">
+                        {needsYouEngagements.map((e) => (
+                          <PipelineCard
+                            key={e.key}
+                            engagement={e}
+                            contractorId={profileId!}
+                            onOpenThread={setOpenEngagement}
+                            onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
+                            onRefetch={refetchPipeline}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Waiting on others</h3>
+                    {waitingEngagements.length === 0 ? (
+                      <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
+                        <Inbox className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Nothing waiting on others.</p>
+                      </CardContent></Card>
+                    ) : (
+                      <div className="space-y-3">
+                        {waitingEngagements.map((e) => (
+                          <PipelineCard
+                            key={e.key}
+                            engagement={e}
+                            contractorId={profileId!}
+                            onOpenThread={setOpenEngagement}
+                            onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
+                            onRefetch={refetchPipeline}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Stat cards — second on mobile, first on desktop. Service Visits
+                and Panels stay desktop-only (not core flow on mobile). */}
+            <div className="order-2 md:order-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {dashboardStats.map((stat, index) => (
-                <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow" onClick={stat.onClick}>
+                <Card
+                  key={index}
+                  className={`cursor-pointer hover:shadow-md transition-shadow ${stat.mobileHidden ? "hidden md:block" : ""}`}
+                  onClick={stat.onClick}
+                >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
                     <CardTitle className="text-xs font-medium text-muted-foreground">{stat.title}</CardTitle>
                     <stat.icon className={`h-4 w-4 ${stat.trend === 'danger' ? 'text-red-500' : stat.trend === 'warning' ? 'text-yellow-500' : 'text-muted-foreground'}`} />
@@ -463,67 +534,6 @@ const ContractorDashboard = () => {
                 </Card>
               ))}
             </div>
-
-            {filterStage && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Filtering pipeline to <span className="font-medium capitalize">{filterStage}</span> engagements</span>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setFilterStage(null)}>Clear filter</Button>
-              </div>
-            )}
-
-            {pipelineLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : pipelineError ? (
-              <ErrorState message={pipelineError} onRetry={() => refetchPipeline()} />
-            ) : (
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Needs you</h3>
-                  {needsYouEngagements.length === 0 ? (
-                    <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
-                      <CheckCircle2 className="h-8 w-8 text-green-500" />
-                      <p className="text-sm text-muted-foreground">Nothing needs you right now.</p>
-                    </CardContent></Card>
-                  ) : (
-                    <div className="space-y-3">
-                      {needsYouEngagements.map((e) => (
-                        <PipelineCard
-                          key={e.key}
-                          engagement={e}
-                          contractorId={profileId!}
-                          onOpenThread={setOpenEngagement}
-                          onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
-                          onRefetch={refetchPipeline}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Waiting on others</h3>
-                  {waitingEngagements.length === 0 ? (
-                    <Card><CardContent className="p-8 text-center flex flex-col items-center gap-2">
-                      <Inbox className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Nothing waiting on others.</p>
-                    </CardContent></Card>
-                  ) : (
-                    <div className="space-y-3">
-                      {waitingEngagements.map((e) => (
-                        <PipelineCard
-                          key={e.key}
-                          engagement={e}
-                          contractorId={profileId!}
-                          onOpenThread={setOpenEngagement}
-                          onOpenEnquiry={(engagement, dialog) => engagement.enquiryRef && openEnquiryDialog(engagement.enquiryRef, dialog)}
-                          onRefetch={refetchPipeline}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </TabsContent>
 
           {/* Panel Invites Tab */}

@@ -102,7 +102,26 @@ export function PipelineCard({
       className={`cursor-pointer hover:shadow-md transition-shadow ${e.band === "needs_you" ? "border-amber-200" : ""}`}
       onClick={() => onOpenThread(e)}
     >
-      <CardContent className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      {/* Mobile — compact: client name + status pill, title, single primary action */}
+      <CardContent className="p-4 md:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium truncate">{e.clientName}</span>
+          <Badge className={`text-xs shrink-0 ${TONE_BADGE_CLASS[e.tone]}`}>{TONE_CHIP_LABEL[e.tone]}</Badge>
+        </div>
+        {e.title && <p className="text-sm text-muted-foreground truncate mt-0.5">{e.title}</p>}
+        <div className="mt-3 [&>button]:w-full">
+          {e.stage === "enquiry" ? (
+            <Button size="sm" style={PRIMARY_STYLE} onClick={stop(() => onOpenEnquiry(e, "quote"))}>
+              Send quote
+            </Button>
+          ) : (
+            primaryAction()
+          )}
+        </div>
+      </CardContent>
+
+      {/* Desktop — full detail */}
+      <CardContent className="hidden md:flex md:items-center md:justify-between gap-3 p-4">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium truncate">{e.clientName}</span>
