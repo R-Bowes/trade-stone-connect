@@ -558,11 +558,11 @@ const ContractorDashboard = () => {
               <h2 className="font-heading text-2xl font-bold">Enquiries</h2>
               <Button variant="outline"><Filter className="h-4 w-4 mr-2" />Filter</Button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-blue-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p><p className="text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-yellow-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p><p className="text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /><div><p className="text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p><p className="text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-purple-500" /><div><p className="text-2xl font-bold">{enquiries.length}</p><p className="text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
+            <div className="grid grid-cols-4 gap-2 md:gap-4 mb-6">
+              <Card><CardContent className="p-2 md:p-4"><div className="flex items-center gap-1.5 md:gap-2"><MessageCircle className="h-4 w-4 text-blue-500 hidden md:block" /><div><p className="text-lg md:text-2xl font-bold">{enquiries.filter(e => e.status === 'new').length}</p><p className="text-[10px] md:text-sm text-muted-foreground">New</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-2 md:p-4"><div className="flex items-center gap-1.5 md:gap-2"><Eye className="h-4 w-4 text-yellow-500 hidden md:block" /><div><p className="text-lg md:text-2xl font-bold">{enquiries.filter(e => e.status === 'replied').length}</p><p className="text-[10px] md:text-sm text-muted-foreground">Replied</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-2 md:p-4"><div className="flex items-center gap-1.5 md:gap-2"><Send className="h-4 w-4 text-green-500 hidden md:block" /><div><p className="text-lg md:text-2xl font-bold">{enquiries.filter(e => e.status === 'converted').length}</p><p className="text-[10px] md:text-sm text-muted-foreground">Converted</p></div></div></CardContent></Card>
+              <Card><CardContent className="p-2 md:p-4"><div className="flex items-center gap-1.5 md:gap-2"><Star className="h-4 w-4 text-purple-500 hidden md:block" /><div><p className="text-lg md:text-2xl font-bold">{enquiries.length}</p><p className="text-[10px] md:text-sm text-muted-foreground">Total</p></div></div></CardContent></Card>
             </div>
             {enquiries.length === 0 ? (
               <Card><CardContent className="p-8 text-center">
@@ -578,8 +578,24 @@ const ContractorDashboard = () => {
                     className="hover:shadow-lg hover:border-primary/40 transition-all cursor-pointer"
                     onClick={() => { setDetailEnquiry(enquiry as EnquiryDetail); setDetailSheetOpen(true); }}
                   >
-                    <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                    <CardContent className="p-4 md:p-6">
+                      {/* Mobile — compact tappable row, no action buttons */}
+                      <div className="flex items-center justify-between gap-3 md:hidden">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold truncate">{enquiry.title}</h3>
+                            <Badge className={`${getStatusColor(enquiry.status || 'new')} shrink-0`}>{enquiry.status}</Badge>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-1 text-xs text-muted-foreground">
+                            <span className="truncate">{enquiry.location || "—"}</span>
+                            <span className="shrink-0">{new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
+                          </div>
+                        </div>
+                        <i className="ti ti-chevron-right text-muted-foreground shrink-0" style={{ fontSize: 18 }} />
+                      </div>
+
+                      {/* Desktop — full layout with inline actions */}
+                      <div className="hidden md:flex md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="text-lg font-semibold">{enquiry.title}</h3>
@@ -609,7 +625,7 @@ const ContractorDashboard = () => {
                             )}
                           </div>
                         </div>
-                        <i className="ti ti-chevron-right text-muted-foreground shrink-0 hidden md:block" style={{ fontSize: 18 }} />
+                        <i className="ti ti-chevron-right text-muted-foreground shrink-0" style={{ fontSize: 18 }} />
                       </div>
                     </CardContent>
                   </Card>
