@@ -33,12 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "enquiries", label: "Enquiries", icon: "ti-message-question" },
       { value: "issued-quotes", label: "Issued quotes", icon: "ti-file-text" },
       { value: "jobs", label: "Jobs", icon: "ti-briefcase" },
-      { value: "tenders", label: "Tenders", icon: "ti-gavel" },
       { value: "messages", label: "Messages", icon: "ti-message" },
-      { value: "projects", label: "Projects", icon: "ti-folder" },
-      { value: "contracts", label: "Contracts", icon: "ti-writing" },
-      { value: "panel-invites", label: "Panel invites", icon: "ti-building" },
-      { value: "panel-compliance", label: "Panel compliance", icon: "ti-clipboard-check" },
     ],
   },
   {
