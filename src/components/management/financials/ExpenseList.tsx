@@ -1,16 +1,26 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash2, ExternalLink, Wallet, Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, Plus, Edit, Trash2, ExternalLink, Wallet, Loader2, Repeat, Link2, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { ExpenseFormDialog } from "@/components/management/financials/ExpenseFormDialog";
 import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
+
+const INTERVAL_LABEL: Record<string, string> = {
+  weekly: "weekly",
+  fortnightly: "fortnightly",
+  monthly: "monthly",
+  quarterly: "quarterly",
+  annually: "annually",
+};
 
 const CATEGORY_COLOR_FALLBACK: Record<string, string> = {
   "Materials & Stock": "bg-blue-100 text-blue-800",
@@ -28,8 +38,9 @@ function getCategoryColor(category: string): string {
 
 export function ExpenseList() {
   const {
-    expenses, loading, addExpense, updateExpense, deleteExpense,
+    expenses, pendingExpenses, loading, addExpense, updateExpense, deleteExpense,
     uploadReceipt, getSignedReceiptUrl, totalExpenses,
+    confirmPendingExpense, skipPendingExpense, refetch,
   } = useExpenses();
   const { categories: expenseCategoryTree, getCategoryName } = useExpenseCategories();
 
@@ -37,6 +48,29 @@ export function ExpenseList() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [showSkipped, setShowSkipped] = useState(false);
+  const [hasSkippedExpenses, setHasSkippedExpenses] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profileRow } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      if (!profileRow) return;
+      const { count } = await supabase
+        .from("expenses")
+        .select("id", { count: "exact", head: true })
+        .eq("contractor_id", profileRow.id)
+        .eq("expense_status", "skipped");
+      setHasSkippedExpenses((count ?? 0) > 0);
+    })();
+  }, []);
+
+  const toggleShowSkipped = () => {
+    const next = !showSkipped;
+    setShowSkipped(next);
+    refetch(next ? ["confirmed", "skipped"] : ["confirmed"]);
+  };
 
   const categoryFilterOptions = useMemo(() => {
     const names: string[] = [];
@@ -123,6 +157,37 @@ export function ExpenseList() {
         </div>
       </div>
 
+      {pendingExpenses.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="p-4 space-y-3">
+            <p className="font-medium text-amber-900">
+              {pendingExpenses.length} expense{pendingExpenses.length === 1 ? "" : "s"} need{pendingExpenses.length === 1 ? "s" : ""} your confirmation
+            </p>
+            <div className="space-y-2">
+              {pendingExpenses.map((e) => (
+                <div key={e.id} className="flex items-center justify-between gap-3 rounded-md bg-white border border-amber-200 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{e.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(e.expense_date), "d MMM yyyy")} · £{Number(e.amount).toFixed(2)}
+                      {e.parent_description && <> · Recurring from: {e.parent_description}</>}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => confirmPendingExpense(e.id)}>
+                      <Check className="h-4 w-4 mr-1" />Confirm
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => skipPendingExpense(e.id)}>
+                      <X className="h-4 w-4 mr-1" />Skip
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -142,6 +207,11 @@ export function ExpenseList() {
             ))}
           </SelectContent>
         </Select>
+        {hasSkippedExpenses && (
+          <Button variant="outline" size="sm" onClick={toggleShowSkipped}>
+            {showSkipped ? "Hide skipped" : "Show skipped"}
+          </Button>
+        )}
       </div>
 
       {filteredExpenses.length === 0 ? (
@@ -177,8 +247,32 @@ export function ExpenseList() {
                     <TableCell className="whitespace-nowrap">{format(new Date(expense.expense_date), "dd MMM yyyy")}</TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{expense.description}</p>
-                        {expense.is_recurring && <Badge variant="outline" className="text-xs mt-1">Recurring</Badge>}
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium">{expense.description}</p>
+                          {expense.is_recurring && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Repeat className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Recurring {INTERVAL_LABEL[expense.recurrence_interval ?? ""] ?? expense.recurrence_interval}
+                                {expense.recurrence_next_due && <> — next: {format(new Date(expense.recurrence_next_due), "d MMM yyyy")}</>}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {expense.recurrence_parent_id && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Link2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent>Auto-created from recurring expense</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          {expense.is_recurring && <Badge variant="outline" className="text-xs">Recurring</Badge>}
+                          {expense.expense_status === "skipped" && <Badge variant="outline" className="text-xs text-muted-foreground">Skipped</Badge>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>

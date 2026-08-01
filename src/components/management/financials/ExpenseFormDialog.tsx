@@ -7,9 +7,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
-import { type Expense } from "@/hooks/useExpenses";
+import { format } from "date-fns";
+import { type Expense, type RecurrenceInterval } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { supabase } from "@/integrations/supabase/client";
+
+const RECURRENCE_INTERVALS: { value: RecurrenceInterval; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "fortnightly", label: "Fortnightly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annually", label: "Annually" },
+];
+
+// Mirrors supabase/functions/process-recurring-expenses/index.ts's addInterval —
+// duplicated rather than shared because the edge function runs on Deno and
+// can't import from src/lib (same pattern as documentRefs.ts, see CLAUDE.md).
+function addInterval(dateStr: string, interval: RecurrenceInterval): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  switch (interval) {
+    case "weekly": d.setUTCDate(d.getUTCDate() + 7); break;
+    case "fortnightly": d.setUTCDate(d.getUTCDate() + 14); break;
+    case "monthly": d.setUTCMonth(d.getUTCMonth() + 1); break;
+    case "quarterly": d.setUTCMonth(d.getUTCMonth() + 3); break;
+    case "annually": d.setUTCFullYear(d.getUTCFullYear() + 1); break;
+  }
+  return d.toISOString().slice(0, 10);
+}
 
 const VAT_RATES = [
   { value: "20", label: "20% (Standard)" },
@@ -42,6 +66,12 @@ export type ExpenseFormData = {
   vendor: string | null;
   notes: string | null;
   is_recurring: boolean;
+  recurrence_interval: RecurrenceInterval | null;
+  recurrence_next_due: string | null;
+  recurrence_end_date: string | null;
+  recurrence_parent_id: null;
+  recurrence_auto_confirm: boolean;
+  expense_status: "confirmed";
   receipt_url: string | null;
 };
 
@@ -64,6 +94,9 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
   const [vendor, setVendor] = useState("");
   const [notes, setNotes] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState<RecurrenceInterval>("monthly");
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
+  const [recurrenceAutoConfirm, setRecurrenceAutoConfirm] = useState(true);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -151,6 +184,9 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVendor(expense.vendor || "");
       setNotes(expense.notes || "");
       setIsRecurring(expense.is_recurring);
+      setRecurrenceInterval(expense.recurrence_interval ?? "monthly");
+      setRecurrenceEndDate(expense.recurrence_end_date ?? "");
+      setRecurrenceAutoConfirm(expense.recurrence_auto_confirm ?? true);
       setReceiptUrl(expense.receipt_url);
       setVatRateChoice(
         expense.vat_rate === null || expense.vat_rate === undefined
@@ -173,6 +209,9 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
       setVendor("");
       setNotes("");
       setIsRecurring(false);
+      setRecurrenceInterval("monthly");
+      setRecurrenceEndDate("");
+      setRecurrenceAutoConfirm(true);
       setReceiptUrl(null);
       setVatRateChoice("no_vat");
       setVatAmount("0");
@@ -260,6 +299,12 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
         vendor: vendor || null,
         notes: notes || null,
         is_recurring: isRecurring,
+        recurrence_interval: isRecurring ? recurrenceInterval : null,
+        recurrence_next_due: isRecurring ? addInterval(expenseDate, recurrenceInterval) : null,
+        recurrence_end_date: isRecurring && recurrenceEndDate ? recurrenceEndDate : null,
+        recurrence_parent_id: null,
+        recurrence_auto_confirm: isRecurring ? recurrenceAutoConfirm : true,
+        expense_status: "confirmed",
         receipt_url: receiptUrl,
       });
       onClose();
@@ -423,9 +468,56 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label>Recurring expense</Label>
-            <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="flex items-center justify-between">
+              <Label>Recurring expense</Label>
+              <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+            </div>
+
+            {isRecurring && (
+              <div className="space-y-3 pt-1">
+                <div className="space-y-2">
+                  <Label>Frequency</Label>
+                  <Select value={recurrenceInterval} onValueChange={(v) => setRecurrenceInterval(v as RecurrenceInterval)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {RECURRENCE_INTERVALS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Repeat until (optional)</Label>
+                  <Input
+                    type="date"
+                    value={recurrenceEndDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    placeholder="Leave empty for indefinite"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Auto-confirm</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {recurrenceAutoConfirm
+                        ? "Automatically add each occurrence"
+                        : "Notify me to confirm each time"}
+                    </p>
+                  </div>
+                  <Switch checked={recurrenceAutoConfirm} onCheckedChange={setRecurrenceAutoConfirm} />
+                </div>
+
+                {expenseDate && (
+                  <p className="text-xs text-muted-foreground">
+                    The next expense will be created automatically on{" "}
+                    {format(new Date(`${addInterval(expenseDate, recurrenceInterval)}T00:00:00`), "d MMM yyyy")}.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 justify-end">

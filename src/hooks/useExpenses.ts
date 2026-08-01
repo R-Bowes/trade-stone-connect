@@ -15,6 +15,9 @@ const normalizeReceiptPath = (receiptReference: string) => {
   return receiptReference;
 };
 
+export type RecurrenceInterval = "weekly" | "fortnightly" | "monthly" | "quarterly" | "annually";
+export type ExpenseStatus = "confirmed" | "pending_confirmation" | "skipped";
+
 export type Expense = {
   id: string;
   contractor_id: string;
@@ -33,18 +36,30 @@ export type Expense = {
   vendor: string | null;
   notes: string | null;
   is_recurring: boolean;
+  recurrence_interval: RecurrenceInterval | null;
+  recurrence_next_due: string | null;
+  recurrence_end_date: string | null;
+  recurrence_parent_id: string | null;
+  recurrence_auto_confirm: boolean;
+  expense_status: ExpenseStatus;
   created_at: string;
   updated_at: string;
 };
 
 export type ExpenseInsert = Omit<Expense, "id" | "created_at" | "updated_at">;
 
+export type PendingExpense = Expense & { parent_description: string | null };
+
 export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [pendingExpenses, setPendingExpenses] = useState<PendingExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchExpenses = useCallback(async () => {
+  // By default only 'confirmed' expenses are loaded into the main list —
+  // pending-confirmation and skipped rows are surfaced separately (the
+  // pending banner and the "Show skipped" toggle in ExpenseList).
+  const fetchExpenses = useCallback(async (statuses: ExpenseStatus[] = ["confirmed"]) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -58,6 +73,7 @@ export function useExpenses() {
       .from("expenses")
       .select("*")
       .eq("contractor_id", profileRow?.id)
+      .in("expense_status", statuses)
       .order("expense_date", { ascending: false });
 
     if (error) {
@@ -68,9 +84,71 @@ export function useExpenses() {
     setLoading(false);
   }, []);
 
+  const getPendingExpenses = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("*")
+      .eq("contractor_id", profileRow?.id)
+      .eq("expense_status", "pending_confirmation")
+      .order("expense_date", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching pending expenses:", error);
+      return;
+    }
+
+    const rows = (data as Expense[]) || [];
+    const parentIds = Array.from(new Set(rows.map((r) => r.recurrence_parent_id).filter((id): id is string => !!id)));
+    let parentDescById = new Map<string, string>();
+    if (parentIds.length > 0) {
+      const { data: parents } = await supabase
+        .from("expenses")
+        .select("id, description")
+        .in("id", parentIds);
+      parentDescById = new Map((parents ?? []).map((p) => [p.id, p.description]));
+    }
+
+    setPendingExpenses(
+      rows.map((r) => ({
+        ...r,
+        parent_description: r.recurrence_parent_id ? parentDescById.get(r.recurrence_parent_id) ?? null : null,
+      })),
+    );
+  }, []);
+
   useEffect(() => {
     fetchExpenses();
-  }, [fetchExpenses]);
+    getPendingExpenses();
+  }, [fetchExpenses, getPendingExpenses]);
+
+  const confirmPendingExpense = async (id: string) => {
+    const { error } = await supabase.from("expenses").update({ expense_status: "confirmed" }).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: "Failed to confirm expense", variant: "destructive" });
+      throw error;
+    }
+    toast({ title: "Expense confirmed" });
+    await Promise.all([fetchExpenses(), getPendingExpenses()]);
+  };
+
+  const skipPendingExpense = async (id: string) => {
+    const { error } = await supabase.from("expenses").update({ expense_status: "skipped" }).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: "Failed to skip expense", variant: "destructive" });
+      throw error;
+    }
+    toast({ title: "Expense skipped" });
+    await Promise.all([fetchExpenses(), getPendingExpenses()]);
+  };
 
   const resolveCategoryName = async (categoryId: string | null): Promise<string> => {
     if (!categoryId) return "General";
@@ -179,12 +257,16 @@ export function useExpenses() {
 
   return {
     expenses,
+    pendingExpenses,
     loading,
     addExpense,
     updateExpense,
     deleteExpense,
     uploadReceipt,
     getSignedReceiptUrl,
+    confirmPendingExpense,
+    skipPendingExpense,
+    getPendingExpenses,
     totalExpenses,
     expensesByCategory,
     refetch: fetchExpenses,
