@@ -160,6 +160,7 @@ const ContractorDirectory = () => {
                 jobsCompleted: contractor.completed_jobs ?? contractor.review_count ?? 0,
                 responseTimeHours: null,
                 verified: contractor.is_verified ?? false,
+                verificationTier: contractor.verification_tier ?? 1,
                 recentJobs: null,
                 isNew: !contractor.rating && !contractor.review_count,
               };

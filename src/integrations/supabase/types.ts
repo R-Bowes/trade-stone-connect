@@ -600,6 +600,7 @@ export type Database = {
           issuer: string | null
           name: string
           reference_number: string | null
+          rejection_reason: string | null
           updated_at: string | null
           verified: boolean | null
           verified_at: string | null
@@ -615,6 +616,7 @@ export type Database = {
           issuer?: string | null
           name: string
           reference_number?: string | null
+          rejection_reason?: string | null
           updated_at?: string | null
           verified?: boolean | null
           verified_at?: string | null
@@ -630,6 +632,7 @@ export type Database = {
           issuer?: string | null
           name?: string
           reference_number?: string | null
+          rejection_reason?: string | null
           updated_at?: string | null
           verified?: boolean | null
           verified_at?: string | null
@@ -8025,6 +8028,36 @@ export type Database = {
         }
         Relationships: []
       }
+      contractor_verification_public: {
+        Row: {
+          contractor_id: string | null
+          current_tier: number | null
+        }
+        Insert: {
+          contractor_id?: string | null
+          current_tier?: number | null
+        }
+        Update: {
+          contractor_id?: string | null
+          current_tier?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_pro_profiles: {
         Row: {
           avatar_url: string | null
@@ -8181,6 +8214,29 @@ export type Database = {
       accept_tender_agreement: {
         Args: { p_agreement_id: string }
         Returns: undefined
+      }
+      admin_update_verification: {
+        Args: {
+          p_companies_house_status?: string
+          p_contractor_id: string
+          p_dbs_expires_at?: string
+          p_dbs_verified?: boolean
+          p_identity_verified?: boolean
+          p_insurance_expires_at?: string
+          p_insurance_verified?: boolean
+          p_phone_verified?: boolean
+          p_suspended?: boolean
+          p_suspended_reason?: string
+        }
+        Returns: Json
+      }
+      admin_verify_credential: {
+        Args: {
+          p_approve: boolean
+          p_credential_id: string
+          p_rejection_reason?: string
+        }
+        Returns: Json
       }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       application_is_draft: {
@@ -8368,6 +8424,10 @@ export type Database = {
         Returns: string
       }
       recalculate_all_scores: { Args: never; Returns: undefined }
+      recalculate_contractor_tier: {
+        Args: { p_contractor_id: string }
+        Returns: number
+      }
       recency_decay_weight: { Args: { p_timestamp: string }; Returns: number }
       release_schedule_block: {
         Args: { p_event_id: string }

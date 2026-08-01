@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./ContractorCard.css";
 import { useAvailability } from "@/hooks/useAvailability";
+import { VerificationBadge } from "@/components/verification/VerificationBadge";
 
 export interface ContractorCardData {
   id: string;
@@ -16,6 +17,7 @@ export interface ContractorCardData {
   jobsCompleted: number;
   responseTimeHours: number | null;
   verified: boolean;
+  verificationTier: number;
   recentJobs: Array<{ rating: number; month: string }> | null;
   isNew: boolean;
 }
@@ -126,11 +128,10 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
           )}
         </div>
         <div style={styles.headerRight}>
-          {contractor.verified && (
-            <div style={styles.verifiedRow}>
-              <span style={styles.verifiedDot} />
-              <span style={styles.verifiedText}>Verified</span>
-            </div>
+          {/* Tier 1 (just registered) shows no badge — SCORING.md: "No badge
+              shown on public profile" until identity is actually confirmed. */}
+          {contractor.verificationTier >= 2 && (
+            <VerificationBadge tier={contractor.verificationTier} size="sm" />
           )}
         </div>
       </div>

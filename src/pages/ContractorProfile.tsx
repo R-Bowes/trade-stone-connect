@@ -21,6 +21,7 @@ import {
 import { ScoreGauge } from "@/components/scoring/ScoreGauge";
 import { computeTrend, SCORE_EXPLANATIONS, type ScoreConfidence } from "@/lib/scoring";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { VerificationBadge } from "@/components/verification/VerificationBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -403,6 +404,36 @@ function CredentialsBlock({ section, credentials }: { section: CanvasSection; cr
         ))
       )}
     </SectionCard>
+  );
+}
+
+const TIER_EXPLANATIONS: Record<number, string> = {
+  1: "This contractor has registered on TradeStone.",
+  2: "Identity confirmed via Stripe verification.",
+  3: "Insurance and credentials verified by TradeStone.",
+  4: "Fully verified — identity, compliance, and background checks complete.",
+};
+
+function HeroVerificationBadge({ tier }: { tier: number | null }) {
+  const [open, setOpen] = useState(false);
+  // Tier 1 shows no badge on the public profile (SCORING.md: "No badge
+  // shown on public profile" until identity is actually confirmed).
+  if (!tier || tier < 2) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "8px 0 4px" }}>
+      <VerificationBadge tier={tier} size="lg" />
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "#888", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit" }}
+      >
+        What does this mean?
+      </button>
+      {open && (
+        <p style={{ flexBasis: "100%", fontSize: 12, color: "#888", margin: "4px 0 0", lineHeight: 1.5 }}>
+          {TIER_EXPLANATIONS[tier]}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1270,6 +1301,9 @@ const ContractorProfile = () => {
         <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
           {/* Hero — always first */}
           <HeroBlock profile={profile} availability={availability} coverUrl={profile.cover_url} />
+
+          {/* Compact tier badge + explainer, right under the name/TS code */}
+          <HeroVerificationBadge tier={verificationTier} />
 
           {/* Verification tier badge — always shown when Tier 2+, not a configurable widget */}
           <VerificationBadgeBlock tier={verificationTier} registerChecks={verifiedRegisterChecks} credentials={verifiedCredentials} />

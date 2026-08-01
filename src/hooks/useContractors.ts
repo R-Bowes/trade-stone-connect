@@ -24,6 +24,7 @@ export interface Contractor {
   is_active: boolean | null;
   created_at: string;
   updated_at: string;
+  verification_tier: number;
 }
 
 const CONTRACTOR_SELECT =
@@ -72,6 +73,18 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
 
       const contractors = (data ?? []) as Contractor[];
 
+      if (contractors.length > 0) {
+        const { data: tierRows } = await supabase
+          .from("contractor_verification_public")
+          .select("contractor_id, current_tier")
+          .in("contractor_id", contractors.map((c) => c.id));
+
+        const tierById = new Map((tierRows ?? []).map((r) => [r.contractor_id, r.current_tier]));
+        for (const c of contractors) {
+          c.verification_tier = tierById.get(c.id) ?? 1;
+        }
+      }
+
       // SCORING.md Phase 4 Step 4: composite_score ranks contractors that
       // have one, but is never attached to/returned on the Contractor
       // objects — it must never be displayed, only used to order results
@@ -80,6 +93,12 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
       // first (descending), contractors with a NULL composite (building
       // confidence — no completed jobs yet) keep their original relative
       // order and are appended after, never buried or hidden.
+      //
+      // Verification tier is a secondary, soft boost: it only breaks ties
+      // when the composite comparison is otherwise equal (both null, or an
+      // exact tie) — it never overrides the primary relevance ordering, and
+      // Tier 1 contractors are never filtered out, just sorted after
+      // higher-tier ones in a tie.
       if (contractors.length > 0) {
         const { data: scoreRows } = await supabase
           .from("contractor_scores")
@@ -90,9 +109,12 @@ export const useContractors = (searchTerm = "", trade?: string, location?: strin
         contractors.sort((a, b) => {
           const scoreA = compositeById.get(a.id) ?? null;
           const scoreB = compositeById.get(b.id) ?? null;
-          if (scoreA === null && scoreB === null) return 0;
+          if (scoreA === null && scoreB === null) {
+            return b.verification_tier - a.verification_tier;
+          }
           if (scoreA === null) return 1;
           if (scoreB === null) return -1;
+          if (scoreA === scoreB) return b.verification_tier - a.verification_tier;
           return scoreB - scoreA;
         });
       }

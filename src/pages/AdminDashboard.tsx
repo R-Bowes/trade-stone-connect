@@ -4,6 +4,9 @@ import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { formatInvoiceRef } from '@/lib/documentRefs';
 import { supabase } from '@/integrations/supabase/client';
 import { CONTRACTOR_TRADES } from '@/constants/trades';
+import AdminOverview from '@/components/admin/AdminOverview';
+import AdminVerification from '@/components/admin/AdminVerification';
+import AdminRevenue from '@/components/admin/AdminRevenue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,7 +101,7 @@ type Stats = {
   totalInvoices: number;
 };
 
-type Tab = 'overview' | 'users' | 'enquiries' | 'jobs' | 'invoices' | 'messages' | 'admins' | 'settings' | 'activity' | 'broadcast';
+type Tab = 'overview' | 'users' | 'verification' | 'enquiries' | 'jobs' | 'invoices' | 'revenue' | 'messages' | 'admins' | 'settings' | 'activity' | 'broadcast';
 
 type BroadcastEmail = {
   id: string;
@@ -700,13 +703,13 @@ export default function AdminDashboard() {
   );
 
   const allTabs: Tab[] = [
-    'overview', 'users', 'enquiries', 'jobs', 'invoices', 'messages',
+    'overview', 'users', 'verification', 'enquiries', 'jobs', 'invoices', 'revenue', 'messages',
     ...(isSuperAdmin ? ['admins', 'settings'] as Tab[] : []),
     'broadcast', 'activity',
   ];
   const tabLabel: Record<Tab, string> = {
-    overview: 'Overview', users: 'Users', enquiries: 'Enquiries',
-    jobs: 'Jobs', invoices: 'Invoices', messages: 'Messages',
+    overview: 'Overview', users: 'Users', verification: 'Verification', enquiries: 'Enquiries',
+    jobs: 'Jobs', invoices: 'Invoices', revenue: 'Revenue', messages: 'Messages',
     admins: 'Admins', settings: 'Settings', activity: 'Activity Log',
     broadcast: 'Broadcast',
   };
@@ -769,24 +772,13 @@ export default function AdminDashboard() {
         ) : (
           <>
             {/* ── OVERVIEW ─────────────────────────────────────────────── */}
-            {activeTab === 'overview' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
-                {[
-                  { label: 'Total accounts', value: stats?.totalProfiles },
-                  { label: 'Contractors',    value: stats?.contractors },
-                  { label: 'Businesses',     value: stats?.businesses },
-                  { label: 'Personal',       value: stats?.personal },
-                  { label: 'Jobs',           value: stats?.totalJobs },
-                  { label: 'Enquiries',      value: stats?.totalEnquiries },
-                  { label: 'Invoices',       value: stats?.totalInvoices },
-                ].map(s => (
-                  <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '20px 24px' }}>
-                    <div style={{ fontSize: 28, fontWeight: 600, color: '#fff', marginBottom: 4 }}>{s.value ?? 0}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {activeTab === 'overview' && <AdminOverview stats={stats} />}
+
+            {/* ── VERIFICATION ─────────────────────────────────────────── */}
+            {activeTab === 'verification' && <AdminVerification />}
+
+            {/* ── REVENUE ──────────────────────────────────────────────── */}
+            {activeTab === 'revenue' && <AdminRevenue />}
 
             {/* ── USERS ────────────────────────────────────────────────── */}
             {activeTab === 'users' && (
