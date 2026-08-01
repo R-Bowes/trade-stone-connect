@@ -45,6 +45,8 @@ import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
 import { JobStageStrip } from "@/components/JobStageStrip";
+import { RamsEditor } from "@/components/management/rams/RamsEditor";
+import { HardHat } from "lucide-react";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -77,6 +79,7 @@ type JobCardData = {
   estimated_completion: string | null;
   location: string | null;
   customer_id: string;
+  company_id: string | null;
   client_name: string;
   client_ts_code: string | null;
   quote_number: number | null;
@@ -218,7 +221,40 @@ export function JobManagement() {
   const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
   const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
   const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
+  const [ramsByJob, setRamsByJob] = useState<Record<string, { id: string; status: string } | null>>({});
+  const [showRams, setShowRams] = useState(false);
+  const [downloadingRamsId, setDownloadingRamsId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const loadRamsStatuses = async (jobIds: string[]) => {
+    if (jobIds.length === 0) { setRamsByJob({}); return; }
+    const { data } = await (supabase as any)
+      .from("job_rams")
+      .select("id, job_id, status")
+      .in("job_id", jobIds);
+    const map: Record<string, { id: string; status: string } | null> = {};
+    for (const id of jobIds) map[id] = null;
+    for (const row of data || []) map[row.job_id] = { id: row.id, status: row.status };
+    setRamsByJob(map);
+  };
+
+  const handleDownloadRamsPdf = async (jobRamsId: string) => {
+    setDownloadingRamsId(jobRamsId);
+    try {
+      const { url } = await invokeEdgeFunction<{ url: string }>("generate-rams-pdf", {
+        body: { job_rams_id: jobRamsId },
+      });
+      window.open(url, "_blank");
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Could not generate the RAMS PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingRamsId(null);
+    }
+  };
 
   const handleDownloadCertificate = async (jobId: string) => {
     setDownloadingCertificateId(jobId);
@@ -275,6 +311,7 @@ export function JobManagement() {
         actual_end,
         location,
         customer_id,
+        company_id,
         issued_quote_id,
         engagement_id,
         sla_status,
@@ -306,6 +343,7 @@ export function JobManagement() {
       estimated_completion: job.quote?.completion_time ?? null,
       location: job.location ?? null,
       customer_id: job.customer_id,
+      company_id: job.company_id ?? null,
       client_name: job.client?.company_name || job.client?.full_name || "Unknown client",
       client_ts_code: job.client?.ts_profile_code ?? null,
       quote_number: job.quote?.quote_number ?? null,
@@ -324,6 +362,7 @@ export function JobManagement() {
     setJobs(mapped);
 
     const jobIds = mapped.map((j) => j.id);
+    loadRamsStatuses(jobIds);
 
     if (jobIds.length > 0) {
       const { data: snagData, error: snagError } = await supabase
@@ -835,7 +874,7 @@ export function JobManagement() {
         )}
       </div>
 
-      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) { setSelectedJobId(null); setShowPhotos(false); } }}>
+      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) { setSelectedJobId(null); setShowPhotos(false); setShowRams(false); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedJob && (
             <>
@@ -956,6 +995,67 @@ export function JobManagement() {
                     />
                   </div>
                 )}
+
+                {/* RAMS — Risk Assessments & Method Statements. Advisory
+                    only for v1: no hard gate on status transitions, just a
+                    notice for B2B/FM jobs (company_id set) when none exists
+                    yet. */}
+                {(() => {
+                  const rams = ramsByJob[selectedJob.id] ?? null;
+                  const ramsStatusBadge = !rams ? null : rams.status === "signed"
+                    ? <Badge style={{ backgroundColor: "#1a2744", color: "#fff" }}>Signed Off</Badge>
+                    : rams.status === "tailored"
+                    ? <Badge style={{ backgroundColor: "#16a34a", color: "#fff" }}>Tailored</Badge>
+                    : <Badge variant="outline">Draft</Badge>;
+                  const ramsButtonLabel = !rams ? "Create RAMS" : rams.status === "draft" ? "Edit RAMS" : "View RAMS";
+
+                  return (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between"
+                        onClick={() => setShowRams((v) => !v)}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <HardHat className="h-4 w-4" />
+                          {showRams ? "RAMS" : ramsButtonLabel}
+                          {ramsStatusBadge}
+                        </span>
+                        {showRams ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </button>
+
+                      {!rams && selectedJob.company_id && !showRams && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                          This is a business job — a RAMS document is typically required before starting work.
+                        </p>
+                      )}
+
+                      {!showRams && rams && (rams.status === "tailored" || rams.status === "signed") && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={downloadingRamsId === rams.id}
+                          onClick={() => handleDownloadRamsPdf(rams.id)}
+                        >
+                          {downloadingRamsId === rams.id
+                            ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                            : <Download className="h-4 w-4 mr-1.5" />}
+                          Download PDF
+                        </Button>
+                      )}
+
+                      {showRams && (
+                        <div className="pt-2">
+                          <RamsEditor
+                            jobId={selectedJob.id}
+                            onSaved={() => loadRamsStatuses(jobs.map((j) => j.id))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Workers */}
                 {selectedJob.status !== "cancelled" && (

@@ -34,6 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "issued-quotes", label: "Issued quotes", icon: "ti-file-text" },
       { value: "jobs", label: "Jobs", icon: "ti-briefcase" },
       { value: "messages", label: "Messages", icon: "ti-message" },
+      { value: "rams-templates", label: "RAMS Templates", icon: "ti-clipboard-check" },
     ],
   },
   {
@@ -82,6 +83,7 @@ const VIEW_LABELS: Record<string, string> = {
   jobs: "Jobs",
   tenders: "Tenders",
   messages: "Messages",
+  "rams-templates": "RAMS Templates",
   projects: "Projects",
   contracts: "Contracts",
   "panel-invites": "Panel Invites",
@@ -112,6 +114,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   jobs: "Move jobs through stages, assign team members and message clients",
   tenders: "Tenders you're invited to bid on, or have applied to directly",
   messages: "All conversations with your clients in one place",
+  "rams-templates": "Risk assessment & method statement templates you can start a job's RAMS from",
   projects: "Track multi-stage work, manage proposals and monitor budgets",
   contracts: "View contract terms, renewal dates and linked service visits",
   "panel-invites": "Accept or decline invitations to join a business's contractor panel",
