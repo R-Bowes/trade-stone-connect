@@ -33,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "enquiries", label: "Enquiries", icon: "ti-message-question" },
       { value: "issued-quotes", label: "Issued quotes", icon: "ti-file-text" },
       { value: "jobs", label: "Jobs", icon: "ti-briefcase" },
+      { value: "work-orders", label: "Work Orders", icon: "ti-clipboard-list" },
       { value: "messages", label: "Messages", icon: "ti-message" },
       { value: "rams-templates", label: "RAMS Templates", icon: "ti-clipboard-check" },
     ],
@@ -83,6 +84,7 @@ const VIEW_LABELS: Record<string, string> = {
   jobs: "Jobs",
   tenders: "Tenders",
   messages: "Messages",
+  "work-orders": "Work Orders",
   "rams-templates": "RAMS Templates",
   projects: "Projects",
   contracts: "Contracts",
@@ -114,6 +116,7 @@ const VIEW_SUBTITLES: Record<string, string> = {
   jobs: "Move jobs through stages, assign team members and message clients",
   tenders: "Tenders you're invited to bid on, or have applied to directly",
   messages: "All conversations with your clients in one place",
+  "work-orders": "Work orders dispatched to you by business clients — accept or decline",
   "rams-templates": "Risk assessment & method statement templates you can start a job's RAMS from",
   projects: "Track multi-stage work, manage proposals and monitor budgets",
   contracts: "View contract terms, renewal dates and linked service visits",
@@ -163,6 +166,36 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   // Unread message count for sidebar badge
   const { conversations } = useConversations();
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
+
+  // Work Orders nav item: only shown to contractors with at least one
+  // active term engagement (the only route by which a work order can ever
+  // be dispatched to them), with a badge count of work orders awaiting
+  // their response.
+  const [hasActiveEngagements, setHasActiveEngagements] = useState(false);
+  const [pendingWorkOrders, setPendingWorkOrders] = useState(0);
+
+  useEffect(() => {
+    const loadWorkOrderNavState = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { count: engagementCount } = await supabase
+        .from("term_engagements")
+        .select("id", { count: "exact", head: true })
+        .eq("contractor_id", user.id)
+        .eq("status", "active");
+      setHasActiveEngagements((engagementCount ?? 0) > 0);
+
+      const { count: pendingCount } = await (supabase as any)
+        .from("work_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("dispatched_to", user.id)
+        .eq("status", "dispatched")
+        .eq("response", "pending");
+      setPendingWorkOrders(pendingCount ?? 0);
+    };
+    loadWorkOrderNavState();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("sb_collapsed", String(collapsed));
@@ -427,10 +460,14 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                   {group.group}
                 </div>
               )}
-              {group.items.map((item) => {
+              {group.items
+                .filter((item) => item.value !== "work-orders" || hasActiveEngagements)
+                .map((item) => {
                 const isActive = activeView === item.value;
                 const isMessages = item.value === "messages";
-                const showBadge = isMessages && totalUnread > 0;
+                const isWorkOrders = item.value === "work-orders";
+                const badgeCount = isMessages ? totalUnread : isWorkOrders ? pendingWorkOrders : 0;
+                const showBadge = badgeCount > 0;
 
                 return (
                   <button
@@ -506,7 +543,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                               flexShrink: 0,
                             }}
                           >
-                            {totalUnread > 99 ? "99+" : totalUnread}
+                            {badgeCount > 99 ? "99+" : badgeCount}
                           </span>
                         )}
                       </>

@@ -6,6 +6,7 @@ import BusinessLayout from "@/components/layout/BusinessLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
+import { WorkOrderDashboard } from "@/components/business/WorkOrderDashboard";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
 import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
@@ -268,6 +269,9 @@ const BusinessDashboard = () => {
 
       case "jobs":
         return <BusinessJobsView companyId={companyId!} profileId={profileId} />;
+
+      case "work-orders":
+        return <WorkOrderDashboard companyId={companyId!} profileId={profileId} />;
 
       case "requests":
         return <BusinessRequestsView companyId={companyId!} profileId={profileId} />;

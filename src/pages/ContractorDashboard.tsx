@@ -37,6 +37,7 @@ import { VerificationManagement } from "@/components/management/VerificationMana
 import { ScoreBreakdown } from "@/components/management/ScoreBreakdown";
 import { JobManagement } from "@/components/management/JobManagement";
 import { RamsTemplateManagement } from "@/components/management/rams/RamsTemplateManagement";
+import { WorkOrderInbox } from "@/components/management/WorkOrderInbox";
 import { IssuedQuotes } from "@/components/management/IssuedQuotes";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { StripeConnect } from "@/components/management/StripeConnect";
@@ -696,6 +697,7 @@ const ContractorDashboard = () => {
 
           <TabsContent value="jobs"><JobManagement /></TabsContent>
           <TabsContent value="rams-templates"><RamsTemplateManagement /></TabsContent>
+          <TabsContent value="work-orders"><WorkOrderInbox /></TabsContent>
 
           {/* Tenders Tab */}
           <TabsContent value="tenders">
