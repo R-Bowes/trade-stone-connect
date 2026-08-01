@@ -46,7 +46,8 @@ import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
 import { JobStageStrip } from "@/components/JobStageStrip";
 import { RamsEditor } from "@/components/management/rams/RamsEditor";
-import { HardHat } from "lucide-react";
+import { JobCertificates } from "@/components/management/certificates/JobCertificates";
+import { HardHat, Award } from "lucide-react";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -224,7 +225,20 @@ export function JobManagement() {
   const [ramsByJob, setRamsByJob] = useState<Record<string, { id: string; status: string } | null>>({});
   const [showRams, setShowRams] = useState(false);
   const [downloadingRamsId, setDownloadingRamsId] = useState<string | null>(null);
+  const [certCountByJob, setCertCountByJob] = useState<Record<string, number>>({});
+  const [showCertificates, setShowCertificates] = useState(false);
   const { toast } = useToast();
+
+  const loadCertificateCounts = async (jobIds: string[]) => {
+    if (jobIds.length === 0) { setCertCountByJob({}); return; }
+    const { data } = await (supabase as any)
+      .from("job_certificates")
+      .select("job_id")
+      .in("job_id", jobIds);
+    const counts: Record<string, number> = {};
+    for (const row of data || []) counts[row.job_id] = (counts[row.job_id] || 0) + 1;
+    setCertCountByJob(counts);
+  };
 
   const loadRamsStatuses = async (jobIds: string[]) => {
     if (jobIds.length === 0) { setRamsByJob({}); return; }
@@ -363,6 +377,7 @@ export function JobManagement() {
 
     const jobIds = mapped.map((j) => j.id);
     loadRamsStatuses(jobIds);
+    loadCertificateCounts(jobIds);
 
     if (jobIds.length > 0) {
       const { data: snagData, error: snagError } = await supabase
@@ -874,7 +889,7 @@ export function JobManagement() {
         )}
       </div>
 
-      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) { setSelectedJobId(null); setShowPhotos(false); setShowRams(false); } }}>
+      <Dialog open={!!selectedJobId} onOpenChange={(open) => { if (!open) { setSelectedJobId(null); setShowPhotos(false); setShowRams(false); setShowCertificates(false); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedJob && (
             <>
@@ -1050,6 +1065,46 @@ export function JobManagement() {
                           <RamsEditor
                             jobId={selectedJob.id}
                             onSaved={() => loadRamsStatuses(jobs.map((j) => j.id))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Certificates & Warranties */}
+                {(() => {
+                  const certCount = certCountByJob[selectedJob.id] ?? 0;
+                  const isJobComplete = selectedJob.status === "complete";
+                  return (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between"
+                        onClick={() => setShowCertificates((v) => !v)}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <Award className="h-4 w-4" />
+                          Certificates ({certCount})
+                        </span>
+                        {showCertificates ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </button>
+
+                      {!showCertificates && certCount === 0 && isJobComplete && (
+                        <p className="text-xs rounded px-2 py-1.5 border bg-muted/40 text-muted-foreground">
+                          {selectedJob.company_id
+                            ? "Business clients typically require completion certificates before sign-off."
+                            : "No certificates attached. If this work requires certification, add them here."}
+                        </p>
+                      )}
+
+                      {showCertificates && contractorProfileId && (
+                        <div className="pt-2">
+                          <JobCertificates
+                            jobId={selectedJob.id}
+                            contractorId={contractorProfileId}
+                            isContractor={true}
+                            onChanged={() => loadCertificateCounts(jobs.map((j) => j.id))}
                           />
                         </div>
                       )}

@@ -33,7 +33,8 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
 import { JobStageStrip } from "@/components/JobStageStrip";
-import { Compass } from "lucide-react";
+import { Compass, Award } from "lucide-react";
+import { JobCertificates } from "@/components/management/certificates/JobCertificates";
 
 // scheduled/snagging were missing entirely — both silently fell through to
 // not_started (statusConfig[job.status] || statusConfig.not_started below),
@@ -131,7 +132,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const { review, submitReview } = useJobReview(job.id);
   const { serviceReview, submitServiceReview } = useServiceReview(job.id);
   const [newNote, setNewNote] = useState("");
-  const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team" | "review" | "origin">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "notes" | "photos" | "team" | "review" | "origin" | "certificates">("overview");
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [portfolioApproved, setPortfolioApproved] = useState(job.portfolio_approved);
@@ -258,7 +259,7 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
 
       {/* Section Nav */}
       <div className="flex gap-2 flex-wrap">
-        {(["overview", "notes", "photos", "team", ...(hasOrigin ? ["origin"] : []), ...(job.status === "complete" || job.status === "completed" ? ["review"] : [])] as const).map((section) => (
+        {(["overview", "notes", "photos", "team", ...(hasOrigin ? ["origin"] : []), ...(isComplete ? ["certificates"] : []), ...(job.status === "complete" || job.status === "completed" ? ["review"] : [])] as const).map((section) => (
           <Button
             key={section}
             variant={activeSection === section ? "default" : "outline"}
@@ -270,8 +271,9 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
             {section === "photos" && <Camera className="h-4 w-4 mr-1" />}
             {section === "team" && <Users className="h-4 w-4 mr-1" />}
             {section === "origin" && <Compass className="h-4 w-4 mr-1" />}
+            {section === "certificates" && <Award className="h-4 w-4 mr-1" />}
             {section === "review" && <Star className="h-4 w-4 mr-1" />}
-            {String(section).charAt(0).toUpperCase() + String(section).slice(1)}
+            {section === "certificates" ? "Certificates" : String(section).charAt(0).toUpperCase() + String(section).slice(1)}
           </Button>
         ))}
       </div>
@@ -285,6 +287,19 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
           </CardHeader>
           <CardContent>
             <JobOriginSection origin={origin} loading={originLoading} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Certificates & warranties — read-only for the customer */}
+      {activeSection === "certificates" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Certificates & Warranties</CardTitle>
+            <CardDescription>Completion certificates and warranty documents from your contractor</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <JobCertificates jobId={job.id} contractorId={job.contractor_id} isContractor={false} />
           </CardContent>
         </Card>
       )}

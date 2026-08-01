@@ -17,6 +17,7 @@ import {
   drawLineItemsTable,
   drawTotalsBlock,
   formatDocNumber,
+  wrapText,
   DARK,
   MID,
   NAVY,
@@ -117,6 +118,31 @@ interface PaidInvoice {
   paid_date: string | null;
 }
 
+const CERTIFICATE_TYPE_LABELS: Record<string, string> = {
+  gas_safety: "Gas Safety Certificate (CP12)",
+  electrical_eic: "Electrical Installation Certificate",
+  electrical_minor_works: "Minor Electrical Works Certificate",
+  fgas: "FGAS Certificate",
+  building_regs: "Building Regulations Sign-off",
+  fire_alarm: "Fire Alarm Certificate",
+  pat_testing: "PAT Testing Certificate",
+  pressure_test: "Pressure Test Certificate",
+  commissioning: "Commissioning Certificate",
+  manufacturer_warranty: "Manufacturer Warranty",
+  workmanship_warranty: "Workmanship Warranty",
+  other: "Other Certificate",
+};
+
+interface CertificateRow {
+  certificate_type: string;
+  certificate_name: string;
+  certificate_number: string | null;
+  issuer: string | null;
+  issued_date: string;
+  expiry_date: string | null;
+  warranty_duration_months: number | null;
+}
+
 async function buildCompletionPdf(
   job: Job,
   contractor: ContractorProfile,
@@ -124,6 +150,7 @@ async function buildCompletionPdf(
   clientName: string,
   photos: PhotoRow[],
   invoice: PaidInvoice | null,
+  certificates: CertificateRow[],
   fetchPhotoBytes: (path: string) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -276,6 +303,48 @@ async function buildCompletionPdf(
     }
   }
 
+  // ── Certificates & Warranties ───────────────────────────────────────────
+  if (certificates.length > 0) {
+    ensureSpace(24);
+    y -= 6;
+    page.drawText("CERTIFICATES & WARRANTIES", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    for (const cert of certificates) {
+      ensureSpace(28);
+      const typeLabel = CERTIFICATE_TYPE_LABELS[cert.certificate_type] ?? cert.certificate_type;
+      page.drawText(cert.certificate_name, { x: MARGIN, y, size: 9, font: bold, color: DARK });
+      const typeW = regular.widthOfTextAtSize(typeLabel, 8);
+      page.drawText(typeLabel, { x: PAGE_WIDTH - MARGIN - typeW, y, size: 8, font: regular, color: MID });
+      y -= 13;
+
+      const detailParts = [
+        cert.certificate_number ? `No. ${cert.certificate_number}` : null,
+        cert.issuer ? `Issuer: ${cert.issuer}` : null,
+        `Issued: ${fmtDateTime(cert.issued_date)?.split(",")[0] ?? cert.issued_date}`,
+        cert.expiry_date ? `Expires: ${fmtDateTime(cert.expiry_date)?.split(",")[0] ?? cert.expiry_date}` : null,
+        cert.warranty_duration_months ? `Duration: ${cert.warranty_duration_months} months` : null,
+      ].filter((p): p is string => !!p);
+
+      if (detailParts.length > 0) {
+        const detailLine = detailParts.join("   ·   ");
+        const lines = wrapText(detailLine, regular, 8, PAGE_WIDTH - 2 * MARGIN);
+        for (const line of lines) {
+          ensureSpace(12);
+          page.drawText(line, { x: MARGIN, y, size: 8, font: regular, color: MID });
+          y -= 12;
+        }
+      }
+      y -= 4;
+    }
+
+    ensureSpace(14);
+    page.drawText("Certificate documents are available for download on TradeStone.", {
+      x: MARGIN, y, size: 8, font: regular, color: MID,
+    });
+    y -= 16;
+  }
+
   return pdfDoc.save();
 }
 
@@ -369,6 +438,13 @@ serve(async (req) => {
       .maybeSingle();
     const invoice = invoiceRow as PaidInvoice | null;
 
+    const { data: certificateRows } = await supabase
+      .from("job_certificates")
+      .select("certificate_type, certificate_name, certificate_number, issuer, issued_date, expiry_date, warranty_duration_months")
+      .eq("job_id", job_id)
+      .order("issued_date", { ascending: false });
+    const certificates = (certificateRows ?? []) as CertificateRow[];
+
     const fetchPhotoBytes = async (path: string): Promise<Uint8Array | null> => {
       try {
         const { data, error } = await supabase.storage.from("job-photos").download(path);
@@ -388,6 +464,7 @@ serve(async (req) => {
         clientName,
         photos,
         invoice,
+        certificates,
         fetchPhotoBytes,
       );
     } catch (err) {
