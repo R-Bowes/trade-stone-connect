@@ -49,6 +49,7 @@ import { RamsEditor } from "@/components/management/rams/RamsEditor";
 import { JobCertificates } from "@/components/management/certificates/JobCertificates";
 import { HardHat, Award } from "lucide-react";
 import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
+import { PaymentProgress } from "@/components/management/payments/PaymentProgress";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -1146,6 +1147,8 @@ export function JobManagement() {
                     </div>
                   );
                 })()}
+
+                <PaymentProgress jobId={selectedJob.id} isContractor={true} />
 
                 {/* Workers */}
                 {selectedJob.status !== "cancelled" && (

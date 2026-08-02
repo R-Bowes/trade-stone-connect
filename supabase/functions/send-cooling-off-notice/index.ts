@@ -88,7 +88,7 @@ serve(async (req) => {
       consumerName: consumerProfile.full_name || "there",
       jobTitle: job?.title || "your job",
       coolingOffEndDate,
-      ctaUrl: `${publicUrl}/dashboard/personal?view=jobs`,
+      ctaUrl: `${publicUrl}/dashboard/homeowner?view=jobs`,
     };
 
     const emailRes = await fetch("https://api.resend.com/emails", {

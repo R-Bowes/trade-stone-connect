@@ -12,6 +12,7 @@ import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
 import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { PaymentScheduleBuilder, isScheduleValid, type BuilderStage } from "@/components/management/quotes/PaymentScheduleBuilder";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
 // allocator) — never generated client-side, hence the Omit here.
@@ -77,6 +78,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [submitting, setSubmitting] = useState(false);
   const [customerTsCode, setCustomerTsCode] = useState<string | null>(null);
   const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
+  const [scheduleStages, setScheduleStages] = useState<BuilderStage[] | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -92,6 +94,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setDepositRequired(false);
     setDepositPercentage(25);
     setProposedSlots([]);
+    setScheduleStages(null);
 
     if (enquiry.customer_id) {
       supabase
@@ -119,7 +122,16 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
-  const depositAmount = depositRequired ? total * (depositPercentage / 100) : 0;
+
+  // When staged payments are on, stage 1 (on_acceptance) IS the deposit —
+  // it drives the existing deposit_required/percentage/amount fields
+  // instead of the manual deposit toggle below (see PaymentScheduleBuilder
+  // spec: "stage 1 ... deposit_required/deposit_percentage/deposit_amount
+  // ... should be set from stage 1").
+  const acceptanceStage = scheduleStages?.find((s) => s.trigger_type === "on_acceptance") ?? null;
+  const effectiveDepositRequired = scheduleStages ? !!acceptanceStage : depositRequired;
+  const effectiveDepositPercentage = scheduleStages ? (acceptanceStage?.percentage ?? 0) : depositPercentage;
+  const depositAmount = effectiveDepositRequired ? total * (effectiveDepositPercentage / 100) : 0;
 
   const fmt = (n: number) =>
     n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -141,6 +153,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     }
     if (proposedSlots.length < 2 || proposedSlots.length > 5) {
       toast({ title: "Select 2–5 available dates", description: "Offer the customer between 2 and 5 dates before sending.", variant: "destructive" });
+      return;
+    }
+    if (!isScheduleValid(scheduleStages)) {
+      toast({ title: "Payment schedule invalid", description: "Stages need a title each and must sum to exactly 100%.", variant: "destructive" });
       return;
     }
 
@@ -189,12 +205,24 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         valid_until: validUntil,
         notes: notes.trim() || null,
         completion_time: completionTime || null,
-        deposit_required: depositRequired,
-        deposit_percentage: depositRequired ? depositPercentage : 0,
-        deposit_amount: depositRequired ? depositAmount : null,
+        deposit_required: effectiveDepositRequired,
+        deposit_percentage: effectiveDepositRequired ? effectiveDepositPercentage : 0,
+        deposit_amount: effectiveDepositRequired ? depositAmount : null,
         terms: terms.trim() || null,
         status: "sent",
         sent_at: new Date().toISOString(),
+        payment_schedule: scheduleStages
+          ? {
+              type: "milestone",
+              stages: scheduleStages.map((s) => ({
+                stage_number: s.stage_number,
+                title: s.title.trim(),
+                percentage: s.percentage,
+                trigger_type: s.trigger_type,
+                trigger_date: s.trigger_type === "date" ? s.trigger_date ?? null : null,
+              })),
+            }
+          : null,
       };
 
       const { data: insertedQuote, error: quoteError } = await supabase
@@ -393,13 +421,15 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               <span>Total</span>
               <span>£{fmt(total)}</span>
             </div>
-            {depositRequired && (
+            {effectiveDepositRequired && (
               <div className="flex justify-between text-primary font-medium border-t pt-2">
-                <span>Deposit due ({depositPercentage}%)</span>
+                <span>Deposit due ({effectiveDepositPercentage}%)</span>
                 <span>£{fmt(depositAmount)}</span>
               </div>
             )}
           </div>
+
+          <PaymentScheduleBuilder totalAmount={total} onScheduleChange={setScheduleStages} />
 
           <div className="space-y-2 rounded-md border p-4">
             <Label>
@@ -474,6 +504,16 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
             </Select>
           </div>
 
+          {scheduleStages ? (
+            <div className="rounded-md border p-4 text-sm text-muted-foreground">
+              Deposit is controlled by Stage 1 (On acceptance) in the payment schedule above.
+              {acceptanceStage && (
+                <span className="text-foreground font-medium">
+                  {" "}Customer will pay £{fmt(depositAmount)} ({effectiveDepositPercentage}%) before the job is confirmed and scheduled.
+                </span>
+              )}
+            </div>
+          ) : (
           <div className="space-y-3 rounded-md border p-4">
             <div className="flex items-center gap-2">
               <input
@@ -509,6 +549,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="quote-notes">Notes (optional)</Label>

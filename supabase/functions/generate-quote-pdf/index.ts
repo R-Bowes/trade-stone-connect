@@ -16,6 +16,8 @@ import {
   DARK,
   MID,
   NAVY,
+  WHITE,
+  PALE,
   MARGIN,
   PAGE_WIDTH,
   PAGE_HEIGHT,
@@ -104,7 +106,37 @@ interface IssuedQuote {
   notes: string | null;
   created_at: string;
   valid_until: string;
+  payment_schedule: unknown;
 }
+
+interface PaymentScheduleStage {
+  stage_number: number;
+  title: string;
+  percentage: number | null;
+  trigger_type: string;
+  trigger_date: string | null;
+}
+
+function normalizeStages(raw: unknown): PaymentScheduleStage[] {
+  const stages = (raw as Record<string, unknown> | null)?.stages;
+  if (!Array.isArray(stages)) return [];
+  return stages.map((s) => {
+    const r = s as Record<string, unknown>;
+    return {
+      stage_number: Number(r.stage_number ?? 0),
+      title: String(r.title ?? ""),
+      percentage: r.percentage != null ? Number(r.percentage) : null,
+      trigger_type: String(r.trigger_type ?? "milestone"),
+      trigger_date: r.trigger_date ? String(r.trigger_date) : null,
+    };
+  }).sort((a, b) => a.stage_number - b.stage_number);
+}
+
+const TRIGGER_LABEL: Record<string, string> = {
+  on_acceptance: "On acceptance",
+  milestone: "On milestone",
+  date: "On date",
+};
 
 async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -188,6 +220,47 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
     y -= 20;
   }
 
+  const scheduleStages = normalizeStages(quote.payment_schedule);
+  if (scheduleStages.length > 0) {
+    ensureSpace(20 * (scheduleStages.length + 1) + 30);
+    y -= 6;
+    page.drawText("PAYMENT SCHEDULE", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    const tableWidth = PAGE_WIDTH - 2 * MARGIN;
+    const colTrigger = MARGIN + tableWidth * 0.55;
+    const colAmount = MARGIN + tableWidth * 0.8;
+    const rowHeight = 18;
+
+    page.drawRectangle({ x: MARGIN, y: y - rowHeight + 4, width: tableWidth, height: rowHeight, color: NAVY });
+    const headerY = y - 12;
+    page.drawText("Stage", { x: MARGIN + 6, y: headerY, size: 8, font: bold, color: WHITE });
+    page.drawText("Trigger", { x: colTrigger, y: headerY, size: 8, font: bold, color: WHITE });
+    const pctW = bold.widthOfTextAtSize("%", 8);
+    page.drawText("%", { x: PAGE_WIDTH - MARGIN - 6 - pctW - 70, y: headerY, size: 8, font: bold, color: WHITE });
+    const amtW = bold.widthOfTextAtSize("Amount", 8);
+    page.drawText("Amount", { x: PAGE_WIDTH - MARGIN - 6 - amtW, y: headerY, size: 8, font: bold, color: WHITE });
+    y -= rowHeight;
+
+    scheduleStages.forEach((stage, i) => {
+      if (i % 2 === 0) {
+        page.drawRectangle({ x: MARGIN, y: y - rowHeight + 4, width: tableWidth, height: rowHeight, color: PALE });
+      }
+      const rowY = y - 12;
+      const stageAmount = stage.percentage != null ? (quote.total * stage.percentage) / 100 : 0;
+      page.drawText(`${stage.stage_number}. ${stage.title}`, { x: MARGIN + 6, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(TRIGGER_LABEL[stage.trigger_type] ?? stage.trigger_type, { x: colTrigger, y: rowY, size: 8, font: regular, color: DARK });
+      const pctText = stage.percentage != null ? `${stage.percentage}%` : "—";
+      const pctTextW = regular.widthOfTextAtSize(pctText, 8);
+      page.drawText(pctText, { x: PAGE_WIDTH - MARGIN - 6 - pctTextW - 70, y: rowY, size: 8, font: regular, color: DARK });
+      const amtText = `£${stageAmount.toFixed(2)}`;
+      const amtTextW = regular.widthOfTextAtSize(amtText, 8);
+      page.drawText(amtText, { x: PAGE_WIDTH - MARGIN - 6 - amtTextW, y: rowY, size: 8, font: regular, color: DARK });
+      y -= rowHeight;
+    });
+    y -= 12;
+  }
+
   if (quote.completion_time) {
     ensureSpace(16);
     page.drawText(`Estimated completion: ${quote.completion_time}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
@@ -250,7 +323,7 @@ serve(async (req) => {
         "id, contractor_id, quote_number, title, description, client_name, business_name, " +
         "client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, " +
         "deposit_required, deposit_percentage, deposit_amount, deposit_paid, completion_time, terms, " +
-        "notes, created_at, valid_until",
+        "notes, created_at, valid_until, payment_schedule",
       )
       .eq("id", quote_id)
       .maybeSingle();
