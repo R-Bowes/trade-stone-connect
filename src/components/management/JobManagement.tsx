@@ -48,6 +48,7 @@ import { JobStageStrip } from "@/components/JobStageStrip";
 import { RamsEditor } from "@/components/management/rams/RamsEditor";
 import { JobCertificates } from "@/components/management/certificates/JobCertificates";
 import { HardHat, Award } from "lucide-react";
+import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -470,6 +471,15 @@ export function JobManagement() {
       setOriginByJob((cur) => ({ ...cur, [selectedJobId]: result }));
       setOriginLoadingId((cur) => (cur === selectedJobId ? null : cur));
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedJobId]);
+
+  const { coolingOff, fetchCoolingOff } = useCoolingOff();
+  useEffect(() => {
+    if (!selectedJobId) return;
+    const job = jobs.find((j) => j.id === selectedJobId);
+    if (!job || !isConsumerJob(job)) return;
+    void fetchCoolingOff(selectedJobId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJobId]);
 
@@ -1009,6 +1019,31 @@ export function JobManagement() {
                       loading={originLoadingId === selectedJob.id}
                     />
                   </div>
+                )}
+
+                {/* Consumer cooling-off status — read-only for the contractor */}
+                {isConsumerJob(selectedJob) && coolingOff && coolingOff.job_id === selectedJob.id && !coolingOff.cancelled && (
+                  coolingOff.cooling_off_elapsed ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cooling-off period ended {format(new Date(coolingOff.cooling_off_end), "d MMM yyyy")}
+                    </p>
+                  ) : (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                      <p className="font-medium">
+                        This is a consumer job. The customer has{" "}
+                        {Math.max(0, Math.ceil((new Date(coolingOff.cooling_off_end).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))}{" "}
+                        days remaining in their cooling-off period.
+                      </p>
+                      {coolingOff.early_start_consent ? (
+                        <p>Customer has consented to early commencement.</p>
+                      ) : (
+                        <p>
+                          Do not begin work until {format(new Date(coolingOff.cooling_off_end), "d MMM yyyy")} or until
+                          the customer gives consent.
+                        </p>
+                      )}
+                    </div>
+                  )
                 )}
 
                 {/* RAMS — Risk Assessments & Method Statements. Advisory

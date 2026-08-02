@@ -38,3 +38,15 @@ verify_jwt = false
 [functions.recalculate-scores]
 # Internal/service-to-service — cron-invoked only, not by end users
 verify_jwt = false
+
+[functions.process-recurring-expenses]
+# Internal/service-to-service — cron-invoked only, not by end users
+verify_jwt = false
+
+[functions.notify-overdue-visits]
+# Internal/service-to-service — cron-invoked only, not by end users
+verify_jwt = false
+
+[functions.send-cooling-off-notice]
+# Internal/service-to-service — invoked by mint_job_from_quote's net.http_post, not by end users
+verify_jwt = false

@@ -11,7 +11,8 @@ export type EmailType =
   | "overdue_invoice"
   | "payment_received"
   | "cert_expiry"
-  | "insurance_expiry";
+  | "insurance_expiry"
+  | "cooling_off_notice";
 
 // ── Per-type data shapes ──────────────────────────────────────────────────────
 
@@ -73,6 +74,13 @@ export interface InsuranceExpiryData {
   ctaUrl: string;
 }
 
+export interface CoolingOffNoticeData {
+  consumerName: string;
+  jobTitle: string;
+  coolingOffEndDate: string;  // formatted DD MMMM YYYY
+  ctaUrl: string;
+}
+
 export type EmailData =
   | NewEnquiryData
   | QuoteRequestConfirmationData
@@ -80,7 +88,8 @@ export type EmailData =
   | OverdueInvoiceData
   | PaymentReceivedData
   | CertExpiryData
-  | InsuranceExpiryData;
+  | InsuranceExpiryData
+  | CoolingOffNoticeData;
 
 // ── Colour / accent map ───────────────────────────────────────────────────────
 
@@ -92,6 +101,7 @@ const ACCENT: Record<EmailType, { bar: string; pill: string; pillBg: string; btn
   payment_received:             { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
   cert_expiry:                  { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
   insurance_expiry:             { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
+  cooling_off_notice:           { bar: "#3b82f6", pill: "#2563eb", pillBg: "#eff6ff", btn: "#2563eb" },
 };
 
 // ── Shared shell ──────────────────────────────────────────────────────────────
@@ -377,6 +387,36 @@ export function buildEmail(type: EmailType, data: EmailData): string {
       ].join("\n");
       return shell(type, inner);
     }
+
+    // ── 08 Cooling-off prescribed information → consumer ─────────────────────
+    case "cooling_off_notice": {
+      const d = data as CoolingOffNoticeData;
+      const inner = [
+        pill(type, "Your Cancellation Rights"),
+        headline("Your Cancellation Rights"),
+        subtext(
+          `Hi ${d.consumerName}, under the Consumer Contracts Regulations 2013, you have the right to cancel ` +
+          `the contract for <strong>${d.jobTitle}</strong> within <strong>14 days</strong> without giving any reason. ` +
+          `The cancellation period will expire on <strong>${d.coolingOffEndDate}</strong>.`
+        ),
+        detailCard([
+          { label: "Job",         value: d.jobTitle },
+          { label: "Cancel by",   value: d.coolingOffEndDate },
+        ]),
+        subtext(
+          `To exercise your right to cancel, you must inform us by a clear statement — click "Cancel within ` +
+          `cooling-off period" on your job details, or contact us at <a href="mailto:support@tradesltd.co.uk">support@tradesltd.co.uk</a>.<br/><br/>` +
+          `<strong>Starting work before the cooling-off period ends:</strong> if you'd like the contractor to begin work ` +
+          `before the 14 days are up, you must give your explicit consent on your job details. By doing so you ` +
+          `acknowledge that if the work is completed before the cooling-off period ends you will lose your right to ` +
+          `cancel, and if you cancel after work has begun you will be liable for a proportionate amount for the work ` +
+          `already carried out.`
+        ),
+        ctaButton(type, "View Job & Cancellation Rights", d.ctaUrl),
+        footerNote("Sent because you accepted a quote on TradeStone as a consumer."),
+      ].join("\n");
+      return shell(type, inner);
+    }
   }
 }
 
@@ -407,6 +447,10 @@ export function buildSubject(type: EmailType, data: EmailData): string {
     case "insurance_expiry": {
       const d = data as InsuranceExpiryData;
       return `Insurance expiring in ${d.daysRemaining} day${d.daysRemaining === 1 ? "" : "s"} — TradeStone`;
+    }
+    case "cooling_off_notice": {
+      const d = data as CoolingOffNoticeData;
+      return `Your Cancellation Rights — ${d.jobTitle} — TradeStone`;
     }
   }
 }

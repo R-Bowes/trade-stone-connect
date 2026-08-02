@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,8 @@ import { JobOriginSection } from "@/components/JobOriginSection";
 import { JobStageStrip } from "@/components/JobStageStrip";
 import { Compass, Award } from "lucide-react";
 import { JobCertificates } from "@/components/management/certificates/JobCertificates";
+import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
+import { CoolingOffStatusCard } from "@/components/consumer/CoolingOffStatusCard";
 
 // scheduled/snagging were missing entirely — both silently fell through to
 // not_started (statusConfig[job.status] || statusConfig.not_started below),
@@ -140,6 +142,12 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
   const [originLoading, setOriginLoading] = useState(false);
   const [downloadingCertificate, setDownloadingCertificate] = useState(false);
   const { toast } = useToast();
+  const { coolingOff, fetchCoolingOff } = useCoolingOff();
+  const consumerJob = isConsumerJob(job);
+
+  useEffect(() => {
+    if (consumerJob) void fetchCoolingOff(job.id);
+  }, [consumerJob, job.id, fetchCoolingOff]);
 
   const handleDownloadCertificate = async () => {
     setDownloadingCertificate(true);
@@ -256,6 +264,14 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
           </div>
         </CardContent>
       </Card>
+
+      {consumerJob && coolingOff && (
+        <CoolingOffStatusCard
+          record={coolingOff}
+          jobStatus={job.status}
+          onChanged={() => void fetchCoolingOff(job.id)}
+        />
+      )}
 
       {/* Section Nav */}
       <div className="flex gap-2 flex-wrap">
