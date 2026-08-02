@@ -22,6 +22,9 @@ import { ScoreGauge } from "@/components/scoring/ScoreGauge";
 import { computeTrend, SCORE_EXPLANATIONS, type ScoreConfidence } from "@/lib/scoring";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
+import { extractVideoId } from "@/hooks/useProfileVideos";
+import { getEmbedUrl } from "@/lib/videoEmbed";
+import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,26 @@ interface PageProfile {
   cover_url: string | null;
   profile_is_published: boolean;
   cta_label: string | null;
+  social_links: Record<string, string> | null;
+  service_area_center_lat: number | null;
+  service_area_center_lng: number | null;
+  service_area_radius_miles: number | null;
+}
+
+interface ProfileVideoRow {
+  id: string;
+  url: string;
+  platform: "youtube" | "tiktok" | "vimeo" | "other";
+  title: string | null;
+  description: string | null;
+}
+
+interface BeforeAfterRow {
+  id: string;
+  before_photo_url: string;
+  after_photo_url: string;
+  title: string | null;
+  description: string | null;
 }
 
 interface CanvasSection {
@@ -352,32 +375,52 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
   );
 }
 
+function FeaturedReviewCard({ review }: { review: Review }) {
+  return (
+    <div style={{
+      position: "relative", padding: "18px 20px 16px", marginBottom: 14,
+      background: "rgba(240,120,32,0.04)", border: `1.5px solid rgba(240,120,32,0.35)`, borderRadius: 10,
+    }}>
+      <span style={{ position: "absolute", top: 10, right: 14, fontSize: 10, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 3 }}>
+        <i className="ti ti-pin" style={{ fontSize: 11 }} />Featured
+      </span>
+      <i className="ti ti-quote" style={{ fontSize: 26, color: "rgba(240,120,32,0.35)", display: "block", marginBottom: 4 }} />
+      {review.comment && (
+        <p style={{ fontSize: 15, color: "#333", lineHeight: 1.6, margin: "0 0 10px", fontStyle: "italic" }}>{review.comment}</p>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Stars rating={review.rating} />
+        <span style={{ fontSize: 11, color: "#aaa" }}>{formatReviewDate(review.created_at)}</span>
+      </div>
+    </div>
+  );
+}
+
 function ReviewsBlock({ section, reviews }: { section: CanvasSection; reviews: Review[] }) {
+  const featured = reviews.filter(r => r.pinned);
+  const rest = reviews.filter(r => !r.pinned);
+
   return (
     <SectionCard heading={getSectionLabel(section)}>
       {!reviews.length ? (
         <p style={{ fontSize: 14, color: "#aaa", fontStyle: "italic", margin: 0 }}>No reviews yet.</p>
       ) : (
-        reviews.map((r, idx) => (
-          <div key={r.id} style={{ paddingBottom: 14, marginBottom: idx < reviews.length - 1 ? 14 : 0, borderBottom: idx < reviews.length - 1 ? "1px solid #f0f0f0" : "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: NAVY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>C</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: NAVY, display: "flex", alignItems: "center", gap: 6 }}>
-                  Verified client
-                  {r.pinned && (
-                    <span style={{ fontSize: 10, background: "rgba(240,120,32,0.1)", color: ORANGE, padding: "1px 6px", borderRadius: 4 }}>
-                      <i className="ti ti-pin" style={{ fontSize: 10, marginRight: 2 }} />Pinned
-                    </span>
-                  )}
+        <>
+          {featured.map(r => <FeaturedReviewCard key={r.id} review={r} />)}
+          {rest.map((r, idx) => (
+            <div key={r.id} style={{ paddingBottom: 14, marginBottom: idx < rest.length - 1 ? 14 : 0, borderBottom: idx < rest.length - 1 ? "1px solid #f0f0f0" : "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: NAVY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>C</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: NAVY }}>Verified client</div>
+                  <div style={{ fontSize: 11, color: "#aaa" }}>{formatReviewDate(r.created_at)}</div>
                 </div>
-                <div style={{ fontSize: 11, color: "#aaa" }}>{formatReviewDate(r.created_at)}</div>
+                <Stars rating={r.rating} />
               </div>
-              <Stars rating={r.rating} />
+              {r.comment && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.55, margin: 0 }}>{r.comment}</p>}
             </div>
-            {r.comment && <p style={{ fontSize: 14, color: "#555", lineHeight: 1.55, margin: 0 }}>{r.comment}</p>}
-          </div>
-        ))
+          ))}
+        </>
       )}
     </SectionCard>
   );
@@ -774,6 +817,99 @@ function TeamBlock({ section, teamMembers }: { section: CanvasSection; teamMembe
   );
 }
 
+function VideoBlock({ section, videos }: { section: CanvasSection; videos: ProfileVideoRow[] }) {
+  if (!videos.length) return null;
+  return (
+    <SectionCard heading={getSectionLabel(section)}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        {videos.map(v => {
+          const { videoId } = extractVideoId(v.url);
+          const embedUrl = getEmbedUrl(v.platform, videoId);
+          return (
+            <div key={v.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f0f0f0" }}>
+              <div style={{ aspectRatio: "16/9", background: "#111" }}>
+                {embedUrl ? (
+                  <iframe
+                    src={embedUrl}
+                    title={v.title ?? "Video"}
+                    style={{ width: "100%", height: "100%", border: "none" }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <a
+                    href={v.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}
+                  >
+                    <i className="ti ti-external-link" style={{ fontSize: 24 }} />
+                  </a>
+                )}
+              </div>
+              {(v.title || v.description) && (
+                <div style={{ padding: "10px 12px" }}>
+                  {v.title && <div style={{ fontWeight: 600, fontSize: 13, color: NAVY }}>{v.title}</div>}
+                  {v.description && <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{v.description}</div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </SectionCard>
+  );
+}
+
+function BeforeAfterBlock({ section, pairs }: { section: CanvasSection; pairs: BeforeAfterRow[] }) {
+  if (!pairs.length) return null;
+  return (
+    <SectionCard heading={getSectionLabel(section)}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {pairs.map(p => (
+          <div key={p.id}>
+            <BeforeAfterSlider beforeUrl={p.before_photo_url} afterUrl={p.after_photo_url} height={260} />
+            {(p.title || p.description) && (
+              <div style={{ marginTop: 8 }}>
+                {p.title && <div style={{ fontWeight: 600, fontSize: 14, color: NAVY }}>{p.title}</div>}
+                {p.description && <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{p.description}</div>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+function ServiceAreaBlock({ section, profile }: { section: CanvasSection; profile: PageProfile }) {
+  const areasCovered = (section.meta?.areasCovered as string | undefined)?.trim();
+  return (
+    <SectionCard heading={getSectionLabel(section)}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(240,120,32,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <i className="ti ti-map-pin" style={{ fontSize: 20, color: ORANGE }} />
+        </div>
+        <div>
+          {profile.location ? (
+            <p style={{ fontSize: 14, color: "#444", margin: 0, lineHeight: 1.6 }}>
+              Based in <strong>{profile.location}</strong>
+              {profile.working_radius && <>, covering a <strong>{profile.working_radius}</strong> radius</>}
+            </p>
+          ) : (
+            <p style={{ fontSize: 14, color: "#aaa", fontStyle: "italic", margin: 0 }}>No service area set.</p>
+          )}
+          {areasCovered && (
+            <p style={{ fontSize: 13, color: "#888", margin: "8px 0 0", lineHeight: 1.55 }}>
+              Areas covered: {areasCovered}
+            </p>
+          )}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
 // ── Not published / not found ─────────────────────────────────────────────────
 
 function NotPublished() {
@@ -830,6 +966,8 @@ const ContractorProfile = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [videos, setVideos] = useState<ProfileVideoRow[]>([]);
+  const [beforeAfterPairs, setBeforeAfterPairs] = useState<BeforeAfterRow[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [verificationTier, setVerificationTier] = useState<number | null>(null);
   const [verifiedRegisterChecks, setVerifiedRegisterChecks] = useState<VerifiedRegisterCheck[]>([]);
@@ -873,7 +1011,8 @@ const ContractorProfile = () => {
         bio, trades, location, working_radius,
         avatar_url, logo_url, is_verified,
         rating, review_count, completed_jobs, years_experience, hourly_rate,
-        profile_is_published, cover_url, cta_label
+        profile_is_published, cover_url, cta_label,
+        social_links, service_area_center_lat, service_area_center_lng, service_area_radius_miles
       `;
 
       if (code) {
@@ -992,6 +1131,8 @@ const ContractorProfile = () => {
       const needsReviews = enabledSections.some(s => s.widget_key === "reviews");
       const needsTeam = enabledSections.some(s => s.widget_key === "team");
       const needsCredentials = enabledSections.some(s => s.widget_key === "credentials");
+      const needsVideos = enabledSections.some(s => s.widget_key === "video");
+      const needsBeforeAfter = enabledSections.some(s => s.widget_key === "before_after");
 
       const fetches: Promise<void>[] = [];
 
@@ -1157,6 +1298,30 @@ const ContractorProfile = () => {
         );
       }
 
+      if (needsVideos) {
+        fetches.push(
+          supabase
+            .from("profile_videos")
+            .select("id, url, platform, title, description")
+            .eq("contractor_id", profileId)
+            .eq("is_active", true)
+            .order("display_order", { ascending: true })
+            .then(({ data }) => setVideos((data ?? []) as ProfileVideoRow[]))
+        );
+      }
+
+      if (needsBeforeAfter) {
+        fetches.push(
+          supabase
+            .from("profile_before_after")
+            .select("id, before_photo_url, after_photo_url, title, description")
+            .eq("contractor_id", profileId)
+            .eq("is_active", true)
+            .order("display_order", { ascending: true })
+            .then(({ data }) => setBeforeAfterPairs((data ?? []) as BeforeAfterRow[]))
+        );
+      }
+
       await Promise.all(fetches);
       setLoading(false);
     };
@@ -1272,6 +1437,10 @@ const ContractorProfile = () => {
       case "credentials":  return <CredentialsBlock key={section.id} section={section} credentials={credentials} />;
       case "availability": return <AvailabilityBlock key={section.id} section={section} availability={availability} profile={profile} />;
       case "team":         return <TeamBlock key={section.id} section={section} teamMembers={teamMembers} />;
+      case "video":        return <VideoBlock key={section.id} section={section} videos={videos} />;
+      case "before_after": return <BeforeAfterBlock key={section.id} section={section} pairs={beforeAfterPairs} />;
+      case "service_area": return <ServiceAreaBlock key={section.id} section={section} profile={profile} />;
+      case "social":       return null; // rendered inside HeroBlock via SocialLinksBar
       default:             return null;
     }
   };

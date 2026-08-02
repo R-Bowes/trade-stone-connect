@@ -11,6 +11,10 @@ import { usePhotoGalleries, useGalleryPhotos, type ContractorPhoto } from "@/hoo
 import { useContractorProjects, type ContractorProject, type ProjectData } from "@/hooks/useContractorProjects";
 import { useContractorTeam, type TeamMemberInsert } from "@/hooks/useContractorTeam";
 import { useContractorCredentials, type NewCredential } from "@/hooks/useContractorCredentials";
+import { useProfileVideos, extractVideoId, type ProfileVideo } from "@/hooks/useProfileVideos";
+import { useBeforeAfter, type BeforeAfterPair } from "@/hooks/useBeforeAfter";
+import { getEmbedUrl } from "@/lib/videoEmbed";
+import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
 import type { Database } from "@/integrations/supabase/types";
 
 type TeamMemberRow = Database["public"]["Tables"]["team_members"]["Row"];
@@ -64,8 +68,22 @@ const SECTION_DEFS: Record<string, SectionDef> = {
   team:         { icon: "ti-users",       label: "Team",             hideable: true,  deletable: false, reorderable: true  },
   credentials:  { icon: "ti-certificate", label: "Credentials",      hideable: true,  deletable: false, reorderable: true  },
   availability: { icon: "ti-calendar",    label: "Availability",     hideable: true,  deletable: false, reorderable: true  },
+  video:        { icon: "ti-video",       label: "Video showcase",   hideable: true,  deletable: false, reorderable: true  },
+  before_after: { icon: "ti-arrows-diff", label: "Before & after",   hideable: true,  deletable: false, reorderable: true  },
+  service_area: { icon: "ti-map-pin",     label: "Service area",     hideable: true,  deletable: false, reorderable: true  },
+  social:       { icon: "ti-brand-instagram", label: "Social links", hideable: true,  deletable: false, reorderable: true  },
   cta:          { icon: "ti-send",        label: "Call to action",   fixed: true,  hideable: false, deletable: false, reorderable: false },
 };
+
+const SOCIAL_PLATFORMS: { key: string; label: string; icon: string }[] = [
+  { key: "instagram", label: "Instagram",   icon: "ti-brand-instagram" },
+  { key: "facebook",  label: "Facebook",    icon: "ti-brand-facebook" },
+  { key: "youtube",   label: "YouTube",     icon: "ti-brand-youtube" },
+  { key: "tiktok",    label: "TikTok",      icon: "ti-brand-tiktok" },
+  { key: "linkedin",  label: "LinkedIn",    icon: "ti-brand-linkedin" },
+  { key: "twitter",   label: "Twitter / X", icon: "ti-brand-x" },
+  { key: "website",   label: "Website",     icon: "ti-world" },
+];
 
 const ALL_STAT_KEYS = ["completed_jobs", "years_experience", "rating", "review_count", "hourly_rate"];
 const STAT_LABELS: Record<string, string> = {
@@ -368,6 +386,94 @@ function AvailabilityContent({ draft }: { draft: ProfileDraft }) {
   );
 }
 
+function VideoContent({ section, videos }: { section: SectionInstance; videos: ProfileVideo[] }) {
+  return (
+    <div style={{ padding: "20px 24px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
+      {videos.length === 0
+        ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No videos yet — add your first in the panel</div>
+        : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {videos.map(v => {
+              const { videoId } = extractVideoId(v.url);
+              const embedUrl = getEmbedUrl(v.platform, videoId);
+              return (
+                <div key={v.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+                  <div style={{ aspectRatio: "16/9", background: "#111" }}>
+                    {embedUrl
+                      ? <iframe src={embedUrl} title={v.title ?? "Video"} style={{ width: "100%", height: "100%", border: "none" }} allowFullScreen />
+                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}><i className="ti ti-video" style={{ fontSize: 24 }} /></div>
+                    }
+                  </div>
+                  {v.title && <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 600, color: NAVY }}>{v.title}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+function BeforeAfterContent({ section, pairs }: { section: SectionInstance; pairs: BeforeAfterPair[] }) {
+  return (
+    <div style={{ padding: "20px 24px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
+      {pairs.length === 0
+        ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No before/after pairs yet — add your first in the panel</div>
+        : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {pairs.map(p => (
+              <div key={p.id}>
+                <BeforeAfterSlider beforeUrl={p.before_photo_url} afterUrl={p.after_photo_url} height={180} />
+                {p.title && <div style={{ marginTop: 6, fontSize: 12, fontWeight: 600, color: NAVY }}>{p.title}</div>}
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+function ServiceAreaContent({ draft, profile }: { draft: ProfileDraft; profile: SupplementaryProfile | null }) {
+  return (
+    <div style={{ padding: "20px 24px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Service area</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px", background: "#f9fafb", borderRadius: 8 }}>
+        <i className="ti ti-map-pin" style={{ fontSize: 20, color: ORANGE }} />
+        <div style={{ fontSize: 13, color: "#374151" }}>
+          {draft.locationDisplay
+            ? <>Based in <strong>{draft.locationDisplay}</strong>{profile?.working_radius ? <>, covering a <strong>{profile.working_radius}</strong> radius</> : ""}</>
+            : "Add your location to show your service area"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SocialContent({ socialLinks }: { socialLinks: Record<string, string> }) {
+  const active = SOCIAL_PLATFORMS.filter(p => socialLinks[p.key]?.trim());
+  return (
+    <div style={{ padding: "20px 24px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Social links</div>
+      {active.length === 0
+        ? <div style={{ color: "#9ca3af", fontSize: 13 }}>No social links added — shown below your name in the hero once set</div>
+        : (
+          <div style={{ display: "flex", gap: 10 }}>
+            {active.map(p => (
+              <div key={p.key} style={{ width: 32, height: 32, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <i className={`ti ${p.icon}`} style={{ fontSize: 16, color: NAVY }} />
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
 function CtaContent({ draft }: { draft: ProfileDraft }) {
   return (
     <div style={{ padding: "28px 24px", textAlign: "center", background: "#f9fafb" }}>
@@ -391,6 +497,8 @@ interface CanvasBlockProps {
   projects: ContractorProject[];
   members: TeamMemberRow[];
   credentials: CredentialRow[];
+  videos: ProfileVideo[];
+  beforeAfterPairs: BeforeAfterPair[];
   isSelected: boolean;
   onSelect: () => void;
   onMoveUp: () => void;
@@ -400,7 +508,7 @@ interface CanvasBlockProps {
 }
 
 function CanvasBlock(props: CanvasBlockProps) {
-  const { section, index, total, draft, profile, reviews, galleryPhotoMap, projects, members, credentials, isSelected, onSelect, onMoveUp, onMoveDown, onToggle, onDelete } = props;
+  const { section, index, total, draft, profile, reviews, galleryPhotoMap, projects, members, credentials, videos, beforeAfterPairs, isSelected, onSelect, onMoveUp, onMoveDown, onToggle, onDelete } = props;
   const [hovered, setHovered] = useState(false);
   const def = SECTION_DEFS[section.type] ?? SECTION_DEFS.bio;
   const showBar = (hovered || isSelected) && !def.fixed;
@@ -464,6 +572,10 @@ function CanvasBlock(props: CanvasBlockProps) {
       {section.type === "team" && <TeamContent draft={draft} members={members} />}
       {section.type === "credentials" && <CredentialsContent draft={draft} credentials={credentials} />}
       {section.type === "availability" && <AvailabilityContent draft={draft} />}
+      {section.type === "video" && <VideoContent section={section} videos={videos} />}
+      {section.type === "before_after" && <BeforeAfterContent section={section} pairs={beforeAfterPairs} />}
+      {section.type === "service_area" && <ServiceAreaContent draft={draft} profile={profile} />}
+      {section.type === "social" && <SocialContent socialLinks={draft.socialLinks} />}
       {section.type === "cta" && <CtaContent draft={draft} />}
     </div>
   );
@@ -859,6 +971,230 @@ function AvailabilityPanelContent({ section, updateSection }: {
   );
 }
 
+function VideoPanelContent({ section, updateSection, videos, addVideo, removeVideo }: {
+  section: SectionInstance;
+  updateSection: (id: string, p: Partial<SectionInstance>) => void;
+  videos: ProfileVideo[];
+  addVideo: (url: string, title?: string, description?: string) => Promise<ProfileVideo | undefined>;
+  removeVideo: (id: string) => Promise<void>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const { toast } = useToast();
+
+  const handleAdd = async () => {
+    if (!url.trim()) return;
+    const { platform } = extractVideoId(url);
+    if (platform === "other") {
+      toast({ title: "Unrecognised video URL", description: "Paste a YouTube, TikTok, or Vimeo link.", variant: "destructive" });
+      return;
+    }
+    await addVideo(url.trim(), title.trim() || undefined);
+    setAdding(false); setUrl(""); setTitle("");
+  };
+
+  return (
+    <div>
+      <FieldLabel>Section heading</FieldLabel>
+      <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Video showcase" />
+      <FieldLabel>Videos</FieldLabel>
+      {videos.map(v => (
+        <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+          <i className={`ti ${v.platform === "youtube" ? "ti-brand-youtube" : v.platform === "tiktok" ? "ti-brand-tiktok" : v.platform === "vimeo" ? "ti-brand-vimeo" : "ti-video"}`} style={{ fontSize: 18, color: ORANGE, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.title || v.url}</div>
+            <div style={{ fontSize: 11, color: "#6b7280", textTransform: "capitalize" }}>{v.platform}</div>
+          </div>
+          <button onClick={() => removeVideo(v.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444" }}>
+            <i className="ti ti-trash" style={{ fontSize: 14 }} />
+          </button>
+        </div>
+      ))}
+      {!adding && (
+        <PanelBtn variant="ghost" onClick={() => setAdding(true)}>
+          <i className="ti ti-plus" style={{ marginRight: 4 }} />Add video
+        </PanelBtn>
+      )}
+      {adding && (
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px" }}>
+          <FieldLabel>Video URL</FieldLabel>
+          <PanelInput value={url} onChange={setUrl} placeholder="YouTube, TikTok or Vimeo link" />
+          <FieldLabel>Title (optional)</FieldLabel>
+          <PanelInput value={title} onChange={setTitle} placeholder="e.g. Kitchen renovation walkthrough" />
+          <div style={{ display: "flex", gap: 8 }}>
+            <PanelBtn onClick={handleAdd}>Add</PanelBtn>
+            <PanelBtn variant="ghost" onClick={() => setAdding(false)}>Cancel</PanelBtn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BeforeAfterPanelContent({ section, updateSection, pairs, addPair, removePair, uploadBeforeAfterPhoto, uploading }: {
+  section: SectionInstance;
+  updateSection: (id: string, p: Partial<SectionInstance>) => void;
+  pairs: BeforeAfterPair[];
+  addPair: (beforeUrl: string, afterUrl: string, title?: string, description?: string) => Promise<BeforeAfterPair | undefined>;
+  removePair: (id: string) => Promise<void>;
+  uploadBeforeAfterPhoto: (file: File) => Promise<string>;
+  uploading: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [beforeUrl, setBeforeUrl] = useState<string | null>(null);
+  const [afterUrl, setAfterUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const beforeRef = useRef<HTMLInputElement>(null);
+  const afterRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleUpload = async (file: File, which: "before" | "after") => {
+    try {
+      const url = await uploadBeforeAfterPhoto(file);
+      if (which === "before") setBeforeUrl(url); else setAfterUrl(url);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: String(err?.message ?? err), variant: "destructive" });
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!beforeUrl || !afterUrl) return;
+    await addPair(beforeUrl, afterUrl, title.trim() || undefined);
+    setAdding(false); setBeforeUrl(null); setAfterUrl(null); setTitle("");
+  };
+
+  return (
+    <div>
+      <FieldLabel>Section heading</FieldLabel>
+      <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Before & after" />
+      <FieldLabel>Pairs</FieldLabel>
+      {pairs.map(p => (
+        <div key={p.id} style={{ marginBottom: 10, border: "1px solid #e5e7eb", borderRadius: 8, padding: 10 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <img src={p.before_photo_url} alt="Before" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 4 }} />
+            <img src={p.after_photo_url} alt="After" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 4 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {p.title && <div style={{ fontWeight: 600, fontSize: 13 }}>{p.title}</div>}
+            </div>
+            <button onClick={() => removePair(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", alignSelf: "flex-start" }}>
+              <i className="ti ti-trash" style={{ fontSize: 14 }} />
+            </button>
+          </div>
+        </div>
+      ))}
+      {!adding && (
+        <PanelBtn variant="ghost" onClick={() => setAdding(true)}>
+          <i className="ti ti-plus" style={{ marginRight: 4 }} />Add pair
+        </PanelBtn>
+      )}
+      {adding && (
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px" }}>
+          <FieldLabel>Before photo</FieldLabel>
+          <input ref={beforeRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, "before"); e.target.value = ""; }} />
+          <PanelBtn variant="ghost" onClick={() => beforeRef.current?.click()}>
+            {beforeUrl ? "Change before photo" : uploading ? "Uploading…" : "Upload before photo"}
+          </PanelBtn>
+          {beforeUrl && <img src={beforeUrl} alt="" style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 6, marginTop: 8, marginBottom: 4 }} />}
+          <div style={{ height: 10 }} />
+          <FieldLabel>After photo</FieldLabel>
+          <input ref={afterRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, "after"); e.target.value = ""; }} />
+          <PanelBtn variant="ghost" onClick={() => afterRef.current?.click()}>
+            {afterUrl ? "Change after photo" : uploading ? "Uploading…" : "Upload after photo"}
+          </PanelBtn>
+          {afterUrl && <img src={afterUrl} alt="" style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 6, marginTop: 8, marginBottom: 4 }} />}
+          <div style={{ height: 10 }} />
+          <FieldLabel>Title (optional)</FieldLabel>
+          <PanelInput value={title} onChange={setTitle} placeholder="e.g. Bathroom re-tile" />
+          {beforeUrl && afterUrl && (
+            <div style={{ marginBottom: 14 }}>
+              <FieldLabel>Preview</FieldLabel>
+              <BeforeAfterSlider beforeUrl={beforeUrl} afterUrl={afterUrl} height={140} />
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <PanelBtn onClick={handleAdd}>Add</PanelBtn>
+            <PanelBtn variant="ghost" onClick={() => setAdding(false)}>Cancel</PanelBtn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServiceAreaPanelContent({ draft, updateDraft, section, updateSection }: {
+  draft: ProfileDraft;
+  updateDraft: (p: Partial<ProfileDraft>) => void;
+  section: SectionInstance;
+  updateSection: (id: string, p: Partial<SectionInstance>) => void;
+}) {
+  const areasCovered = (section.meta.areasCovered as string | undefined) ?? "";
+
+  return (
+    <div>
+      <FieldLabel>Section heading</FieldLabel>
+      <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Service area" />
+      <FieldLabel>Location</FieldLabel>
+      <PanelInput value={draft.locationDisplay} onChange={v => updateDraft({ locationDisplay: v })} placeholder="e.g. London" />
+      <FieldLabel>Radius (miles)</FieldLabel>
+      <PanelInput
+        type="number"
+        value={draft.serviceAreaRadiusMiles != null ? String(draft.serviceAreaRadiusMiles) : ""}
+        onChange={v => updateDraft({ serviceAreaRadiusMiles: v ? Number(v) : null })}
+        placeholder="e.g. 30"
+      />
+      <FieldLabel>Areas / postcodes covered (optional)</FieldLabel>
+      <PanelTextarea
+        value={areasCovered}
+        onChange={v => updateSection(section.id, { meta: { ...section.meta, areasCovered: v } })}
+        placeholder="e.g. IP28, IP29, Bury St Edmunds, Newmarket"
+        rows={3}
+      />
+      <div style={{ padding: "12px", background: "#f9fafb", borderRadius: 6, fontSize: 12, color: "#6b7280" }}>
+        <i className="ti ti-info-circle" style={{ marginRight: 6 }} />
+        Your service area is shown as text on your profile. A map view will be added in a future update.
+      </div>
+    </div>
+  );
+}
+
+function SocialPanelContent({ draft, updateDraft }: {
+  draft: ProfileDraft;
+  updateDraft: (p: Partial<ProfileDraft>) => void;
+}) {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleChange = (key: string, value: string) => {
+    const trimmed = value.trim();
+    if (trimmed && !trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+      setErrors(prev => ({ ...prev, [key]: "Must start with https://" }));
+    } else {
+      setErrors(prev => { const next = { ...prev }; delete next[key]; return next; });
+    }
+    updateDraft({ socialLinks: { ...draft.socialLinks, [key]: value } });
+  };
+
+  return (
+    <div>
+      {SOCIAL_PLATFORMS.map(p => (
+        <div key={p.key}>
+          <FieldLabel>{p.label}</FieldLabel>
+          <PanelInput
+            value={draft.socialLinks[p.key] ?? ""}
+            onChange={v => handleChange(p.key, v)}
+            placeholder="https://…"
+          />
+          {errors[p.key] && <div style={{ fontSize: 11, color: "#ef4444", marginTop: -10, marginBottom: 14 }}>{errors[p.key]}</div>}
+        </div>
+      ))}
+      <div style={{ padding: "12px", background: "#f9fafb", borderRadius: 6, fontSize: 12, color: "#6b7280" }}>
+        <i className="ti ti-info-circle" style={{ marginRight: 6 }} />
+        Only platforms with a link set will show as icons on your profile.
+      </div>
+    </div>
+  );
+}
+
 function CtaPanelContent({ draft, updateDraft }: { draft: ProfileDraft; updateDraft: (p: Partial<ProfileDraft>) => void }) {
   return (
     <div>
@@ -892,10 +1228,24 @@ interface EditPanelProps {
   deleteCredential: (id: string) => Promise<void>;
   galleries: { id: string; title: string }[];
   updateGallery: (id: string, title: string) => Promise<void>;
+  videos: ProfileVideo[];
+  addVideo: (url: string, title?: string, description?: string) => Promise<ProfileVideo | undefined>;
+  removeVideo: (id: string) => Promise<void>;
+  beforeAfterPairs: BeforeAfterPair[];
+  addBeforeAfterPair: (beforeUrl: string, afterUrl: string, title?: string, description?: string) => Promise<BeforeAfterPair | undefined>;
+  removeBeforeAfterPair: (id: string) => Promise<void>;
+  uploadBeforeAfterPhoto: (file: File) => Promise<string>;
+  beforeAfterUploading: boolean;
 }
 
 function EditPanel(props: EditPanelProps) {
-  const { section, onClose, draft, updateDraft, updateSection, onDeleteSection, saving, onSave, reviews, projects, addProject, updateProject, deleteProject, members, addMember, deleteMember, credentials, addCredential, deleteCredential, galleries, updateGallery } = props;
+  const {
+    section, onClose, draft, updateDraft, updateSection, onDeleteSection, saving, onSave,
+    reviews, projects, addProject, updateProject, deleteProject, members, addMember, deleteMember,
+    credentials, addCredential, deleteCredential, galleries, updateGallery,
+    videos, addVideo, removeVideo, beforeAfterPairs, addBeforeAfterPair, removeBeforeAfterPair,
+    uploadBeforeAfterPhoto, beforeAfterUploading,
+  } = props;
   const def = section ? (SECTION_DEFS[section.type] ?? SECTION_DEFS.bio) : null;
 
   return (
@@ -937,6 +1287,20 @@ function EditPanel(props: EditPanelProps) {
           <CredentialsPanelContent section={section} updateSection={updateSection} credentials={credentials} addCredential={addCredential} deleteCredential={deleteCredential} />
         )}
         {section?.type === "availability" && <AvailabilityPanelContent section={section} updateSection={updateSection} />}
+        {section?.type === "video" && (
+          <VideoPanelContent section={section} updateSection={updateSection} videos={videos} addVideo={addVideo} removeVideo={removeVideo} />
+        )}
+        {section?.type === "before_after" && (
+          <BeforeAfterPanelContent
+            section={section} updateSection={updateSection} pairs={beforeAfterPairs}
+            addPair={addBeforeAfterPair} removePair={removeBeforeAfterPair}
+            uploadBeforeAfterPhoto={uploadBeforeAfterPhoto} uploading={beforeAfterUploading}
+          />
+        )}
+        {section?.type === "service_area" && (
+          <ServiceAreaPanelContent draft={draft} updateDraft={updateDraft} section={section} updateSection={updateSection} />
+        )}
+        {section?.type === "social" && <SocialPanelContent draft={draft} updateDraft={updateDraft} />}
         {section?.type === "cta" && <CtaPanelContent draft={draft} updateDraft={updateDraft} />}
       </div>
 
@@ -1163,6 +1527,8 @@ export function CanvasEditor() {
   const { projects, addProject, updateProject, deleteProject } = useContractorProjects();
   const { members, addMember, deleteMember } = useContractorTeam();
   const { credentials, addCredential, deleteCredential } = useContractorCredentials();
+  const { videos, addVideo, removeVideo } = useProfileVideos();
+  const { pairs: beforeAfterPairs, addPair: addBeforeAfterPair, removePair: removeBeforeAfterPair, uploadBeforeAfterPhoto, uploading: beforeAfterUploading } = useBeforeAfter();
 
   const [profile, setProfile] = useState<SupplementaryProfile | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
@@ -1343,6 +1709,8 @@ export function CanvasEditor() {
                     projects={projects}
                     members={members}
                     credentials={credentials}
+                    videos={videos}
+                    beforeAfterPairs={beforeAfterPairs}
                     isSelected={section.id === activeId}
                     onSelect={() => setActiveId(section.id)}
                     onMoveUp={() => handleMoveUp(section.id)}
@@ -1379,6 +1747,14 @@ export function CanvasEditor() {
           deleteCredential={deleteCredential}
           galleries={galleryListForPanel}
           updateGallery={updateGallery}
+          videos={videos}
+          addVideo={addVideo}
+          removeVideo={removeVideo}
+          beforeAfterPairs={beforeAfterPairs}
+          addBeforeAfterPair={addBeforeAfterPair}
+          removeBeforeAfterPair={removeBeforeAfterPair}
+          uploadBeforeAfterPhoto={uploadBeforeAfterPhoto}
+          beforeAfterUploading={beforeAfterUploading}
         />
       </div>
     </div>

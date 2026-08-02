@@ -20,6 +20,7 @@ export interface PublicProfile {
   completed_jobs: number | null;
   years_experience: number | null;
   hourly_rate: number | null;
+  social_links?: Record<string, string> | null;
 }
 
 export interface ProfilePhoto {
@@ -114,6 +115,47 @@ function SectionCard({ title, children }: { title: string; children: React.React
         </div>
       </div>
       <div style={{ padding: "0 20px 18px" }}>{children}</div>
+    </div>
+  );
+}
+
+// ─── Social links bar ─────────────────────────────────────────────────────────
+
+const SOCIAL_ICON_DEFS: { key: string; icon: string }[] = [
+  { key: "instagram", icon: "ti-brand-instagram" },
+  { key: "facebook",  icon: "ti-brand-facebook" },
+  { key: "youtube",   icon: "ti-brand-youtube" },
+  { key: "tiktok",    icon: "ti-brand-tiktok" },
+  { key: "linkedin",  icon: "ti-brand-linkedin" },
+  { key: "twitter",   icon: "ti-brand-x" },
+  { key: "website",   icon: "ti-world" },
+];
+
+export function SocialLinksBar({ socialLinks }: { socialLinks?: Record<string, string> | null }) {
+  const links = socialLinks ?? {};
+  const active = SOCIAL_ICON_DEFS.filter(d => links[d.key]?.trim());
+  if (active.length === 0) return null;
+
+  return (
+    <div style={{ position: "relative", display: "flex", gap: 8, marginTop: 12 }}>
+      {active.map(({ key, icon }) => (
+        <a
+          key={key}
+          href={links[key]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            width: 30, height: 30, borderRadius: "50%",
+            background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.15s, color 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#f07820"; e.currentTarget.style.color = "white"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
+        >
+          <i className={`ti ${icon}`} style={{ fontSize: 15 }} />
+        </a>
+      ))}
     </div>
   );
 }
@@ -230,6 +272,8 @@ export function HeroBlock({
               </span>
             )}
           </div>
+
+          <SocialLinksBar socialLinks={profile.social_links} />
         </div>
       </div>
 

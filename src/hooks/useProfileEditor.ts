@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SectionKey =
   | "hero" | "bio" | "stats" | "services" | "availability"
-  | "reviews" | "credentials" | "team" | "cta";
+  | "reviews" | "credentials" | "team" | "cta"
+  | "video" | "before_after" | "service_area" | "social";
 
 export type RepeatableSectionKey = "gallery" | "project";
 
@@ -37,6 +38,8 @@ export interface ProfileDraft {
   locationDisplay: string;
   isPublished: boolean;
   publishedAt: string | null;
+  socialLinks: Record<string, string>;
+  serviceAreaRadiusMiles: number | null;
 }
 
 const DEFAULT_LABEL: Record<string, string> = {
@@ -51,6 +54,20 @@ const DEFAULT_LABEL: Record<string, string> = {
   credentials: "Credentials",
   availability: "Availability",
   cta: "Contact",
+  video: "Video showcase",
+  before_after: "Before & after",
+  service_area: "Service area",
+  social: "Social links",
+};
+
+// New in this feature — inserted disabled/enabled per Step 5's spec when
+// missing from an existing contractor's rows, and included at these
+// defaults for brand-new contractors via buildDefaultSections below.
+const NEW_SECTION_DEFAULTS: Record<"video" | "before_after" | "service_area" | "social", boolean> = {
+  video: false,
+  before_after: false,
+  service_area: true,
+  social: true,
 };
 
 function defaultLabel(type: string): string {
@@ -58,17 +75,20 @@ function defaultLabel(type: string): string {
 }
 
 // Default order when no profile_widgets rows exist.
-// hero, bio, stats, services, gallery(x1), reviews, team, credentials, availability, cta
-// No project sections by default.
+// hero, bio, stats, services, gallery(x1), social, reviews, team,
+// credentials, availability, video, before_after, service_area, cta
+// No project sections by default. video/before_after start disabled
+// (no content yet); social/service_area start enabled (Step 5).
 function buildDefaultSections(): SectionInstance[] {
   const order: Array<SectionKey | RepeatableSectionKey> = [
-    "hero", "bio", "stats", "services", "gallery",
-    "reviews", "team", "credentials", "availability", "cta",
+    "hero", "bio", "stats", "services", "gallery", "social",
+    "reviews", "team", "credentials", "availability",
+    "video", "before_after", "service_area", "cta",
   ];
   return order.map((type, i) => ({
     id: crypto.randomUUID(),
     type,
-    is_enabled: true,
+    is_enabled: type in NEW_SECTION_DEFAULTS ? NEW_SECTION_DEFAULTS[type as keyof typeof NEW_SECTION_DEFAULTS] : true,
     display_order: i,
     label: defaultLabel(type),
     meta: {},
@@ -95,13 +115,15 @@ const BLANK_DRAFT: ProfileDraft = {
   locationDisplay: "",
   isPublished: false,
   publishedAt: null,
+  socialLinks: {},
+  serviceAreaRadiusMiles: null,
 };
 
 // Construct a ProfileDraft from raw DB rows.
 // New profile columns are not in generated types.ts — cast as any.
 function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string, unknown>[]): ProfileDraft {
   const p = profile as any;
-  const sections: SectionInstance[] = widgetRows.length > 0
+  let sections: SectionInstance[] = widgetRows.length > 0
     ? widgetRows.map(row => {
         const r = row as any;
         return {
@@ -115,6 +137,35 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
         };
       })
     : buildDefaultSections();
+
+  // Step 5: existing contractors (widgetRows.length > 0, i.e. they've
+  // visited the editor before this feature shipped) won't have rows for
+  // the new widget_keys. Backfill any missing ones now — inserted before
+  // the fixed 'cta' section (or at the end if there's no cta row for some
+  // reason), so they render in a sensible place without disturbing the
+  // contractor's existing order/customisations for everything else.
+  if (widgetRows.length > 0) {
+    const present = new Set(sections.map(s => s.type));
+    const missing = (Object.keys(NEW_SECTION_DEFAULTS) as Array<keyof typeof NEW_SECTION_DEFAULTS>)
+      .filter(key => !present.has(key));
+    if (missing.length > 0) {
+      const ctaIndex = sections.findIndex(s => s.type === "cta");
+      const insertAt = ctaIndex >= 0 ? ctaIndex : sections.length;
+      const newSections: SectionInstance[] = missing.map(type => ({
+        id: crypto.randomUUID(),
+        type,
+        is_enabled: NEW_SECTION_DEFAULTS[type],
+        display_order: 0, // reassigned below
+        label: defaultLabel(type),
+        meta: {},
+      }));
+      sections = [
+        ...sections.slice(0, insertAt),
+        ...newSections,
+        ...sections.slice(insertAt),
+      ].map((s, i) => ({ ...s, display_order: i }));
+    }
+  }
 
   return {
     sections,
@@ -136,6 +187,8 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
     locationDisplay: p.location ?? "",
     isPublished: p.profile_is_published ?? false,
     publishedAt: p.profile_published_at ?? null,
+    socialLinks: (p.social_links as Record<string, string> | null) ?? {},
+    serviceAreaRadiusMiles: p.service_area_radius_miles ?? null,
   };
 }
 
@@ -213,6 +266,8 @@ export function useProfileEditor() {
         team_heading: d.teamHeading || null,
         profile_is_published: d.isPublished,
         profile_published_at: d.publishedAt,
+        social_links: d.socialLinks,
+        service_area_radius_miles: d.serviceAreaRadiusMiles,
       } as any)
       .eq("id", contractorId);
     if (profileError) throw profileError;
