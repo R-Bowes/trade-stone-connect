@@ -161,6 +161,52 @@ export const VISIT_STATUS_CONFIG: Record<ServiceVisitStatus, { label: string; co
   cancelled: { label: 'Cancelled', colour: 'bg-gray-100 text-gray-700 border-gray-200' },
 };
 
+// Maps an asset category to a value from CONTRACTOR_TRADES (src/constants/
+// trades.ts) — must be an exact match against that list, since
+// fetchAvailableContractors() filters panel contractors by
+// `contractor.trades.includes(trade)`, and a contractor's `trades` array is
+// itself drawn from CONTRACTOR_TRADES. Not exhaustive: categories with no
+// clean single-trade match (lifts_lifting, escalators, smoke_ventilation,
+// waste_management, most Building Fabric/Grounds categories) are left
+// unmapped for the FM to pick manually.
+export const ASSET_CATEGORY_TRADE_MAP: Partial<Record<AssetCategory, string>> = {
+  fire_safety: 'Fire Protection',
+  fire_suppression: 'Fire Protection',
+  emergency_lighting: 'Electrical',
+  electrical: 'Electrical',
+  lightning_protection: 'Electrical',
+  ups_systems: 'Electrical',
+  ev_charging: 'EV Charger Installation',
+  solar_panels: 'Renewable Energy & Solar',
+  hvac: 'Air Conditioning & Refrigeration',
+  air_handling: 'Air Conditioning & Refrigeration',
+  ventilation: 'Air Conditioning & Refrigeration',
+  heat_pumps: 'Air Conditioning & Refrigeration',
+  chiller_systems: 'Air Conditioning & Refrigeration',
+  boilers: 'Gas & Heating',
+  plumbing: 'Plumbing',
+  water_hygiene: 'Plumbing',
+  water_treatment: 'Plumbing',
+  legionella: 'Plumbing',
+  drainage: 'Drainage',
+  drainage_external: 'Drainage',
+  gas: 'Gas & Heating',
+  gas_detection: 'Gas & Heating',
+  security: 'Security Systems',
+  access_control: 'Security Systems',
+  cctv: 'Security Systems',
+  intruder_alarms: 'Security Systems',
+  intercoms: 'Security Systems',
+  roofing: 'Roofing',
+  glazing: 'Glazing & Double Glazing',
+  doors_windows: 'Windows & Doors',
+  structural: 'Structural Engineers',
+  grounds: 'Landscaping',
+  car_parks: 'Groundwork',
+  pest_control: 'Pest Control',
+  asbestos: 'Asbestos Removal',
+};
+
 export const CONTRACT_STATUS_CONFIG: Record<ServiceContractStatus, { label: string; colour: string }> = {
   draft: { label: 'Draft', colour: 'bg-gray-100 text-gray-700 border-gray-200' },
   active: { label: 'Active', colour: 'bg-green-100 text-green-800 border-green-200' },

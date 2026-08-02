@@ -623,13 +623,6 @@ const SchedulesTab = ({
 };
 
 // ─── Visits Tab ──────────────────────────────────────────────────────────────
-const FREQUENCY_DAYS_MAP: Record<string, number> = {
-  weekly: 7, bi_weekly: 14, monthly: 30, bi_monthly: 61, quarterly: 91,
-  six_monthly: 183, annual: 365, '2_yearly': 730, '3_yearly': 1095,
-  '4_yearly': 1460, '5_yearly': 1825, '6_yearly': 2190, '7_yearly': 2555,
-  '8_yearly': 2920, '9_yearly': 3285, '10_yearly': 3650,
-};
-
 const VisitsTab = ({
   visits, documents, loading, onRefresh,
 }: {
@@ -651,47 +644,15 @@ const VisitsTab = ({
     setCompleting(true);
     const completedAt = new Date().toISOString();
 
+    // The DB trigger auto_roll_next_visit (20260806100000_ppm_automation.sql)
+    // now owns everything that used to happen here by hand — computing the
+    // next due date, updating the schedule, and inserting the next visit —
+    // fired directly off this status update. Doing it here too would create
+    // a duplicate next-visit row and a duplicate schedule update every time.
     await supabase.from('service_visits').update({
       status: 'completed',
       completed_at: completedAt,
     }).eq('id', visit.id);
-
-    const { data: schedule } = await supabase
-      .from('service_schedules')
-      .select('*')
-      .eq('id', visit.schedule_id)
-      .maybeSingle();
-
-    if (schedule) {
-      const days = FREQUENCY_DAYS_MAP[schedule.frequency] ?? 365;
-      const nextDue = new Date(completedAt);
-      nextDue.setDate(nextDue.getDate() + days);
-      const windowStart = new Date(nextDue);
-      windowStart.setDate(windowStart.getDate() - (schedule.notice_days ?? 14));
-
-      await supabase.from('service_schedules').update({
-        last_completed_at: completedAt,
-        next_due_at: nextDue.toISOString(),
-      }).eq('id', schedule.id);
-
-      const { data: contract } = await supabase
-        .from('service_contracts')
-        .select('contractor_id, company_id')
-        .eq('id', schedule.contract_id)
-        .maybeSingle();
-
-      if (contract) {
-        await supabase.from('service_visits').insert({
-          schedule_id: schedule.id,
-          asset_id: visit.asset_id,
-          contractor_id: contract.contractor_id,
-          company_id: contract.company_id,
-          scheduled_window_start: windowStart.toISOString(),
-          scheduled_window_end: nextDue.toISOString(),
-          status: 'scheduled',
-        });
-      }
-    }
 
     toast({ title: 'Visit completed', description: 'Next visit has been automatically scheduled.' });
     setCompleting(false);

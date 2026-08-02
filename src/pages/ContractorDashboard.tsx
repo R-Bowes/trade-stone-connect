@@ -38,6 +38,7 @@ import { ScoreBreakdown } from "@/components/management/ScoreBreakdown";
 import { JobManagement } from "@/components/management/JobManagement";
 import { RamsTemplateManagement } from "@/components/management/rams/RamsTemplateManagement";
 import { WorkOrderInbox } from "@/components/management/WorkOrderInbox";
+import { PpmVisits } from "@/components/management/PpmVisits";
 import { IssuedQuotes } from "@/components/management/IssuedQuotes";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
 import { StripeConnect } from "@/components/management/StripeConnect";
@@ -698,6 +699,11 @@ const ContractorDashboard = () => {
           <TabsContent value="jobs"><JobManagement /></TabsContent>
           <TabsContent value="rams-templates"><RamsTemplateManagement /></TabsContent>
           <TabsContent value="work-orders"><WorkOrderInbox /></TabsContent>
+          <TabsContent value="ppm-visits" className="space-y-6">
+            {profileId ? <PpmVisits profileId={profileId} /> : (
+              <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load PPM visits — profile not found.</p></CardContent></Card>
+            )}
+          </TabsContent>
 
           {/* Tenders Tab */}
           <TabsContent value="tenders">

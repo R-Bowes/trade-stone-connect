@@ -11,6 +11,7 @@ import { ServiceRequestQueue } from "@/components/business/ServiceRequestQueue";
 import { SiteAutonomySettings } from "@/components/business/SiteAutonomySettings";
 import { ServiceCategoryManager } from "@/components/business/ServiceCategoryManager";
 import { SiteContactManager } from "@/components/business/SiteContactManager";
+import { PpmComplianceDashboard } from "@/components/business/PpmComplianceDashboard";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
 import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
@@ -281,6 +282,13 @@ const BusinessDashboard = () => {
         return (
           <div className="p-6">
             <ServiceRequestQueue companyId={companyId!} />
+          </div>
+        );
+
+      case "ppm-compliance":
+        return (
+          <div className="p-6">
+            <PpmComplianceDashboard companyId={companyId!} profileId={profileId} />
           </div>
         );
 
