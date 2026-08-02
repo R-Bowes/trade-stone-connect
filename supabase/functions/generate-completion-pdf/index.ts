@@ -21,6 +21,8 @@ import {
   DARK,
   MID,
   NAVY,
+  WHITE,
+  PALE,
   MARGIN,
   PAGE_WIDTH,
   LineItem,
@@ -118,6 +120,24 @@ interface PaidInvoice {
   paid_date: string | null;
 }
 
+const VARIATION_REASON_LABELS: Record<string, string> = {
+  client_request: "Client requested change",
+  unforeseen_works: "Unforeseen works discovered",
+  design_change: "Design change",
+  regulatory_requirement: "Regulatory requirement",
+  material_substitution: "Material substitution",
+  other: "Other",
+};
+
+interface VariationRow {
+  variation_number: number;
+  title: string;
+  reason: string;
+  amount: number;
+  status: string;
+  responded_at: string | null;
+}
+
 const CERTIFICATE_TYPE_LABELS: Record<string, string> = {
   gas_safety: "Gas Safety Certificate (CP12)",
   electrical_eic: "Electrical Installation Certificate",
@@ -151,6 +171,7 @@ async function buildCompletionPdf(
   photos: PhotoRow[],
   invoice: PaidInvoice | null,
   certificates: CertificateRow[],
+  variations: VariationRow[],
   fetchPhotoBytes: (path: string) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -345,6 +366,56 @@ async function buildCompletionPdf(
     y -= 16;
   }
 
+  // ── Variations ────────────────────────────────────────────────────────────
+  const approvedVariations = variations.filter((v) => v.status === "approved");
+  if (approvedVariations.length > 0) {
+    ensureSpace(24);
+    y -= 6;
+    page.drawText("VARIATIONS", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    const tableWidth = PAGE_WIDTH - 2 * MARGIN;
+    const colTitle = MARGIN + 30;
+    const colReason = MARGIN + tableWidth * 0.42;
+    const colAmount = MARGIN + tableWidth * 0.72;
+    const colDate = MARGIN + tableWidth * 0.86;
+    const rowHeight = 18;
+
+    page.drawRectangle({ x: MARGIN, y: y - rowHeight + 4, width: tableWidth, height: rowHeight, color: NAVY });
+    const headerY = y - 12;
+    page.drawText("#", { x: MARGIN + 6, y: headerY, size: 8, font: bold, color: WHITE });
+    page.drawText("Title / Reason", { x: colTitle, y: headerY, size: 8, font: bold, color: WHITE });
+    page.drawText("Amount", { x: colAmount, y: headerY, size: 8, font: bold, color: WHITE });
+    page.drawText("Approved", { x: colDate, y: headerY, size: 8, font: bold, color: WHITE });
+    y -= rowHeight;
+
+    for (const [i, v] of approvedVariations.entries()) {
+      ensureSpace(rowHeight + 4);
+      if (i % 2 === 0) {
+        page.drawRectangle({ x: MARGIN, y: y - rowHeight + 4, width: tableWidth, height: rowHeight, color: PALE });
+      }
+      const rowY = y - 12;
+      page.drawText(String(v.variation_number), { x: MARGIN + 6, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(v.title, { x: colTitle, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(VARIATION_REASON_LABELS[v.reason] ?? v.reason, { x: colReason, y: rowY, size: 7, font: regular, color: MID });
+      const amtText = `${v.amount >= 0 ? "+" : ""}£${v.amount.toFixed(2)}`;
+      page.drawText(amtText, { x: colAmount, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(v.responded_at ? (fmtDateTime(v.responded_at)?.split(",")[0] ?? "") : "", { x: colDate, y: rowY, size: 8, font: regular, color: DARK });
+      y -= rowHeight;
+    }
+    y -= 10;
+
+    const originalTotal = quote?.total ?? 0;
+    const variationTotal = approvedVariations.reduce((sum, v) => sum + v.amount, 0);
+    const finalTotal = originalTotal + variationTotal;
+    ensureSpace(16);
+    page.drawText(
+      `Original contract: £${originalTotal.toFixed(2)}   |   Approved variations: ${variationTotal >= 0 ? "+" : ""}£${variationTotal.toFixed(2)}   |   Final contract value: £${finalTotal.toFixed(2)}`,
+      { x: MARGIN, y, size: 8, font: bold, color: NAVY },
+    );
+    y -= 18;
+  }
+
   return pdfDoc.save();
 }
 
@@ -445,6 +516,14 @@ serve(async (req) => {
       .order("issued_date", { ascending: false });
     const certificates = (certificateRows ?? []) as CertificateRow[];
 
+    const { data: variationRows } = await supabase
+      .from("job_variations")
+      .select("variation_number, title, reason, amount, status, responded_at")
+      .eq("job_id", job_id)
+      .eq("status", "approved")
+      .order("variation_number", { ascending: true });
+    const variations = (variationRows ?? []) as VariationRow[];
+
     const fetchPhotoBytes = async (path: string): Promise<Uint8Array | null> => {
       try {
         const { data, error } = await supabase.storage.from("job-photos").download(path);
@@ -465,6 +544,7 @@ serve(async (req) => {
         photos,
         invoice,
         certificates,
+        variations,
         fetchPhotoBytes,
       );
     } catch (err) {

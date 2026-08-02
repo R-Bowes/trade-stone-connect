@@ -38,6 +38,7 @@ import { JobCertificates } from "@/components/management/certificates/JobCertifi
 import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
 import { CoolingOffStatusCard } from "@/components/consumer/CoolingOffStatusCard";
 import { PaymentProgress } from "@/components/management/payments/PaymentProgress";
+import { VariationsSection } from "@/components/management/variations/VariationsSection";
 
 // scheduled/snagging were missing entirely — both silently fell through to
 // not_started (statusConfig[job.status] || statusConfig.not_started below),
@@ -275,6 +276,14 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
       )}
 
       <PaymentProgress jobId={job.id} isContractor={false} />
+
+      <VariationsSection
+        jobId={job.id}
+        contractorId={job.contractor_id}
+        customerId={job.customer_id}
+        currentContractValue={Number(job.contract_value)}
+        isContractor={false}
+      />
 
       {/* Section Nav */}
       <div className="flex gap-2 flex-wrap">

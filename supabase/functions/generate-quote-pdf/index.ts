@@ -290,6 +290,19 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
     }
   }
 
+  if (scheduleStages.length > 0) {
+    y -= 8;
+    ensureSpace(20);
+    for (const line of wrapText(
+      "Any variations to the agreed scope of work will be documented and require your written approval before additional charges apply.",
+      regular, 8, PAGE_WIDTH - 2 * MARGIN,
+    )) {
+      ensureSpace(12);
+      page.drawText(line, { x: MARGIN, y, size: 8, font: regular, color: MID });
+      y -= 12;
+    }
+  }
+
   return pdfDoc.save();
 }
 

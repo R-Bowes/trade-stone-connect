@@ -50,6 +50,7 @@ import { JobCertificates } from "@/components/management/certificates/JobCertifi
 import { HardHat, Award } from "lucide-react";
 import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
 import { PaymentProgress } from "@/components/management/payments/PaymentProgress";
+import { VariationsSection } from "@/components/management/variations/VariationsSection";
 
 const STATUS_ORDER = ["scheduled", "in_progress", "snagging", "complete"] as const;
 type JobStatus = (typeof STATUS_ORDER)[number] | "cancelled";
@@ -1149,6 +1150,16 @@ export function JobManagement() {
                 })()}
 
                 <PaymentProgress jobId={selectedJob.id} isContractor={true} />
+
+                {contractorProfileId && (
+                  <VariationsSection
+                    jobId={selectedJob.id}
+                    contractorId={contractorProfileId}
+                    customerId={selectedJob.customer_id}
+                    currentContractValue={Number(selectedJob.contract_value)}
+                    isContractor={true}
+                  />
+                )}
 
                 {/* Workers */}
                 {selectedJob.status !== "cancelled" && (
