@@ -39,6 +39,7 @@ import TenderDetail from "./pages/TenderDetail";
 import ProposalReview from "./pages/ProposalReview";
 import ProjectDelivery from "./pages/ProjectDelivery";
 import InvitePage from "./pages/InvitePage";
+import SitePortal from "./pages/SitePortal";
 import ContractorKPIInsights from "./pages/ContractorKPIInsights";
 import ContractorLayout from "./components/ContractorLayout";
 
@@ -96,6 +97,7 @@ const App = () => (
           <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invite" element={<InvitePage />} />
+          <Route path="/site-portal" element={<ProtectedRoute><SitePortal /></ProtectedRoute>} />
 
           {/* Protected routes */}
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

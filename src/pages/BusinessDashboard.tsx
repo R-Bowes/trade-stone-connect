@@ -7,6 +7,10 @@ import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
 import { WorkOrderDashboard } from "@/components/business/WorkOrderDashboard";
+import { ServiceRequestQueue } from "@/components/business/ServiceRequestQueue";
+import { SiteAutonomySettings } from "@/components/business/SiteAutonomySettings";
+import { ServiceCategoryManager } from "@/components/business/ServiceCategoryManager";
+import { SiteContactManager } from "@/components/business/SiteContactManager";
 import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
 import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
@@ -272,6 +276,34 @@ const BusinessDashboard = () => {
 
       case "work-orders":
         return <WorkOrderDashboard companyId={companyId!} profileId={profileId} />;
+
+      case "service-requests":
+        return (
+          <div className="p-6">
+            <ServiceRequestQueue companyId={companyId!} />
+          </div>
+        );
+
+      case "site-autonomy":
+        return (
+          <div className="p-6">
+            <SiteAutonomySettings companyId={companyId!} />
+          </div>
+        );
+
+      case "service-categories":
+        return (
+          <div className="p-6">
+            <ServiceCategoryManager companyId={companyId!} />
+          </div>
+        );
+
+      case "site-contacts":
+        return (
+          <div className="p-6">
+            <SiteContactManager companyId={companyId!} />
+          </div>
+        );
 
       case "requests":
         return <BusinessRequestsView companyId={companyId!} profileId={profileId} />;
