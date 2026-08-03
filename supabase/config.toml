@@ -48,5 +48,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-cooling-off-notice]
-# Internal/service-to-service — invoked by mint_job_from_quote's net.http_post, not by end users
-verify_jwt = false
+# Called only by mint_job_from_quote's net.http_post with the service_role
+# key as bearer (valid JWT), so verify_jwt=true doesn't break that path —
+# it just blocks the anonymous-callable spam vector this function had
+# (no ownership check inside, accepts an arbitrary job_id).
+verify_jwt = true
