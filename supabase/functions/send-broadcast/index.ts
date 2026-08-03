@@ -80,8 +80,8 @@ function buildEmailHtml(
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:system-ui,-apple-system,sans-serif;">
   <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-    <div style="background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 32px;">
-      <img src="https://tnvxfzmdjpsswjszwbvf.supabase.co/storage/v1/object/public/logos/425b9477-5d1b-4a31-b7f0-a91a31f5a99b/logo.png" alt="" height="24" style="display:inline-block;vertical-align:middle;margin-right:8px;" /><span style="color:#0f2744;font-size:18px;font-weight:700;vertical-align:middle;">TradeStone</span>
+    <div style="background:#1a2744;border-bottom:1px solid #e8e8e8;padding:14px 32px;">
+      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.05em;text-transform:uppercase;">TRADE<span style="color:#f07820;">STONE</span></span>
     </div>
     <div style="padding:32px 32px 24px;">
       <h2 style="margin:0 0 18px;color:#0f2744;font-size:20px;font-weight:600;">${esc(subject)}</h2>
@@ -90,7 +90,7 @@ function buildEmailHtml(
     </div>
     <div style="background:#f9f9f9;border-top:1px solid #e8e8e8;padding:14px 32px;text-align:center;">
       <span style="font-size:12px;color:#999;">
-        TradeStone Connect &middot;
+        TradeStone &middot;
         <a href="https://tradesltd.co.uk" style="color:#999;text-decoration:none;">tradesltd.co.uk</a>
         &middot;
         <a href="https://tradesltd.co.uk/unsubscribe" style="color:#999;text-decoration:none;">Unsubscribe</a>
