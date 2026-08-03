@@ -25,7 +25,7 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
 });
 
-const PLATFORM_FEE_PERCENT = 0.035;
+const PLATFORM_FEE_PERCENT = 0.05;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
