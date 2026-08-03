@@ -49,6 +49,19 @@ const ACTION_LABELS: Record<string, string> = {
   message: "New Message",
 };
 
+// emailTemplate.ts's quote_action case interpolates `message` unescaped
+// into an HTML detail row — this is the only user-supplied free-text
+// field this function forwards into that HTML, so it's sanitized here at
+// the source rather than making the shared template escape-aware for one
+// caller.
+const escapeHtml = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -79,7 +92,10 @@ serve(async (req) => {
       return jsonResponse(401, { success: false, error: "Unauthorized" }, corsHeaders);
     }
 
-    const { action_type, context_type, context_id, message } = await req.json();
+    const { action_type, context_type, context_id, message: rawMessage } = await req.json();
+    const message = typeof rawMessage === "string" && rawMessage.trim()
+      ? escapeHtml(rawMessage.trim().slice(0, 2000))
+      : undefined;
 
     const { data: actorProfile } = await supabase
       .from("profiles")
