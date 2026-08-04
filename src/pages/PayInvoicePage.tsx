@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { formatInvoiceRef } from "@/lib/documentRefs";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { isOverdue } from "@/lib/invoiceMoney";
 
 type PublicInvoice = {
   id: string;
@@ -99,7 +100,7 @@ export default function PayInvoicePage() {
   const statusBadge = useMemo(() => {
     if (!invoice) return null;
     if (invoice.status === "paid") return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
-    if (invoice.status === "overdue") return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
+    if (isOverdue(invoice)) return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
     return <Badge className="bg-amber-100 text-amber-800">Payment due</Badge>;
   }, [invoice]);
 

@@ -16,6 +16,7 @@ import {
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
+import { isOverdue as invoiceIsOverdue } from "@/lib/invoiceMoney";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaymentDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
@@ -60,20 +61,20 @@ export function InvoiceManagement() {
         String(inv.invoice_number ?? "").includes(search.toLowerCase()) ||
         inv.client_email.toLowerCase().includes(search.toLowerCase()) ||
         clientDisplay.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "overdue" ? invoiceIsOverdue(inv) : inv.status === statusFilter);
       return matchesSearch && matchesStatus;
     });
   }, [invoices, search, statusFilter]);
 
   const getStatusBadge = (invoice: Invoice) => {
-    const isOverdue = invoice.status !== "paid" && new Date(invoice.due_date) < new Date();
-    if (isOverdue && invoice.status !== "paid") {
+    if (invoiceIsOverdue(invoice)) {
       return <Badge variant="destructive">Overdue</Badge>;
     }
     switch (invoice.status) {
       case "paid": return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
       case "sent": return <Badge className="bg-amber-100 text-amber-800">Sent</Badge>;
-      case "overdue": return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
+      case "viewed": return <Badge className="bg-blue-100 text-blue-800">Viewed</Badge>;
       case "draft": return <Badge className="bg-slate-200 text-slate-700">Draft</Badge>;
       default: return <Badge variant="outline">{invoice.status}</Badge>;
     }

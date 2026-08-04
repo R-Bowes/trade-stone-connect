@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatInvoiceRef, formatJobRef, formatQuoteRef } from "@/lib/documentRefs";
+import { displayStatus, isOverdue } from "@/lib/invoiceMoney";
 import {
   presentState,
   presentOrNeutral,
@@ -308,7 +309,7 @@ export function useContractorPipeline() {
         .neq("status", "cancelled"),
       supabase
         .from("invoices")
-        .select("id, invoice_number, status, job_id, client_name, recipient_id, created_at, sent_at")
+        .select("id, invoice_number, status, job_id, client_name, recipient_id, created_at, sent_at, due_date, total")
         .eq("contractor_id", contractorId),
     ]);
 
@@ -488,7 +489,8 @@ export function useContractorPipeline() {
         if (liveInvoice?.status === "paid") {
           skipDraftCard = true; // paid-and-done — excluded entirely
         } else if (liveInvoice) {
-          const invoiceResult = presentOrNeutral(toInvoiceState(liveInvoice.status), "contractor", liveInvoice.status);
+          const liveInvoiceDisplayStatus = displayStatus(liveInvoice);
+          const invoiceResult = presentOrNeutral(toInvoiceState(liveInvoiceDisplayStatus), "contractor", liveInvoiceDisplayStatus);
           out.push({
             key: `invoice:${liveInvoice.id}`,
             clientName: liveInvoice.client_name || jobQuote.client_name,
@@ -497,14 +499,14 @@ export function useContractorPipeline() {
             title: job.title ?? jobQuote.title,
             address: job.location || null,
             stage: "invoice",
-            stageLabel: liveInvoice.status === "overdue" ? "Invoice overdue" : liveInvoice.status === "sent" ? "Invoice sent" : "Invoice draft",
+            stageLabel: liveInvoiceDisplayStatus === "overdue" ? "Invoice overdue" : liveInvoice.status === "sent" ? "Invoice sent" : "Invoice draft",
             reference: formatInvoiceRef(liveInvoice.invoice_number),
             band: invoiceResult.tone === "action" ? "needs_you" : "waiting",
             action: invoiceResult.label,
             tone: invoiceResult.tone,
             waitingOn: invoiceResult.waitingOn,
             sinceIso: liveInvoice.sent_at ?? liveInvoice.created_at,
-            overdue: liveInvoice.status === "overdue",
+            overdue: isOverdue(liveInvoice),
             slaStatus: job.sla_status,
             slaCompletionDue: job.sla_completion_due,
             enquiryRef: null,

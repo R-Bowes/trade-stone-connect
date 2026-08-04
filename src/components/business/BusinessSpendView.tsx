@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { Loader2 } from "lucide-react";
 
-// invoices.status confirmed: 'draft' | 'sent' | 'paid' | 'overdue' | 'void'
+// invoices.status confirmed: 'draft' | 'sent' | 'viewed' | 'paid' | 'void'
+// (overdue is derived from due_date, never stored — see src/lib/invoiceMoney.ts)
 
 interface InvoiceRow {
   id: string;

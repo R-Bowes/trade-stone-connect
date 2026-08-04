@@ -12,6 +12,7 @@ import {
   XCircle, MessageSquare, Calendar,
   AlertTriangle, Wrench, UserCheck,
 } from "lucide-react";
+import { isOverdue } from "@/lib/invoiceMoney";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
@@ -314,7 +315,8 @@ const ContractorDashboard = () => {
       ] = await Promise.all([
         supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'paid').gte('paid_date', startOfMonth),
         supabase.from('invoices').select('total').eq('contractor_id', contractorId).in('status', ['draft', 'sent']),
-        supabase.from('invoices').select('id').eq('contractor_id', contractorId).eq('status', 'overdue'),
+        // overdue is derived from due_date, never stored — see src/lib/invoiceMoney.ts
+        supabase.from('invoices').select('id, status, total, due_date').eq('contractor_id', contractorId).in('status', ['sent', 'viewed']),
         supabase.from('jobs').select('id').eq('contractor_id', contractorId).in('status', ['scheduled', 'in_progress', 'snagging']),
         supabase.from('crm_clients').select('id').eq('contractor_id', contractorId),
         supabase.from('contractor_panel').select('id').eq('contractor_id', contractorId).eq('status', 'approved'),
@@ -334,7 +336,7 @@ const ContractorDashboard = () => {
         activeJobs: activeJobsCountRes.data?.length ?? 0,
         pendingInvoicesTotal: outstandingInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
         pendingInvoicesCount: outstandingInvoicesRes.data?.length ?? 0,
-        overdueInvoicesCount: overdueInvoicesRes.data?.length ?? 0,
+        overdueInvoicesCount: overdueInvoicesRes.data?.filter((inv) => isOverdue(inv)).length ?? 0,
         clientCount: crmClientsRes.data?.length ?? 0,
         panelCount: panelRes.data?.length ?? 0,
         upcomingVisits: serviceVisitsRes.data?.length ?? 0,

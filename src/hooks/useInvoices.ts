@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
+import { isOverdue } from "@/lib/invoiceMoney";
 
 export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 export type InvoiceInsert = Database["public"]["Tables"]["invoices"]["Insert"];
@@ -229,7 +230,7 @@ export function useInvoices() {
     .reduce((sum, i) => sum + Number(i.total), 0);
 
   const totalOverdue = invoices
-    .filter(i => i.status === "overdue")
+    .filter(i => isOverdue(i))
     .reduce((sum, i) => sum + Number(i.total), 0);
 
   return {

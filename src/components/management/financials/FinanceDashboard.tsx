@@ -9,6 +9,7 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceSummary } from "@/hooks/useFinanceSummary";
 import { YearEndPackDialog } from "@/components/management/financials/YearEndPackDialog";
+import { isOverdue } from "@/lib/invoiceMoney";
 
 const gbp = (n: number) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -93,7 +94,7 @@ export function FinanceDashboard({ onNavigate }: Props) {
   }, [invoices, monthStart, monthEnd]);
 
   const outstanding = useMemo(() => {
-    const unpaid = invoices.filter((i) => ["pending", "sent", "overdue"].includes(i.status));
+    const unpaid = invoices.filter((i) => ["sent", "viewed"].includes(i.status));
     return { total: unpaid.reduce((s, i) => s + Number(i.total), 0), count: unpaid.length };
   }, [invoices]);
 
@@ -122,7 +123,7 @@ export function FinanceDashboard({ onNavigate }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, expenses, trips]);
 
-  const overdueInvoices = useMemo(() => invoices.filter((i) => i.status === "overdue"), [invoices]);
+  const overdueInvoices = useMemo(() => invoices.filter((i) => isOverdue(i)), [invoices]);
   const dueThisWeek = useMemo(() => {
     const weekOut = new Date();
     weekOut.setDate(weekOut.getDate() + 7);

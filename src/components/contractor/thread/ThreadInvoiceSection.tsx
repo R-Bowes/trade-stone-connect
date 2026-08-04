@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useSubmitGuard } from "@/hooks/useSubmitGuard";
 import { formatInvoiceRef } from "@/lib/documentRefs";
+import { displayStatus, isOverdue } from "@/lib/invoiceMoney";
 import { InvoiceFormDialog, type InvoiceFormInitialData } from "@/components/management/invoices/InvoiceFormDialog";
 
 export interface ThreadJobForInvoice {
@@ -93,7 +94,7 @@ export function ThreadInvoiceSection({
           <div className="rounded-lg border p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-mono text-sm">{formatInvoiceRef(invoice.invoice_number)}</span>
-              <Badge className="capitalize">{invoice.status}</Badge>
+              <Badge className="capitalize">{displayStatus(invoice)}</Badge>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="font-mono">{fmtMoney(invoice.total)}</span>
@@ -106,8 +107,8 @@ export function ThreadInvoiceSection({
                 </Button>
               </div>
             )}
-            {(invoice.status === "sent" || invoice.status === "overdue") && (
-              <p className={`text-xs ${invoice.status === "overdue" ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+            {invoice.status === "sent" && (
+              <p className={`text-xs ${isOverdue(invoice) ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                 Awaiting payment
               </p>
             )}

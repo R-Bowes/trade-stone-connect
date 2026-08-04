@@ -75,7 +75,7 @@ export function AgedDebtors() {
       .from("invoices")
       .select("id, invoice_number, client_name, total, issued_date, due_date, status")
       .eq("contractor_id", profileRow.id)
-      .in("status", ["sent", "overdue"]);
+      .in("status", ["sent", "viewed"]);
 
     const today = new Date();
     const computed: UnpaidInvoice[] = (rows ?? []).map((inv) => {

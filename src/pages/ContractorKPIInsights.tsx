@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { isOverdue } from "@/lib/invoiceMoney";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line,
@@ -280,7 +281,7 @@ const ContractorKPIInsights = () => {
     const paidInPeriod = invoices.filter(i => i.status === "paid" && inRange(i.paid_date, start, end));
     const revenue = paidInPeriod.reduce((s, i) => s + Number(i.total), 0);
     const avgJobValue = paidInPeriod.length > 0 ? revenue / paidInPeriod.length : 0;
-    const outstandingInvoices = invoices.filter(i => i.status === "sent" || i.status === "overdue" || i.status === "viewed");
+    const outstandingInvoices = invoices.filter(i => i.status === "sent" || i.status === "viewed");
     const outstanding = outstandingInvoices.reduce((s, i) => s + Number(i.total), 0);
 
     const byClient = new Map<string, number>();
@@ -374,7 +375,7 @@ const ContractorKPIInsights = () => {
       if (new Date(inv.paid_date) <= new Date(inv.due_date)) onTime++;
       else late++;
     }
-    const overdueNow = invoices.filter(i => i.status === "overdue").length;
+    const overdueNow = invoices.filter(i => isOverdue(i)).length;
 
     return {
       winRate: current.winRate,

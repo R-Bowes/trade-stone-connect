@@ -1,7 +1,10 @@
 // supabase/functions/mark-overdue-invoices/index.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Cron-triggered. Marks sent invoices past their due_date as overdue and sends
-// a branded payment reminder email to each client.
+// Cron-triggered. Finds sent invoices past their due_date and sends a branded
+// payment reminder email to each client. Overdue is NOT a stored status — it
+// is derived from due_date at read time (see src/lib/invoiceMoney.ts and the
+// invoices_status_valid CHECK constraint, 20260807200000_invoice_status_canonical.sql).
+// This function name is legacy; it no longer marks anything.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -33,42 +36,50 @@ serve(async (req) => {
 
     const today = new Date().toISOString().slice(0, 10);
 
+    // status stays 'sent' — overdue is derived from due_date, never stored
+    // (invoices_status_valid CHECK no longer permits an 'overdue' value).
     const { data: overdueInvoices, error } = await supabase
       .from("invoices")
-      .select("id, invoice_number, client_name, client_email, due_date")
+      .select("id, invoice_number, client_name, client_email, due_date, contractor_id")
       .eq("status", "sent")
       .lt("due_date", today);
 
     if (error) throw error;
 
     if (!overdueInvoices?.length) {
-      return new Response(JSON.stringify({ updated: 0 }), {
+      return new Response(JSON.stringify({ notified: 0 }), {
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    const ids = overdueInvoices.map((inv) => inv.id);
-
-    const { error: updateError } = await supabase
-      .from("invoices")
-      .update({ status: "overdue" })
-      .in("id", ids);
-
-    if (updateError) throw updateError;
-
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
 
-    if (RESEND_API_KEY) {
-      for (const invoice of overdueInvoices) {
-        const invoiceRef = invoice.invoice_number != null
-          ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
-          : invoice.id;
+    let notified = 0;
 
-        const dueDateFormatted = new Date(invoice.due_date).toLocaleDateString("en-GB", {
-          day: "2-digit", month: "long", year: "numeric",
-        });
+    for (const invoice of overdueInvoices) {
+      // Dedup: since status no longer flips off 'sent' once overdue, every
+      // run would otherwise re-match the same invoice forever. Skip if a
+      // reminder for this invoice has already been sent.
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("reference_type", "invoice")
+        .eq("reference_id", invoice.id)
+        .eq("type", "overdue_invoice")
+        .limit(1)
+        .maybeSingle();
+      if (existing) continue;
 
+      const invoiceRef = invoice.invoice_number != null
+        ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
+        : invoice.id;
+
+      const dueDateFormatted = new Date(invoice.due_date).toLocaleDateString("en-GB", {
+        day: "2-digit", month: "long", year: "numeric",
+      });
+
+      if (RESEND_API_KEY) {
         const emailData = {
           clientName:  invoice.client_name,
           invoiceRef,
@@ -90,9 +101,23 @@ serve(async (req) => {
           }),
         });
       }
+
+      if (invoice.contractor_id) {
+        const { error: notifError } = await supabase.from("notifications").insert({
+          user_id:        invoice.contractor_id,
+          title:          "Invoice overdue",
+          message:        `${invoiceRef} is now overdue.`,
+          type:           "overdue_invoice",
+          reference_type: "invoice",
+          reference_id:   invoice.id,
+        });
+        if (notifError) console.error("[mark-overdue-invoices] failed to insert dedup notification", notifError);
+      }
+
+      notified++;
     }
 
-    return new Response(JSON.stringify({ updated: ids.length }), {
+    return new Response(JSON.stringify({ notified }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {

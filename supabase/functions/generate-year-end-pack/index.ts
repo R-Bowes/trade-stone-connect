@@ -597,7 +597,8 @@ serve(async (req) => {
     }
 
     // ── Page 6: Aged Debtors Snapshot (only if unpaid invoices exist) ────
-    const unpaidAtYearEnd = invoices.filter((inv) => (inv.status === "sent" || inv.status === "overdue"));
+    // Overdue is derived from due_date, never stored — see src/lib/invoiceMoney.ts.
+    const unpaidAtYearEnd = invoices.filter((inv) => (inv.status === "sent" || inv.status === "viewed"));
     if (unpaidAtYearEnd.length > 0) {
       newPage(ctx);
       drawSectionTitle(ctx, "Aged Debtors Snapshot");
@@ -614,7 +615,7 @@ serve(async (req) => {
           inv.client_name,
           gbp(Number(inv.total)),
           `${ageDays}d`,
-          inv.status === "overdue" ? "Overdue" : "Sent",
+          inv.due_date && new Date(inv.due_date) < end ? "Overdue" : "Sent",
         ];
       });
 

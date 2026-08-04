@@ -11,7 +11,8 @@ import { BusinessNeedsYourAction } from "./BusinessNeedsYourAction";
 
 // Confirmed DB values:
 //   jobs.status:            'scheduled' | 'in_progress' | 'snagging' | 'complete' | 'cancelled'
-//   invoices.status:        'draft' | 'sent' | 'paid' | 'overdue' | 'void'
+//   invoices.status:        'draft' | 'sent' | 'viewed' | 'paid' | 'void'
+//                            (overdue is derived from due_date, never stored — see src/lib/invoiceMoney.ts)
 //   issued_quotes.status:   'pending' | 'viewed' | 'responded' | 'accepted' | 'declined' (+ 'draft'|'sent')
 
 const OPEN_STATUSES = ["scheduled", "in_progress", "snagging"] as const;
