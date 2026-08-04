@@ -9,7 +9,7 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceSummary } from "@/hooks/useFinanceSummary";
 import { YearEndPackDialog } from "@/components/management/financials/YearEndPackDialog";
-import { isOverdue } from "@/lib/invoiceMoney";
+import { summariseInvoices } from "@/lib/invoiceMoney";
 
 const gbp = (n: number) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -93,10 +93,11 @@ export function FinanceDashboard({ onNavigate }: Props) {
     return { total: paidThisMonth.reduce((s, i) => s + Number(i.total), 0), count: paidThisMonth.length };
   }, [invoices, monthStart, monthEnd]);
 
-  const outstanding = useMemo(() => {
-    const unpaid = invoices.filter((i) => ["sent", "viewed"].includes(i.status));
-    return { total: unpaid.reduce((s, i) => s + Number(i.total), 0), count: unpaid.length };
-  }, [invoices]);
+  const invoiceSummary = useMemo(() => summariseInvoices(invoices), [invoices]);
+  const outstanding = useMemo(
+    () => ({ total: invoiceSummary.outstanding, count: invoiceSummary.outstandingCount }),
+    [invoiceSummary],
+  );
 
   const costsThisMonth = useMemo(() => {
     const expTotal = expenses.filter((e) => inRange(e.expense_date, monthStart, monthEnd)).reduce((s, e) => s + Number(e.amount), 0);
@@ -123,7 +124,6 @@ export function FinanceDashboard({ onNavigate }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, expenses, trips]);
 
-  const overdueInvoices = useMemo(() => invoices.filter((i) => isOverdue(i)), [invoices]);
   const dueThisWeek = useMemo(() => {
     const weekOut = new Date();
     weekOut.setDate(weekOut.getDate() + 7);
@@ -137,10 +137,10 @@ export function FinanceDashboard({ onNavigate }: Props) {
 
   const actionItems = useMemo(() => {
     const items: { key: string; text: string; tab: string; tone: "amber" | "red" | "default" }[] = [];
-    if (overdueInvoices.length > 0) {
+    if (invoiceSummary.overdueCount > 0) {
       items.push({
         key: "overdue",
-        text: `${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? "" : "s"} overdue (${gbp(overdueInvoices.reduce((s, i) => s + Number(i.total), 0))})`,
+        text: `${invoiceSummary.overdueCount} invoice${invoiceSummary.overdueCount === 1 ? "" : "s"} overdue (${gbp(invoiceSummary.overdue)})`,
         tab: "debtors",
         tone: "red",
       });
@@ -170,7 +170,7 @@ export function FinanceDashboard({ onNavigate }: Props) {
       });
     }
     return items;
-  }, [overdueInvoices, dueThisWeek, vatPosition, expensesWithoutReceipts]);
+  }, [invoiceSummary, dueThisWeek, vatPosition, expensesWithoutReceipts]);
 
   const recentTransactions = useMemo<TxRow[]>(() => {
     const paymentByInvoice = new Map(payments.map((p) => [p.invoice_id, p]));

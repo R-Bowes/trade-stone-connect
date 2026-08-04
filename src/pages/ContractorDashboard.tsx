@@ -12,7 +12,7 @@ import {
   XCircle, MessageSquare, Calendar,
   AlertTriangle, Wrench, UserCheck,
 } from "lucide-react";
-import { isOverdue } from "@/lib/invoiceMoney";
+import { summariseInvoices } from "@/lib/invoiceMoney";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import type { User } from "@supabase/supabase-js";
@@ -309,14 +309,14 @@ const ContractorDashboard = () => {
       const contractorId = pid ?? currentUser.id;
 
       const [
-        paidInvoicesRes, outstandingInvoicesRes, overdueInvoicesRes,
+        paidInvoicesRes, openInvoicesRes,
         activeJobsCountRes, crmClientsRes, panelRes, serviceVisitsRes,
         activeJobsDataRes,
       ] = await Promise.all([
         supabase.from('invoices').select('total').eq('contractor_id', contractorId).eq('status', 'paid').gte('paid_date', startOfMonth),
-        supabase.from('invoices').select('total').eq('contractor_id', contractorId).in('status', ['draft', 'sent']),
-        // overdue is derived from due_date, never stored — see src/lib/invoiceMoney.ts
-        supabase.from('invoices').select('id, status, total, due_date').eq('contractor_id', contractorId).in('status', ['sent', 'viewed']),
+        // outstanding/overdue are derived by summariseInvoices() — see src/lib/invoiceMoney.ts.
+        // Drafts are excluded (unsent, not money owed); overdue is derived from due_date, never stored.
+        supabase.from('invoices').select('status, total, due_date, deposit_amount, deposit_deducted, deposit_paid').eq('contractor_id', contractorId).in('status', ['sent', 'viewed']),
         supabase.from('jobs').select('id').eq('contractor_id', contractorId).in('status', ['scheduled', 'in_progress', 'snagging']),
         supabase.from('crm_clients').select('id').eq('contractor_id', contractorId),
         supabase.from('contractor_panel').select('id').eq('contractor_id', contractorId).eq('status', 'approved'),
@@ -331,12 +331,14 @@ const ContractorDashboard = () => {
           .order('created_at', { ascending: false }).limit(3),
       ]);
 
+      const openInvoicesSummary = summariseInvoices(openInvoicesRes.data ?? []);
+
       setDashboardData({
         monthlyRevenue: paidInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
         activeJobs: activeJobsCountRes.data?.length ?? 0,
-        pendingInvoicesTotal: outstandingInvoicesRes.data?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0,
-        pendingInvoicesCount: outstandingInvoicesRes.data?.length ?? 0,
-        overdueInvoicesCount: overdueInvoicesRes.data?.filter((inv) => isOverdue(inv)).length ?? 0,
+        pendingInvoicesTotal: openInvoicesSummary.outstanding,
+        pendingInvoicesCount: openInvoicesSummary.outstandingCount,
+        overdueInvoicesCount: openInvoicesSummary.overdueCount,
         clientCount: crmClientsRes.data?.length ?? 0,
         panelCount: panelRes.data?.length ?? 0,
         upcomingVisits: serviceVisitsRes.data?.length ?? 0,

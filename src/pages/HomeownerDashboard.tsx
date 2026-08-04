@@ -20,6 +20,7 @@ import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { formatQuoteRef, formatInvoiceRef } from "@/lib/documentRefs";
+import { amountOutstanding } from "@/lib/invoiceMoney";
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
 
         supabase
           .from("invoices")
-          .select("id, invoice_number, total, due_date, recipient_response")
+          .select("id, invoice_number, total, due_date, status, recipient_response, deposit_amount, deposit_deducted, deposit_paid")
           .eq("recipient_id", userId)
           .order("due_date", { ascending: true }),
       ]);
@@ -112,15 +113,24 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
 
       setPendingQuotes((quotesResult.data ?? []) as PendingQuote[]);
 
-      type InvoiceRow = PendingInvoice & { recipient_response: string | null };
+      type InvoiceRow = PendingInvoice & {
+        status: string;
+        recipient_response: string | null;
+        deposit_amount: number | null;
+        deposit_deducted: number | null;
+        deposit_paid: boolean | null;
+      };
       const allInvoices = (invoicesResult.data ?? []) as InvoiceRow[];
       const unpaid = allInvoices.filter((inv) => inv.recipient_response !== "paid");
       setPendingInvoices(
-        unpaid.slice(0, 5).map(({ id, invoice_number, total, due_date }) => ({
-          id, invoice_number, total, due_date,
+        unpaid.slice(0, 5).map((inv) => ({
+          id: inv.id,
+          invoice_number: inv.invoice_number,
+          due_date: inv.due_date,
+          total: amountOutstanding(inv),
         }))
       );
-      setOutstandingAmount(unpaid.reduce((sum, inv) => sum + Number(inv.total), 0));
+      setOutstandingAmount(unpaid.reduce((sum, inv) => sum + amountOutstanding(inv), 0));
 
       // Site visit proposals are read via the schedule_events RLS policy
       // scoped to the customer's own enquiries — no need to filter by

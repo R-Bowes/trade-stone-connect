@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
+import { amountOutstanding } from "@/lib/invoiceMoney";
 
 type UnpaidInvoice = {
   id: string;
@@ -73,7 +74,7 @@ export function AgedDebtors() {
 
     const { data: rows } = await supabase
       .from("invoices")
-      .select("id, invoice_number, client_name, total, issued_date, due_date, status")
+      .select("id, invoice_number, client_name, total, issued_date, due_date, status, deposit_amount, deposit_deducted, deposit_paid")
       .eq("contractor_id", profileRow.id)
       .in("status", ["sent", "viewed"]);
 
@@ -84,7 +85,7 @@ export function AgedDebtors() {
         id: inv.id,
         invoiceNumber: inv.invoice_number,
         clientName: inv.client_name,
-        total: Number(inv.total),
+        total: amountOutstanding(inv),
         issuedDate: inv.issued_date,
         dueDate: inv.due_date,
         status: inv.status,

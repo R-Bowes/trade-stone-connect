@@ -25,7 +25,7 @@ import { format } from "date-fns";
 export function InvoiceManagement() {
   const {
     invoices, loading, createInvoice, updateInvoice, deleteInvoice,
-    markAsPaid, markAsSent, recordManualPayment, totalRevenue, totalPending, totalOverdue,
+    markAsPaid, markAsSent, recordManualPayment, paid, outstanding, outstandingCount, overdue,
   } = useInvoices();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -125,7 +125,7 @@ export function InvoiceManagement() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">£{totalRevenue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-bold text-green-600">£{paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">From paid invoices</p>
           </CardContent>
         </Card>
@@ -135,8 +135,8 @@ export function InvoiceManagement() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">£{totalPending.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">{invoices.filter(i => i.status === "sent" || i.status === "draft").length} invoices</p>
+            <div className="text-2xl font-bold text-blue-600">£{outstanding.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">{outstandingCount} invoices</p>
           </CardContent>
         </Card>
         <Card>
@@ -145,7 +145,7 @@ export function InvoiceManagement() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">£{totalOverdue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-bold text-red-600">£{overdue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>

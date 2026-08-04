@@ -139,13 +139,13 @@ serve(async (req) => {
     }
 
     // Idempotency: a retried pay-button click (e.g. after a failed Payment
-    // Element load, or a page refresh) must reuse the existing pending
+    // Element load, or a page refresh) must reuse the existing unpaid
     // invoice/PaymentIntent rather than minting a new one every time.
     const { data: existingInvoices } = await serviceClient
       .from("invoices")
       .select("id, stripe_payment_intent_id")
       .eq("quote_id", quote.id)
-      .eq("status", "pending")
+      .eq("status", "sent")
       .not("stripe_payment_intent_id", "is", null)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -188,7 +188,7 @@ serve(async (req) => {
         total: Number(quote.total),
         deposit_amount: depositAmount,
         due_date: new Date().toISOString().slice(0, 10),
-        status: "pending",
+        status: "sent",
         items: [
           {
             description: quote.description ?? quote.title ?? "Works as quoted",

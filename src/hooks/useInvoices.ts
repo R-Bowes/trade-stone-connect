@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
-import { isOverdue } from "@/lib/invoiceMoney";
+import { summariseInvoices } from "@/lib/invoiceMoney";
 
 export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 export type InvoiceInsert = Database["public"]["Tables"]["invoices"]["Insert"];
@@ -221,17 +221,7 @@ export function useInvoices() {
     toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
   };
 
-  const totalRevenue = invoices
-    .filter(i => i.status === "paid")
-    .reduce((sum, i) => sum + Number(i.total), 0);
-
-  const totalPending = invoices
-    .filter(i => i.status === "sent" || i.status === "draft")
-    .reduce((sum, i) => sum + Number(i.total), 0);
-
-  const totalOverdue = invoices
-    .filter(i => isOverdue(i))
-    .reduce((sum, i) => sum + Number(i.total), 0);
+  const { outstanding, outstandingCount, overdue, overdueCount, paid } = summariseInvoices(invoices);
 
   return {
     invoices,
@@ -243,9 +233,11 @@ export function useInvoices() {
     markAsSent,
     recordManualPayment,
     sendInvoice,
-    totalRevenue,
-    totalPending,
-    totalOverdue,
+    paid,
+    outstanding,
+    outstandingCount,
+    overdue,
+    overdueCount,
     refetch: fetchInvoices,
   };
 }

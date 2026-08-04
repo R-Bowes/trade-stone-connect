@@ -144,6 +144,8 @@ interface RawInvoice {
   recipient_id: string | null;
   created_at: string;
   sent_at: string | null;
+  due_date: string;
+  total: number;
 }
 
 interface RawScheduleEvent {
