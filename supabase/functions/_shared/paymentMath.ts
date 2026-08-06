@@ -70,3 +70,27 @@ export function platformFeePence(amountPence: number): number {
 export function netPlatformRevenue(applicationFeePence: number, stripeFeePence: number): number {
   return (applicationFeePence - stripeFeePence) / 100;
 }
+
+/**
+ * The transfer reversal Stripe is expected to make for a given portion of a
+ * payment being refunded/disputed, in pence. The "original transfer amount"
+ * is what was actually sent to the contractor (payment amount minus the
+ * platform's application fee) — a full-payment portion reverses all of it;
+ * a partial portion reverses a proportional share, matching Stripe's own
+ * documented behaviour for both refunds ("if the refund results in the
+ * entire charge being refunded, the entire transfer is reversed; otherwise,
+ * a proportional amount of the transfer is reversed") and transfer
+ * reversals in general. Used to compute the shortfall (expected minus
+ * actual) that becomes contractor_debt — see process-refund/index.ts and
+ * stripe-webhook/index.ts's dispute handler, which must not diverge on this
+ * arithmetic (Brief 3, E2: "recorded the same way as a refund shortfall").
+ */
+export function expectedTransferReversalPence(
+  paymentAmountPence: number,
+  platformFeePence: number,
+  portionPence: number,
+): number {
+  if (paymentAmountPence <= 0) return 0;
+  const originalTransferPence = paymentAmountPence - platformFeePence;
+  return Math.round(originalTransferPence * (portionPence / paymentAmountPence));
+}

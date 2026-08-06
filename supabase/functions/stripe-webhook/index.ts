@@ -33,11 +33,66 @@
 //    is platform_fee minus Stripe's fee — see ../_shared/paymentMath.ts.
 //    Ledger capture failures are logged and swallowed — they must never
 //    block the invoice/job state transition itself.
+//
+//  - charge.dispute.created (Brief 3, E1; Brief 3a inquiry split): fires for
+//    TWO genuinely different things Stripe lumps under one event —
+//      INQUIRY / early-fraud-warning (status warning_needs_response,
+//      warning_under_review, warning_closed): NO financial impact, Stripe
+//      has NOT debited the platform balance. Recorded, notified, but never
+//      reversed — see INQUIRY_DISPUTE_STATUSES below.
+//      CHARGEBACK (status needs_response, under_review, won, lost): the
+//      platform balance HAS been debited. AUTO-REVERSES the contractor's
+//      transfer immediately, no approval step — unlike Brief 2's refund
+//      flow (contractor requests, admin approves), the money is already
+//      gone by the time this event arrives, so waiting only reduces the
+//      chance of recovering anything from the contractor's Stripe balance.
+//    Both branches record a public.chargebacks row (NOT the unrelated
+//    public.disputes table, which is in-platform job disputes). A reversal
+//    can fail OUTRIGHT (insufficient destination balance throws — it does
+//    not return a short amount, unlike a refund's transfer_reversal) — the
+//    shortfall becomes contractor_debt via a public.contractor_debts row,
+//    mirroring a refund shortfall (E2/E5). Every internal failure path in
+//    this handler is caught and still returns 200 — a non-200 makes Stripe
+//    retry the whole webhook.
+//  - charge.dispute.updated (Brief 3a): how an inquiry ESCALATES to a real
+//    chargeback — the status changes on the SAME dispute object;
+//    charge.dispute.created does not fire again. Detects an inquiry -> real
+//    chargeback status transition on the existing chargebacks row and, only
+//    then, runs the identical reversal path (shared with
+//    handleChargeDisputeCreated via reverseContractorTransferForDispute()
+//    so the two can never diverge). Guarded against double-reversal on a
+//    duplicate/out-of-order delivery.
+//  - charge.dispute.closed: on 'won' (E4), transfers the previously-reversed
+//    funds back to the contractor and writes off any contractor_debts row
+//    for that chargeback; on 'lost', the reversal and debt stand, and
+//    payments.status reverts from 'disputed' to 'refunded'.
+//  - charge.refunded / payment_intent.payment_failed: minimal logging-only
+//    handlers — unhandled today, kept from being silently swallowed.
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
-import { netPlatformRevenue } from "../_shared/paymentMath.ts";
+import { netPlatformRevenue, toPence, expectedTransferReversalPence } from "../_shared/paymentMath.ts";
+
+// Inquiry / early-fraud-warning statuses. charge.dispute.created fires
+// for these too, but they carry NO financial impact — Stripe has not
+// debited the platform balance, so reversing the contractor's transfer
+// would take money from them over a dispute that cost TradeStone
+// nothing. Record the chargebacks row and notify, but never reverse.
+// Escalation to a real chargeback arrives as charge.dispute.updated
+// with a non-warning status.
+const INQUIRY_DISPUTE_STATUSES = new Set([
+  "warning_needs_response", "warning_under_review", "warning_closed",
+]);
+
+// Statuses meaning the platform balance HAS been debited — a transfer
+// reversal is appropriate (E1). 'won'/'lost' are included for
+// defensiveness (charge.dispute.closed is the normal path for those
+// terminal states, not .updated) so an unexpected delivery carrying one
+// doesn't fall through unrecognised and skip a needed reversal.
+const CHARGEBACK_DISPUTE_STATUSES = new Set([
+  "needs_response", "under_review", "won", "lost",
+]);
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
@@ -389,6 +444,613 @@ async function handlePaymentIntentSucceeded(
   return jsonResponse(200, { success: true, received: true });
 }
 
+interface DisputePayment {
+  id: string;
+  invoice_id: string | null;
+  job_id: string | null;
+  payee_id: string | null;
+  payer_id: string | null;
+  amount: number | string;
+  platform_fee: number | string | null;
+  stripe_transfer_id: string | null;
+}
+
+/**
+ * Reverses the contractor's transfer for a dispute's disputed amount.
+ * Shared by handleChargeDisputeCreated (chargeback branch) and
+ * handleChargeDisputeUpdated's escalation path — this arithmetic and the
+ * try/catch-not-partial-success posture must not be duplicated a second
+ * time (see Brief 3's own history of exactly that problem in
+ * process-refund vs this file, fixed via paymentMath.ts's
+ * expectedTransferReversalPence). CRITICAL DIFFERENCE FROM process-refund:
+ * a reversal here can fail OUTRIGHT (insufficient destination balance
+ * throws) rather than returning a short amount — no partial-success case
+ * to read, only "the full requested amount" or "nothing, plus an error".
+ */
+async function reverseContractorTransferForDispute(
+  payment: DisputePayment | null,
+  chargebackId: string,
+  disputeId: string,
+  disputeAmountPence: number,
+): Promise<{ transferReversedPence: number; contractorDebtPence: number; reversalError: string | null }> {
+  if (!payment?.stripe_transfer_id) {
+    console.error(`[stripe-webhook] chargeback ${chargebackId}: no payment or stripe_transfer_id on file — cannot attempt a transfer reversal. Full disputed amount is unrecoverable from the contractor via this mechanism.`);
+    return { transferReversedPence: 0, contractorDebtPence: 0, reversalError: null };
+  }
+
+  const expectedReversalPence = expectedTransferReversalPence(
+    toPence(Number(payment.amount)),
+    toPence(Number(payment.platform_fee ?? 0)),
+    disputeAmountPence,
+  );
+
+  try {
+    const reversal = await stripe.transfers.createReversal(
+      payment.stripe_transfer_id,
+      {
+        amount: expectedReversalPence,
+        metadata: {
+          chargebackId,
+          disputeId,
+          contractorId: payment.payee_id ?? "",
+        },
+      },
+      { idempotencyKey: chargebackId },
+    );
+    // Read the ACTUAL reversed amount — never assume it equals what was requested.
+    const transferReversedPence = reversal.amount;
+    return {
+      transferReversedPence,
+      contractorDebtPence: Math.max(0, expectedReversalPence - transferReversedPence),
+      reversalError: null,
+    };
+  } catch (reversalErr) {
+    const reversalError = reversalErr instanceof Error ? reversalErr.message : "Unknown transfer reversal error";
+    console.error(`[stripe-webhook] LOUD WARNING: transfer reversal FAILED outright for chargeback ${chargebackId} (dispute ${disputeId}): ${reversalError}. Full expected amount (${expectedReversalPence}p) recorded as contractor_debt.`);
+    return { transferReversedPence: 0, contractorDebtPence: expectedReversalPence, reversalError };
+  }
+}
+
+/**
+ * charge.dispute.created (Brief 3, E1; Brief 3a inquiry split). Everything
+ * in here is wrapped so that NO code path throws out of this function — a
+ * non-200 response makes Stripe retry the whole webhook, and re-processing
+ * a dispute we already reversed is exactly the double-reversal risk the
+ * idempotency check below exists to prevent. Every failure is logged
+ * loudly and swallowed instead.
+ */
+async function handleChargeDisputeCreated(
+  supabase: ReturnType<typeof createClient>,
+  dispute: Stripe.Dispute,
+) {
+  try {
+    // 1. Idempotent on stripe_dispute_id.
+    const { data: existing } = await supabase
+      .from("chargebacks")
+      .select("id")
+      .eq("stripe_dispute_id", dispute.id)
+      .maybeSingle();
+    if (existing) {
+      return jsonResponse(200, { success: true, received: true, alreadyProcessed: true });
+    }
+
+    // 2. Find the payment by stripe_charge_id.
+    const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+    const { data: payment } = chargeId
+      ? await supabase
+          .from("payments")
+          .select("id, invoice_id, job_id, payee_id, payer_id, amount, platform_fee, stripe_transfer_id")
+          .eq("stripe_charge_id", chargeId)
+          .maybeSingle()
+      : { data: null };
+
+    if (!payment) {
+      console.error(`[stripe-webhook] LOUD WARNING: charge.dispute.created ${dispute.id} for charge ${chargeId ?? "(unknown)"} has NO matching payments row — inserting chargebacks row with payment_id null so this is never silently lost.`);
+    }
+
+    // Dispute fee: Stripe's own reasoning — "the dispute fee from
+    // balance_transactions where reporting_category is 'dispute'".
+    const disputeFeeEntry = dispute.balance_transactions?.find((bt) => bt.reporting_category === "dispute");
+    const disputeFeePence = disputeFeeEntry?.fee ?? null;
+    const evidenceDueBy = dispute.evidence_details?.due_by
+      ? new Date(dispute.evidence_details.due_by * 1000).toISOString()
+      : null;
+
+    // 3. Insert the chargebacks row — always, inquiry or chargeback alike.
+    // The record matters regardless, and it's what makes later escalation
+    // (charge.dispute.updated) idempotent.
+    const { data: chargeback, error: insertError } = await supabase
+      .from("chargebacks")
+      .insert({
+        stripe_dispute_id: dispute.id,
+        stripe_charge_id: chargeId ?? "",
+        payment_id: payment?.id ?? null,
+        invoice_id: payment?.invoice_id ?? null,
+        job_id: payment?.job_id ?? null,
+        contractor_id: payment?.payee_id ?? null,
+        customer_id: payment?.payer_id ?? null,
+        amount: dispute.amount / 100,
+        dispute_fee: disputeFeePence != null ? disputeFeePence / 100 : null,
+        reason: dispute.reason ?? null,
+        status: dispute.status,
+        evidence_due_by: evidenceDueBy,
+      })
+      .select()
+      .single();
+
+    if (insertError || !chargeback) {
+      console.error(`[stripe-webhook] CRITICAL: failed to insert chargebacks row for dispute ${dispute.id} — a real chargeback/inquiry is now UNRECORDED`, insertError);
+      return jsonResponse(200, { success: true, received: true });
+    }
+
+    const isInquiry = INQUIRY_DISPUTE_STATUSES.has(dispute.status);
+    const dueByLabel = evidenceDueBy
+      ? new Date(evidenceDueBy).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+      : "an unknown date — check the Stripe Dashboard";
+    const amountLabel = `£${(dispute.amount / 100).toFixed(2)}`;
+    const notifications: Record<string, unknown>[] = [];
+
+    if (isInquiry) {
+      // Inquiry / early-fraud-warning: NO financial impact. Skip the
+      // reversal entirely, do not touch payments.status — nothing has been
+      // debited. Wording is deliberately different from the chargeback
+      // notification below, which states funds have been reversed.
+      const { error: chargebackUpdateError } = await supabase
+        .from("chargebacks")
+        .update({ transfer_reversed_amount: 0, contractor_debt: 0, reversal_error: null })
+        .eq("id", chargeback.id);
+      if (chargebackUpdateError) {
+        console.error(`[stripe-webhook] failed to record no-reversal outcome on inquiry chargeback ${chargeback.id}`, chargebackUpdateError);
+      }
+
+      if (chargeback.contractor_id) {
+        notifications.push({
+          user_id: chargeback.contractor_id,
+          title: "Payment inquiry raised",
+          message: `An inquiry (${dispute.reason ?? "reason not given"}) has been raised on a ${amountLabel} payment. No funds have been moved. TradeStone may need to provide evidence by ${dueByLabel} — you may be asked for supporting information.`,
+          type: "chargeback_inquiry",
+          reference_type: "chargeback",
+          reference_id: chargeback.id,
+          is_read: false,
+        });
+      }
+      const { data: admins } = await supabase.from("admin_users").select("user_id");
+      for (const admin of admins ?? []) {
+        notifications.push({
+          user_id: admin.user_id,
+          title: "Payment inquiry raised",
+          message: `Inquiry ${dispute.id} for ${amountLabel} (${dispute.reason ?? "reason not given"}) — no funds moved. Response may be due by ${dueByLabel}.`,
+          type: "chargeback_inquiry",
+          reference_type: "chargeback",
+          reference_id: chargeback.id,
+          is_read: false,
+        });
+      }
+
+      console.log(`Inquiry-stage dispute ${dispute.id} (status=${dispute.status}) recorded as chargeback ${chargeback.id}; no reversal.`);
+    } else {
+      // 4. CHARGEBACK — immediately reverse the contractor's transfer (E1).
+      const { transferReversedPence, contractorDebtPence, reversalError } =
+        await reverseContractorTransferForDispute(payment, chargeback.id, dispute.id, dispute.amount);
+
+      const { error: chargebackUpdateError } = await supabase
+        .from("chargebacks")
+        .update({
+          transfer_reversed_amount: transferReversedPence / 100,
+          contractor_debt: contractorDebtPence / 100,
+          reversal_error: reversalError,
+        })
+        .eq("id", chargeback.id);
+      if (chargebackUpdateError) {
+        console.error(`[stripe-webhook] failed to record reversal outcome on chargeback ${chargeback.id}`, chargebackUpdateError);
+      }
+
+      if (contractorDebtPence > 0 && chargeback.contractor_id) {
+        const { error: debtError } = await supabase.from("contractor_debts").insert({
+          contractor_id: chargeback.contractor_id,
+          source_type: "chargeback",
+          source_id: chargeback.id,
+          amount: contractorDebtPence / 100,
+          status: "outstanding",
+        });
+        if (debtError) {
+          console.error(`[stripe-webhook] failed to insert contractor_debts row for chargeback ${chargeback.id}`, debtError);
+        }
+      }
+
+      // 7. payments.status = 'disputed' (already an allowed value).
+      if (payment) {
+        const { error: paymentStatusError } = await supabase
+          .from("payments")
+          .update({ status: "disputed" })
+          .eq("id", payment.id);
+        if (paymentStatusError) {
+          console.error(`[stripe-webhook] failed to set payments.status='disputed' for payment ${payment.id}`, paymentStatusError);
+        }
+      }
+
+      if (chargeback.contractor_id) {
+        notifications.push({
+          user_id: chargeback.contractor_id,
+          title: "Chargeback received",
+          message: `A chargeback of ${amountLabel} (${dispute.reason ?? "reason not given"}) has been raised and funds have already been reversed from your balance` +
+            (contractorDebtPence > 0 ? ` (£${(contractorDebtPence / 100).toFixed(2)} could not be recovered and has been recorded as a debt)` : "") +
+            `. TradeStone will respond to the dispute on your behalf — evidence is due by ${dueByLabel}. If you have evidence to support this transaction, get in touch as soon as possible.`,
+          type: "chargeback_created",
+          reference_type: "chargeback",
+          reference_id: chargeback.id,
+          is_read: false,
+        });
+      }
+      const { data: admins } = await supabase.from("admin_users").select("user_id");
+      for (const admin of admins ?? []) {
+        notifications.push({
+          user_id: admin.user_id,
+          title: "Chargeback received — evidence needed",
+          message: `Dispute ${dispute.id} for ${amountLabel} (${dispute.reason ?? "reason not given"}) needs a response by ${dueByLabel}. Submit evidence via the Stripe Dashboard.`,
+          type: "chargeback_created",
+          reference_type: "chargeback",
+          reference_id: chargeback.id,
+          is_read: false,
+        });
+      }
+
+      console.log(`Chargeback ${chargeback.id} recorded for dispute ${dispute.id}; transfer_reversed_amount=${transferReversedPence / 100}, contractor_debt=${contractorDebtPence / 100}`);
+    }
+
+    if (notifications.length > 0) {
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) console.error("[stripe-webhook] failed to insert dispute notifications", notifyError);
+    }
+
+    // 9. Always 200.
+    return jsonResponse(200, { success: true, received: true });
+  } catch (err) {
+    console.error(`[stripe-webhook] UNHANDLED error in handleChargeDisputeCreated for dispute ${dispute?.id} — returning 200 to prevent a Stripe retry storm`, err);
+    return jsonResponse(200, { success: true, received: true });
+  }
+}
+
+/**
+ * charge.dispute.updated (Brief 3a). How an inquiry ESCALATES to a real
+ * chargeback — the status changes on the SAME dispute object;
+ * charge.dispute.created does not fire again. Same "never throw out"
+ * posture as the other dispute handlers.
+ */
+async function handleChargeDisputeUpdated(
+  supabase: ReturnType<typeof createClient>,
+  dispute: Stripe.Dispute,
+) {
+  try {
+    // 1. Look up by stripe_dispute_id.
+    const { data: chargeback } = await supabase
+      .from("chargebacks")
+      .select("*")
+      .eq("stripe_dispute_id", dispute.id)
+      .maybeSingle();
+
+    if (!chargeback) {
+      console.error(`[stripe-webhook] charge.dispute.updated for unknown dispute ${dispute.id} — no matching chargebacks row (charge.dispute.created may not have been received). Logging only.`);
+      return jsonResponse(200, { success: true, received: true });
+    }
+
+    const previousStatus: string = chargeback.status;
+
+    // 2. Refresh status/evidence_due_by/amount/dispute_fee from the event —
+    // unconditionally, escalation or not.
+    const disputeFeeEntry = dispute.balance_transactions?.find((bt) => bt.reporting_category === "dispute");
+    const disputeFeePence = disputeFeeEntry?.fee ?? null;
+    const evidenceDueBy = dispute.evidence_details?.due_by
+      ? new Date(dispute.evidence_details.due_by * 1000).toISOString()
+      : null;
+
+    const { error: refreshError } = await supabase
+      .from("chargebacks")
+      .update({
+        status: dispute.status,
+        evidence_due_by: evidenceDueBy,
+        amount: dispute.amount / 100,
+        dispute_fee: disputeFeePence != null ? disputeFeePence / 100 : null,
+      })
+      .eq("id", chargeback.id);
+    if (refreshError) {
+      console.error(`[stripe-webhook] failed to refresh chargeback ${chargeback.id} on charge.dispute.updated`, refreshError);
+    }
+
+    const isEscalation = INQUIRY_DISPUTE_STATUSES.has(previousStatus) && CHARGEBACK_DISPUTE_STATUSES.has(dispute.status);
+    if (!isEscalation) {
+      // Any other update (inquiry refinement, chargeback status refinement,
+      // etc.) — the refresh above already covers it, nothing further to do.
+      return jsonResponse(200, { success: true, received: true });
+    }
+
+    // Double-reversal guard: only reverse if none of these three already
+    // indicate an attempt happened — transfer_reversed_amount is nonzero
+    // only after a genuine successful reversal (a reversal never "succeeds"
+    // with 0, per reverseContractorTransferForDispute's contract: it's
+    // either the full requested amount or a thrown error), reversal_error
+    // is set only after a genuine failed attempt, and an existing
+    // contractor_debts row is a third, independent signal of the same
+    // fact. All three are checked so a duplicate/out-of-order
+    // charge.dispute.updated delivery for the same escalation is a no-op.
+    const alreadyAttempted = Number(chargeback.transfer_reversed_amount) !== 0 || chargeback.reversal_error != null;
+    let hasDebtRow = false;
+    if (!alreadyAttempted) {
+      const { data: debtRow } = await supabase
+        .from("contractor_debts")
+        .select("id")
+        .eq("source_type", "chargeback")
+        .eq("source_id", chargeback.id)
+        .maybeSingle();
+      hasDebtRow = !!debtRow;
+    }
+
+    if (alreadyAttempted || hasDebtRow) {
+      console.log(`Chargeback ${chargeback.id}: escalation to ${dispute.status} already reversed (or attempted) — duplicate/out-of-order charge.dispute.updated, no-op.`);
+      return jsonResponse(200, { success: true, received: true, alreadyProcessed: true });
+    }
+
+    // Escalating — need the payment row for the reversal calc (may not
+    // have been on the chargebacks row's own columns).
+    const { data: payment } = chargeback.payment_id
+      ? await supabase
+          .from("payments")
+          .select("id, invoice_id, job_id, payee_id, payer_id, amount, platform_fee, stripe_transfer_id")
+          .eq("id", chargeback.payment_id)
+          .maybeSingle()
+      : { data: null };
+
+    const { transferReversedPence, contractorDebtPence, reversalError } =
+      await reverseContractorTransferForDispute(payment, chargeback.id, dispute.id, dispute.amount);
+
+    const { error: reversalRecordError } = await supabase
+      .from("chargebacks")
+      .update({
+        transfer_reversed_amount: transferReversedPence / 100,
+        contractor_debt: contractorDebtPence / 100,
+        reversal_error: reversalError,
+      })
+      .eq("id", chargeback.id);
+    if (reversalRecordError) {
+      console.error(`[stripe-webhook] failed to record escalation reversal outcome on chargeback ${chargeback.id}`, reversalRecordError);
+    }
+
+    if (contractorDebtPence > 0 && chargeback.contractor_id) {
+      const { error: debtError } = await supabase.from("contractor_debts").insert({
+        contractor_id: chargeback.contractor_id,
+        source_type: "chargeback",
+        source_id: chargeback.id,
+        amount: contractorDebtPence / 100,
+        status: "outstanding",
+      });
+      if (debtError) {
+        console.error(`[stripe-webhook] failed to insert contractor_debts row for escalated chargeback ${chargeback.id}`, debtError);
+      }
+    }
+
+    if (payment) {
+      const { error: paymentStatusError } = await supabase
+        .from("payments")
+        .update({ status: "disputed" })
+        .eq("id", payment.id);
+      if (paymentStatusError) {
+        console.error(`[stripe-webhook] failed to set payments.status='disputed' for payment ${payment.id} on escalation`, paymentStatusError);
+      }
+    }
+
+    const dueByLabel = evidenceDueBy
+      ? new Date(evidenceDueBy).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+      : "an unknown date — check the Stripe Dashboard";
+    const amountLabel = `£${(dispute.amount / 100).toFixed(2)}`;
+    const notifications: Record<string, unknown>[] = [];
+
+    if (chargeback.contractor_id) {
+      notifications.push({
+        user_id: chargeback.contractor_id,
+        title: "Chargeback received",
+        message: `An inquiry on a ${amountLabel} payment has escalated to a chargeback (${dispute.reason ?? "reason not given"}) and funds have now been reversed from your balance` +
+          (contractorDebtPence > 0 ? ` (£${(contractorDebtPence / 100).toFixed(2)} could not be recovered and has been recorded as a debt)` : "") +
+          `. TradeStone will respond to the dispute on your behalf — evidence is due by ${dueByLabel}.`,
+        type: "chargeback_created",
+        reference_type: "chargeback",
+        reference_id: chargeback.id,
+        is_read: false,
+      });
+    }
+    const { data: admins } = await supabase.from("admin_users").select("user_id");
+    for (const admin of admins ?? []) {
+      notifications.push({
+        user_id: admin.user_id,
+        title: "Inquiry escalated to chargeback",
+        message: `Dispute ${dispute.id} escalated to ${dispute.status} (${amountLabel}, ${dispute.reason ?? "reason not given"}). Response due by ${dueByLabel}.`,
+        type: "chargeback_created",
+        reference_type: "chargeback",
+        reference_id: chargeback.id,
+        is_read: false,
+      });
+    }
+    if (notifications.length > 0) {
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) console.error("[stripe-webhook] failed to insert escalation notifications", notifyError);
+    }
+
+    console.log(`Chargeback ${chargeback.id} escalated (dispute ${dispute.id}, ${previousStatus} -> ${dispute.status}); transfer_reversed_amount=${transferReversedPence / 100}, contractor_debt=${contractorDebtPence / 100}`);
+
+    return jsonResponse(200, { success: true, received: true });
+  } catch (err) {
+    console.error(`[stripe-webhook] UNHANDLED error in handleChargeDisputeUpdated for dispute ${dispute?.id} — returning 200 to prevent a Stripe retry storm`, err);
+    return jsonResponse(200, { success: true, received: true });
+  }
+}
+
+/**
+ * charge.dispute.closed. Same "never throw out" posture as
+ * handleChargeDisputeCreated — a second delivery must not transfer funds
+ * twice (guarded on chargebacks.closed_at, plus its own idempotency key on
+ * the return-transfer call itself as defence in depth).
+ */
+async function handleChargeDisputeClosed(
+  supabase: ReturnType<typeof createClient>,
+  dispute: Stripe.Dispute,
+) {
+  try {
+    // 1. Look up by stripe_dispute_id.
+    const { data: chargeback } = await supabase
+      .from("chargebacks")
+      .select("*")
+      .eq("stripe_dispute_id", dispute.id)
+      .maybeSingle();
+
+    if (!chargeback) {
+      console.error(`[stripe-webhook] charge.dispute.closed for unknown dispute ${dispute.id} — no matching chargebacks row (charge.dispute.created may not have been received). Logging only.`);
+      return jsonResponse(200, { success: true, received: true });
+    }
+
+    // Idempotent: already closed -> no-op, so a duplicate delivery can't
+    // transfer funds back to the contractor twice.
+    if (chargeback.closed_at) {
+      return jsonResponse(200, { success: true, received: true, alreadyProcessed: true });
+    }
+
+    // 2. outcome from dispute.status.
+    const outcome = dispute.status === "won" ? "won" : dispute.status === "lost" ? "lost" : null;
+
+    const { error: closeUpdateError } = await supabase
+      .from("chargebacks")
+      .update({
+        status: dispute.status,
+        outcome,
+        closed_at: new Date().toISOString(),
+      })
+      .eq("id", chargeback.id);
+    if (closeUpdateError) {
+      console.error(`[stripe-webhook] failed to update chargebacks row ${chargeback.id} on close`, closeUpdateError);
+    }
+
+    if (outcome === "won") {
+      // 3. E4 — transfer the reversed funds BACK to the contractor.
+      if (Number(chargeback.transfer_reversed_amount) > 0 && chargeback.contractor_id) {
+        const { data: contractorProfile } = await supabase
+          .from("profiles")
+          .select("stripe_account_id")
+          .eq("id", chargeback.contractor_id)
+          .maybeSingle();
+
+        if (contractorProfile?.stripe_account_id) {
+          try {
+            const returnPence = toPence(Number(chargeback.transfer_reversed_amount));
+            const transfer = await stripe.transfers.create(
+              {
+                amount: returnPence,
+                currency: "gbp",
+                destination: contractorProfile.stripe_account_id,
+                metadata: {
+                  chargebackId: chargeback.id,
+                  disputeId: dispute.id,
+                  reason: "chargeback_won_funds_returned",
+                },
+              },
+              { idempotencyKey: `${chargeback.id}-return` },
+            );
+
+            const { error: fundsReturnedError } = await supabase
+              .from("chargebacks")
+              .update({ funds_returned_amount: transfer.amount / 100 })
+              .eq("id", chargeback.id);
+            if (fundsReturnedError) {
+              console.error(`[stripe-webhook] transfer ${transfer.id} sent but failed to record funds_returned_amount on chargeback ${chargeback.id}`, fundsReturnedError);
+            }
+          } catch (transferErr) {
+            // If the platform balance is insufficient the transfer fails —
+            // caught, logged loudly, never thrown.
+            console.error(`[stripe-webhook] LOUD WARNING: failed to return funds to contractor for WON dispute ${dispute.id} (chargeback ${chargeback.id}) — platform balance may be insufficient. Funds NOT returned:`, transferErr);
+          }
+        } else {
+          console.error(`[stripe-webhook] LOUD WARNING: chargeback ${chargeback.id} won but contractor ${chargeback.contractor_id} has no stripe_account_id on file — cannot return funds`);
+        }
+      }
+
+      // Write off any contractor_debts row tied to this chargeback.
+      const { error: writeOffError } = await supabase
+        .from("contractor_debts")
+        .update({ status: "written_off", notes: "Dispute won — debt written off" })
+        .eq("source_type", "chargeback")
+        .eq("source_id", chargeback.id);
+      if (writeOffError) {
+        console.error(`[stripe-webhook] failed to write off contractor_debts row for chargeback ${chargeback.id}`, writeOffError);
+      }
+    } else if (outcome === "lost") {
+      // 4. Reversal and debt stand. payments.status reverts from
+      // 'disputed' to 'refunded'.
+      if (chargeback.payment_id) {
+        const { error: paymentStatusError } = await supabase
+          .from("payments")
+          .update({ status: "refunded" })
+          .eq("id", chargeback.payment_id)
+          .eq("status", "disputed");
+        if (paymentStatusError) {
+          console.error(`[stripe-webhook] failed to revert payments.status on LOST dispute ${dispute.id} (payment ${chargeback.payment_id})`, paymentStatusError);
+        }
+      }
+    }
+
+    // 5. Notify contractor and admins of the outcome.
+    const amountLabel = `£${Number(chargeback.amount).toFixed(2)}`;
+    const notifications: Record<string, unknown>[] = [];
+    if (chargeback.contractor_id) {
+      const message = outcome === "won"
+        ? `The ${amountLabel} chargeback dispute was won — reversed funds have been returned to your balance.`
+        : outcome === "lost"
+        ? `The ${amountLabel} chargeback dispute was lost — the reversal stands.`
+        : `The ${amountLabel} chargeback dispute closed with status "${dispute.status}".`;
+      notifications.push({
+        user_id: chargeback.contractor_id,
+        title: "Chargeback dispute closed",
+        message,
+        type: "chargeback_closed",
+        reference_type: "chargeback",
+        reference_id: chargeback.id,
+        is_read: false,
+      });
+    }
+    const { data: admins } = await supabase.from("admin_users").select("user_id");
+    for (const admin of admins ?? []) {
+      notifications.push({
+        user_id: admin.user_id,
+        title: "Chargeback dispute closed",
+        message: `Dispute ${dispute.id} closed: ${dispute.status}.`,
+        type: "chargeback_closed",
+        reference_type: "chargeback",
+        reference_id: chargeback.id,
+        is_read: false,
+      });
+    }
+    if (notifications.length > 0) {
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) console.error("[stripe-webhook] failed to insert chargeback-closed notifications", notifyError);
+    }
+
+    console.log(`Chargeback ${chargeback.id} closed for dispute ${dispute.id}; outcome=${outcome ?? dispute.status}`);
+
+    return jsonResponse(200, { success: true, received: true });
+  } catch (err) {
+    console.error(`[stripe-webhook] UNHANDLED error in handleChargeDisputeClosed for dispute ${dispute?.id} — returning 200 to prevent a Stripe retry storm`, err);
+    return jsonResponse(200, { success: true, received: true });
+  }
+}
+
+/** Minimal logging-only handler — charge.refunded is currently unhandled. */
+function handleChargeRefundedLogOnly(charge: Stripe.Charge) {
+  console.log(`[stripe-webhook] charge.refunded received for charge ${charge.id} (amount_refunded=${charge.amount_refunded}) — logging only, no handler implemented yet.`);
+  return jsonResponse(200, { success: true, received: true });
+}
+
+/** Minimal logging-only handler — payment_intent.payment_failed is currently unhandled. */
+function handlePaymentIntentPaymentFailedLogOnly(paymentIntent: Stripe.PaymentIntent) {
+  console.log(`[stripe-webhook] payment_intent.payment_failed received for PaymentIntent ${paymentIntent.id} — logging only, no handler implemented yet.`);
+  return jsonResponse(200, { success: true, received: true });
+}
+
 serve(async (req) => {
   try {
     const signature = req.headers.get("stripe-signature");
@@ -421,6 +1083,26 @@ serve(async (req) => {
 
     if (event.type === "payment_intent.succeeded") {
       return await handlePaymentIntentSucceeded(supabase, event.data.object as Stripe.PaymentIntent);
+    }
+
+    if (event.type === "charge.dispute.created") {
+      return await handleChargeDisputeCreated(supabase, event.data.object as Stripe.Dispute);
+    }
+
+    if (event.type === "charge.dispute.updated") {
+      return await handleChargeDisputeUpdated(supabase, event.data.object as Stripe.Dispute);
+    }
+
+    if (event.type === "charge.dispute.closed") {
+      return await handleChargeDisputeClosed(supabase, event.data.object as Stripe.Dispute);
+    }
+
+    if (event.type === "charge.refunded") {
+      return handleChargeRefundedLogOnly(event.data.object as Stripe.Charge);
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      return handlePaymentIntentPaymentFailedLogOnly(event.data.object as Stripe.PaymentIntent);
     }
 
     return jsonResponse(200, { success: true, received: true });

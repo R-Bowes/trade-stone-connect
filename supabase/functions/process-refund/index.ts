@@ -41,7 +41,7 @@
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { toPence } from "../_shared/paymentMath.ts";
+import { toPence, expectedTransferReversalPence } from "../_shared/paymentMath.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
@@ -190,16 +190,14 @@ serve(async (req) => {
       console.error(`[process-refund] LOUD WARNING: refund ${refundId} (Stripe refund ${stripeRefund.id}) succeeded but transfer_reversal is null/zero — contractor's connected account balance likely could not cover any reversal. Full shortfall recorded as contractor_debt.`);
     }
 
-    // Expected reversal: the original transfer amount (payment.amount minus
-    // the platform's application fee — what was actually sent to the
-    // contractor), scaled proportionally for a partial refund. Matches
-    // Stripe's own documented behaviour ("if the refund results in the
-    // entire charge being refunded, the entire transfer is reversed;
-    // otherwise, a proportional amount of the transfer is reversed").
-    const originalTransferPence = toPence(Number(payment.amount)) - toPence(Number(payment.platform_fee ?? 0));
-    const expectedReversalPence = paymentAmountPence > 0
-      ? Math.round(originalTransferPence * (amountPence / paymentAmountPence))
-      : 0;
+    // Expected reversal — shared with the chargeback handler (Brief 3, E2:
+    // "recorded the same way as a refund shortfall") via paymentMath.ts so
+    // the two can't diverge on this arithmetic.
+    const expectedReversalPence = expectedTransferReversalPence(
+      paymentAmountPence,
+      toPence(Number(payment.platform_fee ?? 0)),
+      amountPence,
+    );
     const shortfallPence = Math.max(0, expectedReversalPence - actualReversedPence);
 
     if (shortfallPence > 0) {
