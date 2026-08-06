@@ -6,6 +6,19 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
   apiVersion: "2024-06-20",
 });
 
+// Brief 2 added a CONTRACTOR_PAYOUT_DELAY_DAYS payout hold as a flagged
+// placeholder. REMOVED (Brief 2a): debit_negative_balances is confirmed On
+// (verified in the Stripe Dashboard on the existing connected account), so
+// a failed transfer reversal already pulls from the contractor's attached
+// bank account without needing a payout delay to create a clawback window.
+// A payout delay adds nothing against chargebacks, which can arrive up to
+// 120 days after the charge — far longer than any delay we'd impose — and
+// it imposes real cashflow friction on contractors, counter to TradeStone's
+// positioning. Revisit only if reversal failures are observed in practice.
+
+const ALLOWED_BUSINESS_TYPES = ["individual", "company", "non_profit", "government_entity"] as const;
+type BusinessType = typeof ALLOWED_BUSINESS_TYPES[number];
+
 const ALLOWED_ORIGINS = [
   "https://tradesltd.co.uk",
   "https://www.tradesltd.co.uk",
@@ -53,6 +66,24 @@ serve(async (req) => {
       return jsonResponse(401, { success: false, error: "Unauthorized" });
     }
 
+    // business_type from the request body — defaults to "individual" if
+    // absent (matches the previous hardcoded behaviour for existing
+    // callers). NOTE: no caller currently sends this — the contractor
+    // onboarding UI needs updating to collect and pass it; not built here.
+    let requestedBusinessType: string | undefined;
+    try {
+      const body = await req.json();
+      requestedBusinessType = body?.business_type;
+    } catch {
+      // No body (or invalid JSON) sent — fall through to the default.
+    }
+    const businessType: BusinessType = requestedBusinessType && (ALLOWED_BUSINESS_TYPES as readonly string[]).includes(requestedBusinessType)
+      ? requestedBusinessType as BusinessType
+      : "individual";
+    if (requestedBusinessType && !(ALLOWED_BUSINESS_TYPES as readonly string[]).includes(requestedBusinessType)) {
+      return jsonResponse(400, { success: false, error: `Invalid business_type. Must be one of: ${ALLOWED_BUSINESS_TYPES.join(", ")}` });
+    }
+
     // Check if contractor already has a Stripe account
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -67,7 +98,12 @@ serve(async (req) => {
     let accountId = profile?.stripe_account_id;
 
     if (!accountId) {
-      // Create a new Express account
+      // Create a new Express account.
+      //
+      // These settings apply to NEWLY CREATED accounts only — existing
+      // connected accounts (including acct_1TnLKCK6BjgGpUY4) need updating
+      // separately; see the Brief 2 report for how to list them and update
+      // in bulk.
       const account = await stripe.accounts.create({
         type: "express",
         country: "GB",
@@ -76,10 +112,26 @@ serve(async (req) => {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
-        business_type: "individual",
+        business_type: businessType,
         settings: {
           payouts: {
             schedule: { interval: "weekly", weekly_anchor: "friday" },
+            // Lets Stripe debit the connected account's external (bank)
+            // account to cover a negative balance — e.g. when a transfer
+            // reversal (Brief 2, D2) takes it negative. Express accounts
+            // already default controller.losses.payments to "application"
+            // (TradeStone, not Stripe, is liable for negative balances —
+            // confirmed against Stripe's account-type-to-controller mapping:
+            // type=express implies losses.payments=application with no
+            // extra parameter needed), so debit_negative_balances is the
+            // parameter that actually governs the recovery mechanism here.
+            // Explicit rather than relying on its own Stripe-side default
+            // (also true) — see the Brief 2 report for the full reasoning
+            // and why controller.losses.payments is deliberately NOT also
+            // set alongside `type`. Confirmed On in the Stripe Dashboard
+            // for the existing connected account (Brief 2a) — kept
+            // explicit here rather than relying on that default persisting.
+            debit_negative_balances: true,
           },
         },
       });
