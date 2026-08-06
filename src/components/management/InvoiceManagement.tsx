@@ -13,10 +13,10 @@ import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
   Search, Send, CheckCircle, Loader2, Download, Banknote
 } from "lucide-react";
-import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
+import { generateInvoicePdf, fetchContractorProfileForPdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
-import { isOverdue as invoiceIsOverdue } from "@/lib/invoiceMoney";
+import { isOverdue as invoiceIsOverdue, depositSettled } from "@/lib/invoiceMoney";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaymentDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
@@ -236,31 +236,9 @@ export function InvoiceManagement() {
                         </Button>
                         
                           <Button variant="ghost" size="sm" onClick={async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  const { data: profile } = await supabase
-  .from("profiles")
-  .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
-  .eq("user_id", user.id)
-  .maybeSingle();
-
-let enrichedProfile: any = profile ?? undefined;
-if (profile?.logo_url) {
-  try {
-    const res = await fetch(profile.logo_url);
-    const blob = await res.blob();
-    const base64 = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(blob);
-    });
-    enrichedProfile = { ...profile, _logoBase64: base64 };
-  } catch {
-    // logo fetch failed — proceed without it
-  }
-}
-generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? null);
-}} title="Download PDF">
+                            const contractor = await fetchContractorProfileForPdf();
+                            generateInvoicePdf(inv, contractor, clientTsCodeMap[inv.client_email] ?? null);
+                          }} title="Download PDF">
                           <Download className="h-4 w-4" />
                         </Button>
                         {!isPaid && inv.status === "draft" && (
@@ -373,10 +351,34 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
                   <span>Tax ({Number(previewInvoice.tax_rate)}%)</span>
                   <span>£{Number(previewInvoice.tax_amount).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2">
-                  <span>Total</span>
-                  <span>£{Number(previewInvoice.total).toFixed(2)}</span>
-                </div>
+                {(() => {
+                  const deposit = depositSettled(previewInvoice);
+                  if (deposit <= 0) {
+                    return (
+                      <div className="flex justify-between font-bold text-lg border-t pt-2">
+                        <span>Total</span>
+                        <span>£{Number(previewInvoice.total).toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+                  const amountDue = Number(previewInvoice.total) - deposit;
+                  return (
+                    <>
+                      <div className="flex justify-between font-bold text-lg border-t pt-2">
+                        <span>Total for works</span>
+                        <span>£{Number(previewInvoice.total).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Deposit paid</span>
+                        <span>-£{deposit.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-lg">
+                        <span>Amount due</span>
+                        <span>£{amountDue.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {previewInvoice.notes && (
@@ -395,7 +397,10 @@ generateInvoicePdf(inv, enrichedProfile, clientTsCodeMap[inv.client_email] ?? nu
               )}
 
               <div className="border-t pt-4">
-                <Button onClick={() => generateInvoicePdf(previewInvoice, undefined, clientTsCodeMap[previewInvoice.client_email] ?? null)} className="w-full">
+                <Button onClick={async () => {
+                  const contractor = await fetchContractorProfileForPdf();
+                  generateInvoicePdf(previewInvoice, contractor, clientTsCodeMap[previewInvoice.client_email] ?? null);
+                }} className="w-full">
                   <Download className="h-4 w-4 mr-2" />Download PDF
                 </Button>
               </div>

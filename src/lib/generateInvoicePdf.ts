@@ -3,6 +3,8 @@ import autoTable from "jspdf-autotable";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { format } from "date-fns";
 import { formatInvoiceRef, contractorCodeSuffix } from "@/lib/documentRefs";
+import { depositSettled } from "@/lib/invoiceMoney";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ContractorProfile {
   full_name: string | null;
@@ -12,6 +14,48 @@ export interface ContractorProfile {
   address: string | null;
   ts_profile_code: string | null;
   logo_url: string | null;
+  /** Base64 data URL, set by fetchContractorProfileForPdf() when logo_url resolves. */
+  _logoBase64?: string;
+}
+
+/**
+ * Fetches the current user's contractor profile and, if a logo is set,
+ * base64-encodes it for embedding in the PDF — the single source of this
+ * logic so every Download PDF button produces an identically branded
+ * document. Returns undefined (not a throw) whenever the PDF should render
+ * without a contractor header: no signed-in user, or no profile row.
+ * A logo fetch failure is swallowed deliberately — the PDF still renders,
+ * just without the logo.
+ */
+export async function fetchContractorProfileForPdf(): Promise<ContractorProfile | undefined> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return undefined;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!profile) return undefined;
+
+  let enrichedProfile: ContractorProfile = profile;
+  if (profile.logo_url) {
+    try {
+      const res = await fetch(profile.logo_url);
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      enrichedProfile = { ...profile, _logoBase64: base64 };
+    } catch {
+      // logo fetch failed — proceed without it
+    }
+  }
+
+  return enrichedProfile;
 }
 
 export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProfile, clientTsCode?: string | null) {
@@ -28,9 +72,9 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   // ── Contractor header (left) ──────────────────────────────────────────────
   let yLeft = 20;
   if (contractor) {
-    if ((contractor as any)._logoBase64) {
+    if (contractor._logoBase64) {
       try {
-        doc.addImage((contractor as any)._logoBase64, "PNG", margin, yLeft, 24, 24);
+        doc.addImage(contractor._logoBase64, "PNG", margin, yLeft, 24, 24);
         yLeft += 28;
       } catch {
         // logo failed to render — skip silently
@@ -184,8 +228,34 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
-  doc.text("Total", totalsX - 50, tY);
-  doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
+
+  const deposit = depositSettled(invoice);
+  if (deposit > 0) {
+    doc.text("Total for works", totalsX - 50, tY);
+    doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
+
+    tY += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text("Deposit paid", totalsX - 50, tY);
+    doc.text(`-£${deposit.toFixed(2)}`, totalsX, tY, { align: "right" });
+
+    tY += 3;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(totalsX - 55, tY, totalsX, tY);
+
+    tY += 7;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    const amountDue = Number(invoice.total) - deposit;
+    doc.text("Amount due", totalsX - 50, tY);
+    doc.text(`£${amountDue.toFixed(2)}`, totalsX, tY, { align: "right" });
+  } else {
+    doc.text("Total", totalsX - 50, tY);
+    doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
+  }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   if (invoice.notes) {
