@@ -100,7 +100,7 @@ async function fetchEngagementDetail(engagement: PipelineEngagement): Promise<En
   if (engagement.invoiceId) {
     const { data } = await supabase
       .from("invoices")
-      .select("id, invoice_number, status, total, due_date, sent_at, paid_date")
+      .select("id, invoice_number, status, total, due_date, sent_at, paid_date, deposit_amount, deposit_deducted, deposit_paid")
       .eq("id", engagement.invoiceId)
       .maybeSingle();
     invoice = data ?? null;

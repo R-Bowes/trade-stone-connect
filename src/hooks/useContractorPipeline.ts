@@ -146,6 +146,9 @@ interface RawInvoice {
   sent_at: string | null;
   due_date: string;
   total: number;
+  deposit_amount: number | null;
+  deposit_deducted: number | null;
+  deposit_paid: boolean | null;
 }
 
 interface RawScheduleEvent {
@@ -311,7 +314,7 @@ export function useContractorPipeline() {
         .neq("status", "cancelled"),
       supabase
         .from("invoices")
-        .select("id, invoice_number, status, job_id, client_name, recipient_id, created_at, sent_at, due_date, total")
+        .select("id, invoice_number, status, job_id, client_name, recipient_id, created_at, sent_at, due_date, total, deposit_amount, deposit_deducted, deposit_paid")
         .eq("contractor_id", contractorId),
     ]);
 

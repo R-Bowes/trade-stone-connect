@@ -36,6 +36,9 @@ interface InvoiceRow {
   issued_date: string;
   client_email: string | null;
   client_name: string;
+  deposit_amount: number | null;
+  deposit_deducted: number | null;
+  deposit_paid: boolean | null;
 }
 
 interface QuoteRow {
@@ -233,7 +236,7 @@ const ContractorKPIInsights = () => {
         invoicesRes, quotesRes, jobsRes, enquiriesRes, viewsRes, searchRes, visitsRes, panelRes,
       ] = await Promise.all([
         supabase.from("invoices")
-          .select("id, total, status, paid_date, due_date, issued_date, client_email, client_name")
+          .select("id, total, status, paid_date, due_date, issued_date, client_email, client_name, deposit_amount, deposit_paid, deposit_deducted" as const)
           .eq("contractor_id", id),
         supabase.from("issued_quotes")
           .select("id, total, status, created_at, enquiry_id")

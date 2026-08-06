@@ -1,11 +1,11 @@
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno&no-check";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { amountPayable, depositSettled, platformFeePence, toPence } from "../_shared/paymentMath.ts";
+
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2024-06-20",
 });
-
-const PLATFORM_FEE_PERCENT = 0.05;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,13 +55,25 @@ serve(async (req) => {
         tax_amount,
         total,
         status,
-        stripe_payment_intent_id
+        stripe_payment_intent_id,
+        deposit_amount,
+        deposit_deducted,
+        deposit_paid
       `)
       .eq("id", invoiceId)
       .single();
 
     if (invoiceError || !invoice) {
       return jsonResponse(400, { success: false, error: "Invoice not found" });
+    }
+
+    // Nothing left to collect on a paid invoice, and a voided one should
+    // never be charged at all.
+    if (invoice.status === "paid" || invoice.status === "void") {
+      return jsonResponse(400, {
+        success: false,
+        error: `This invoice is ${invoice.status} — there is nothing to pay.`,
+      });
     }
 
     const { data: contractorProfile, error: contractorError } = await supabase
@@ -106,12 +118,27 @@ serve(async (req) => {
       }
     }
 
-    const amountInPence = Math.round(Number(invoice.total || 0) * 100);
-    if (amountInPence <= 0) {
+    // LOCKED INVARIANT: invoice.total is ALWAYS the gross value of works. A
+    // deposit is a payment against the invoice, never a reduction of its
+    // value — the amount to charge here is total minus whatever deposit has
+    // already been settled, not total itself. See
+    // ../_shared/paymentMath.ts and src/lib/invoiceMoney.ts.
+    const grossTotal = Number(invoice.total || 0);
+    if (grossTotal <= 0) {
       return jsonResponse(400, { success: false, error: "Invoice total must be greater than zero" });
     }
 
-    const platformFee = Math.round(amountInPence * PLATFORM_FEE_PERCENT);
+    const settledDeposit = depositSettled(invoice);
+    const payable = amountPayable(invoice);
+    if (payable <= 0) {
+      return jsonResponse(400, {
+        success: false,
+        error: "Nothing left to pay on this invoice — the deposit already covers the full amount",
+      });
+    }
+
+    const amountInPence = toPence(payable);
+    const platformFee = platformFeePence(amountInPence);
 
     let paymentIntentId = invoice.stripe_payment_intent_id;
     let clientSecret: string | null = null;
@@ -122,14 +149,37 @@ serve(async (req) => {
     // or mid-processing, handing back its client_secret fails or does
     // nothing useful at confirm time. Mirrors accept-quote's deposit-branch
     // status gate.
+    //
+    // Three conditions must ALL hold to reuse the stored PI:
+    //   1. It isn't accept-quote's deposit PaymentIntent — that function
+    //      stores its own PI id on this same column, and reusing (or even
+    //      reasoning about) it here is how a balance payment gets confused
+    //      with the deposit.
+    //   2. Its status is still open (requires_payment_method/action/confirmation).
+    //   3. Its amount still matches what we're charging now — if the payable
+    //      figure has moved (e.g. a deposit was settled since the PI was
+    //      minted), the stored PI is for a stale amount and must be replaced,
+    //      not reused.
     if (paymentIntentId) {
       try {
         const existingIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-        if (["requires_payment_method", "requires_action", "requires_confirmation"].includes(existingIntent.status)) {
+        const isNotDeposit = existingIntent.metadata?.type !== "deposit";
+        const isOpenStatus = ["requires_payment_method", "requires_action", "requires_confirmation"].includes(existingIntent.status);
+        const isCurrentAmount = existingIntent.amount === amountInPence;
+
+        if (isNotDeposit && isOpenStatus && isCurrentAmount) {
           clientSecret = existingIntent.client_secret;
           reusable = true;
+        } else if (isNotDeposit && isOpenStatus && !isCurrentAmount) {
+          // Stale amount — cancel it so we don't leave a dangling open PI
+          // for the wrong figure, then fall through and mint a fresh one.
+          try {
+            await stripe.paymentIntents.cancel(paymentIntentId);
+          } catch (cancelErr) {
+            console.error("Failed to cancel stale PaymentIntent, minting a new one anyway", cancelErr);
+          }
         }
-        // Otherwise (canceled/succeeded/processing) fall through and mint a fresh one.
+        // Otherwise (the deposit PI, or terminal/processing) fall through and mint a fresh one.
       } catch (piErr) {
         console.error("Failed to retrieve existing PaymentIntent, creating a new one", piErr);
         // Fall through and mint a fresh one.
@@ -149,6 +199,8 @@ serve(async (req) => {
           contractorId: invoice.contractor_id,
           clientId: invoice.recipient_id,
           type: "invoice",
+          grossTotal: grossTotal.toFixed(2),
+          depositSettled: settledDeposit.toFixed(2),
         },
       });
 
@@ -188,7 +240,9 @@ serve(async (req) => {
           items: (invoice as any).items ?? [],
           subtotal: Number((invoice as any).subtotal ?? 0),
           tax_amount: Number((invoice as any).tax_amount ?? 0),
-          total: Number(invoice.total ?? 0),
+          total: grossTotal,
+          deposit_settled: settledDeposit,
+          amount_payable: payable,
         },
       });
   } catch (error) {

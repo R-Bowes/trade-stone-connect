@@ -21,6 +21,18 @@ type PublicInvoice = {
   subtotal: number;
   tax_amount: number;
   total: number;
+  // Returned by create-payment-intent as of Brief 1 — the deposit already
+  // collected against this invoice, and what is actually being charged
+  // (total minus deposit_settled). Brief 1b consumes both below.
+  deposit_settled?: number | null;
+  amount_payable?: number | null;
+  // Not returned by create-payment-intent (it returns deposit_settled/
+  // amount_payable above instead — see Brief 1, Step 7(a)); kept null here
+  // purely to satisfy InvoiceMoneyFields' shape for the isOverdue() call
+  // below, which only reads status/due_date and ignores these three.
+  deposit_amount: number | null;
+  deposit_deducted: number | null;
+  deposit_paid: boolean | null;
 };
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "");
@@ -85,6 +97,9 @@ export default function PayInvoicePage() {
         setInvoice({
           ...data.invoice,
           items: Array.isArray(data.invoice.items) ? data.invoice.items : [],
+          deposit_amount: null,
+          deposit_deducted: null,
+          deposit_paid: null,
         });
         setClientSecret(data.clientSecret);
       } catch (err) {
@@ -112,6 +127,15 @@ export default function PayInvoicePage() {
     return <div className="min-h-screen flex items-center justify-center text-destructive">{error ?? "Invoice unavailable."}</div>;
   }
 
+  // amount_payable/deposit_settled may be absent on an older cached response
+  // or a non-deposit invoice — fall back to the gross total rather than risk
+  // NaN/undefined/£0.00 when a real amount is due.
+  const grossTotal = Number(invoice.total) || 0;
+  const depositSettled = Number(invoice.deposit_settled ?? 0) || 0;
+  const amountDue = invoice.amount_payable != null && !Number.isNaN(Number(invoice.amount_payable))
+    ? Number(invoice.amount_payable)
+    : grossTotal;
+
   return (
     <div className="min-h-screen bg-muted/30 p-4 md:p-8">
       <div className="mx-auto max-w-4xl grid gap-6 md:grid-cols-2">
@@ -133,7 +157,15 @@ export default function PayInvoicePage() {
             <Separator />
             <div className="flex justify-between text-sm"><span>Subtotal</span><span>£{Number(invoice.subtotal).toFixed(2)}</span></div>
             <div className="flex justify-between text-sm"><span>VAT</span><span>£{Number(invoice.tax_amount).toFixed(2)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Total</span><span>£{Number(invoice.total).toFixed(2)}</span></div>
+            {depositSettled > 0 ? (
+              <>
+                <div className="flex justify-between font-semibold"><span>Total for works</span><span>£{grossTotal.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm text-muted-foreground"><span>Deposit paid</span><span>-£{depositSettled.toFixed(2)}</span></div>
+                <div className="flex justify-between font-semibold"><span>Amount due</span><span>£{amountDue.toFixed(2)}</span></div>
+              </>
+            ) : (
+              <div className="flex justify-between font-semibold"><span>Total</span><span>£{grossTotal.toFixed(2)}</span></div>
+            )}
           </CardContent>
         </Card>
 
@@ -147,7 +179,7 @@ export default function PayInvoicePage() {
               <p className="text-green-700 font-medium">This invoice has already been paid.</p>
             ) : clientSecret ? (
               <Elements stripe={stripePromise} options={{ clientSecret }}>
-                <PaymentForm total={Number(invoice.total)} />
+                <PaymentForm total={amountDue} />
               </Elements>
             ) : (
               <p className="text-destructive">Could not initialise payment.</p>

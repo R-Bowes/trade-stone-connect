@@ -18,9 +18,9 @@ export interface InvoiceMoneyFields {
   status: string;
   total: number | string;
   due_date: string;
-  deposit_amount?: number | string | null;
-  deposit_deducted?: number | string | null;
-  deposit_paid?: boolean | null;
+  deposit_amount: number | string | null;
+  deposit_deducted: number | string | null;
+  deposit_paid: boolean | null;
 }
 
 /** Statuses representing an invoice the client has received and not settled. */

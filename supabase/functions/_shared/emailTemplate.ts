@@ -47,6 +47,9 @@ export interface OverdueInvoiceData {
   invoiceRef: string;        // e.g. "INV-0014"
   dueDate: string;
   payUrl: string;
+  // Amount actually outstanding (total minus any settled deposit) — never
+  // the invoice's gross total. See supabase/functions/_shared/paymentMath.ts.
+  amount: string;            // e.g. "£9.00"
 }
 
 export interface PaymentReceivedData {
@@ -329,6 +332,7 @@ export function buildEmail(type: EmailType, data: EmailData): string {
         subtext(`Hi ${d.clientName}, your invoice was due on <strong>${d.dueDate}</strong> and has not yet been paid. Please settle the balance at your earliest convenience.`),
         detailCard([
           { label: "Invoice",  value: d.invoiceRef, mono: true },
+          { label: "Amount due", value: d.amount },
           { label: "Due date", value: d.dueDate },
           { label: "Status",   value: `<span style="color:#dc2626;font-weight:600;">Overdue</span>` },
         ]),

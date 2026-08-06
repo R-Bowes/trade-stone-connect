@@ -20,12 +20,18 @@
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { PLATFORM_FEE_PERCENT } from "../_shared/paymentMath.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
 });
 
-const PLATFORM_FEE_PERCENT = 0.05;
+// The invoice raised here goes overdue this many days after quote
+// acceptance (mark-overdue-invoices then emails the customer a pay link).
+// Was previously `new Date()` — today — so the invoice went overdue the very
+// next day regardless of any real payment term. FLAGGED: confirm 30 is the
+// right figure before relying on it.
+const DEPOSIT_INVOICE_DUE_DAYS = 30;
 
 const ALLOWED_ORIGINS = [
   "https://tradesltd.co.uk",
@@ -187,7 +193,11 @@ serve(async (req) => {
         tax_amount: 0,
         total: Number(quote.total),
         deposit_amount: depositAmount,
-        due_date: new Date().toISOString().slice(0, 10),
+        due_date: (() => {
+          const due = new Date();
+          due.setDate(due.getDate() + DEPOSIT_INVOICE_DUE_DAYS);
+          return due.toISOString().slice(0, 10);
+        })(),
         status: "sent",
         items: [
           {

@@ -5,11 +5,24 @@
 // is derived from due_date at read time (see src/lib/invoiceMoney.ts and the
 // invoices_status_valid CHECK constraint, 20260807200000_invoice_status_canonical.sql).
 // This function name is legacy; it no longer marks anything.
+//
+// Deposit-aware (Brief 1b): under the locked invariant (invoices.total is
+// ALWAYS gross; a deposit is a payment against the invoice, never a
+// reduction of its value), an accepted-with-deposit quote raises a GROSS
+// invoice at acceptance — for a job that may still be in progress. Chasing
+// that invoice as "overdue debt" for the full total while the works aren't
+// done would both misrepresent what's owed and hassle a customer who has
+// already paid what was due at this stage. So: any invoice with a settled
+// deposit whose linked job isn't complete is skipped entirely. Any invoice
+// that IS chased quotes the amount actually outstanding (amountPayable —
+// total minus settled deposit), not the gross total, via
+// ../_shared/paymentMath.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
+import { amountPayable } from "../_shared/paymentMath.ts";
 
 serve(async (req) => {
   // Internal-only (verify_jwt=false in config.toml — cron-invoked, no
@@ -40,24 +53,54 @@ serve(async (req) => {
     // (invoices_status_valid CHECK no longer permits an 'overdue' value).
     const { data: overdueInvoices, error } = await supabase
       .from("invoices")
-      .select("id, invoice_number, client_name, client_email, due_date, contractor_id")
+      .select("id, invoice_number, client_name, client_email, due_date, contractor_id, job_id, total, deposit_paid, deposit_amount, deposit_deducted")
       .eq("status", "sent")
       .lt("due_date", today);
 
     if (error) throw error;
 
     if (!overdueInvoices?.length) {
-      return new Response(JSON.stringify({ notified: 0 }), {
+      return new Response(JSON.stringify({ notified: 0, skipped: 0 }), {
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // Bulk-resolve job status for every linked job in one query, so the
+    // deposit-paid/job-incomplete skip below doesn't fire a query per row.
+    const jobIds = [...new Set(overdueInvoices.map((inv) => inv.job_id).filter((id): id is string => !!id))];
+    const jobStatusById = new Map<string, string>();
+    if (jobIds.length > 0) {
+      const { data: jobs, error: jobsError } = await supabase
+        .from("jobs")
+        .select("id, status")
+        .in("id", jobIds);
+      if (jobsError) throw jobsError;
+      for (const job of jobs ?? []) {
+        jobStatusById.set(job.id, job.status);
+      }
     }
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
 
     let notified = 0;
+    let skipped = 0;
 
     for (const invoice of overdueInvoices) {
+      // Deposit-at-acceptance invoice for a job that isn't finished yet: the
+      // gross total isn't "overdue debt" at this stage, only the deposit
+      // was ever due — skip chasing it entirely. A null job_id means this
+      // isn't a deposit-at-acceptance invoice at all (it's chaseable
+      // regardless of deposit fields).
+      if (invoice.deposit_paid && invoice.job_id) {
+        const jobStatus = jobStatusById.get(invoice.job_id);
+        if (jobStatus !== "complete") {
+          console.log(`[mark-overdue-invoices] skipping invoice ${invoice.id}: deposit_paid and linked job ${invoice.job_id} status is '${jobStatus ?? "unknown"}', not 'complete'`);
+          skipped++;
+          continue;
+        }
+      }
+
       // Dedup: since status no longer flips off 'sent' once overdue, every
       // run would otherwise re-match the same invoice forever. Skip if a
       // reminder for this invoice has already been sent.
@@ -69,7 +112,11 @@ serve(async (req) => {
         .eq("type", "overdue_invoice")
         .limit(1)
         .maybeSingle();
-      if (existing) continue;
+      if (existing) {
+        console.log(`[mark-overdue-invoices] skipping invoice ${invoice.id}: reminder already sent`);
+        skipped++;
+        continue;
+      }
 
       const invoiceRef = invoice.invoice_number != null
         ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
@@ -79,12 +126,17 @@ serve(async (req) => {
         day: "2-digit", month: "long", year: "numeric",
       });
 
+      // Amount actually outstanding — total minus any settled deposit, never
+      // the gross figure. See ../_shared/paymentMath.ts.
+      const amountOutstanding = amountPayable(invoice);
+
       if (RESEND_API_KEY) {
         const emailData = {
           clientName:  invoice.client_name,
           invoiceRef,
           dueDate:     dueDateFormatted,
           payUrl:      `${publicUrl}/pay/${invoice.id}`,
+          amount:      `£${amountOutstanding.toFixed(2)}`,
         };
 
         await fetch("https://api.resend.com/emails", {
@@ -117,7 +169,7 @@ serve(async (req) => {
       notified++;
     }
 
-    return new Response(JSON.stringify({ notified }), {
+    return new Response(JSON.stringify({ notified, skipped }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {

@@ -12,18 +12,32 @@
 //    Session usage for invoices returns.
 //  - payment_intent.succeeded: dispatches on paymentIntent.metadata.type —
 //    "deposit" (accept-quote/index.ts's PaymentIntent): marks the deposit
-//    paid on both the quote and the invoice, mints the job via
-//    mint_job_from_quote (LOCKED DECISION: a scheduled job means money has
-//    moved, or none was due), and records a payments row; "invoice"
-//    (create-payment-intent/index.ts's PaymentIntent): marks the invoice
-//    paid and records a payments row. Both branches are idempotent — safe
-//    to receive either event twice. Both use camelCase metadata
-//    (invoiceId/contractorId/clientId) — no attempt made in this slice to
-//    unify with checkout.session.completed's snake_case.
+//    paid on both the quote and the invoice (writing deposit_deducted
+//    alongside deposit_paid — see fetchChargeLedger below — so
+//    deposit_deducted becomes the live source of truth and demotes
+//    paymentMath's deposit_amount fallback to a safety net for pre-backfill
+//    rows), mints the job via mint_job_from_quote (LOCKED DECISION: a
+//    scheduled job means money has moved, or none was due), and records a
+//    payments row; "invoice" (create-payment-intent/index.ts's
+//    PaymentIntent): marks the invoice paid and records a payments row.
+//    Both branches are idempotent — safe to receive either event twice.
+//    Both use camelCase metadata (invoiceId/contractorId/clientId) — no
+//    attempt made in this slice to unify with checkout.session.completed's
+//    snake_case.
+//
+//    Both branches also capture a revenue ledger on the payments row via
+//    fetchChargeLedger(): the charge id, the Connect transfer id (needed to
+//    reverse the contractor payout on a future refund/dispute — not handled
+//    in this slice), the balance transaction id, and Stripe's own processing
+//    fee. platform_fee stays the gross application fee; net_platform_revenue
+//    is platform_fee minus Stripe's fee — see ../_shared/paymentMath.ts.
+//    Ledger capture failures are logged and swallowed — they must never
+//    block the invoice/job state transition itself.
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildEmail, buildSubject } from "../_shared/emailTemplate.ts";
+import { netPlatformRevenue } from "../_shared/paymentMath.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
@@ -37,6 +51,50 @@ const jsonResponse = (status: number, payload: Record<string, unknown>) =>
     status,
     headers: { "Content-Type": "application/json" },
   });
+
+interface ChargeLedger {
+  chargeId: string;
+  transferId: string | null;
+  balanceTransactionId: string | null;
+  stripeFeePence: number;
+}
+
+/**
+ * Resolves the charge behind a succeeded PaymentIntent and pulls the
+ * revenue-ledger fields off it. Ledger capture must NEVER block the
+ * invoice/job state transition — any failure here is logged and the caller
+ * proceeds without a ledger row.
+ */
+async function fetchChargeLedger(paymentIntent: Stripe.PaymentIntent): Promise<ChargeLedger | null> {
+  const latestCharge = paymentIntent.latest_charge;
+  const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
+  if (!chargeId) {
+    console.error("No latest_charge on PaymentIntent, skipping ledger capture", paymentIntent.id);
+    return null;
+  }
+
+  try {
+    // No stripeAccount header — the charge lives on the platform account
+    // under destination charges, not on the connected account.
+    const charge = await stripe.charges.retrieve(chargeId, { expand: ["balance_transaction"] });
+
+    const transfer = charge.transfer;
+    const transferId = typeof transfer === "string" ? transfer : transfer?.id ?? null;
+
+    const balanceTransaction = charge.balance_transaction;
+    const balanceTransactionId = typeof balanceTransaction === "string"
+      ? balanceTransaction
+      : balanceTransaction?.id ?? null;
+    const stripeFeePence = typeof balanceTransaction === "object" && balanceTransaction
+      ? balanceTransaction.fee
+      : 0;
+
+    return { chargeId, transferId, balanceTransactionId, stripeFeePence };
+  } catch (err) {
+    console.error("Failed to fetch charge ledger", chargeId, err);
+    return null;
+  }
+}
 
 async function handleCheckoutSessionCompleted(
   supabase: ReturnType<typeof createClient>,
@@ -186,14 +244,22 @@ async function handleInvoicePaymentIntentSucceeded(
     .maybeSingle();
 
   if (!existingPayment) {
+    const applicationFeePence = paymentIntent.application_fee_amount ?? 0;
+    const ledger = await fetchChargeLedger(paymentIntent);
+
     const { error: paymentError } = await supabase.from("payments").insert({
       job_id: invoice.job_id,
       invoice_id: invoiceId,
       payer_id: paymentIntent.metadata.clientId || invoice.recipient_id || null,
       payee_id: paymentIntent.metadata.contractorId || invoice.contractor_id || null,
       amount: paymentIntent.amount / 100,
-      platform_fee: (paymentIntent.application_fee_amount ?? 0) / 100,
+      platform_fee: applicationFeePence / 100,
       stripe_payment_intent_id: paymentIntent.id,
+      stripe_charge_id: ledger?.chargeId ?? null,
+      stripe_transfer_id: ledger?.transferId ?? null,
+      stripe_balance_transaction_id: ledger?.balanceTransactionId ?? null,
+      stripe_fee: ledger ? ledger.stripeFeePence / 100 : null,
+      net_platform_revenue: ledger ? netPlatformRevenue(applicationFeePence, ledger.stripeFeePence) : null,
       status: "released",
       type: "invoice",
     });
@@ -257,9 +323,17 @@ async function handlePaymentIntentSucceeded(
       .maybeSingle();
 
     if (invoice && !invoice.deposit_paid) {
+      // deposit_deducted is written here, alongside deposit_paid, as the
+      // live source of truth (the amount actually charged via Stripe) —
+      // paymentMath's deposit_amount fallback is a safety net for rows
+      // created before this write existed.
       const { error: invoiceUpdateError } = await supabase
         .from("invoices")
-        .update({ deposit_paid: true, deposit_paid_at: new Date().toISOString() })
+        .update({
+          deposit_paid: true,
+          deposit_paid_at: new Date().toISOString(),
+          deposit_deducted: paymentIntent.amount / 100,
+        })
         .eq("id", invoiceId);
       if (invoiceUpdateError) {
         console.error("Failed to mark invoice deposit paid", invoiceUpdateError);
@@ -286,14 +360,22 @@ async function handlePaymentIntentSucceeded(
     .maybeSingle();
 
   if (!existingPayment) {
+    const applicationFeePence = paymentIntent.application_fee_amount ?? 0;
+    const ledger = await fetchChargeLedger(paymentIntent);
+
     const { error: paymentError } = await supabase.from("payments").insert({
       job_id: jobId,
       invoice_id: invoiceId ?? null,
       payer_id: paymentIntent.metadata.clientId || null,
       payee_id: paymentIntent.metadata.contractorId || null,
       amount: paymentIntent.amount / 100,
-      platform_fee: (paymentIntent.application_fee_amount ?? 0) / 100,
+      platform_fee: applicationFeePence / 100,
       stripe_payment_intent_id: paymentIntent.id,
+      stripe_charge_id: ledger?.chargeId ?? null,
+      stripe_transfer_id: ledger?.transferId ?? null,
+      stripe_balance_transaction_id: ledger?.balanceTransactionId ?? null,
+      stripe_fee: ledger ? ledger.stripeFeePence / 100 : null,
+      net_platform_revenue: ledger ? netPlatformRevenue(applicationFeePence, ledger.stripeFeePence) : null,
       status: "released",
       type: "deposit",
     });

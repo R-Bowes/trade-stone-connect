@@ -26,6 +26,9 @@ export interface ThreadInvoice {
   due_date: string;
   sent_at: string | null;
   paid_date: string | null;
+  deposit_amount: number | null;
+  deposit_deducted: number | null;
+  deposit_paid: boolean | null;
 }
 
 interface QuoteContact {

@@ -693,24 +693,16 @@ export function JobManagement() {
       total: Number(item.total ?? Number(item.quantity ?? 1) * Number(item.unit_price ?? 0)),
     }));
 
-    // A paid deposit was already collected at quote acceptance — without
-    // this, the generated invoice double-bills the client for it. Encoded
-    // as a regular (negative) line item so it flows through the existing
-    // subtotal/total math and every renderer that iterates `items` (PDF,
-    // client-facing invoice view) automatically shows it — no separate
-    // display-layer change needed.
+    // A paid deposit was already collected at quote acceptance. Under the
+    // locked invariant (invoices.total is ALWAYS gross; a deposit is a
+    // payment against the invoice, never a reduction of its value), that is
+    // NOT encoded as a line item here — items stay gross. deposit_amount /
+    // deposit_deducted / deposit_paid below carry the deposit onto the
+    // invoice row itself (see InvoiceFormDialog.tsx), which is the single
+    // correct population point.
     const depositAmount = Number(quote?.deposit_amount ?? 0);
     const depositPaid = !!quote?.deposit_paid;
     const depositRequired = !!quote?.deposit_required;
-    const depositItems: InvoiceItem[] =
-      depositPaid && depositAmount > 0
-        ? [{
-            description: `Less deposit paid — ${quote?.quote_number != null ? formatQuoteRef(quote.quote_number, { version: quote.version ?? undefined }) : "quote"}`,
-            quantity: 1,
-            unit_price: -depositAmount,
-            total: -depositAmount,
-          }]
-        : [];
 
     const { data: expenses } = await supabase
       .from("expenses" as any)
@@ -768,7 +760,7 @@ export function JobManagement() {
       client_phone: quote?.client_phone || "",
       client_address: quote?.client_address || "",
       notes: `Generated from completed job: ${job.title}`,
-      items: [...quoteItems, ...expenseItems, ...labourItems, ...depositItems],
+      items: [...quoteItems, ...expenseItems, ...labourItems],
       defaultDueDate: dueDate.toISOString().slice(0, 10),
       defaultTaxRate: contractorProfile?.vat_registered ? 20 : 0,
       contractorId: fullJob.contractor_id,
