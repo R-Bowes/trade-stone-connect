@@ -1,60 +1,67 @@
 # LATER.md
 
-Parked ideas and out-of-scope features. Nothing here gets built until the
-core job flow (Enquiry → Quote → Job → In Progress → Sign-off → Invoice →
-Payment) is clean and validated. Capture here, don't build now.
+**Last reviewed: 2026-08-06**
 
-Discipline: an idea lands here instead of derailing the current build.
-Review during the Friday log ritual.
+Parked ideas and out-of-scope features. Capture here, don't build now.
+
+Active work — blocking-validation items, pre-launch fixes, data integrity,
+housekeeping — lives in `NOW.md`, not this file.
 
 ---
 
-## Job Completion PDF (job record / completion certificate)
+## Reading rules
 
-**What it is**
-A PDF auto-generated when a job reaches Complete, confirming the timeline of
-what happened and what was done. A trust artefact: proof of work + warranty
-start date for the homeowner, a clean record for the contractor, dispute
-protection for both. Serves homeowner AND contractor — clears the three-user
-filter.
+1. This file is reference, never instruction. Nothing here becomes work
+   until it is turned into a detailed brief in conversation first.
+   Claude Code never implements directly from this document.
+2. All SQL is `DO NOT RUN`. Schema in here was written against the schema
+   of the day and is assumed wrong until proven otherwise.
+3. Step-0 schema audit is mandatory before any block becomes a brief:
+   `information_schema.columns` + `pg_policies` output pasted from the
+   live DB, never described, never reconstructed from code or memory.
+4. Migrations are immutable. Nothing here is ever applied as an edit to
+   an existing migration file — new timestamped file only, via
+   `npx supabase db push`. Never the dashboard SQL editor.
+5. Every block carries a `Last reviewed:` date where it has been checked
+   against the live codebase. Unreviewed for 90 days = unverified, not spec.
+6. Shipped items are deleted, not annotated as done. History is git's job.
+7. Review cadence: monthly, against the live codebase — not from memory.
 
-**Hard scoping rule — accepted contractor only**
-The PDF shows ONLY the quote breakdown of the contractor who completed the
-job, and only that contractor's details. Under the Projects model a project
-can hold competing quotes — the completion PDF must NEVER leak the comparative
-quotes, other contractors' pricing, or any losing bid. Scope strictly to the
-accepted quote + winning contractor. Write this into the query, not as an
-afterthought.
+## Invariants any block must respect (fail = rewrite the block)
 
-**Data sources (mostly already captured — assembly job, not new capture)**
-- Job created            -> jobs.created_at
-- Quote issued           -> issued_quotes (accepted quote only): line items,
-                            totals, VAT, deposit, contractor name + TS code
-- Job started            -> job in_progress timestamp
-- Completed / signed off -> pending_sign_off -> sign-off timestamp
-- Images                 -> job_photos for this job
-- Invoice                -> HMRC sequential invoice number + date
-- Payment completed       -> Stripe payment confirmed timestamp (paid)
+- Platform name is "TradeStone". No suffix, ever.
+- No phone numbers or email addresses on platform-generated documents or
+  contractor-facing views. All comms route through platform messaging —
+  including any buyer/seller, hirer/owner, or client/contractor handoff.
+- Document refs via `src/lib/documentRefs.ts` helpers only.
+  Q- / J- / INV- / WO- prefixes. There is no TS-J scheme.
+- Two-step RLS: `x_id IN (SELECT id FROM profiles WHERE user_id = auth.uid())`.
+- SECURITY DEFINER for admin operations and consequential state transitions.
+- Craft score is never influenced by price or speed.
+- Platform fee is 5%. No subscription-model assumptions anywhere.
+- i18n-aware: no hardcoded currency symbols, locale-aware formatting,
+  regulatory logic (VAT, HMRC, CIS, postcodes) behind country flags.
+- Live quote table is `issued_quotes`. `quotes` is permanently legacy and empty.
 
-**Layout sketch**
-- Header: TradeStone wordmark, job title, TS codes (homeowner TS-P,
-  contractor TS-C)
-- Timeline block: each lifecycle event with date + time
-- Quote breakdown: line items, totals, VAT (accepted quote ONLY)
-- Photos: job_photos thumbnails / grid
-- Footer: invoice number, payment confirmation, generated-on date
+## Retired — any block referencing these is stale and must be re-specced
 
-**Tech**
-pdf-lib in an Edge Function (better home than client-side — it's a finalised
-server-generated record, and shares tooling with the planned Projects
-contracts PDF). jsPDF client-side is the fallback if a quick browser render is
-ever wanted.
+`auth_user_company_ids()` · `team_members.is_active` · `assets.is_active` ·
+`generate_invoice_number` trigger · database GUCs for cron secrets (use Vault /
+`get_secret()`) · Lovable hosting · `PUBLIC_URL` / `PUBLIC_APP_URL`
 
-**Priority / dependencies**
-Build alongside the Phase 0 PDF quote generation — they share most of the
-rendering code, so do them together. Depends on lifecycle timestamps and the
-sign-off + payment steps being reliably captured first. Build after core flow
-is clean.
+---
+
+## Next up after validation (design first, no code)
+
+- **Contractor onboarding wizard** — not yet built. First-run guided setup:
+  profile completion, trade selection, Stripe Connect, verification documents,
+  quote template. Highest-value unbuilt item once validation closes.
+- **Push notifications** — needs native app or service worker. See Mobile.
+- **Team member sub-logins** — team members currently have no auth connection
+  at all. Significant architectural build: auth identity per team member,
+  permission scoping, RLS implications across every contractor-owned table.
+  Requires a dedicated design session before any implementation. Do not let
+  this start as a small change.
 
 ---
 
@@ -71,31 +78,45 @@ The more a homeowner provides upfront, the less often a site visit is needed —
 directly softens "Request a Visit". Keep all fields optional so the enquiry
 form doesn't get heavy enough to cause abandonment.
 
-**Action**
-First check whether this already shipped — the enquiry form may still be
-free-text + location + timeline + budget only. If not built, it's a small,
-high-value add.
+**Step-0 required before designing**
+- The `enquiry-photos` bucket exists (private, authenticated SELECT). Establish
+  what already writes to it and whether photo upload at enquiry stage is
+  partially built.
+- `enquiry_measurements` exists in the dormant schema roster and may already be
+  the intended home for the dimensions half. Check before adding a new table.
+
 ---
 
-# Backlog (parked — same rule: build none of this until the core flow is clean)
-
 ## Trust, safety & anti-cowboy
-- **Staged / escrow payments** — milestone sign-off by customer, auto-release
-  timer if no response in window, funds frozen on dispute. The anti-cowboy
-  centrepiece. (Current model is single payment on completion.)
+
+- **Escrow / milestone fund holding** — funds held by the platform, released on
+  customer milestone sign-off, auto-release timer if no response in window,
+  frozen on dispute. Distinct from staged payments (shipped, which schedules
+  invoices but does not hold funds). The anti-cowboy centrepiece and the
+  hardest regulatory piece here — payment-institution territory. Needs proper
+  legal review before design, not after.
 - **Dispute resolution workflow** — platform-mediated fund hold, evidence
   submission from both sides, resolution decision. Needed before any real
-  transaction volume.
-- **Trade licence verification** — API checks vs Gas Safe, NICEIC,
-  Companies House; verified credentials shown publicly (type, body, dates,
-  reg number + register link), uploaded docs stay private. Unverified
-  credentials don't appear publicly.
-- **Insurance tracking** — contractors upload PL insurance with expiry;
-  platform warns before lapse; lapsed insurance blocks new enquiries.
-- **ID / company number verification at signup** for contractor + business.
-- **Review challenge & moderation workflow.**
+  transaction volume, and a hard dependency of escrow above.
+- **Trade licence API verification** — automated checks vs Gas Safe, NICEIC,
+  Companies House. Verification tiers and the manual admin verification
+  workflow shipped; this replaces the manual step with API calls. Verified
+  credentials shown publicly (type, body, dates, reg number + register link);
+  uploaded docs stay private. Unverified credentials don't appear publicly.
+- **Insurance expiry enforcement** — contractor PL insurance with expiry date,
+  warning before lapse, lapsed insurance blocks new enquiries.
+  **Step-0 required:** team certifications shipped with expiry tracking —
+  establish whether contractor-level insurance already uses the same tables
+  before designing anything new.
+- **Review challenge & moderation workflow** — contractor right of reply,
+  admin adjudication, review removal criteria. Note the scoring invariant:
+  reviews drive Service score only; Craft is system and third-party signal
+  only, so a challenged review must not be able to move Craft.
+
+---
 
 ## Projects (fully designed — see Projects design notes / memory)
+
 - **Projects feature** — container for multi-phase work. Schema first:
   `projects`, `project_proposals`, `proposal_phases`; `asset_id` FK on jobs as
   future-proofing. Open tender vs invite-by-TS-code, proposal versioning,
@@ -105,47 +126,101 @@ high-value add.
   contract versioning on approved change requests.
 - **Gantt / timeline view** — part of Projects, not detailed yet.
 - **Change request flow** — post-acceptance scope changes with revised cost +
-  timeline, customer approve/decline. Parked with Projects.
+  timeline, customer approve/decline. Distinct from job variations (shipped),
+  which operate within a single job. Parked with Projects.
 - **Sub-contractor hiring** — contractor as principal on a sub-job via
   `parent_job_id` FK (Option A), no tier escalation. Needs contractor volume.
 - **Template schemas** for proposals — needs real tender data first.
+- **Blocker:** `create-deposit-checkout` is quarantined (see tech debt) and
+  must be fixed before Projects deposits can be taken.
+
+---
 
 ## Financial & HMRC compliance
+
+**Tier 2 (external partnerships required — gated behind Tier 1 validation)**
 - **MTD VAT submission** via HMRC API — one-button quarterly return from
-  platform data.
-- **MTD for Income Tax** submission.
-- **Open Banking reconciliation** (TrueLayer / Plaid) — auto-match bank
+  platform data. HMRC Developer Hub registration starts the approval clock;
+  worth beginning early even though the build is gated.
+- **Bank feed reconciliation** (TrueLayer / Plaid) — auto-match bank
   transactions to invoices.
-- **Self Assessment summaries** / P&L reporting.
-- **CIS deduction automation** — confirm against current business build before
-  treating as unbuilt.
+
+**Tier 3**
+- **Receipt OCR** and **smart categorisation**.
+- **Year-end tax pack** (extends the shipped year-end pack PDF).
+- **MTD for Income Tax** submission.
+- **Self Assessment summaries.**
+
+**Other**
+- **HMRC CIS API** — deduction automation. Labour/materials split on quote
+  lines (below) is a prerequisite, since the two carry different deduction
+  treatment.
 - **Basic payroll (PAYE)** for contractors with employees — deferred, PAYE
-  complexity vs small user slice.
+  complexity vs small user slice. Interacts with team member sub-logins.
 - **Invoice factoring / financing** — deferred. FCA territory, capital +
   credit risk; can sink the business if done naively.
 
+---
+
+## Labour / Materials categorisation on quote lines
+
+Contractors want to see what they quoted for labour versus materials.
+
+This is a finance feature more than a quoting one. Job profitability currently
+shows what a job *cost* by category but not what it was *quoted* at, so the
+question "did I underprice labour or did materials overrun?" is unanswerable.
+Splitting quote lines by type closes that loop.
+
+Also feeds CIS, where labour and materials carry different deduction treatment.
+
+Schema options: a `line_type` field on the existing `items` jsonb (cheap, hard
+to aggregate), or a proper `quote_line_items` table (correct if profitability
+is going to group on it). Recommend the table.
+
+Step-0 required: `issued_quotes.items` jsonb shape, and every reader of it —
+quote PDF generation duplicates the structure inline.
+
+---
+
 ## Notifications
+
 - **Push notifications** — needs native app + service worker.
 - **SMS notifications** (configurable per user).
 - **In-app notification centre** with read/unread state.
 - **Granular notification preferences** per event type.
-(Email notifications via Resend are in progress — Phase 0, not parked.)
+
+Dependency: the watcher nudge dedup fix in `NOW.md` — do not add channels to
+a notification system that re-fires the same nudge on every cron run.
+
+---
 
 ## Discovery & growth
+
 - **SEO-optimised public contractor directory.**
-- **Search ranking algorithm** — rating, responsiveness, verified status,
-  paid promotion.
-- **Geolocation-based search results.**
-- **Promoted listings / pay-to-rank** — deferred until trust is established;
-  layer in carefully.
+- **Geolocation-based search results** — distance weighting in the ranking
+  pipeline. Scoring-driven ranking shipped; this adds the geo dimension.
+- **Promoted listings / pay-to-rank** — deferred until trust is established.
+  If built, promoted placement must be visually distinct and must never alter
+  the underlying score. Layer in carefully.
+- **Google AdSense** — Publisher ID obtained, awaiting site review for
+  tradesltd.co.uk. `AdBanner` component once approved, placed in contractor
+  dashboard sidebar and public directory footer. Long-term: negotiate direct
+  supplier partnerships (Screwfix, Toolstation) using traffic data.
+
+---
 
 ## Retention & stickiness
+
 - **Repeat / recurring job scheduling** — boiler service, gutter clean;
-  auto-creates enquiry/job at interval.
+  auto-creates enquiry/job at interval. Homeowner-side equivalent of the
+  shipped PPM auto-rolling visits; check whether that machinery can be reused
+  before designing new.
 - **One-click rebook** of a preferred contractor.
-- **Contractor health score** — composite trust signal.
-- **Homeowner job history** + **warranty tracking** (warranty start date ties
-  to the completion PDF above).
+- **Homeowner job history** view — jobs exist and certificates/warranties
+  ship with them; this is the homeowner-facing aggregation surface plus
+  warranty expiry prompts.
+
+---
 
 ## Materials Marketplace
 
@@ -229,7 +304,7 @@ Surplus" or "Part used · Surplus".
 | `negotiable` | boolean | Seller open to offers |
 | `location_postcode` | text | Area only. Full address shared only after purchase confirmed |
 | `photos` | — | Min 1, max 10. Storage bucket: `marketplace-photos` |
-| `job_id` | uuid FK | Optional. Links to `jobs.id` for provenance ("from job TS-J-xxxxx") |
+| `job_id` | uuid FK | Optional. Links to `jobs.id`. Display uses the job ref from `documentRefs.ts` (`J-4AE203-0008`) — there is no TS-J scheme |
 | `seller_id` | uuid FK | References `profiles(id)` |
 | `seller_type` | enum | `contractor`, `business`, `retail` |
 | `status` | enum | `draft`, `active`, `reserved`, `sold`, `removed` |
@@ -249,6 +324,7 @@ decorating · Doors, windows & ironmongery · General building materials · Othe
 ### Schema (DO NOT RUN — for reference at build time only)
 
 ```sql
+-- DO NOT RUN
 -- Marketplace listings
 CREATE TABLE marketplace_listings (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -316,7 +392,7 @@ price desc / nearest.
 
 **Listing detail page**
 Photo gallery (swipeable), full condition+source display, seller identity card
-(TS code, trade, rating, job count — links to public profile), optional job
+(TS code, trade, score, job count — links to public profile), optional job
 provenance link, price/quantity/unit, "Make an offer" button if negotiable,
 "Buy now" → Stripe payment flow.
 
@@ -335,11 +411,15 @@ listing. Order notification on purchase.
 
 ### Payment model
 Stripe Connect destination charge — same pattern as job payments.
-Platform fee: 5% (higher than job payments — lower relationship value, higher
-dispute risk on physical goods).
+Platform fee: to be decided at build time. Job payments are 5%; marketplace
+carries lower relationship value and higher dispute risk on physical goods,
+so a higher rate is arguable — but decide it deliberately, don't inherit a
+number from this document.
 Buyer protection: 48-hour dispute window after collection confirmed.
 No physical fulfilment handling by TradeStone — collection or local delivery
-arranged directly between buyer and seller.
+arranged between buyer and seller **through platform messaging**. Offers,
+collection arrangements and address exchange all route through the messaging
+system; no phone numbers or email addresses are exposed at any point.
 
 ---
 
@@ -349,7 +429,7 @@ arranged directly between buyer and seller.
 - VAT invoice generation for merchant sales (contractor P2P surplus sales
   carry no VAT obligation for non-VAT-registered sellers)
 - Product catalogue / SKU database (listings are free-text, not catalogue-matched)
-- Tool and equipment hire (separate liability model — see Tool Hire section below)
+- Tool and equipment hire (separate liability model — see Tool Hire below)
 
 ---
 
@@ -372,6 +452,11 @@ insurance requirements, and deposit handling. None of those apply to a
 straightforward sale. Conflating hire and sale in one listing model creates
 legal ambiguity and UI confusion. Separate tables, separate flow.
 
+**Check first:** My Kit inventory management shipped, including document
+attachments. Establish whether hire listings should extend My Kit rather than
+introduce a parallel asset concept — a contractor should not maintain the same
+tool in two places.
+
 ---
 
 ### Hire listing fields
@@ -388,7 +473,7 @@ legal ambiguity and UI confusion. Separate tables, separate flow.
 | `min_hire_days` | int | Minimum booking period (default 1) |
 | `max_hire_days` | int | Maximum continuous hire period |
 | `location_postcode` | text | Area only until booking confirmed |
-| `delivery_available` | boolean | Lister offers delivery (buyer pays delivery cost separately) |
+| `delivery_available` | boolean | Lister offers delivery (hirer pays delivery cost separately) |
 | `photos` | — | Min 1, max 10. Same `marketplace-photos` storage bucket |
 | `owner_id` | uuid FK | References `profiles(id)` |
 | `owner_type` | enum | `contractor`, `business` (no retail hire in Phase 1) |
@@ -427,6 +512,7 @@ preparation · Other
 ### Schema (DO NOT RUN — for reference at build time only)
 
 ```sql
+-- DO NOT RUN
 CREATE TABLE hire_listings (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id            uuid NOT NULL REFERENCES profiles(id),
@@ -498,11 +584,15 @@ before listing goes live.
 **Availability calendar:** Not a real-time calendar in Phase 1. `status =
 'booked'` blocks the listing for the booking window. Multiple concurrent
 bookings not supported until a proper availability calendar UI is built
-(Phase 2 of hire).
+(Phase 2 of hire). Note the shipped team availability calendar as a possible
+pattern source.
 
-**Platform fee:** 10% of hire charge (higher than materials sale — deposit
-handling, dispute mediation, and return coordination all add operational cost).
-Deposit itself carries no platform fee.
+**Platform fee:** decide at build time; higher than materials sale is arguable
+given deposit handling, dispute mediation and return coordination. Deposit
+itself carries no platform fee.
+
+**Handover:** collection, return and damage discussion all route through
+platform messaging. No contact details exchanged.
 
 **Explicitly out of scope until Phase 2 of hire:**
 - Delivery cost calculation or logistics integration
@@ -512,55 +602,176 @@ Deposit itself carries no platform fee.
 - Long-term rental (>30 days — different tax/legal treatment)
 - Commercial hire companies listing fleet (separate merchant relationship)
 
+---
+
+## Profile customisation — freeform content block
+
+**Status:** Designed, not built. The rest of the "replace your website" set
+(social links, video embeds, before/after sliders, featured testimonials,
+service area) has shipped. This is the remaining item.
+
+**Priority:** Covers the widest range of "I can't do X on my profile."
+Contractors need to explain their process, list guarantees, describe aftercare,
+write FAQs. The bio section covers "about me" but trades often need multiple
+distinct text sections ("Our Process", "Warranty Information", "Why Choose Us",
+"Areas We Cover").
+
+**Build prerequisite:** slots into the existing profile editor widget system
+(`profile_widgets`, `CanvasEditor.tsx`, section type registry). No changes to
+the widget architecture itself. Run Step-0 against the live DB first.
+
+**Section type:** `content` — repeatable, max 5 instances, reorderable,
+togglable.
+
+**Editor panel fields**
+- Section heading input (saves to `meta.heading`, same as other sections)
+- Content body textarea with markdown-lite formatting: bold, bullet list,
+  numbered list, and links only. No images (use galleries), no headings (the
+  section heading covers that), no colours, no custom fonts.
+- Character limit: 2,000.
+
+**Data model:** No new table. Lives in `profile_widgets.meta` as
+`{ heading: string, body: string }`. Body stored as markdown-lite string,
+rendered on public profile.
+
+**Canvas preview:** Renders heading and body with formatting applied.
+Truncates at ~200 chars with "…" to keep canvas blocks consistent height.
+
+**Public profile rendering:** Heading in Lexend 600, body in Source Serif 4
+400. Bullet/numbered lists render natively. Links render as orange text.
+Max-width prose container for readability.
+
+**Sanitisation:** markdown-lite is parsed to a fixed allow-list of tags, never
+rendered as raw HTML. Link `href` validated to `https://` only.
+
+**What it doesn't do:** No images, custom fonts, background colours, or
+columns. Those break brand consistency. Visual content goes in galleries or
+projects.
+
+---
+
+## Payment reliability warnings
+
+**Purpose:** Surface payment track record when a contractor is about to engage
+with a client (quote creation, enquiry review, tender application). Builds
+platform trust and protects contractors from repeat late-payers.
+
+**Trigger points (UI banners):**
+- `SendQuoteDialog` — before issuing a quote
+- Enquiry detail view — when reviewing an inbound request
+- Tender application stepper — before applying to a business tender
+- B2B panel overview — aggregated reliability per business account
+
+**Display rules:**
+- Show: count of outstanding invoices + longest overdue age in days
+- Example copy: "This account has 2 outstanding invoices with another party,
+  oldest 47 days overdue"
+- RAG colouring: amber 1–30 days, red 31+ days, no banner if clean
+- Never reveal: other contractor's identity, invoice amounts, or job details
+- Lookback window: 12 months rolling
+- Exclude: invoices with status `disputed` (requires adding dispute status)
+
+**Data source:**
+Query `invoices` where `client_id = target_profile_id` AND (`status = 'overdue'`
+OR (`status = 'sent'` AND `due_date < NOW()`)) AND
+`created_at > NOW() - INTERVAL '12 months'` AND `status != 'disputed'`.
+Aggregate across all contractors, not just the viewing contractor.
+
+**Schema additions:**
+
+```sql
+-- DO NOT RUN
+-- Add disputed status to invoices (extend existing invoices_status_valid CHECK)
+-- Exact constraint shape TBD — run Step-0 against live DB first
+
+-- Optional: materialised summary for performance at scale
+CREATE TABLE payment_reliability_summary (
+  profile_id          UUID PRIMARY KEY REFERENCES profiles(id),
+  outstanding_count   INTEGER NOT NULL DEFAULT 0,
+  oldest_overdue_days INTEGER,
+  last_calculated     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS: contractors can SELECT where profile_id matches the client
+-- they are about to quote/engage. Business panel managers can
+-- SELECT for any contractor on their panel.
+-- SECURITY DEFINER function to recalculate on invoice status change.
+```
+
+**Privacy & fairness considerations:**
+- No public-facing "score" — information shown only to the party about to
+  transact. This must never feed the contractor scoring engine.
+- Disputed invoices excluded to prevent weaponising non-payment flags
+- Client can see their own record (future: "Your payment profile")
+- Consider: grace period before flag activates (e.g. 7 days past due)
+- Consider: contractor-side equivalent for B2B clients
+- GDPR: legitimate interest for platform trust; include in the Privacy Policy
+  data processing schedule before launch, not after
+
+**Dependencies:**
+- Invoice dispute status (not yet built)
+- Reliable `due_date` population on all invoices — **currently broken**, see
+  "Zero-day payment terms" in `NOW.md`. Do not build this until that is fixed;
+  every client would be flagged.
+- Core job flow validated end to end
+
+**Not in scope:** automated credit checks or external bureau integration;
+public client ratings; automatic service refusal based on payment history.
+
+---
+
 ## Mobile
+
 - **Native app (React Native)** — iOS/Android, offline timesheets/job notes,
   camera integration. WebView wrappers (Capacitor, GoNative) rejected as
-  "still the website." Decision deferred.
+  "still the website." Decision deferred. Note that contractor and homeowner
+  responsive layouts have shipped, which lowers the urgency but does not
+  address offline or push.
+
+---
 
 ## Platform infra & observability
-- **PostHog analytics** (funnel, usage, retention).
+
+- **PostHog analytics** (funnel, usage, retention). GA4 is live
+  (`G-67CCVE770P`); this is the product-analytics layer, not a replacement.
 - **Sentry error tracking** (frontend + Edge Functions).
 - **2FA** and **end-to-end message encryption.**
-- **GDPR data retention** — user-controlled export & deletion.
+- **GDPR data retention** — user-controlled export & deletion. ICO
+  registration C1969229 is in place; the self-service mechanism is not.
+
+---
 
 ## Integrations (Phase 2+)
-- **Accounting:** Xero, QuickBooks.
+
+- **Accounting: Xero, QuickBooks export.** Note the strategic tension — the
+  moat is contractors *cancelling* Xero. Frame any integration as one-way
+  export for their accountant, not two-way sync that keeps Xero in the stack.
 - **Calendar:** Google Calendar, Outlook.
 - **E-signature:** DocuSign or native.
 - **API access** for Business tier enterprise integrations.
 
+---
+
 ## Speculative / long-term
+
 - **AI quote generation** from past job data — only viable once real data
   exists; a bad AI quote to a real customer damages trust.
 - **AR site survey / measurement tool.**
 - **Carbon footprint tracking per job.**
 - **Revenue-based lending.**
+- **Internationalisation build** — no build now; write i18n-aware code going
+  forward. Target expansion: US, Canada, Australia, New Zealand, then Europe.
 
 ---
 
 ## Tech debt / known issues to revisit
 
-- Standardise all Edge Functions on `SITE_URL`; remove `PUBLIC_URL` and `PUBLIC_APP_URL` reads.
+- Standardise all Edge Functions on `SITE_URL`; remove `PUBLIC_URL` and
+  `PUBLIC_APP_URL` reads.
 - Job sign-off approval — `jobs.portfolio_approved` column unused; business
   Approvals view is quote-approvals only until job sign-off is scoped.
 - Business tier SLA per-contractor pairing (matching `applies_to_trade` to a
   contractor's declared trade) — follow-on, currently a reference table only.
-- **Watcher nudge dedup.** Both the compliance watcher and the expiry radar
-  (tendering chunks 6/7) re-send the same nudge notification on every
-  scheduled run for as long as the underlying condition holds — no
-  "already nudged" log or last-nudged timestamp exists. Needs a sent-log
-  table or a `last_nudged_at`-style stamp before this goes in front of a
-  real user; flagged explicitly in both migrations
-  (`20260711130000_term_engagements_and_watchers.sql`,
-  `20260712120000_expiry_radar_and_retender.sql`) rather than silently
-  shipped as "fine."
-- **Migrate cron secrets from database GUCs to `supabase_vault`.**
-  `app.settings.supabase_url` / `app.settings.service_role_key` currently
-  live as plain `ALTER DATABASE ... SET` values, read via
-  `current_setting(..., true)` from cron bodies and SECURITY DEFINER
-  functions (`create_callout_job()`, the cron entries in
-  `20260711130000_term_engagements_and_watchers.sql`). GUCs aren't secret
-  storage — Vault is the correct home for a service-role key.
 - **Drop deprecated `companies` columns** (`address`, `email`, `phone`) —
   superseded by `address_line1`/`address_line2` and
   `contact_email`/`contact_phone`
@@ -575,266 +786,202 @@ Deposit itself carries no platform fee.
   paid currently sits accepted-but-unscheduled indefinitely — no mechanism
   expires it. When built, this must ALSO release the
   `'Auto-blocked: awaiting deposit'` `contractor_availability_overrides` row
-  (`accept_quote_with_slot`, `20260717150000_accept_quote_with_slot_full_contract.sql`)
-  and un-confirm the held `schedule_events` row for that quote — not just
-  flip the quote's own status — or a lapsed quote leaves the contractor's
-  calendar permanently blocked with no path back to available.
-- **`create-payment-intent` findings from the syntax-error repair
-  (2026-07-18) — both fixed in the readiness-audit R1-R3 fix slice
-  (2026-07-18):**
-  - No legacy `quotes` table reference (clean) and no silent-default
-    shape like the old `accept-quote` deposit bug (this function has no
-    deposit concept at all — it charges the invoice's full `total`).
-  - ~~Partial idempotency~~ **Fixed (R3-4):** now checks the retrieved
-    PI's `.status` before reusing it (`requires_payment_method`/
-    `requires_action`/`requires_confirmation` only), falling through to
-    mint a fresh one otherwise — mirrors `accept-quote`'s deposit-branch
-    gate.
-  - ~~No authorization check on `create_client_secret`~~ **Fixed
-    (R3-3):** verify-if-present — if a caller sends a JWT that resolves
-    to a real user, it must match the invoice's `recipient_id`; no
-    session (the anonymous overdue-invoice email-link flow) is still
-    allowed through unchanged, bounded by the invoice id being an
-    unguessable UUID.
-- **`create-deposit-checkout` (Projects deposits) — quarantined, not
-  fixed**, readiness-audit R2 decision 2 (2026-07-18): no live caller
-  invokes it (`ProposalReview.tsx` shows an honest "coming soon" message
-  instead). Before re-enabling: (a) `stripe-webhook` has no
-  `type:"project_deposit"` branch for the checkout session this creates —
-  a payment made through it today is captured by Stripe and never
-  recorded anywhere in the DB; (b) `contractor_stripe_account` is taken
-  directly from the request body with no server-side lookup against
-  `profiles.stripe_account_id`, so nothing stops a modified payload
-  redirecting the transfer to an arbitrary connected account; (c) no
-  idempotency guard at all (no reuse-existing-session check before
-  minting a new Checkout Session).
+  (`accept_quote_with_slot`,
+  `20260717150000_accept_quote_with_slot_full_contract.sql`) and un-confirm
+  the held `schedule_events` row for that quote — not just flip the quote's
+  own status — or a lapsed quote leaves the contractor's calendar permanently
+  blocked with no path back to available.
+- **`create-deposit-checkout` (Projects deposits) — quarantined, not fixed**,
+  readiness-audit R2 decision 2 (2026-07-18): no live caller invokes it
+  (`ProposalReview.tsx` shows an honest "coming soon" message instead).
+  Before re-enabling: (a) `stripe-webhook` has no `type:"project_deposit"`
+  branch for the checkout session this creates — a payment made through it
+  today is captured by Stripe and never recorded anywhere in the DB;
+  (b) `contractor_stripe_account` is taken directly from the request body with
+  no server-side lookup against `profiles.stripe_account_id`, so nothing stops
+  a modified payload redirecting the transfer to an arbitrary connected
+  account; (c) no idempotency guard at all. **Hard dependency of Projects.**
 - **Homeowner job view: no per-job messaging entry point.** The rails exist
   (`job_conversations`/`job_messages`) but there's no button on the
   homeowner-facing job view that deep-links into the existing thread —
   needs one UI affordance, not new schema.
-- **Audit the homeowner-visible job Team tab against contact-suppression.**
-  Verify it doesn't leak contractor contact details that the rest of the
-  platform deliberately keeps behind `public_pro_profiles`/messaging.
 - **Scope `contractor_availability_overrides` SELECT down from
   `auth.role() = 'authenticated'`.** Flagged in CLAUDE.md's "Deliberately
-  public / known-broad RLS policies" section: any logged-in user can
-  currently read every contractor's override rows, including the free-text
-  `reason` column. Not fixed yet because the booking-slot picker's current
-  behaviour depends on the broad read — needs the picker reworked
-  alongside the policy tightening, not a policy-only change.
-- **Contractor sidebar "Projects" tab is a mislabeled jobs re-slice**, not
-  the real Projects feature (which is unbuilt — see the Projects section
-  above). Rename or remove before the first real contractor onboarding, to
-  avoid setting an expectation the platform doesn't meet yet.
-- **Stripe Connect `charges_enabled` tracking.** `StripeConnect.tsx`'s status
-  badge is derived purely from whether `profiles.stripe_account_id` is
-  non-null, never from Stripe's live `charges_enabled`/`details_submitted` —
-  a contractor who abandons onboarding immediately after clicking Connect
-  still sees a green "Connected"/"Active" card. `create-connect-account`
-  already subscribes to enough to know better; wire an `account.updated`
-  webhook handler (new branch in `stripe-webhook/index.ts`) that writes
-  `charges_enabled`/`payouts_enabled` columns (need adding to `profiles`)
-  and have `StripeConnect.tsx` read those instead of presence-of-id alone.
-- **`stripe-webhook` has no handler for payment-failure events.** Only
-  `checkout.session.completed` and `payment_intent.succeeded` are handled;
-  `payment_intent.payment_failed` / `checkout.session.expired` fall through
-  to a generic 200 ack with no processing and no user-facing follow-up
-  (e.g. an invoice stuck at "sent" forever with no signal to the client that
-  their card was actually declined).
-- **Empty/error-state rollout, remainder.** The readiness-audit R3-1 pass
-  fixed the `if(!user) return`-before-`setLoading(false)` spinner-forever
-  class and added error surfacing to `useInvoices`, `useJobs`,
-  `useReceivedQuotes`, `useReceivedInvoices`, `useContractorPipeline`, and
-  `HomeownerOverview` only — the audit's A4 findings named several more
-  surfaces with the same silent-empty-on-fetch-error pattern that were
-  explicitly deferred: `IssuedQuotes.tsx`, `ContractorDashboard.tsx`'s
-  8-query stats block, `BusinessOverview.tsx`, `BusinessJobsView.tsx`,
-  `BusinessRequestsView.tsx`, `BusinessComplianceView.tsx`. Same fix shape
-  each time (check `.error`, toast or `ErrorState`, `finally { setLoading
-  (false) }`) — do the rest in one pass rather than piecemeal.
+  public / known-broad RLS policies" section: any logged-in user can currently
+  read every contractor's override rows, including the free-text `reason`
+  column. Not fixed yet because the booking-slot picker's current behaviour
+  depends on the broad read — needs the picker reworked alongside the policy
+  tightening, not a policy-only change.
 - **Expired-quote DB flip.** R3-5 added a *display-layer* "Expired" state
   (computed from `valid_until` when a quote is still `status='sent'`) and
   disabled Accept for it — nothing in the DB ever actually flips
   `issued_quotes.status` to `'expired'`. A real flip (cron or trigger) is a
-  separate piece of work; the display fix means it's no longer urgent, but
-  the underlying quote will sit at `status='sent'` forever without one.
-- **Enquiry staleness.** Confirmed in the readiness audit (A1): `enquiries`
-  has no time-based staleness/expiry concept at all — status changes are
-  purely event-driven (new/replied/declined/converted/archived, all
-  human-triggered). An enquiry a contractor never responds to just sits at
-  `new` indefinitely with no nudge or auto-close. Not designed yet.
+  separate piece of work; the display fix means it's no longer urgent, but the
+  underlying quote will sit at `status='sent'` forever without one.
 - **Contractor-side quote badges don't reflect display-layer expiry.** R3-5's
   `toQuoteState({validUntil})` expiry computation was wired into
   `ReceivedQuotes.tsx` (recipient side) only. `ThreadQuoteSection.tsx` and
   `IssuedQuotes.tsx` (contractor side) still show "Sent — awaiting response"
-  for the same quote past its `valid_until`, since their `ThreadQuote`/
+  for the same quote past its `valid_until`, since their `ThreadQuote` /
   `IssuedQuote` types don't carry `valid_until` through to their
   `toQuoteState()` calls yet. Same fix shape as `ReceivedQuotes.tsx`, just
   needs `valid_until` added to those two types' select queries.
+- **Enquiry staleness.** Confirmed in the readiness audit (A1): `enquiries` has
+  no time-based staleness/expiry concept at all — status changes are purely
+  event-driven (new/replied/declined/converted/archived, all human-triggered).
+  An enquiry a contractor never responds to just sits at `new` indefinitely
+  with no nudge or auto-close. Not designed yet. Interacts with the responsive
+  ness component of the scoring engine — a contractor should not be scored on
+  an enquiry nobody ever chased.
 - **Client-side snag visibility — deliberately out of scope for the
   job-execution build phase (2026-07-19).** `job_snag_items` remains
-  contractor-only: no client read UI, no RLS SELECT policy for the
-  client. Phase A flagged this as a one-party surface, not a defect;
-  worth a product decision (should a client see open snags on their own
-  job, or is that noise?) before building it, not a default yes.
-- **job_photos true storage-level privacy.** The job-execution build
-  phase (B1) made `visibility` meaningful at the row/metadata layer
-  (client queries only return `visibility='customer'` rows via RLS), but
-  the `job-photos` storage bucket itself is public — anyone with a
-  photo's storage_path can fetch the raw file directly regardless of the
-  visibility column, since there's no per-object ACL. Making the bucket
-  genuinely private (flip to `public: false`, add storage-level RLS,
-  switch to signed URLs everywhere) needs the portfolio/photo_approval_
-  status feature audited first — `job_photos.portfolio` + its approval
-  workflow strongly implies approved photos are meant to be public-facing
-  on the contractor's profile, which a blanket-private bucket would
-  break. See `20260719100000_job_photos_shape_and_visibility_rls.sql`'s
-  header comment for the full reasoning.
-- **Consolidate job_photos RLS (table AND storage.objects).** Live
+  contractor-only: no client read UI, no RLS SELECT policy for the client.
+  Phase A flagged this as a one-party surface, not a defect; worth a product
+  decision (should a client see open snags on their own job, or is that
+  noise?) before building it, not a default yes.
+- **`job_photos` true storage-level privacy.** The job-execution build phase
+  (B1) made `visibility` meaningful at the row/metadata layer (client queries
+  only return `visibility='customer'` rows via RLS), but the `job-photos`
+  storage bucket itself is public — anyone with a photo's storage_path can
+  fetch the raw file directly regardless of the visibility column, since
+  there's no per-object ACL. Making the bucket genuinely private (flip to
+  `public: false`, add storage-level RLS, switch to signed URLs everywhere)
+  needs the portfolio / `photo_approval_status` feature audited first —
+  `job_photos.portfolio` + its approval workflow strongly implies approved
+  photos are meant to be public-facing on the contractor's profile, which a
+  blanket-private bucket would break. See
+  `20260719100000_job_photos_shape_and_visibility_rls.sql`'s header comment.
+- **Consolidate `job_photos` RLS (table AND `storage.objects`).** Live
   `pg_policies` shows 5 policies on the `job_photos` TABLE, confirmed
-  2026-07-19 while diagnosing the HEIC upload bug: the new visibility-
-  scoped client read policy from
-  `20260719100000_job_photos_shape_and_visibility_rls.sql` sits alongside
-  a pre-existing near-duplicate client read policy ("Customers can view
-  approved photos on their jobs"), an approve-portfolio policy, and a
-  null-qual customer INSERT policy, plus the contractor's own full-access
-  policy. All OR together with no exposure gap found, but five
-  overlapping policies on one table (two of which do near-identical
-  client-read jobs) is confusing to reason about and easy to get wrong
-  next time someone touches this table. Tidy into one clear set in a
-  dedicated migration — not done here, this pass didn't touch any policy.
-  Separately, on `storage.objects` for bucket `job-photos`: the two
-  over-permissive SELECT policies ("Public can view job photos" /
-  "Authenticated users can view job photos") were replaced with scoped
-  ones in `20260719140000_job_photos_storage_read_policies.sql`, but a
-  **broad INSERT policy remains untouched** — confirmed live 2026-07-19
-  alongside the correctly-scoped own-prefix contractor INSERT policy,
-  it allows any authenticated user to upload into the bucket, not scoped
-  to job ownership. Left alone this pass (that migration only touched
-  SELECT) — fold into the same consolidation migration as the table-RLS
-  cleanup above.
-- **`job_checklist_items`/`job_checklist_templates` — decision still
-  needed**, confirmed still true as of the job-execution build phase
-  (2026-07-19): zero UI on either side, deliberately left unbuilt rather
-  than wired up half-heartedly. Already tracked in the Dormant schema
-  roster below — decide adopt-or-drop when checklists actually get
-  designed, don't build a stub UI against it in the meantime.
+  2026-07-19: the visibility-scoped client read policy sits alongside a
+  pre-existing near-duplicate client read policy ("Customers can view approved
+  photos on their jobs"), an approve-portfolio policy, a null-qual customer
+  INSERT policy, and the contractor's own full-access policy. All OR together
+  with no exposure gap found, but five overlapping policies (two doing
+  near-identical client-read jobs) is confusing to reason about and easy to
+  get wrong next time. Separately, on `storage.objects` for bucket
+  `job-photos`: the two over-permissive SELECT policies were replaced with
+  scoped ones in `20260719140000_job_photos_storage_read_policies.sql`, but a
+  **broad INSERT policy remains untouched** — it allows any authenticated user
+  to upload into the bucket, not scoped to job ownership. Fold both into one
+  consolidation migration.
+- **`job_checklist_items` / `job_checklist_templates` — decision still
+  needed**, confirmed still true as of 2026-07-19: zero UI on either side,
+  deliberately left unbuilt rather than wired up half-heartedly. Also in the
+  Dormant schema roster — decide adopt-or-drop when checklists actually get
+  designed; don't build a stub UI against it in the meantime.
+- **`create-payment-intent` — closed, retained for context.** Both findings
+  from the 2026-07-18 syntax-error repair were fixed in the readiness-audit
+  R1-R3 slice: partial idempotency (R3-4, now checks the retrieved PI's
+  `.status` before reuse) and the missing authorization check on
+  `create_client_secret` (R3-3, verify-if-present against the invoice's
+  `recipient_id`; the anonymous overdue-invoice email-link flow still allowed
+  through, bounded by the invoice id being an unguessable UUID).
+  Delete this entry at the next review if nothing has regressed.
+
+---
 
 ## Dormant schema roster
 
-Tables with zero application code reading or writing them as of this
-audit (2026-07 tendering build). Not necessarily wrong to have — just
-undecided: either a real feature needs designing around them, or they
-should be dropped. Adopt or drop when the relevant feature gets designed,
-don't leave them as silent dead weight indefinitely.
+Tables with zero application code reading or writing them as of the 2026-07
+tendering build audit. Not necessarily wrong to have — just undecided: either
+a real feature needs designing around them, or they should be dropped. Adopt
+or drop when the relevant feature gets designed; don't leave them as silent
+dead weight indefinitely.
 
 - `job_message_notifications` — sender-gated as of
   `20260709170000_security_fix_notifications_and_gdpr_log.sql` (was a real
   open write before that fix), but nothing currently inserts into it.
 - `job_scheduling_proposals` — possible redundancy with `schedule_events`,
-  which is the table actually wired into the live scheduling flow. Audit
-  which one is canonical before building on either.
+  which is the table actually wired into the live scheduling flow. Audit which
+  one is canonical before building on either.
 - `job_checklist_items` / `job_checklist_templates` — checklist schema with
   no UI.
 - `favourites` — no UI reads or writes it.
-- `quote_form_templates` — created by `handle_new_user()` on every signup
-  (a default template row is inserted per new user) but nothing in the app
-  reads the table back.
-- `enquiry_measurements` — ties to the "Enriched enquiry" LATER item above
-  (homeowner-submitted dimensions) — may already be the intended home for
-  that, check before adding a new table when that feature gets built.
-- `job_team_members` — deprecated-pending-drop as of the job-execution
-  build phase (2026-07-19): never had a writer anywhere in the app (the
-  contractor's real worker-assignment UI, JobManagement.tsx's Workers
-  section, writes `job_assignments` instead). The client Team tab
-  (`useJobTeam`) now reads `job_assignments` joined to `team_members`
-  instead of this table — see
-  `20260719100000_job_photos_shape_and_visibility_rls.sql`'s trailer
-  comment. Safe to drop once confirmed nothing else references it.
-
-## Tendering — deferred (from TENDERING-SCHEMA.md, chunks 1-7 built 2026-07-10 to 2026-07-12)
-
-Carried over verbatim from TENDERING-SCHEMA.md's own DEFERRED section —
-duplicated here so it surfaces in the general backlog review, not just a
-schema doc most people won't open:
-
-- B2B payment rails + monthly roll-up invoicing (Stripe Invoicing vs bank
-  reconciliation — undecided). Job line data is already unaggregated and
-  ready for this; schema does not block it.
-- Business roles/approval thresholds on `business_members` — coverage-based
-  member-wide RLS shipped first (see CLAUDE.md's B2B/FM foundation
-  section); publish/award gating tightens later.
-- Lots — `tender_lots` table + nullable `lot_id` on applications, for
-  splitting a multi-site tender into independently-awarded pieces. Schema
-  was written not to preclude this (e.g. `tender_sites` is a junction, not
-  an array) but nothing implements it yet.
-- Frameworks — ranked multi-award, call-out cascade (also the structural
-  answer to an out-of-hours fallback contractor).
-- Two-stage tendering (EOI → shortlist → full tender).
-- Gradual strict-mode adoption for `tsconfig.app.json` — see the `tsc`
-  caveat in CLAUDE.md's Commands section; not tendering-specific but
-  surfaced during the tendering build's own review passes.
+- `quote_form_templates` — created by `handle_new_user()` on every signup (a
+  default template row is inserted per new user) but nothing in the app reads
+  the table back.
+- `enquiry_measurements` — ties to the Enriched enquiry item above; may already
+  be the intended home for that. Check before adding a new table.
+- `job_team_members` — deprecated-pending-drop as of 2026-07-19: never had a
+  writer anywhere in the app (the contractor's real worker-assignment UI,
+  `JobManagement.tsx`'s Workers section, writes `job_assignments` instead).
+  The client Team tab (`useJobTeam`) now reads `job_assignments` joined to
+  `team_members`. Safe to drop once confirmed nothing else references it.
 
 ---
 
-## FM feature backlog (from deployed-app review, 2026-06-13)
+## Tendering — deferred
 
-Captured from a full review of the live business dashboard. Almost all of this is
-downstream of the job-raising flow (site → asset → panel contractor → enquiry):
-the dashboard's job/SLA/spend tiles and "jobs across sites" panel are already built
-but empty because no job can be raised yet. Build the job flow first; these become
-meaningful only once jobs exist.
+Carried over from `TENDERING-SCHEMA.md`'s own DEFERRED section (chunks 1–7
+built 2026-07-10 to 2026-07-12) — duplicated here so it surfaces in the
+general backlog review, not just a schema doc most people won't open:
+
+- B2B payment rails + monthly roll-up invoicing (Stripe Invoicing vs bank
+  reconciliation — undecided). Job line data is already unaggregated and ready
+  for this; schema does not block it. Note the economics: BACS Direct Debit
+  (1%, capped at £2) is substantially more profitable than card on large B2B
+  contracts, where domestic card processing comes out of platform balance
+  under destination charges.
+- Business roles/approval thresholds on `business_members` — coverage-based
+  member-wide RLS shipped first (see CLAUDE.md's B2B/FM foundation section);
+  publish/award gating tightens later.
+- Lots — `tender_lots` table + nullable `lot_id` on applications, for splitting
+  a multi-site tender into independently-awarded pieces. Schema was written not
+  to preclude this (e.g. `tender_sites` is a junction, not an array) but
+  nothing implements it yet.
+- Frameworks — ranked multi-award, call-out cascade (also the structural answer
+  to an out-of-hours fallback contractor).
+- Two-stage tendering (EOI → shortlist → full tender).
+- Gradual strict-mode adoption for `tsconfig.app.json` — see the `tsc` caveat
+  in CLAUDE.md's Commands section; not tendering-specific but surfaced during
+  the tendering build's own review passes.
+
+---
+
+## FM feature backlog
+
+**Last reviewed: 2026-08-06.** Several original items (compliance document
+management, SLA rule schema, contractor profile metrics) are wholly or partly
+superseded by the shipped PPM compliance dashboard, verification tiers, and
+scoring display layer. What remains:
 
 ### Quick win — surface existing asset columns (UI only, NO schema work)
-These columns already exist on `assets` but the Add Asset form / register don't
-expose them: `status` (operational/faulty/decommissioned), `warranty_expiry`,
-`last_serviced`, `next_service_due`, `reference`, `location_note`. Add to the form
-and show on the register. "Asset condition + next service due" is core FM language
-and demos well. → Designated FIRST easy win to slot in AFTER the job flow.
+These columns already exist on `assets` but the Add Asset form / register may
+not expose them: `status` (operational/faulty/decommissioned — canonical;
+`is_active` must never be read or written), `warranty_expiry`, `last_serviced`,
+`next_service_due`, `reference`, `location_note`. "Asset condition + next
+service due" is core FM language and demos well.
+**Verify current state before building — this may be partly done.**
 
 ### Site card depth
 Site contact / manager, access instructions / opening hours, site type/category,
 photos/documents, and an asset-count summary on the site card ("HQ — 3 assets,
-1 due for service").
-
-### Compliance document management (needs schema)
-No cert/insurance/expiry schema exists; the Compliance page is a read-only shell
-with no add controls. Needs: tables for contractor certifications/insurance with
-expiry dates, UI to add/request documents from the business side, and expiry /
-renewal alerting. Tie to contractor profiles.
-
-### SLA rules (needs schema + UI)
-The "SLA Rules" section and the "SLA at risk" dashboard tile are vestigial — no UI
-exists to create a rule. Needs SLA rule schema (response/priority tiers) + creation
-UI, then the "SLA at risk" tile becomes live.
-
-### Contractor profile depth / metrics (views over jobs)
-Per-contractor: ratings, job completion rate, average response time, job history,
-total spend, last active. Preferred contractor by trade or by site. All require
-jobs to exist first.
+1 due for service"). Cross-check against the shipped site contacts portal and
+site autonomy model before designing.
 
 ### Asset register UX
-Filter by category / service-due / status, RAG (red/amber/green) service-due
-indicators, bulk export, asset-count summary tile, "assets due for service"
-dashboard tile.
+Filter by category / service-due / status, RAG service-due indicators, bulk
+export, asset-count summary tile, "assets due for service" dashboard tile.
 
 ### Pure later
 QR / asset-tag support for field scanning; lifecycle / depreciation tracking.
 
-### Housekeeping to verify
-Top-bar public nav exposes /projects and /contracts links. Confirm these are not
-half-built routes visible to real visitors (Projects is a LATER item).
-
 ---
 
-## Org / site-coverage model + TS-codes-everywhere (design target, per RB 2026-06-13)
+## Org / site-coverage model + TS-codes-everywhere
+
+**Design target, per RB 2026-06-13. Cross-check against the shipped site
+autonomy model (four configurable levels) before treating any of this as
+unbuilt.**
 
 NOT a nested hierarchy — a coverage model:
 - A member's scope = the SET OF SITES they cover. Labels local/area/regional/
-  national just describe breadth (one site / a cluster / wider / all), not nested
-  region>area>site entities.
-- ALL members can raise AND approve work. Scope only determines which sites' work
-  they see and can act on — no per-action capability gradient on the work itself.
+  national just describe breadth (one site / a cluster / wider / all), not
+  nested region>area>site entities.
+- ALL members can raise AND approve work. Scope only determines which sites'
+  work they see and can act on — no per-action capability gradient on the work
+  itself.
 - Org management (invite/remove members, manage sites) stays owner/admin — a
   separate gate, unchanged.
 - Open question for the design pass: are area/region reusable named site-groups
@@ -843,25 +990,29 @@ NOT a nested hierarchy — a coverage model:
   procurement usually wants approval gated above a value. Park for now.
 
 Implementation seam (keeps the job flow built now forward-compatible):
-- Work actions go through can_act_for_site(member, site). v1 fill = active member
-  of the owning company (everyone effectively national until coverage assigned).
-  Scope layer later narrows which sites, never who-can.
-- Approvals view must be company-aware (raise and approve can be different people),
-  not customer_id-keyed.
-- business_members gains a coverage representation when this is built.
+- Work actions go through `can_act_for_site(member, site)`. v1 fill = active
+  member of the owning company (everyone effectively national until coverage
+  assigned). Scope layer later narrows which sites, never who-can.
+- Approvals view must be company-aware (raise and approve can be different
+  people), not `customer_id`-keyed.
+- `business_members` gains a coverage representation when this is built.
 
 TS-codes-everywhere:
-- Extend the TS-x scheme beyond profiles. Every SITE gets a code (e.g. TS-S-XXXXXX);
-  every coverage level/group gets a code (e.g. TS-A- area / TS-R- region). Mirror
-  the ts_profile_code generation pattern (unique, generated on insert).
-- Site codes are a cheap standalone addition (sites.ts_site_code + generation);
-  level codes depend on coverage entities existing. Decide letter scheme when built.
+- Extend the TS-x scheme beyond profiles. Every SITE gets a code (e.g.
+  TS-S-XXXXXX); every coverage level/group gets a code (e.g. TS-A- area /
+  TS-R- region). Mirror the `ts_profile_code` generation pattern (unique,
+  generated on insert).
+- Site codes are a cheap standalone addition (`sites.ts_site_code` +
+  generation); level codes depend on coverage entities existing. Decide letter
+  scheme when built.
+- Note: TS-x codes identify *accounts and entities*. Documents use the
+  `documentRefs.ts` scheme (Q- / J- / INV- / WO-). Do not blur the two.
 
-Links back to the dropped business_members.site_scope column (v1 rebuild).
+Links back to the dropped `business_members.site_scope` column (v1 rebuild).
 
 ---
 
-## Business dashboard follow-ups (from asset compliance panel build verification, 2026-07-16)
+## Business dashboard follow-ups (from asset compliance panel build, 2026-07-16)
 
 - **Requests list rows are not clickable.** `BusinessRequestsView.tsx`'s
   request table has no click-through — no enquiry detail view exists anywhere
@@ -869,558 +1020,24 @@ Links back to the dropped business_members.site_scope column (v1 rebuild).
   anywhere.
 - **A direct job-creation path exists, bypassing the quote flow entirely** —
   jobs with `issued_quote_id IS NULL` (e.g. job_number 9/10) are not
-  quote-driven (see CLAUDE.md's "Quote → job creation sequence" section:
+  quote-driven (see CLAUDE.md's "Quote → job creation sequence":
   `createJobFromQuote` always sets `issued_quote_id`). The only matching path
   in the schema is the term-engagement call-out RPCs `create_callout_job` /
   `raise_callout` (`20260711130000_term_engagements_and_watchers.sql`) — but
-  grepping `src/` turns up zero callers of either function; nothing in the UI
-  invokes them today. Whatever created jobs 9/10 did so outside the app
-  (direct RPC call / SQL editor), not through a real user flow. When a UI is
-  eventually built for this path, it will need the same site→asset picker as
-  the enquiry form (`BusinessRequestsView.tsx`'s pattern) — `create_callout_job`
+  grepping `src/` turns up zero callers of either function. Whatever created
+  jobs 9/10 did so outside the app (direct RPC call / SQL editor), not through
+  a real user flow. When a UI is eventually built for this path, it will need
+  the same site→asset picker as the enquiry form —  `create_callout_job`
   already accepts `p_site_id` but has no equivalent asset parameter yet.
 - **Enquiry record view should display its linked asset** once that view
-  exists (see the requests-list item above) — make the enquiry detail
-  URL-addressable (its own route/deep-link, not just a modal).
+  exists — make the enquiry detail URL-addressable (its own route/deep-link,
+  not just a modal).
 - **Call-out jobs via `engagement_id` should carry `asset_id`** when a UI is
-  built for `create_callout_job`/`raise_callout` — add the asset parameter
-  alongside the site picker above rather than bolting it on afterward.
+  built for `create_callout_job` / `raise_callout` — add the asset parameter
+  alongside the site picker rather than bolting it on afterward.
 - **Service visit completion should write `assets.last_serviced` and roll
   `assets.next_service_due`** forward by the schedule's frequency — currently
   pure UI display (`AssetDetail.tsx` reads these columns but nothing writes
-  them on visit completion). Build this alongside the
-  `service_schedules`/`service_visits` UI (`MaintenanceManagement.tsx`'s
-  Schedules/Visits tabs), not before — the visit-completion handler is the
-  correct place, not a general job-completion hook.
-
-
-  ## Staged Payments, Deposits & Retentions
-
-**Status:** Designed at outline level. Highest-ranked money gap — will block real jobs over ~£1k and most B2B work.
-**Why it matters:** Real jobs are deposit → stage payments → final balance, not one invoice at completion. B2B adds 30–60 day terms, applications for payment, and retentions. Current Stripe flow assumes one invoice per job.
-
-### Design direction
-- **Payment schedule object on the job:** ordered stages (label, amount or % of quote, trigger: on-acceptance / date / milestone / completion). Each stage generates its own invoice via existing INV- numbering — one invoice per stage, not a new document type.
-- **Deposits:** just stage 1 with trigger on-acceptance. No separate deposit concept.
-- **B2B payment terms:** `payment_terms_days` on the invoice (0 = due on receipt, 30/60 for B2B). Overdue cron already exists — extend to respect terms.
-- **Retentions (B2B):** retention % on the payment schedule; final stage splits into "final balance" + "retention release" invoice with a future due date. Compliance watcher / cron surfaces retention releases falling due — genuinely valuable, contractors forget these and lose the money.
-- **OPEN:** does Stripe handle B2B at all initially, or do B2B invoices support "paid off-platform / bank transfer" marking? (Likely yes — FM clients pay by BACS, not card. Platform fee model for off-platform payment needs deciding.)
-
-## Job Variations / Change Orders
-
-**Status:** Already on horizon — promoting to top of queue. Most common real-world job event not handled.
-**Why it matters:** "While I'm up here, the joist is rotten." Happens on a huge share of jobs; without it, the final invoice can't legitimately differ from the quote and contractors route around the platform.
-
-### Design direction
-- `job_variations` table: description, amount (+/-), status (proposed → accepted/rejected), photos, who raised it, client assent timestamp. Numbering: V-1, V-2 within the job (contractor_counters pattern not needed — per-job sequence fine).
-- Client acceptance is a hard gate before the variation amount is invoiceable — this is the dispute-defence artifact.
-- Job total = quote + accepted variations; invoice/stage amounts reconcile against that.
-- Feeds job record PDF (variations section with assent trail).
-- Pairs with job photos (evidence attached to the variation).
-
-## Job Photos
-
-**Status:** Not built (enquiry photo upload also never built — separate item). Cheap, high value.
-**Why it matters:** Before/during/after photos are how contractors defend disputes, evidence variations, and justify invoices.
-
-### Design direction
-- Reuse tender-documents pattern: private bucket, `{job_id}/{filename}`, signed URLs. Likely same `job_documents` table as RAMS Tier 1 with `kind = photo`, plus `phase` (before/during/after/variation/completion) and optional `variation_id`.
-- Upload from job view, mobile-first (camera capture, not just file picker — contractors photograph on-site with phones).
-- Surfaces: job record PDF (photo appendix), variation evidence, snagging/dispute path when built.
-- Build alongside RAMS Tier 1 — same table, same bucket pattern, one migration.
-
-## Certificates & Warranties on Job Completion
-
-**Status:** Designed at outline level. Extends job_documents pattern.
-**Why it matters:** The certificate is the real "done" artifact — EIC/minor works + Part P (electrical), CP12/commissioning record (gas). Contractors issue these via NICEIC/Gas Safe apps; attaching them makes the TradeStone job record the authoritative file. FM clients audit for exactly this.
-
-### Design direction
-- `job_documents` with `kind` values: `certificate`, `warranty` (alongside `rams`, `photo`). Metadata: cert type, reference number, expiry (for CP12s — annual).
-- **Soft prompt, not hard gate:** at sign-off, prompt for certificates on trades that require them (keyed off job trade). Don't block completion — not every job needs one, and false gates train contractors to ignore gates. **OPEN:** B2B clients may want it as a hard gate per-contract — could be a client-side setting later.
-- Warranties: workmanship guarantee terms + insurance-backed guarantee (IBG) doc where applicable (TrustMark requires IBGs for some work).
-- Expiry radar potential: CP12 expiry feeds future FM reporting / renewal prompts — natural fit with the contract expiry radar pattern.
-
-## Consumer Cooling-Off Notice (14-day)
-
-**Status:** Designed. Small build, real legal exposure for contractors without it — and a selling point.
-**Why it matters:** Contracts agreed off-premises/at the consumer's home fall under Consumer Contracts Regulations 2013. If no cancellation notice is served, the consumer's cancellation window extends up to 12 months and the contractor may be unable to enforce payment. Baking it into quote acceptance protects every contractor on the platform by default.
-
-### Design direction
-- Homeowner quote acceptance flow: cancellation-rights notice presented at acceptance, explicit acknowledgement recorded (timestamp + notice version — same terms_snapshot discipline as the agreement ceremony).
-- If work starts inside the 14 days: capture the consumer's express request for early commencement + acknowledgement they'll pay for work done if they cancel (this is the bit contractors always miss).
-- Cancellation notice text + model cancellation form stored versioned; appears in acceptance email and job record PDF.
-- B2B jobs: not applicable, flow skipped entirely (keys off client type, same flag as RAMS gate).
-- **Needs a solicitor's eye on the notice wording before launch** — pattern is standard but the text carries legal weight. Not professional advice from TradeStone; the platform serves the contractor's notice for them.
-
-Profile customisation — "replace your website" feature set
-
-Status: Designed, not built. Build only after core job flow is validated with a real user. These features close the gap between the profile editor and a standalone contractor website. Build in priority order listed below.
-
-Build prerequisite: All six features slot into the existing profile editor widget system (profile_widgets table, CanvasEditor.tsx, section type registry). No changes to the widget architecture itself — just new section types and one new table (testimonials only). Run Step-0 schema report against live DB before building any item.
-
-1. Freeform content block
-
-Priority: Highest — covers the widest range of "I can't do X on my profile." Contractors need to explain their process, list guarantees, describe aftercare, write FAQs. The bio section covers "about me" but trades often need multiple distinct text sections ("Our Process", "Warranty Information", "Why Choose Us", "Areas We Cover").
-
-Section type: content — repeatable, max 5 instances, reorderable, togglable.
-
-Editor panel fields:
-
-Section heading input (saves to meta.heading, same as other sections)
-Content body textarea with markdown-lite formatting: bold, bullet list, numbered list, and links only. No images (use galleries), no headings (the section heading covers that), no colours, no custom fonts.
-Character limit: 2,000.
-
-Data model: No new table. Lives in profile_widgets.meta as { heading: string, body: string }. Body stored as markdown-lite string, rendered on public profile.
-
-Canvas preview: Renders heading and body with formatting applied. Truncates at ~200 chars with "…" to keep canvas blocks consistent height.
-
-Public profile rendering: Heading in Lexend 600, body in Source Serif 4 400. Bullet/numbered lists render natively. Links render as orange text. Max-width prose container for readability.
-
-What it doesn't do: No images, custom fonts, background colours, or columns. Those break brand consistency. Visual content goes in galleries or projects.
-
-2. Social media links
-
-Priority: Table stakes for any "replace your website" pitch. Trivial to build.
-
-Section type: social — single instance (not repeatable), reorderable, togglable.
-
-Editor panel fields:
-
-Section heading input (default: "Find us online" — editable)
-One URL input per platform, each with platform icon beside it and placeholder showing expected format:
-Instagram — https://instagram.com/yourhandle
-Facebook — https://facebook.com/yourpage
-TikTok — https://tiktok.com/@yourhandle
-YouTube — https://youtube.com/@yourchannel
-LinkedIn — https://linkedin.com/in/yourname
-Twitter/X — https://x.com/yourhandle
-Only filled URLs render on public profile — empties are ignored.
-Light client-side validation: must start with https:// and contain the expected domain. Auto-prepend https:// if missing. Wrong-domain hint ("This doesn't look like an Instagram URL") but doesn't block saving — contractors sometimes use Linktree or custom domains.
-
-Data model: No new table. Lives in profile_widgets.meta as { heading: string, links: { platform: string, url: string }[] }. Only non-empty URLs stored.
-
-Canvas preview: Row of platform icons with handle/page name extracted from URL shown beside each. Empty state: "No social links added" in muted text.
-
-Public profile rendering: Horizontal row of platform icons as circular icon buttons (navy background, white icon, 40px). Opens link in new tab. Centres if few, spaces evenly if four or more. No text labels below — icons are universally recognised.
-
-What it doesn't do: No follower counts, feed embeds, or "latest posts" widget. API rate limits and auth tokens make those maintenance nightmares. Simple links only.
-
-3. Video embed
-
-Priority: High impact for the right trades (kitchen fitters, landscapers, bathroom installers). Moderate effort.
-
-Section type: video — repeatable, max 3 instances, reorderable, togglable.
-
-Editor panel fields:
-
-Section heading input (default: "Watch our work" — editable)
-Video URL input with placeholder: "Paste a YouTube, Vimeo or TikTok link"
-Caption textarea (optional, max 200 chars)
-Thumbnail preview once valid URL pasted — pulled from oEmbed endpoint. If URL invalid or unsupported: "We support YouTube, Vimeo and TikTok links"
-
-URL parsing — client-side regex extracts video ID from:
-
-YouTube: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/
-Vimeo: vimeo.com/
-TikTok: tiktok.com/@user/video/
-
-Store raw URL in data model. Parse and build embed iframe at render time.
-
-Data model: No new table. Lives in profile_widgets.meta as { heading: string, videoUrl: string, caption: string | null }. Each instance is a separate profile_widgets row with type: "video" — same pattern as gallery.
-
-Canvas preview: Thumbnail image with centred play button overlay. Caption below in muted text. Not a live embed — keeps editor fast.
-
-Public profile rendering: Responsive 16:9 iframe embed with rounded corners and subtle shadow. Caption below in Source Serif 4 400 italic. Lazy-loaded — iframe loads on scroll into view, otherwise shows thumbnail with play overlay. Each instance is independent with its own heading.
-
-Security: Embed iframe uses sandbox="allow-scripts allow-same-origin" and allow="encrypted-media". Iframe src constructed from parsed video ID, never from raw user input directly — prevents injection.
-
-What it doesn't do: No file upload (TradeStone is not a video host). No auto-play. No inline recording. No MP4/Dropbox/Drive links — only YouTube, Vimeo, TikTok.
-
-4. Before/after pairs on projects
-
-Priority: High visual impact for transformation trades. Moderate effort.
-
-Not a new section type — enhances the existing project showcase section. Each project can optionally have one before/after photo pair.
-
-Editor panel changes (added to existing project panel):
-
-"Before & after" label with toggle switch — off by default
-When on: two side-by-side upload slots (dashed upload areas labelled "BEFORE" and "AFTER")
-Upload uses contractor-photos bucket, path: {userId}/projects/{projectId}/{before|after}.{ext}
-Each slot shows uploaded image with delete X to replace
-Both must be filled to render — hint: "Add both photos for the before & after to appear"
-Optional caption input below pair (max 150 chars)
-
-Data model — new columns on contractor_projects table:
-
-sql
--- DO NOT RUN
-ALTER TABLE contractor_projects
-  ADD COLUMN before_photo_url text,
-  ADD COLUMN after_photo_url text,
-  ADD COLUMN comparison_caption text;
-
-Toggle state inferred: if both URLs non-null, pair renders.
-
-Canvas preview: Small split-view thumbnail on project card — left half before, right half after, thin white vertical divider.
-
-Public profile rendering — interactive slider (Option A, locked): Single image container with draggable vertical divider. Client slides left/ right to reveal before/after. Slider handle is circular navy button with left/right arrow icon. CSS + range input implementation, no library.
-
-Labels "BEFORE" and "AFTER" at bottom-left and bottom-right as white text on dark scrim, always visible regardless of slider position.
-
-Caption below in Source Serif 4 400 italic.
-
-Mobile: Slider works on touch/drag. Full-width container, 3:2 aspect ratio.
-
-What it doesn't do: No multiple pairs per project (use gallery for stages). No automatic image alignment. No animation or transition effects.
-
-5. Featured testimonials
-
-Priority: Low effort for pinning (flag exists). Manual testimonials require a new table.
-
-Two parts: pinning verified reviews and adding manual pre-TradeStone testimonials.
-
-Part A — Pinning existing reviews:
-
-The is_featured flag already exists on reviews. Max 3 pinned.
-
-Editor panel changes: Pin icon button on each review row — filled star when pinned, outline when not. Tap to toggle is_featured. Fourth pin attempt shows hint: "Maximum 3 featured reviews. Unpin one to feature another."
-
-Public profile rendering: Pinned reviews in highlighted strip — larger quote text in Source Serif 4 400 italic, client name and date below, subtle orange left border. Vertical stack, not carousel. Pinned reviews removed from general reviews list (no duplication).
-
-Part B — Manual testimonials:
-
-Contractors have years of happy clients from before TradeStone. Unverified quotes need clear labelling.
-
-Trust model: Manual testimonials get "Unverified" label in muted text. TradeStone-sourced reviews get "Verified on TradeStone" with checkmark. Same pattern as Trustpilot. Over time, verified reviews naturally become more prominent.
-
-Editor panel: "+ Add testimonial" button at bottom of reviews panel. Inline fields:
-
-Client name (required, max 50 chars)
-Quote text (required, max 300 chars)
-Date (optional, month/year picker)
-Project type (optional, free text — "Kitchen renovation")
-
-Manual testimonials share the same pin toggle and max 3 pinned limit with verified reviews. A contractor could pin 2 verified + 1 manual, or 3 manual.
-
-Data model:
-
-sql
--- DO NOT RUN
-CREATE TABLE contractor_testimonials (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  contractor_id uuid NOT NULL REFERENCES profiles(id),
-  client_name text NOT NULL,
-  quote_text text NOT NULL,
-  testimonial_date date,
-  project_type text,
-  is_featured boolean NOT NULL DEFAULT false,
-  display_order int NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-RLS: contractor CRUD on own rows (two-step profiles lookup). Public SELECT for published profiles.
-
-Public profile rendering: Pinned section mixes verified and manual in display order. Identical visual treatment except verified/unverified label. No star ratings on manual testimonials — that's a verified review feature only. No client email, photo, or job link.
-
-6. Service area map
-
-Priority: Lowest — data already exists, hire page handles discovery. Nice trust signal on the profile.
-
-Section type: service_area — single instance (not repeatable), reorderable, togglable.
-
-Editor panel fields:
-
-Section heading input (default: "Where we work")
-Location display (read-only from profiles.location) with "Edit in account settings" link
-Working radius display (read-only from profiles.working_radius_miles) with same settings link
-No map interaction in editor — data set elsewhere, section controls visibility only
-
-Data model: No new table, no new columns. profile_widgets row stores { heading: string } in meta. Map renders from existing profiles.location and profiles.working_radius_miles.
-
-Public profile rendering: Small static map image showing contractor location with shaded circle for working radius. Uses free tile provider (OpenStreetMap via Leaflet.js or static map image API) — no Google Maps costs. Non-interactive.
-
-Below map: "Based in {location} · Works within {radius} miles."
-
-Radius circle uses semi-transparent orange fill (
-#f07820 at 20% opacity).
-
-Mobile: Full width, 2:1 aspect ratio.
-
-What it doesn't do: No exact address. No directions or "get a route" link. No interactive zoom/pan. No polygon service areas — circle from radius is sufficient.
-
----
-
-## Payment reliability warnings
-
-**Purpose:** Surface payment track record when a contractor is about to engage with a client (quote creation, enquiry review, tender application). Builds platform trust and protects contractors from repeat late-payers.
-
-**Trigger points (UI banners):**
-- `SendQuoteDialog` — before issuing a quote
-- Enquiry detail view — when reviewing an inbound request
-- Tender application stepper — before applying to a business tender
-- B2B panel overview — aggregated reliability per business account
-
-**Display rules:**
-- Show: count of outstanding invoices + longest overdue age in days
-- Example copy: "This account has 2 outstanding invoices with another party, oldest 47 days overdue"
-- RAG colouring: amber 1–30 days, red 31+ days, no banner if clean
-- Never reveal: other contractor's identity, invoice amounts, or job details
-- Lookback window: 12 months rolling (invoices older than 12 months excluded)
-- Exclude: invoices with status `disputed` (requires adding dispute status — see below)
-
-**Data source:**
-Query `invoices` where `client_id = target_profile_id` AND (`status = 'overdue'` OR (`status = 'sent'` AND `due_date < NOW()`)) AND `created_at > NOW() - INTERVAL '12 months'` AND `status != 'disputed'`. Aggregate across all contractors, not just the viewing contractor.
-
-**Schema additions:**
-
-```sql
--- DO NOT RUN
--- Add disputed status to invoices (extend existing status enum/check)
--- Exact constraint shape TBD — run Step-0 against live DB first
-
--- Optional: materialised summary for performance at scale
-CREATE TABLE payment_reliability_summary (
-  profile_id       UUID PRIMARY KEY REFERENCES profiles(id),
-  outstanding_count INTEGER NOT NULL DEFAULT 0,
-  oldest_overdue_days INTEGER,
-  last_calculated  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- RLS: contractors can SELECT where profile_id matches the client
--- they are about to quote/engage. Business panel managers can
--- SELECT for any contractor on their panel.
--- SECURITY DEFINER function to recalculate on invoice status change.
-```
-
-**Privacy & fairness considerations:**
-- No public-facing "score" — information shown only to the party about to transact
-- Disputed invoices excluded to prevent weaponising non-payment flags
-- Client can see their own record (future: self-service dashboard showing "Your payment profile")
-- Consider: grace period before flag activates (e.g. 7 days past due, not immediate)
-- Consider: contractor-side equivalent for B2B clients ("This contractor has X disputed invoices")
-- GDPR: payment reliability is legitimate interest for platform trust; include in Privacy Policy data processing schedule
-
-**Dependencies:**
-- Invoice dispute status (not yet built)
-- Reliable `due_date` population on all invoices
-- Core job flow clean + first real user validated (LATER.md discipline)
-
-**Not in scope:**
-- Automated credit checks or external bureau integration
-- Public contractor/client ratings or reviews
-- Automatic service refusal based on payment history
-
-
----
-
-## BLOCKING VALIDATION
-
-### Mobile quote acceptance missing
-**Priority: highest. Blocks end-to-end validation.**
-
-There is no way to accept a quote from the mobile homeowner view. Desktop
-shows Accept / Reject / Stall plus the date-picker modal; mobile has neither.
-
-Why this is first: accepting a quote is the only conversion event in the
-funnel, and homeowners are predominantly mobile. A validation run that
-requires the client to find a laptop is not a validation run.
-
-Step-0 required: audit `ReceivedQuotes` / homeowner quotes route for the
-responsive branch — establish whether the actions are hidden by CSS, dropped
-from a mobile component, or the modal simply doesn't fit. Fix differs per case.
-
-Files: homeowner quotes page, `useReceivedQuotes.ts`, accept modal component.
-
-### Money tiles not reading `invoiceMoney.ts`
-**Priority: high. Contractor-facing wrong numbers.**
-
-Commit `721d183` added `src/lib/invoiceMoney.ts` and reportedly rewired nine
-files, but as of last browser check the tiles read:
-
-| Surface | Reads | Should read |
-|---|---|---|
-| Dashboard "Invoices" | £27, 2 pending | £9, 1 overdue |
-| Invoices "Pending" | £27 | £9 |
-| Invoices "Overdue" | £0.00 | £9 |
-| Finance "Outstanding" | £12 | £9 |
-| KPI "Outstanding" | £12 | £9 |
-
-Every movement from the pre-migration values is explained by the
-`pending → sent` backfill alone, so no tile appears to call the helper.
-Table badges also render the `draft` invoice as Overdue, which `displayStatus()`
-would not do.
-
-Unresolved: whether the Vercel deploy of `721d183` actually landed. Check
-Deployments before assuming the wiring is wrong.
-
-Verify with: `Select-String -Path .\src\hooks\useInvoices.ts,.\src\pages\ContractorDashboard.tsx,.\src\pages\ContractorKPIInsights.tsx -Pattern "summariseInvoices|amountOutstanding|isOutstanding"`
-
-### `accept-quote` deposit path untested in production
-**Priority: high.**
-
-The invoice insert fixed in `accept-quote` sits inside the deposit branch.
-Q-4AE203-0018 was accepted with no deposit, so the branch never ran and the
-fix remains unproven. It will fire for the first time on a real
-deposit-required acceptance.
-
-Close by: issuing one quote with deposit required, accepting as Test Customer,
-confirming a new `invoices` row lands with `status = 'sent'`.
-
----
-
-## SMALL FIXES — DO BEFORE FIRST REAL CONTRACTOR
-
-### `TransactionFeeNotice.tsx` states 3.5%, platform charges 5%
-One hardcoded string, `src/components/TransactionFeeNotice.tsx:13`. Both edge
-functions (`accept-quote:28`, `create-payment-intent:8`) use
-`PLATFORM_FEE_PERCENT = 0.05`. A contractor who reads 3.5% and is charged 5%
-has a legitimate complaint. One-line fix.
-
-### Zero-day payment terms
-`accept-quote` writes `due_date: new Date().toISOString().slice(0, 10)` — every
-invoice raised by quote acceptance is due the day it is issued, and reads as
-overdue the following morning. Makes "overdue" meaningless as a signal.
-
-Fix: payment terms from `finance_settings`, defaulting to 14 or 30 days.
-Step-0 required: confirm whether `finance_settings` already has a terms column.
-
-### `tax_amount: 0` hardcoded on invoice creation
-`accept-quote` sets `subtotal: Number(quote.total)` and `tax_amount: 0`
-regardless of the quote's VAT. On a £100 + £20 VAT quote the invoice records
-£120 total with zero tax. Harmless while not VAT-registered; wrong the moment
-the VAT position page has real data to report.
-
----
-
-## DATA INTEGRITY — DEAD COLUMNS AND MISSING CONSTRAINTS
-
-### Status vocabularies have no CHECK constraints
-`invoices` now has `invoices_status_valid`. Nothing else audited does.
-`issued_quotes` holds five values in production (`accepted`, `expired`,
-`superseded`, `draft`, `lapsed`) with no constraint. `jobs` never audited.
-
-This is the exact condition that produced the invoice bug: free-text status,
-multiple writers, no enforcement, five screens disagreeing.
-
-Step-0 required per table before adding any constraint — and check every
-writer, including edge functions and crons. The `mark-overdue-invoices` cron
-was writing an invalid value and would have 500'd nightly.
-
-```sql
--- DO NOT RUN — Step-0 report only
-SELECT c.relname, con.conname, pg_get_constraintdef(con.oid)
-FROM pg_constraint con
-JOIN pg_class c ON c.oid = con.conrelid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'public' AND con.contype = 'c'
-ORDER BY c.relname;
-```
-
-Also open: are `superseded`, `lapsed` and `expired` all still written, or is
-one a legacy value like `pending` was?
-
-### Dead columns on `invoices`
-Three columns exist and are never written by anything:
-
-- `amount_due` — NULL on every row. Either populate as a generated column
-  (`total - COALESCE(deposit_deducted, 0)`) or drop it.
-- `deposit_deducted` — NULL on every row. `stripe-webhook:262` flips
-  `deposit_paid` but records no amount, so the invoice never stores what was
-  actually collected. Correct home for that number.
-- `contractor_id` — has no foreign key, unlike every other relation on the
-  table.
-
-`invoiceMoney.ts` currently falls back to `deposit_amount` because
-`deposit_deducted` is dead. Once the webhook writes it, the fallback can go.
-
-### `payments.contractor_payout` never populated
-NULL on the only payment row. Nothing records what the contractor actually
-received after the platform fee.
-
-### Unexplained platform fee: £0.11 on a £3.00 deposit
-5% of £3.00 is £0.15; the recorded fee is £0.11, which back-solves to a £2.20
-base. `stripe-webhook:195` writes the value straight from
-`application_fee_amount`, so Stripe was genuinely told to take 11p.
-
-Either the payment predates the 0.05 constant, or `payments.amount` does not
-match what was charged. The second would be serious — check the PaymentIntent
-in Stripe for `acct_1TnLKCK6BjgGpUY4` around 18 Jul 10:04.
-
----
-
-## FEATURES — AFTER VALIDATION
-
-### Labour / Materials categorisation on quote lines
-Contractors want to see what they quoted for labour versus materials.
-
-This is a finance feature more than a quoting one. Job profitability currently
-shows what a job *cost* by category but not what it was *quoted* at, so the
-question "did I underprice labour or did materials overrun?" is unanswerable.
-Splitting quote lines by type closes that loop.
-
-Also feeds CIS, where labour and materials carry different deduction treatment
-— relevant to the HMRC CIS API item already on the horizon.
-
-Schema options: a `line_type` field on the existing `items` jsonb (cheap, hard
-to aggregate), or a proper `quote_line_items` table (correct if profitability
-is going to group on it). Recommend the table.
-
-Step-0 required: `issued_quotes.items` jsonb shape, and every reader of it —
-quote PDF generation duplicates the structure inline.
-
-### CRM disconnected from real clients
-CRM reads `crm_clients` and shows Total Clients 0, Total Revenue £0 against 20
-enquiries, 17 converted, 13 jobs and £3,200 invoiced. Nothing flows from a
-completed job into the CRM, so the module is inert.
-
-Decide: wire it to actual client records, or hide the nav item until it does
-something.
-
-### `BusinessManagement.tsx` renders hardcoded fake data
-Line 54: `"Pending Invoices", value: "£3,200", change: "5 invoices"`.
-Line 288: literal `£3,200` / `5 overdue invoices` in JSX. Nothing behind either.
-
-This is live in production. Hide the page or build it — leaving invented
-financial figures on a business-facing screen is the worst of the three options.
-
----
-
-## HOUSEKEEPING
-
-### Migration timestamps run ahead of the wall clock
-Migrations dated `20260805`–`20260807` were applied on 4 Aug. Any new migration
-written today sorts *behind* applied history and is rejected by `db push`
-without `--include-all`. Will recur on every new migration until the drift is
-resolved.
-
-Separately, eight migrations carry invalid timestamps —
-`20260730240000` through `20260730310000`, hours 24–31. Applied and working, but
-Supabase cannot parse them as dates and any date-sorting tool will order them
-unpredictably. Leave applied; do not repeat the pattern.
-
-
-### Invoice number sequence has gaps
-INV-0004 → INV-0009 with 5–8 unused. `contractor_counters` advances on paths
-that don't always produce an invoice. HMRC expects sequential invoice
-numbering and an accountant will query gaps.
-
-Step-0 required: identify every caller of the counter and whether the
-increment happens before or after a guaranteed insert.
-
-### "Needs your action" feed triple-renders each item
-Business dashboard showed six rows for two quotes — each quote appearing three
-times with different action labels ("Confirm or counter dates" ×2, "Awaiting
-your response" ×1). Confirmed against `issued_quotes`: only Q-0019 and Q-0020
-exist. Display bug, not duplicate sends.
-
-### Business quotes are discoverable only under "Approvals"
-No Quotes nav item on the business dashboard; received quotes live under
-Approvals. A contractor telling a client "check your quotes" sends them looking
-for something that isn't there. Homeowner accounts have a dedicated Quotes page.
-
-### Send-quote modal identifies the recipient by TS code only
-Modal header reads "Create a quote for TS-B-57B38C" with no client name or
-address. Two quotes were sent to the wrong account during testing for exactly
-this reason. The enquiry detail panel shows the name; the send modal drops it.
+  them on visit completion). The visit-completion handler is the correct place,
+  not a general job-completion hook. **Verify against the shipped PPM
+  auto-rolling visits before building — this may now be done.**
