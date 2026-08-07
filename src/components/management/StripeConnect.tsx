@@ -127,7 +127,7 @@ export const StripeConnect = () => {
               )}
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Powered by Stripe. TradeStone takes a 3.5% platform fee on payments.
+              Powered by Stripe. TradeStone takes a 5% platform fee on payments.
             </p>
           </>
         )}

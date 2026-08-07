@@ -105,7 +105,7 @@ const TermsAndConditions = () => {
           <section className="mb-8">
             <h2 className={sectionHeading} style={heading}>9. Payments</h2>
             <p className={body}>
-              All payments are processed through Stripe. TradeStone automatically deducts a 3.5% platform fee from
+              All payments are processed through Stripe. TradeStone automatically deducts a 5% platform fee from
               Contractor payouts. Payouts follow Stripe's standard payout schedule. TradeStone does not hold or have
               custody of User funds at any point.
             </p>
