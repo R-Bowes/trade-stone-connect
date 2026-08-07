@@ -68,6 +68,15 @@
 //    payments.status reverts from 'disputed' to 'refunded'.
 //  - charge.refunded / payment_intent.payment_failed: minimal logging-only
 //    handlers — unhandled today, kept from being silently swallowed.
+//  - account.updated (Stripe Connect capability tracking): arrives on a
+//    SEPARATE Connect-scoped webhook destination, signed with
+//    STRIPE_CONNECT_WEBHOOK_SECRET rather than STRIPE_WEBHOOK_SECRET — see
+//    the dual-secret verification below. Writes the connected account's
+//    transfers capability / payouts_enabled / charges_enabled /
+//    disabled_reason / currently_due onto the matching profiles row for the
+//    accept-quote / create-payment-intent gate and the contractor dashboard
+//    banner. See handleAccountUpdated for the staleness guard and
+//    transition-only notification rule.
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -99,6 +108,7 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
 });
 
 const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+const connectWebhookSecret = Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 const jsonResponse = (status: number, payload: Record<string, unknown>) =>
@@ -1051,23 +1061,152 @@ function handlePaymentIntentPaymentFailedLogOnly(paymentIntent: Stripe.PaymentIn
   return jsonResponse(200, { success: true, received: true });
 }
 
+/**
+ * account.updated (Stripe Connect capability tracking). Deliberately takes
+ * a third argument, eventCreated — unlike every other handler in this file
+ * — because Account objects carry no update timestamp of their own, so the
+ * event's own `created` is the only guard available against a delayed/
+ * out-of-order delivery overwriting fresher state (see the staleness guard
+ * below and the column comment on stripe_capabilities_event_created).
+ */
+async function handleAccountUpdated(
+  supabase: ReturnType<typeof createClient>,
+  account: Stripe.Account,
+  eventCreated: number,
+) {
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select(
+      "id, user_id, stripe_transfers_capability, stripe_payouts_enabled, stripe_capabilities_event_created",
+    )
+    .eq("stripe_account_id", account.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("[stripe-webhook] account.updated: failed to look up profile", account.id, profileError);
+    return jsonResponse(200, { success: true, received: true });
+  }
+
+  if (!profile) {
+    // Unrecognised account — never 4xx/5xx, Stripe would just retry
+    // pointlessly for an account that will never match a profile.
+    console.log(`[stripe-webhook] account.updated for ${account.id} — no matching profile, ignoring.`);
+    return jsonResponse(200, { success: true, received: true });
+  }
+
+  // Staleness guard: a delayed/out-of-order event must never clobber
+  // fresher state already written by a later event.
+  if (profile.stripe_capabilities_event_created != null && eventCreated <= profile.stripe_capabilities_event_created) {
+    console.log(`[stripe-webhook] account.updated for ${account.id} (event created=${eventCreated}) is stale — stored event created=${profile.stripe_capabilities_event_created}. Ignoring.`);
+    return jsonResponse(200, { success: true, received: true });
+  }
+
+  // Read defensively — the API version delivered on this event
+  // (2026-06-24.dahlia) differs from the client's pinned version
+  // (2025-08-27.basil). Never throw on a missing/reshaped field.
+  const transfersCapability = account.capabilities?.transfers ?? null;
+  const payoutsEnabled = account.payouts_enabled ?? null;
+  const chargesEnabled = account.charges_enabled ?? null;
+  const disabledReason = account.requirements?.disabled_reason ?? null;
+  const currentlyDue = account.requirements?.currently_due ?? [];
+
+  const previousTransfersCapability = profile.stripe_transfers_capability;
+  const previousPayoutsEnabled = profile.stripe_payouts_enabled;
+
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({
+      stripe_transfers_capability: transfersCapability,
+      stripe_payouts_enabled: payoutsEnabled,
+      stripe_charges_enabled: chargesEnabled,
+      stripe_disabled_reason: disabledReason,
+      stripe_requirements_currently_due: currentlyDue,
+      stripe_capabilities_updated_at: new Date().toISOString(),
+      stripe_capabilities_event_created: eventCreated,
+    })
+    .eq("id", profile.id);
+
+  if (updateError) {
+    console.error("[stripe-webhook] account.updated: failed to write capability columns", account.id, updateError);
+    return jsonResponse(200, { success: true, received: true });
+  }
+
+  // Notify only on an actual transition, and only when the previous value
+  // was non-NULL — a NULL -> value transition is the backfill/first
+  // observation populating these columns, not a real change worth alerting
+  // the contractor about.
+  const transfersTransitioned = previousTransfersCapability != null && previousTransfersCapability !== transfersCapability;
+  const payoutsTransitioned = previousPayoutsEnabled != null && previousPayoutsEnabled !== payoutsEnabled;
+
+  if ((transfersTransitioned || payoutsTransitioned) && profile.user_id) {
+    let message: string;
+    if (transfersTransitioned && transfersCapability !== "active") {
+      message = `Your Stripe payment capability has changed to "${transfersCapability ?? "unknown"}" — you may not be able to receive new payments until this is resolved.`;
+    } else if (transfersTransitioned) {
+      message = "Your Stripe payment capability is active again — you can receive payments as normal.";
+    } else if (payoutsEnabled === false) {
+      message = "Stripe has paused bank transfers on your account. Payments still work and your funds are safe, but payouts are on hold.";
+    } else {
+      message = "Stripe bank transfers have resumed on your account.";
+    }
+
+    const { error: notifError } = await supabase.from("notifications").insert({
+      user_id: profile.user_id,
+      title: "Stripe account status changed",
+      message,
+      type: "stripe_capability_change",
+      reference_type: "profile",
+      reference_id: profile.id,
+    });
+    if (notifError) {
+      console.error("[stripe-webhook] account.updated: failed to insert notification", notifError);
+    }
+  }
+
+  console.log(`[stripe-webhook] account.updated for ${account.id}: transfers=${transfersCapability}, payouts_enabled=${payoutsEnabled}, charges_enabled=${chargesEnabled}`);
+
+  return jsonResponse(200, { success: true, received: true });
+}
+
 serve(async (req) => {
   try {
     const signature = req.headers.get("stripe-signature");
     if (!signature) {
       return jsonResponse(400, { success: false, error: "Missing stripe-signature" });
     }
-    if (!webhookSecret) {
+    if (!webhookSecret && !connectWebhookSecret) {
       return jsonResponse(500, { success: false, error: "Webhook secret not configured" });
     }
 
     const body = await req.text();
 
-    let event: Stripe.Event;
-    try {
-      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
-    } catch (err) {
-      console.error("Webhook signature verification failed", err);
+    // Two Stripe destinations point at this function: the platform-scoped
+    // one (STRIPE_WEBHOOK_SECRET) and a Connect-scoped one sending only
+    // account.updated (STRIPE_CONNECT_WEBHOOK_SECRET). Try the platform
+    // secret first, then the Connect secret — only if both fail is this a
+    // genuinely invalid signature. Never log either secret value.
+    let event: Stripe.Event | null = null;
+    let verificationError: unknown = null;
+
+    if (webhookSecret) {
+      try {
+        event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+      } catch (err) {
+        verificationError = err;
+      }
+    }
+
+    if (!event && connectWebhookSecret) {
+      try {
+        event = await stripe.webhooks.constructEventAsync(body, signature, connectWebhookSecret);
+        verificationError = null;
+      } catch (err) {
+        verificationError = verificationError ?? err;
+      }
+    }
+
+    if (!event) {
+      console.error("Webhook signature verification failed against both configured secrets", verificationError);
       return jsonResponse(400, { success: false, error: "Invalid Stripe signature" });
     }
 
@@ -1103,6 +1242,13 @@ serve(async (req) => {
 
     if (event.type === "payment_intent.payment_failed") {
       return handlePaymentIntentPaymentFailedLogOnly(event.data.object as Stripe.PaymentIntent);
+    }
+
+    // Deliberate deviation from every other handler above: account.updated
+    // needs event.created (Account objects carry no update timestamp of
+    // their own) so handleAccountUpdated takes it as a third argument.
+    if (event.type === "account.updated") {
+      return await handleAccountUpdated(supabase, event.data.object as Stripe.Account, event.created);
     }
 
     return jsonResponse(200, { success: true, received: true });

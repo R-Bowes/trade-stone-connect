@@ -78,12 +78,22 @@ serve(async (req) => {
 
     const { data: contractorProfile, error: contractorError } = await supabase
       .from("profiles")
-      .select("stripe_account_id, user_id")
+      .select("stripe_account_id, user_id, stripe_transfers_capability")
       .eq("id", invoice.contractor_id)
       .single();
 
     if (contractorError || !contractorProfile?.stripe_account_id) {
       return jsonResponse(400, { success: false, error: "Contractor Stripe account is not configured" });
+    }
+
+    // NULL (not yet observed) fails open — only a confirmed non-active
+    // capability blocks. See profiles.stripe_transfers_capability's column
+    // comment.
+    if (
+      contractorProfile.stripe_transfers_capability != null &&
+      contractorProfile.stripe_transfers_capability !== "active"
+    ) {
+      return jsonResponse(400, { success: false, error: "Contractor's payment account cannot currently receive payments — please contact them directly." });
     }
 
     if (action === "send_invoice") {

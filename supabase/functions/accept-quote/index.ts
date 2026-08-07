@@ -131,12 +131,22 @@ serve(async (req) => {
 
     const { data: contractorProfile } = await serviceClient
       .from("profiles")
-      .select("stripe_account_id")
+      .select("stripe_account_id, stripe_transfers_capability")
       .eq("id", quote.contractor_id)
       .maybeSingle();
 
     if (!contractorProfile?.stripe_account_id) {
       return json(400, { error: "Contractor is not set up to receive payments" });
+    }
+
+    // NULL (not yet observed) fails open — only a confirmed non-active
+    // capability blocks. See profiles.stripe_transfers_capability's column
+    // comment.
+    if (
+      contractorProfile.stripe_transfers_capability != null &&
+      contractorProfile.stripe_transfers_capability !== "active"
+    ) {
+      return json(400, { error: "Contractor's payment account cannot currently receive payments — please contact them directly." });
     }
 
     const depositAmount = Number(result.deposit_amount);

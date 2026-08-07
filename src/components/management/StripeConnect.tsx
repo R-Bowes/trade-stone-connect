@@ -11,6 +11,10 @@ export const StripeConnect = () => {
   const [checking, setChecking] = useState(true);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [stripeStatus, setStripeStatus] = useState<"not_connected" | "pending" | "active">("not_connected");
+  const [transfersCapability, setTransfersCapability] = useState<string | null>(null);
+  const [payoutsEnabled, setPayoutsEnabled] = useState<boolean | null>(null);
+  const [disabledReason, setDisabledReason] = useState<string | null>(null);
+  const [requirementsCurrentlyDue, setRequirementsCurrentlyDue] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -41,13 +45,22 @@ export const StripeConnect = () => {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_account_id")
+      .select(
+        "stripe_account_id, stripe_transfers_capability, stripe_payouts_enabled, stripe_disabled_reason, stripe_requirements_currently_due" as const,
+      )
       .eq("user_id", user.id)
       .single();
 
     const accountId = (profile as any)?.stripe_account_id;
+    const capability = (profile as any)?.stripe_transfers_capability ?? null;
     setStripeAccountId(accountId || null);
-    setStripeStatus(accountId ? "pending" : "not_connected");
+    setStripeStatus(
+      !accountId ? "not_connected" : capability === "active" ? "active" : "pending",
+    );
+    setTransfersCapability((profile as any)?.stripe_transfers_capability ?? null);
+    setPayoutsEnabled((profile as any)?.stripe_payouts_enabled ?? null);
+    setDisabledReason((profile as any)?.stripe_disabled_reason ?? null);
+    setRequirementsCurrentlyDue((profile as any)?.stripe_requirements_currently_due ?? []);
     setChecking(false);
   };
 
@@ -127,8 +140,45 @@ export const StripeConnect = () => {
                 <p className="text-sm font-medium text-blue-800">Stripe Account Connected</p>
                 <p className="text-xs text-blue-600">Account ID: {stripeAccountId}</p>
               </div>
-              <Badge variant="outline" className="ml-auto">Active</Badge>
+              <Badge variant="outline" className="ml-auto">
+                {stripeStatus === "active" ? "Active" : "Action needed"}
+              </Badge>
             </div>
+
+            {transfersCapability != null && transfersCapability !== "active" && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                <div className="text-sm text-red-800 space-y-1">
+                  <p className="font-medium">Payments are currently blocked</p>
+                  <p>
+                    Stripe reports your payment capability as "{transfersCapability}" — clients will not be able to
+                    pay you until this is resolved.
+                  </p>
+                  {disabledReason && <p>Reason: {disabledReason}</p>}
+                  {requirementsCurrentlyDue.length > 0 && (
+                    <p>Outstanding requirements: {requirementsCurrentlyDue.join(", ")}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {payoutsEnabled === false && (
+              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                <div className="text-sm text-yellow-800 space-y-1">
+                  <p className="font-medium">Bank transfers paused</p>
+                  <p>
+                    Stripe has paused payouts to your bank account. Payments still work and your funds are safe in
+                    your Stripe balance — they'll be released once payouts resume.
+                  </p>
+                  {disabledReason && <p>Reason: {disabledReason}</p>}
+                  {requirementsCurrentlyDue.length > 0 && (
+                    <p>Outstanding requirements: {requirementsCurrentlyDue.join(", ")}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Button variant="outline" onClick={handleConnectStripe} disabled={loading} className="w-full">
               <ExternalLink className="h-4 w-4 mr-2" />
               Manage Stripe Account
