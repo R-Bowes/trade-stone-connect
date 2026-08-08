@@ -661,6 +661,13 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   edge functions that build references.
 - The `quotes` table is LEGACY and empty — the live table is `issued_quotes`.
   Never query or build against `quotes`.
+- `job_team_members` is LEGACY and permanently unwritten — 0 rows, no
+  frontend path anywhere ever inserts into it (confirmed by repo-wide grep,
+  20260808110000). The live table for job worker assignment is
+  `job_assignments`, written by `JobManagement.tsx`'s Workers section
+  (`toggleAssignment`) and read by `useJobTeam` in `src/hooks/useJobs.ts`.
+  Never query or build against `job_team_members`. Not dropped — kept
+  as-is, matching the `quotes` table's own retained-but-dead precedent.
 - Legacy string formats (`QTE-TS-C-...`, `INV-TS-C-...-TS-P-...`) and their
   generator triggers are retired. If either pattern reappears in a grep, it's a
   regression.
