@@ -39,9 +39,13 @@ import TenderDetail from "./pages/TenderDetail";
 import ProposalReview from "./pages/ProposalReview";
 import ProjectDelivery from "./pages/ProjectDelivery";
 import InvitePage from "./pages/InvitePage";
+import AcceptTeamInvite from "./pages/AcceptTeamInvite";
 import SitePortal from "./pages/SitePortal";
 import ContractorKPIInsights from "./pages/ContractorKPIInsights";
 import ContractorLayout from "./components/ContractorLayout";
+import FieldGuard from "./components/field/FieldGuard";
+import FieldJobList from "./pages/field/FieldJobList";
+import FieldJobDetail from "./pages/field/FieldJobDetail";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +68,18 @@ function usePageTracking() {
 const PageTracker = () => {
   usePageTracking();
   return null;
+};
+
+// /field is a standalone, phone-first surface with its own chrome — the
+// global marketing Footer (legal links, company info, newsletter-style
+// column layout) below does not belong there. This is the one shared-chrome
+// leak /field was actually getting: no <Layout>/<AppShell>/sidebar wraps
+// any route in this file, but Footer renders unconditionally after
+// <Routes> for every route, /field included.
+const ConditionalFooter = () => {
+  const location = useLocation();
+  if (location.pathname.startsWith("/field")) return null;
+  return <Footer />;
 };
 
 const App = () => (
@@ -97,6 +113,7 @@ const App = () => (
           <Route path="/pay/:invoiceId" element={<PayInvoicePage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invite" element={<InvitePage />} />
+          <Route path="/invite/:token" element={<AcceptTeamInvite />} />
           <Route path="/site-portal" element={<ProtectedRoute><SitePortal /></ProtectedRoute>} />
 
           {/* Protected routes */}
@@ -108,6 +125,8 @@ const App = () => (
           <Route path="/dashboard/business/settings" element={<ProtectedRoute requiredRole="business"><BusinessSettings /></ProtectedRoute>} />
           <Route path="/dashboard/contractor" element={<ProtectedRoute requiredRole="contractor"><ContractorDashboard /></ProtectedRoute>} />
           <Route path="/kpi-insights" element={<ProtectedRoute requiredRole="contractor"><ContractorLayout><ContractorKPIInsights /></ContractorLayout></ProtectedRoute>} />
+          <Route path="/field" element={<FieldGuard><FieldJobList /></FieldGuard>} />
+          <Route path="/field/job/:jobId" element={<FieldGuard><FieldJobDetail /></FieldGuard>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/projects/:id" element={<ProtectedRoute><TenderDetail /></ProtectedRoute>} />
@@ -121,7 +140,7 @@ const App = () => (
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <Footer />
+        <ConditionalFooter />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

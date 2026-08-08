@@ -345,6 +345,107 @@ export type Database = {
           },
         ]
       }
+      chargebacks: {
+        Row: {
+          amount: number
+          closed_at: string | null
+          contractor_debt: number
+          contractor_id: string | null
+          created_at: string
+          customer_id: string | null
+          dispute_fee: number | null
+          evidence_due_by: string | null
+          funds_returned_amount: number
+          id: string
+          invoice_id: string | null
+          job_id: string | null
+          outcome: string | null
+          payment_id: string | null
+          reason: string | null
+          reversal_error: string | null
+          status: string
+          stripe_charge_id: string
+          stripe_dispute_id: string
+          transfer_reversed_amount: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          closed_at?: string | null
+          contractor_debt?: number
+          contractor_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          dispute_fee?: number | null
+          evidence_due_by?: string | null
+          funds_returned_amount?: number
+          id?: string
+          invoice_id?: string | null
+          job_id?: string | null
+          outcome?: string | null
+          payment_id?: string | null
+          reason?: string | null
+          reversal_error?: string | null
+          status: string
+          stripe_charge_id: string
+          stripe_dispute_id: string
+          transfer_reversed_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          closed_at?: string | null
+          contractor_debt?: number
+          contractor_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          dispute_fee?: number | null
+          evidence_due_by?: string | null
+          funds_returned_amount?: number
+          id?: string
+          invoice_id?: string | null
+          job_id?: string | null
+          outcome?: string | null
+          payment_id?: string | null
+          reason?: string | null
+          reversal_error?: string | null
+          status?: string
+          stripe_charge_id?: string
+          stripe_dispute_id?: string
+          transfer_reversed_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chargebacks_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chargebacks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_adjusted_contract_value"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "chargebacks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chargebacks_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
@@ -653,6 +754,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      contractor_debts: {
+        Row: {
+          amount: number
+          contractor_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          recovered_amount: number
+          source_id: string
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          contractor_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          recovered_amount?: number
+          source_id: string
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          contractor_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          recovered_amount?: number
+          source_id?: string
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       contractor_documents: {
         Row: {
@@ -3343,31 +3483,37 @@ export type Database = {
       job_checklist_templates: {
         Row: {
           company_id: string | null
+          contractor_id: string | null
           created_at: string
           id: string
           is_active: boolean
           item_text: string
           job_type: string
+          name: string | null
           sort_order: number
           stage: string
         }
         Insert: {
           company_id?: string | null
+          contractor_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           item_text: string
           job_type: string
+          name?: string | null
           sort_order?: number
           stage: string
         }
         Update: {
           company_id?: string | null
+          contractor_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           item_text?: string
           job_type?: string
+          name?: string | null
           sort_order?: number
           stage?: string
         }
@@ -3377,6 +3523,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checklist_templates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checklist_templates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -5025,15 +5185,21 @@ export type Database = {
           id: string
           invoice_id: string | null
           job_id: string | null
+          net_platform_revenue: number | null
           notes: string | null
           payee_id: string | null
           payer_id: string | null
           platform_fee: number | null
           project_id: string | null
+          refunded_amount: number
           released_by: string | null
           status: string | null
+          stripe_balance_transaction_id: string | null
+          stripe_charge_id: string | null
+          stripe_fee: number | null
           stripe_payment_intent_id: string | null
           stripe_transfer_id: string | null
+          transfer_reversed_amount: number
           type: string | null
           updated_at: string | null
         }
@@ -5045,15 +5211,21 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           job_id?: string | null
+          net_platform_revenue?: number | null
           notes?: string | null
           payee_id?: string | null
           payer_id?: string | null
           platform_fee?: number | null
           project_id?: string | null
+          refunded_amount?: number
           released_by?: string | null
           status?: string | null
+          stripe_balance_transaction_id?: string | null
+          stripe_charge_id?: string | null
+          stripe_fee?: number | null
           stripe_payment_intent_id?: string | null
           stripe_transfer_id?: string | null
+          transfer_reversed_amount?: number
           type?: string | null
           updated_at?: string | null
         }
@@ -5065,15 +5237,21 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           job_id?: string | null
+          net_platform_revenue?: number | null
           notes?: string | null
           payee_id?: string | null
           payer_id?: string | null
           platform_fee?: number | null
           project_id?: string | null
+          refunded_amount?: number
           released_by?: string | null
           status?: string | null
+          stripe_balance_transaction_id?: string | null
+          stripe_charge_id?: string | null
+          stripe_fee?: number | null
           stripe_payment_intent_id?: string | null
           stripe_transfer_id?: string | null
+          transfer_reversed_amount?: number
           type?: string | null
           updated_at?: string | null
         }
@@ -5548,6 +5726,13 @@ export type Database = {
           services_heading: string | null
           social_links: Json | null
           stripe_account_id: string | null
+          stripe_capabilities_event_created: number | null
+          stripe_capabilities_updated_at: string | null
+          stripe_charges_enabled: boolean | null
+          stripe_disabled_reason: string | null
+          stripe_payouts_enabled: boolean | null
+          stripe_requirements_currently_due: string[] | null
+          stripe_transfers_capability: string | null
           team_heading: string | null
           trades: string[] | null
           ts_profile_code: string | null
@@ -5604,6 +5789,13 @@ export type Database = {
           services_heading?: string | null
           social_links?: Json | null
           stripe_account_id?: string | null
+          stripe_capabilities_event_created?: number | null
+          stripe_capabilities_updated_at?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_disabled_reason?: string | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_currently_due?: string[] | null
+          stripe_transfers_capability?: string | null
           team_heading?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
@@ -5660,6 +5852,13 @@ export type Database = {
           services_heading?: string | null
           social_links?: Json | null
           stripe_account_id?: string | null
+          stripe_capabilities_event_created?: number | null
+          stripe_capabilities_updated_at?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_disabled_reason?: string | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_currently_due?: string[] | null
+          stripe_transfers_capability?: string | null
           team_heading?: string | null
           trades?: string[] | null
           ts_profile_code?: string | null
@@ -6638,6 +6837,104 @@ export type Database = {
           identifier?: string
         }
         Relationships: []
+      }
+      refunds: {
+        Row: {
+          amount: number
+          application_fee_refunded: number
+          approved_at: string | null
+          approved_by: string | null
+          contractor_debt: number
+          contractor_id: string
+          created_at: string
+          id: string
+          invoice_id: string | null
+          job_id: string | null
+          payment_id: string
+          reason: string
+          reason_detail: string | null
+          rejected_reason: string | null
+          requested_by: string
+          status: string
+          stripe_fee_lost: number | null
+          stripe_refund_id: string | null
+          transfer_reversed_amount: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          application_fee_refunded?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          contractor_debt?: number
+          contractor_id: string
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          job_id?: string | null
+          payment_id: string
+          reason: string
+          reason_detail?: string | null
+          rejected_reason?: string | null
+          requested_by: string
+          status?: string
+          stripe_fee_lost?: number | null
+          stripe_refund_id?: string | null
+          transfer_reversed_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          application_fee_refunded?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          contractor_debt?: number
+          contractor_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          job_id?: string | null
+          payment_id?: string
+          reason?: string
+          reason_detail?: string | null
+          rejected_reason?: string | null
+          requested_by?: string
+          status?: string
+          stripe_fee_lost?: number | null
+          stripe_refund_id?: string | null
+          transfer_reversed_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_adjusted_contract_value"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "refunds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schedule_events: {
         Row: {
@@ -7856,6 +8153,81 @@ export type Database = {
           },
         ]
       }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          contractor_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          status: string
+          team_member_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          contractor_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          status?: string
+          team_member_id: string
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          contractor_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          team_member_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_member_absences: {
         Row: {
           absence_type: string
@@ -7981,6 +8353,7 @@ export type Database = {
       }
       team_members: {
         Row: {
+          access_level: string
           contractor_id: string
           created_at: string
           day_rate: number | null
@@ -8005,6 +8378,7 @@ export type Database = {
           utr_number: string | null
         }
         Insert: {
+          access_level?: string
           contractor_id: string
           created_at?: string
           day_rate?: number | null
@@ -8029,6 +8403,7 @@ export type Database = {
           utr_number?: string | null
         }
         Update: {
+          access_level?: string
           contractor_id?: string
           created_at?: string
           day_rate?: number | null
@@ -9689,10 +10064,12 @@ export type Database = {
         Args: { p_event_id: string; p_quote_id: string }
         Returns: Json
       }
+      accept_team_invitation: { Args: { p_token: string }; Returns: string }
       accept_tender_agreement: {
         Args: { p_agreement_id: string }
         Returns: undefined
       }
+      acting_contractor_ids: { Args: never; Returns: string[] }
       admin_update_verification: {
         Args: {
           p_companies_house_status?: string
@@ -9721,6 +10098,7 @@ export type Database = {
         Args: { p_application_id: string }
         Returns: boolean
       }
+      approve_refund: { Args: { p_refund_id: string }; Returns: string }
       auth_user_company_ids: { Args: never; Returns: string[] }
       award_tender_agreement: {
         Args: { p_application_id: string; p_standstill_ends_at?: string }
@@ -9846,6 +10224,13 @@ export type Database = {
         }[]
       }
       get_secret: { Args: { p_name: string }; Returns: string }
+      get_team_invitation_preview: {
+        Args: { p_token: string }
+        Returns: {
+          contractor_name: string
+          email: string
+        }[]
+      }
       give_notice_on_term_engagement: {
         Args: { p_engagement_id: string; p_notice_effective_date: string }
         Returns: undefined
@@ -9857,6 +10242,8 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_project_party: { Args: { p_project_id: string }; Returns: boolean }
+      is_project_poster: { Args: { p_project_id: string }; Returns: boolean }
       is_site_contact: {
         Args: { p_company_id: string; p_site_id: string }
         Returns: boolean
@@ -9876,6 +10263,7 @@ export type Database = {
         Returns: undefined
       }
       mint_job_from_quote: { Args: { p_quote_id: string }; Returns: string }
+      my_team_member_ids: { Args: never; Returns: string[] }
       next_business_document_number: {
         Args: { p_company_id: string; p_entity: string }
         Returns: number
@@ -9913,9 +10301,22 @@ export type Database = {
         Returns: number
       }
       recency_decay_weight: { Args: { p_timestamp: string }; Returns: number }
+      reject_refund: {
+        Args: { p_reason: string; p_refund_id: string }
+        Returns: string
+      }
       release_schedule_block: {
         Args: { p_event_id: string }
         Returns: undefined
+      }
+      request_refund: {
+        Args: {
+          p_amount: number
+          p_payment_id: string
+          p_reason: string
+          p_reason_detail?: string
+        }
+        Returns: string
       }
       run_compliance_watcher: { Args: never; Returns: undefined }
       run_expiry_radar: { Args: never; Returns: undefined }

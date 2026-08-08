@@ -156,6 +156,17 @@ already be in `contractor_panel`.
 - **Bad FK-hint embeds fail silently.** A PostgREST embed referencing a wrong
   or stale FK hint returns an empty embed with no error. Verify embed hints
   against actual FK names in the live schema before trusting a query.
+- **A nullable scope column in a policy predicate must check ALL scope
+  columns, not just one.** `company_id IS NULL` alone reads as "public" —
+  if a second nullable column on the same row (e.g. a new `contractor_id`)
+  is meant to narrow that same row to a single owner, a `company_id IS
+  NULL` branch with no matching `contractor_id IS NULL` check will make
+  that owner's private row world-readable the moment the second column is
+  introduced. (Origin: `job_checklist_templates`' original SELECT policy —
+  `company_id IS NULL` meant "global template" before `contractor_id`
+  existed; adding `contractor_id` without re-deriving that branch would
+  have leaked every contractor's private templates. Fixed in
+  `20260808120000_field_frontend_support.sql`.)
 - **Two-party tables need write policies for both parties.** Any table
   written by two different parties (e.g. `schedule_events`,
   `contractor_availability_overrides`) needs explicit write policies for BOTH
@@ -452,6 +463,21 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   `PUBLIC_APP_URL` are set to the same value for legacy compatibility — new functions
   must use `SITE_URL` only. Standardising the old two is captured in LATER.md.
 - `LOVABLE_API_KEY` secret retired (Lovable fully retired).
+- **Vite dev server runs on `8080`, not the Vite default `5173`.** Any
+  localhost allowlist must include `8080`: every edge function's
+  `ALLOWED_ORIGINS` (14 functions carry this list, all hand-duplicated —
+  there is no shared CORS helper) and Supabase Auth → URL Configuration →
+  Redirect URLs. Confirmed live: `vite.config.ts` sets `server.port: 8080`;
+  every function's `ALLOWED_ORIGINS` only had `4173`/`5173` until
+  2026-08-08.
+- **Three edge functions use CRLF line endings**: `accept-quote`,
+  `create-connect-account`, `notify-invoice-quote-action`. Every other
+  function is LF. A bulk find/replace across `supabase/functions/*/index.ts`
+  (e.g. `perl -0pi -e 's/\n/.../'`) will silently skip these three unless the
+  pattern also matches `\r\n` — verify each file individually after any
+  cross-function edit rather than trusting a single sed/perl pass's exit
+  code. (Origin: the `localhost:8080` CORS fix above initially missed all
+  three this way.)
 
 ## Scheduled jobs / cron infrastructure
 - `pg_cron` (lives in `pg_catalog`, Supabase's mandated location) and
@@ -668,6 +694,15 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   (`toggleAssignment`) and read by `useJobTeam` in `src/hooks/useJobs.ts`.
   Never query or build against `job_team_members`. Not dropped — kept
   as-is, matching the `quotes` table's own retained-but-dead precedent.
+- **Team members are `user_type = 'personal'` and receive a `TS-P-...`
+  code.** That code is meaningless for a team member (it's the generic
+  personal-account code minted by `handle_new_user`, not a real personal
+  profile) and must **never** be displayed anywhere in `/field` or on any
+  team-facing surface. Where a TS code needs showing to a team member,
+  resolve and show the **employer's** `TS-C-...` code instead, via
+  `team_members.contractor_id -> profiles.ts_profile_code`
+  (`useFieldTeamMember.ts`'s pattern). Do not change how codes are minted —
+  this is a display rule only.
 - Legacy string formats (`QTE-TS-C-...`, `INV-TS-C-...-TS-P-...`) and their
   generator triggers are retired. If either pattern reappears in a grep, it's a
   regression.

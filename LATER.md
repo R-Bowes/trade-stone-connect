@@ -57,11 +57,6 @@ housekeeping — lives in `NOW.md`, not this file.
   profile completion, trade selection, Stripe Connect, verification documents,
   quote template. Highest-value unbuilt item once validation closes.
 - **Push notifications** — needs native app or service worker. See Mobile.
-- **Team member sub-logins** — team members currently have no auth connection
-  at all. Significant architectural build: auth identity per team member,
-  permission scoping, RLS implications across every contractor-owned table.
-  Requires a dedicated design session before any implementation. Do not let
-  this start as a small change.
 
 ---
 
@@ -766,6 +761,24 @@ public client ratings; automatic service refusal based on payment history.
 
 ## Tech debt / known issues to revisit
 
+- **Field view cosmetic gaps** (`/field`, team member sub-account build,
+  2026-08-08). Job list and detail show `jobs.title` rather than the
+  address — should lead with `location` and fall back to `title`. Bare em
+  dashes render where `description`/scheduled time are null — omit the
+  line entirely instead of showing "—". Job detail has no address block,
+  Navigate, or Call button wired up for every job (only where `location`
+  is present). Photo upload and clock in/out have not been tested in an
+  actual browser — data-layer only, via simulated-session SQL. Tier B
+  boundary (invoices/quotes/enquiries/finance never reachable from
+  `/field`) is untested beyond "no code path references them."
+- **Jobs minted from quotes have no site details.** `location`,
+  `description`, `job_type`, and `scheduled_start` are all NULL on jobs
+  created via `mint_job_from_quote` — confirmed against live `jobs` rows.
+  An engineer cannot be dispatched to a job with no address. This blocks
+  the field view being useful for quote-originated jobs specifically
+  (FM/tender-originated jobs carry more of this data already). Check this
+  before the next validation walk — it's a data-completeness gap, not a
+  `/field` bug.
 - Standardise all Edge Functions on `SITE_URL`; remove `PUBLIC_URL` and
   `PUBLIC_APP_URL` reads.
 - Job sign-off approval — `jobs.portfolio_approved` column unused; business

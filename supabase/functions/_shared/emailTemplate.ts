@@ -12,7 +12,8 @@ export type EmailType =
   | "payment_received"
   | "cert_expiry"
   | "insurance_expiry"
-  | "cooling_off_notice";
+  | "cooling_off_notice"
+  | "team_invitation";
 
 // ── Per-type data shapes ──────────────────────────────────────────────────────
 
@@ -84,6 +85,12 @@ export interface CoolingOffNoticeData {
   ctaUrl: string;
 }
 
+export interface TeamInvitationData {
+  contractorName: string;    // trading name shown to the invitee
+  memberName: string;
+  ctaUrl: string;             // /invite/:token accept link
+}
+
 export type EmailData =
   | NewEnquiryData
   | QuoteRequestConfirmationData
@@ -92,7 +99,8 @@ export type EmailData =
   | PaymentReceivedData
   | CertExpiryData
   | InsuranceExpiryData
-  | CoolingOffNoticeData;
+  | CoolingOffNoticeData
+  | TeamInvitationData;
 
 // ── Colour / accent map ───────────────────────────────────────────────────────
 
@@ -105,6 +113,7 @@ const ACCENT: Record<EmailType, { bar: string; pill: string; pillBg: string; btn
   cert_expiry:                  { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
   insurance_expiry:             { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
   cooling_off_notice:           { bar: "#3b82f6", pill: "#2563eb", pillBg: "#eff6ff", btn: "#2563eb" },
+  team_invitation:              { bar: "#f07820", pill: "#f07820", pillBg: "#fff4eb", btn: "#f07820" },
 };
 
 // ── Shared shell ──────────────────────────────────────────────────────────────
@@ -421,6 +430,19 @@ export function buildEmail(type: EmailType, data: EmailData): string {
       ].join("\n");
       return shell(type, inner);
     }
+
+    // ── 09 Team invitation → invited worker ──────────────────────────────────
+    case "team_invitation": {
+      const d = data as TeamInvitationData;
+      const inner = [
+        pill(type, "You're Invited"),
+        headline(`Join ${d.contractorName} on TradeStone`),
+        subtext(`Hi ${d.memberName}, ${d.contractorName} has invited you to join their team on TradeStone. Accept the invite to get access to your job list, timesheets and site tools from your phone.`),
+        ctaButton(type, "Accept Invitation", d.ctaUrl),
+        footerNote("This invitation was sent by your employer via TradeStone. If you weren't expecting this, you can ignore this email."),
+      ].join("\n");
+      return shell(type, inner);
+    }
   }
 }
 
@@ -455,6 +477,10 @@ export function buildSubject(type: EmailType, data: EmailData): string {
     case "cooling_off_notice": {
       const d = data as CoolingOffNoticeData;
       return `Your Cancellation Rights — ${d.jobTitle} — TradeStone`;
+    }
+    case "team_invitation": {
+      const d = data as TeamInvitationData;
+      return `You've been invited to join ${d.contractorName} — TradeStone`;
     }
   }
 }

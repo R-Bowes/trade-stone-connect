@@ -46,6 +46,7 @@ import type { Database } from "@/integrations/supabase/types";
 type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 type Certification = Database["public"]["Tables"]["team_member_certifications"]["Row"];
 type Absence = Database["public"]["Tables"]["team_member_absences"]["Row"];
+type TeamInvitation = Database["public"]["Tables"]["team_invitations"]["Row"];
 type ContractorProfile = {
   id: string;
   full_name: string | null;
@@ -169,6 +170,8 @@ export function TeamManagement() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [activeJobCounts, setActiveJobCounts] = useState<Record<string, number>>({});
   const [certSummaries, setCertSummaries] = useState<Record<string, CertSummary>>({});
+  const [invitations, setInvitations] = useState<Record<string, TeamInvitation>>({});
+  const [inviteTarget, setInviteTarget] = useState<TeamMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -227,11 +230,12 @@ export function TeamManagement() {
       if (memberIds.length === 0) {
         setActiveJobCounts({});
         setCertSummaries({});
+        setInvitations({});
         setLoading(false);
         return;
       }
 
-      const [assignmentsRes, certsRes] = await Promise.all([
+      const [assignmentsRes, certsRes, invitationsRes] = await Promise.all([
         supabase
           .from("job_assignments")
           .select("team_member_id, job:jobs(status)")
@@ -240,10 +244,24 @@ export function TeamManagement() {
           .from("team_member_certifications")
           .select("team_member_id, status")
           .in("team_member_id", memberIds),
+        supabase
+          .from("team_invitations")
+          .select("*")
+          .in("team_member_id", memberIds)
+          .order("created_at", { ascending: false }),
       ]);
 
       if (assignmentsRes.error) throw assignmentsRes.error;
       if (certsRes.error) throw certsRes.error;
+      if (invitationsRes.error) throw invitationsRes.error;
+
+      // Latest invitation per member — created_at desc means the first row
+      // seen per team_member_id is the current one.
+      const latestInvitations: Record<string, TeamInvitation> = {};
+      for (const row of invitationsRes.data ?? []) {
+        if (!latestInvitations[row.team_member_id]) latestInvitations[row.team_member_id] = row;
+      }
+      setInvitations(latestInvitations);
 
       const jobCounts: Record<string, number> = {};
       for (const row of assignmentsRes.data ?? []) {
@@ -394,6 +412,104 @@ export function TeamManagement() {
     }
   };
 
+  const sendInvitationEmail = async (invitationId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await supabase.functions.invoke("send-team-invitation", {
+      body: { invitation_id: invitationId },
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (response.error) throw new Error(response.error.message);
+  };
+
+  const handleInvite = async (member: TeamMember) => {
+    if (!contractorId) return;
+    const email = member.email?.trim();
+    if (!email) {
+      toast.error("Add an email address for this team member first");
+      return;
+    }
+    try {
+      const existing = invitations[member.id];
+      const token = crypto.randomUUID();
+      let invitationId: string;
+
+      if (existing && existing.status !== "accepted") {
+        // Reuse the row rather than accumulating one per invite attempt —
+        // a fresh token invalidates any previously-sent link.
+        const { data, error } = await supabase
+          .from("team_invitations")
+          .update({
+            email,
+            token,
+            status: "pending",
+            expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            accepted_at: null,
+            accepted_by: null,
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        invitationId = data.id;
+        setInvitations((prev) => ({ ...prev, [member.id]: data }));
+      } else {
+        const { data, error } = await supabase
+          .from("team_invitations")
+          .insert({
+            team_member_id: member.id,
+            contractor_id: contractorId,
+            email,
+            token,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        invitationId = data.id;
+        setInvitations((prev) => ({ ...prev, [member.id]: data }));
+      }
+
+      await sendInvitationEmail(invitationId);
+      toast.success(`Invitation sent to ${email}`);
+      setInviteTarget(null);
+    } catch (error) {
+      console.error("Error sending invitation:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to send invitation");
+    }
+  };
+
+  const handleResendInvite = async (member: TeamMember) => {
+    await handleInvite(member);
+  };
+
+  const handleRevokeInvite = async (member: TeamMember) => {
+    const invitation = invitations[member.id];
+    if (!invitation) return;
+    try {
+      const { data, error } = await supabase
+        .from("team_invitations")
+        .update({ status: "revoked" })
+        .eq("id", invitation.id)
+        .select()
+        .single();
+      if (error) throw error;
+      setInvitations((prev) => ({ ...prev, [member.id]: data }));
+      toast.success("Invitation revoked");
+    } catch (error) {
+      console.error("Error revoking invitation:", error);
+      toast.error("Failed to revoke invitation");
+    }
+  };
+
+  const invitationStatus = (member: TeamMember): "not_invited" | "pending" | "accepted" | "expired" | "revoked" => {
+    const invitation = invitations[member.id];
+    if (member.profile_id) return "accepted";
+    if (!invitation) return "not_invited";
+    if (invitation.status === "accepted") return "accepted";
+    if (invitation.status === "revoked") return "revoked";
+    if (invitation.status === "expired" || new Date(invitation.expires_at) <= new Date()) return "expired";
+    return "pending";
+  };
+
   const handleSaveSelf = async (fullName: string, hourlyRate: string) => {
     if (!contractorId) return;
     if (!fullName.trim()) {
@@ -503,11 +619,15 @@ export function TeamManagement() {
             member={member}
             activeJobs={activeJobCounts[member.id] ?? 0}
             certSummary={certSummaries[member.id] ?? "none"}
+            invitationStatus={invitationStatus(member)}
             onEdit={() => openEditDialog(member)}
             onViewCerts={() => setCertMember(member)}
             onLogAbsence={() => setAbsenceMember(member)}
             onToggleStatus={() => setDeactivateTarget(member)}
             onUploadPhoto={() => setPhotoTarget({ kind: "member", member })}
+            onInvite={() => setInviteTarget(member)}
+            onResendInvite={() => handleResendInvite(member)}
+            onRevokeInvite={() => handleRevokeInvite(member)}
           />
         ))}
       </div>
@@ -584,6 +704,14 @@ export function TeamManagement() {
         />
       )}
 
+      {inviteTarget && (
+        <InviteDialog
+          member={inviteTarget}
+          onClose={() => setInviteTarget(null)}
+          onSend={handleInvite}
+        />
+      )}
+
       {selfEditOpen && contractorProfile && (
         <SelfEditDialog
           profile={contractorProfile}
@@ -639,24 +767,52 @@ function StatusPill({ status }: { status: string | null }) {
   return <Badge className={cn("capitalize", map[value] ?? map.active)}>{value}</Badge>;
 }
 
+type InvitationStatus = "not_invited" | "pending" | "accepted" | "expired" | "revoked";
+
+function InvitationStatusPill({ status }: { status: InvitationStatus }) {
+  const map: Record<InvitationStatus, string> = {
+    not_invited: "bg-gray-100 text-gray-700 hover:bg-gray-100",
+    pending: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+    accepted: "bg-green-100 text-green-800 hover:bg-green-100",
+    expired: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+    revoked: "bg-red-100 text-red-800 hover:bg-red-100",
+  };
+  const label: Record<InvitationStatus, string> = {
+    not_invited: "Not invited",
+    pending: "Invite pending",
+    accepted: "Platform access",
+    expired: "Invite expired",
+    revoked: "Invite revoked",
+  };
+  return <Badge className={map[status]}>{label[status]}</Badge>;
+}
+
 function MemberCard({
   member,
   activeJobs,
   certSummary,
+  invitationStatus,
   onEdit,
   onViewCerts,
   onLogAbsence,
   onToggleStatus,
   onUploadPhoto,
+  onInvite,
+  onResendInvite,
+  onRevokeInvite,
 }: {
   member: TeamMember;
   activeJobs: number;
   certSummary: CertSummary;
+  invitationStatus: InvitationStatus;
   onEdit: () => void;
   onViewCerts: () => void;
   onLogAbsence: () => void;
   onToggleStatus: () => void;
   onUploadPhoto: () => void;
+  onInvite: () => void;
+  onResendInvite: () => void;
+  onRevokeInvite: () => void;
 }) {
   const rate = member.hourly_rate !== null
     ? `${formatGBP(member.hourly_rate)}/hr`
@@ -703,6 +859,26 @@ function MemberCard({
               <DropdownMenuItem onClick={onLogAbsence}>
                 <i className="ti ti-calendar-off mr-2" /> Log absence
               </DropdownMenuItem>
+              {invitationStatus === "not_invited" && (
+                <DropdownMenuItem onClick={onInvite}>
+                  <i className="ti ti-send mr-2" /> Invite to platform
+                </DropdownMenuItem>
+              )}
+              {(invitationStatus === "pending" || invitationStatus === "expired") && (
+                <>
+                  <DropdownMenuItem onClick={onResendInvite}>
+                    <i className="ti ti-refresh mr-2" /> Resend invitation
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onRevokeInvite}>
+                    <i className="ti ti-ban mr-2" /> Revoke invitation
+                  </DropdownMenuItem>
+                </>
+              )}
+              {invitationStatus === "revoked" && (
+                <DropdownMenuItem onClick={onInvite}>
+                  <i className="ti ti-send mr-2" /> Re-invite to platform
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={onToggleStatus}>
                 <i className={cn("mr-2", member.status === "active" ? "ti ti-user-off" : "ti ti-user-check")} />
                 {member.status === "active" ? "Deactivate" : "Reactivate"}
@@ -728,8 +904,71 @@ function MemberCard({
             Certs
           </span>
         </div>
+
+        <div className="flex items-center justify-between border-t pt-3">
+          <span className="text-xs text-muted-foreground">Field app access</span>
+          <InvitationStatusPill status={invitationStatus} />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function InviteDialog({
+  member,
+  onClose,
+  onSend,
+}: {
+  member: TeamMember;
+  onClose: () => void;
+  onSend: (member: TeamMember) => Promise<void>;
+}) {
+  const [email, setEmail] = useState(member.email ?? "");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      await onSend({ ...member, email });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !sending && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite to platform — {member.full_name}</DialogTitle>
+          <DialogDescription>
+            Gives {member.full_name} their own TradeStone sign-in to view assigned jobs, log time and
+            update job progress from their phone at /field.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="invite_email">Email address</Label>
+            <Input
+              id="invite_email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              The invitation link can only be accepted by an account signed up with this exact email address.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={handleSend} disabled={sending || !email.trim()} className="w-full">
+            {sending ? "Sending…" : "Send invitation"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

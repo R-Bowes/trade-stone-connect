@@ -36,6 +36,31 @@ const Dashboard = () => {
         return;
       }
 
+      // Team member sub-account check — takes priority over the normal
+      // user_type switch below. A user with an active team_members row who
+      // has no jobs of their own as a contractor is a field engineer, not
+      // a contractor account, regardless of what profiles.user_type says
+      // (team members sign up through the ordinary flow, which defaults
+      // user_type to 'personal' — see handle_new_user).
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("profile_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (teamMember) {
+        const { count: ownJobsCount } = await supabase
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("contractor_id", user.id);
+
+        if (!ownJobsCount) {
+          navigate("/field", { replace: true });
+          return;
+        }
+      }
+
       // Get user profile to determine type
       const { data: profile, error } = await supabase
         .from("profiles")

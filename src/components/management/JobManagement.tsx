@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import JobPhotosTab from "@/components/JobPhotosTab";
 import { JobEquipmentMaterials } from "@/components/JobEquipmentMaterials";
+import { JobChecklistPanel } from "@/components/management/JobChecklistPanel";
 import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { generateJobRecordPdf } from "@/lib/generateJobRecordPdf";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
@@ -221,6 +222,7 @@ export function JobManagement() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [showPhotos, setShowPhotos] = useState(false);
   const [showEquipment, setShowEquipment] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [originOpen, setOriginOpen] = useState(false);
   const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
   const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
@@ -1303,6 +1305,17 @@ export function JobManagement() {
                         {showEquipment ? "Hide kit" : "Tools & materials"}
                       </Button>
                     )}
+                    {contractorProfileId && selectedJob.status !== "cancelled" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setShowChecklist((v) => !v)}
+                      >
+                        <i className="ti ti-checklist h-4 w-4 mr-1" />
+                        {showChecklist ? "Hide checklist" : "Checklist"}
+                      </Button>
+                    )}
                   </div>
                   {/* Right: status actions */}
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1486,6 +1499,16 @@ export function JobManagement() {
                       jobId={selectedJob.id}
                       contractorProfileId={contractorProfileId}
                       isContractor={true}
+                    />
+                  </div>
+                )}
+
+                {/* Expandable checklist */}
+                {showChecklist && contractorProfileId && selectedJob.status !== "cancelled" && (
+                  <div className="rounded-md border p-4">
+                    <JobChecklistPanel
+                      jobId={selectedJob.id}
+                      contractorId={contractorProfileId}
                     />
                   </div>
                 )}

@@ -36,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
       { value: "work-orders", label: "Work Orders", icon: "ti-clipboard-list" },
       { value: "messages", label: "Messages", icon: "ti-message" },
       { value: "rams-templates", label: "RAMS Templates", icon: "ti-clipboard-check" },
+      { value: "checklist-templates", label: "Checklist Templates", icon: "ti-checklist" },
     ],
   },
   {

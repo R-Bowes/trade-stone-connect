@@ -14,6 +14,7 @@ const ALLOWED_ORIGINS = [
   "https://www.tradesltd.co.uk",
   "http://localhost:5173",
   "http://localhost:4173",
+  "http://localhost:8080",
 ];
 
 const getCorsHeaders = (origin: string | null): HeadersInit => {

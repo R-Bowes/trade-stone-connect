@@ -25,6 +25,7 @@ import { ProfileEditor } from "@/components/management/ProfileEditor";
 import { CanvasEditor } from "@/components/profile/CanvasEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
+import { ChecklistTemplates } from "@/components/management/ChecklistTemplates";
 import { AvailabilityManagement } from "@/components/management/AvailabilityManagement";
 import { TimesheetManagement } from "@/components/management/TimesheetManagement";
 import { InventoryManagement } from "@/components/management/InventoryManagement";
@@ -702,6 +703,7 @@ const ContractorDashboard = () => {
 
           <TabsContent value="jobs"><JobManagement /></TabsContent>
           <TabsContent value="rams-templates"><RamsTemplateManagement /></TabsContent>
+          <TabsContent value="checklist-templates"><ChecklistTemplates /></TabsContent>
           <TabsContent value="work-orders"><WorkOrderInbox /></TabsContent>
           <TabsContent value="ppm-visits" className="space-y-6">
             {profileId ? <PpmVisits profileId={profileId} /> : (
