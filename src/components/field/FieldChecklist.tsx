@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Check, Loader2, Plus } from "lucide-react";
 import { ORANGE } from "./FieldHeader";
@@ -24,7 +25,6 @@ export default function FieldChecklist({
   const [newText, setNewText] = useState("");
   const [newStage, setNewStage] = useState<Stage>("work_started");
   const [adding, setAdding] = useState(false);
-  const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -43,9 +43,13 @@ export default function FieldChecklist({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  // Optimistic toggle: on bad signal a tick must show instantly and never
+  // silently vanish — flip local state first, roll back with a retryable
+  // error toast if the write fails.
   const toggle = async (item: ChecklistItem) => {
-    setSavingId(item.id);
     const nextChecked = !item.is_checked;
+    setItems((cur) => cur.map((i) => (i.id === item.id ? { ...i, is_checked: nextChecked } : i)));
+
     const { error } = await supabase
       .from("job_checklist_items")
       .update({
@@ -54,16 +58,14 @@ export default function FieldChecklist({
         checked_at: nextChecked ? new Date().toISOString() : null,
       })
       .eq("id", item.id);
-    if (!error) {
-      setItems((cur) =>
-        cur.map((i) =>
-          i.id === item.id
-            ? { ...i, is_checked: nextChecked, checked_by: nextChecked ? ownProfileId : null }
-            : i,
-        ),
-      );
+
+    if (error) {
+      setItems((cur) => cur.map((i) => (i.id === item.id ? { ...i, is_checked: !nextChecked } : i)));
+      toast.error("Couldn't save that tick", {
+        description: "Check your signal and try again.",
+        action: { label: "Retry", onClick: () => toggle(item) },
+      });
     }
-    setSavingId(null);
   };
 
   const addItem = async () => {
@@ -82,7 +84,9 @@ export default function FieldChecklist({
       })
       .select()
       .single();
-    if (!error && data) {
+    if (error) {
+      toast.error("Couldn't add item", { description: "Check your signal and try again." });
+    } else if (data) {
       setItems((cur) => [...cur, data]);
       setNewText("");
     }
@@ -106,7 +110,7 @@ export default function FieldChecklist({
         if (stageItems.length === 0) return null;
         return (
           <div key={stage}>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
               {STAGE_LABEL[stage]}
             </p>
             <div className="divide-y border-y">
@@ -115,20 +119,22 @@ export default function FieldChecklist({
                   key={item.id}
                   type="button"
                   onClick={() => toggle(item)}
-                  disabled={savingId === item.id}
-                  className="w-full flex items-center gap-3 px-1 py-2.5 text-left disabled:opacity-60"
+                  className="w-full flex items-center gap-3 py-3 px-1 text-left"
+                  style={{ minHeight: 44 }}
                 >
                   <span
-                    className="shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center"
-                    style={
-                      item.is_checked
+                    className="shrink-0 rounded border-2 flex items-center justify-center"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      ...(item.is_checked
                         ? { backgroundColor: ORANGE, borderColor: ORANGE }
-                        : { borderColor: "#cbd5e1" }
-                    }
+                        : { borderColor: "#cbd5e1" }),
+                    }}
                   >
-                    {item.is_checked && <Check className="h-3.5 w-3.5 text-white" />}
+                    {item.is_checked && <Check className="h-4 w-4 text-white" />}
                   </span>
-                  <span className={`text-sm ${item.is_checked ? "line-through text-muted-foreground" : ""}`}>
+                  <span className={`text-base ${item.is_checked ? "line-through text-muted-foreground" : ""}`}>
                     {item.item_text}
                   </span>
                 </button>
@@ -143,18 +149,21 @@ export default function FieldChecklist({
       )}
 
       <div className="pt-2 space-y-2">
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {stages.map((stage) => (
             <button
               key={stage}
               type="button"
               onClick={() => setNewStage(stage)}
-              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                newStage === stage
-                  ? "text-white border-transparent"
-                  : "border-muted-foreground/30 text-muted-foreground"
-              }`}
-              style={newStage === stage ? { backgroundColor: "#1a2744" } : undefined}
+              className="rounded-full border font-medium transition-colors"
+              style={{
+                minHeight: 36,
+                padding: "0 14px",
+                fontSize: 14,
+                ...(newStage === stage
+                  ? { backgroundColor: "#1a2744", borderColor: "#1a2744", color: "#fff" }
+                  : { borderColor: "#cbd5e1", color: "#6b7280" }),
+              }}
             >
               {STAGE_LABEL[stage]}
             </button>
@@ -168,16 +177,17 @@ export default function FieldChecklist({
               if (e.key === "Enter") addItem();
             }}
             placeholder="Add item…"
-            className="flex-1 rounded-md border px-3 py-2 text-sm"
+            className="flex-1 rounded-md border px-3"
+            style={{ fontSize: 16, minHeight: 44 }}
           />
           <button
             type="button"
             onClick={addItem}
             disabled={adding || !newText.trim()}
-            className="shrink-0 rounded-md px-3 flex items-center justify-center disabled:opacity-50"
-            style={{ backgroundColor: ORANGE, color: "#fff" }}
+            className="shrink-0 rounded-md flex items-center justify-center disabled:opacity-50"
+            style={{ backgroundColor: ORANGE, color: "#fff", width: 44, height: 44 }}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
           </button>
         </div>
       </div>

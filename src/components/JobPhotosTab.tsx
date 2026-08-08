@@ -157,10 +157,16 @@ export default function JobPhotosTab({
 
   const loadPhotos = async () => {
     setLoading(true);
+    // Signature captures (tags @> {signature}, written by the field view's
+    // completion flow — see FieldSignature.tsx) are job_photos rows so they
+    // can reuse the same bucket/RLS, but they are NOT a job photo: exclude
+    // them here so the contractor can never accidentally toggle one to
+    // customer-visible or portfolio through this tab's controls.
     const { data, error } = await (supabase as any)
       .from("job_photos")
       .select("*")
       .eq("job_id", jobId)
+      .not("tags", "cs", '{signature}')
       .order("created_at", { ascending: false });
 
     if (error) {

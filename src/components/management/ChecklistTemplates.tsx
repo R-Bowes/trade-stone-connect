@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Database } from "@/integrations/supabase/types";
+import { JOB_TYPES } from "@/lib/jobLabels";
 
 type TemplateRow = Database["public"]["Tables"]["job_checklist_templates"]["Row"];
 type Stage = "work_started" | "final_checks";
@@ -39,15 +40,6 @@ const STAGE_LABEL: Record<Stage, string> = {
   work_started: "Work started",
   final_checks: "Final checks",
 };
-
-const JOB_TYPES = [
-  { value: "service_visit", label: "Service visit" },
-  { value: "repair", label: "Repair" },
-  { value: "installation", label: "Installation" },
-  { value: "inspection", label: "Inspection" },
-  { value: "emergency", label: "Emergency" },
-  { value: "other", label: "Other" },
-];
 
 interface Template {
   name: string;

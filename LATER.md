@@ -761,16 +761,32 @@ public client ratings; automatic service refusal based on payment history.
 
 ## Tech debt / known issues to revisit
 
-- **Field view cosmetic gaps** (`/field`, team member sub-account build,
-  2026-08-08). Job list and detail show `jobs.title` rather than the
-  address — should lead with `location` and fall back to `title`. Bare em
-  dashes render where `description`/scheduled time are null — omit the
-  line entirely instead of showing "—". Job detail has no address block,
-  Navigate, or Call button wired up for every job (only where `location`
-  is present). Photo upload and clock in/out have not been tested in an
-  actual browser — data-layer only, via simulated-session SQL. Tier B
+- **Field view — untested in browser** (`/field`, team member sub-account
+  build, 2026-08-08). The location-first rendering, address block,
+  Navigate/Call buttons, and bare-em-dash gaps noted here previously are
+  fixed as of the status/signature/notes build (2026-08-09). Still
+  untested in an actual browser: photo capture + client-side compression,
+  clock in/out across a real shift, signature capture with a finger on a
+  real touchscreen, the status stepper against the live
+  `enforce_job_status_transition` trigger (in particular the
+  snagging→complete block on unresolved snag items), and the Tier B
   boundary (invoices/quotes/enquiries/finance never reachable from
-  `/field`) is untested beyond "no code path references them."
+  `/field`) beyond "no code path references them."
+- **`jobs` Tier A UPDATE policy is row-level only, not column-level** — a
+  team member can write `contractor_signed_off_at`/`contractor_signed_off_name`
+  (the CONTRACTOR's own counter-signature, i.e. the firm asserting it
+  considers the work done) on any of their employer's jobs, because
+  Postgres RLS has no column-level restriction and the Tier A jobs UPDATE
+  policy (`20260808110000`) grants the whole row. This was never a
+  deliberate decision — it's a side effect of RLS's row-level nature
+  discovered while scoping the field completion flow. Nothing in this
+  build's UI currently exposes a way to trigger it from `/field` (the field
+  view writes `status` and the new `site_signed_off_*` columns only), but
+  the RLS layer itself does not prevent a team member writing those two
+  columns directly via the API. Column-level restriction needs either a
+  trigger guard (reject the write unless the actor is the contractor
+  themselves) or moving contractor sign-off to a SECURITY DEFINER RPC —
+  RLS cannot express "this column, only this actor" on its own.
 - **Jobs minted from quotes have no site details.** `location`,
   `description`, `job_type`, and `scheduled_start` are all NULL on jobs
   created via `mint_job_from_quote` — confirmed against live `jobs` rows.

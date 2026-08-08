@@ -119,7 +119,8 @@ export function useContractorScoreBreakdown() {
         .from("job_photos")
         .select("job_id, photo_stage")
         .in("job_id", completedJobs.map((j) => j.id))
-        .not("photo_stage", "is", null);
+        .not("photo_stage", "is", null)
+        .not("tags", "cs", '{signature}');
       photoDocumentedJobs = new Set((photoRows ?? []).map((p) => p.job_id)).size;
     }
 

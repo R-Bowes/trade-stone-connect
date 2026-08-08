@@ -183,12 +183,15 @@ export function useJobPhotos(jobId: string | null) {
     if (!jobId) return;
     setLoading(true);
     // RLS ("Clients can view job photos") already restricts this to
-    // visibility='customer' rows for the client's own job — nothing to
-    // filter client-side.
+    // visibility='customer' rows for the client's own job, and signature
+    // captures are always inserted with visibility='internal' — so this is
+    // belt-and-braces, not the only thing standing between a customer and
+    // their own signature image.
     const { data, error } = await supabase
       .from("job_photos")
       .select("*")
       .eq("job_id", jobId)
+      .not("tags", "cs", '{signature}')
       .order("created_at", { ascending: true });
     if (!error) {
       setPhotos(

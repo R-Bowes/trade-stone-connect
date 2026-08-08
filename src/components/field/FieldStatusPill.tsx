@@ -13,8 +13,8 @@ export default function FieldStatusPill({ status }: { status: string }) {
   const style = STYLE[status as JobStatus] ?? STYLE.scheduled;
   return (
     <span
-      className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide"
-      style={{ backgroundColor: style.bg, color: style.fg }}
+      className="inline-block px-2.5 py-1 rounded font-semibold uppercase tracking-wide"
+      style={{ backgroundColor: style.bg, color: style.fg, fontSize: 14 }}
     >
       {style.label}
     </span>

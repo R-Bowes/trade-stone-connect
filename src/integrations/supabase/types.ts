@@ -2026,6 +2026,7 @@ export type Database = {
       }
       engagement_notes: {
         Row: {
+          author_id: string | null
           content: string
           contractor_id: string
           created_at: string
@@ -2036,6 +2037,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          author_id?: string | null
           content: string
           contractor_id: string
           created_at?: string
@@ -2046,6 +2048,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          author_id?: string | null
           content?: string
           contractor_id?: string
           created_at?: string
@@ -2056,6 +2059,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "engagement_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "engagement_notes_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -4454,6 +4471,9 @@ export type Database = {
           signed_off_at: string | null
           signed_off_by: string | null
           site_id: string | null
+          site_signed_off_at: string | null
+          site_signed_off_by: string | null
+          site_signed_off_name: string | null
           sla_attendance_due: string | null
           sla_completion_due: string | null
           sla_resolution_due: string | null
@@ -4495,6 +4515,9 @@ export type Database = {
           signed_off_at?: string | null
           signed_off_by?: string | null
           site_id?: string | null
+          site_signed_off_at?: string | null
+          site_signed_off_by?: string | null
+          site_signed_off_name?: string | null
           sla_attendance_due?: string | null
           sla_completion_due?: string | null
           sla_resolution_due?: string | null
@@ -4536,6 +4559,9 @@ export type Database = {
           signed_off_at?: string | null
           signed_off_by?: string | null
           site_id?: string | null
+          site_signed_off_at?: string | null
+          site_signed_off_by?: string | null
+          site_signed_off_name?: string | null
           sla_attendance_due?: string | null
           sla_completion_due?: string | null
           sla_resolution_due?: string | null
@@ -4631,6 +4657,20 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_site_signed_off_by_fkey"
+            columns: ["site_signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_site_signed_off_by_fkey"
+            columns: ["site_signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
           {

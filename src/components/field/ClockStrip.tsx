@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { ORANGE } from "./FieldHeader";
+import { ORANGE, NAVY } from "./FieldHeader";
 
 interface OpenTimesheet {
   id: string;
@@ -33,6 +32,12 @@ function elapsedLabel(arrivedAt: string): string {
  * Attendance clock — a general "start/end my day" timesheet row
  * (job_id null), distinct from any per-job time logging. Clock in inserts,
  * clock out updates the same row.
+ *
+ * Fixed to the bottom of the viewport, not pinned to the top: this is a
+ * primary, frequent, one-handed action and the brief specifically calls it
+ * out as needing to sit where the thumb naturally falls. The job list
+ * scroll area carries bottom padding (see FieldJobList) so the last row is
+ * never hidden behind this bar.
  */
 export default function ClockStrip({
   teamMemberId,
@@ -44,7 +49,7 @@ export default function ClockStrip({
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<OpenTimesheet | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -115,45 +120,49 @@ export default function ClockStrip({
     if (!error) await load();
   };
 
-  if (loading) {
-    return (
-      <div className="px-4 py-3 border-b bg-white flex items-center justify-center">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
-    <div className="px-4 py-3 border-b bg-white flex items-center justify-between">
-      {open ? (
-        <>
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Clocked in</p>
-            <p
-              className="text-xl font-semibold tabular-nums"
-              style={{ fontFamily: "'Roboto Mono', monospace" }}
-            >
-              {elapsedLabel(open.arrived_at)}
-            </p>
+    <div style={{ backgroundColor: "#ffffff", borderTop: "1px solid #e5e7eb" }} className="sticky bottom-0 z-20">
+      <div className="max-w-xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        {loading ? (
+          <div className="flex-1 flex justify-center py-1.5">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={handleClockOut}
-            className="border-2"
-            style={{ borderColor: ORANGE, color: ORANGE }}
-          >
-            {busy ? "…" : "Clock out"}
-          </Button>
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground">Not clocked in</p>
-          <Button disabled={busy} onClick={handleClockIn} style={{ backgroundColor: ORANGE, color: "#fff" }}>
-            {busy ? "…" : "Clock in"}
-          </Button>
-        </>
-      )}
+        ) : open ? (
+          <>
+            <div>
+              <p className="text-sm text-muted-foreground">Clocked in</p>
+              <p
+                className="text-xl font-semibold tabular-nums"
+                style={{ fontFamily: "'Roboto Mono', monospace", color: NAVY }}
+              >
+                {elapsedLabel(open.arrived_at)}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleClockOut}
+              className="rounded-lg border-2 font-semibold disabled:opacity-60"
+              style={{ borderColor: ORANGE, color: ORANGE, minHeight: 48, minWidth: 120, fontSize: 16 }}
+            >
+              {busy ? "…" : "Clock out"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">Not clocked in</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleClockIn}
+              className="rounded-lg font-semibold text-white disabled:opacity-60"
+              style={{ backgroundColor: ORANGE, minHeight: 48, minWidth: 120, fontSize: 16 }}
+            >
+              {busy ? "…" : "Clock in"}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
