@@ -194,6 +194,15 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         client_name: enquiry.customer_name ?? "",
         client_email: enquiry.customer_email ?? "",
         client_phone: enquiry.customer_phone ?? null,
+        // Carried from the enquiry so the quote — a customer-facing document —
+        // states the site address in its own right, not only once a job is
+        // later minted from it. Previously never written here at all: the
+        // dialog showed enquiry.location read-only but the insert dropped it,
+        // leaving client_address (and therefore the quote PDF's address line,
+        // and jobs.location for every job minted from an enquiry-originated
+        // quote) null. mint_job_from_quote keeps its own COALESCE fallback to
+        // enquiries.location as a safety net for quotes issued before this fix.
+        client_address: enquiry.location || null,
         client_type: "customer",
         title: title.trim(),
         description: description.trim() || null,

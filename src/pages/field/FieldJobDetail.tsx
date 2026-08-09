@@ -10,7 +10,7 @@ import FieldSignatureCapture from "@/components/field/FieldSignatureCapture";
 import FieldChecklist from "@/components/field/FieldChecklist";
 import FieldPhotos from "@/components/field/FieldPhotos";
 import FieldNotes from "@/components/field/FieldNotes";
-import { jobTypeLabel } from "@/lib/jobLabels";
+import { jobTypeLabel, jobHeading } from "@/lib/jobLabels";
 import type { Database } from "@/integrations/supabase/types";
 
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
@@ -87,9 +87,10 @@ export default function FieldJobDetail() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col" style={{ fontFamily: "Lexend, sans-serif" }}>
-      {/* Location first, title only as fallback — same reasoning as the
-          list row (mint-from-quote auto-titles are meaningless on site). */}
-      <FieldHeader title={job.location || job.title || "Job"} onBack={() => navigate("/field")} />
+      {/* Location, then customer name + job type, then title as a last
+          resort — see jobLabels.ts's jobHeading(). Mint-from-quote
+          auto-titles ("Quote for X") are meaningless on site. */}
+      <FieldHeader title={jobHeading(job, customer?.full_name)} onBack={() => navigate("/field")} />
 
       <div className="flex-1 w-full max-w-xl mx-auto pb-4">
         <div className="px-4 py-3 border-b flex items-center gap-2">

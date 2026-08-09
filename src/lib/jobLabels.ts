@@ -17,3 +17,22 @@ export function jobTypeLabel(jobType: string | null): string | null {
   if (!jobType) return null;
   return JOB_TYPE_LABELS[jobType] ?? jobType;
 }
+
+/**
+ * Field-view display heading for a job. Chain: location (what an engineer
+ * actually needs on site) -> customer name + readable job type (still
+ * meaningful when there's no address on file) -> title as a last resort
+ * (never an empty/placeholder line — jobs.title is NOT NULL and, as of
+ * 20260808140000, mint_job_from_quote never produces an empty one either).
+ */
+export function jobHeading(
+  job: { location: string | null; title: string; job_type: string | null },
+  customerName?: string | null,
+): string {
+  if (job.location) return job.location;
+  if (customerName) {
+    const type = jobTypeLabel(job.job_type);
+    return type ? `${customerName} · ${type}` : customerName;
+  }
+  return job.title;
+}
