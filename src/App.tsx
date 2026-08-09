@@ -46,6 +46,7 @@ import ContractorLayout from "./components/ContractorLayout";
 import FieldGuard from "./components/field/FieldGuard";
 import FieldJobList from "./pages/field/FieldJobList";
 import FieldJobDetail from "./pages/field/FieldJobDetail";
+import { TeamMembershipProvider } from "./contexts/TeamMembershipContext";
 
 const queryClient = new QueryClient();
 
@@ -88,8 +89,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <PageTracker />
-        <Routes>
+        {/*
+          No dedicated AuthProvider exists in this codebase — Header,
+          ProtectedRoute, Dashboard etc. each track supabase.auth session
+          state independently. TeamMembershipProvider follows that same
+          established pattern (own onAuthStateChange subscription) rather
+          than introducing a new auth abstraction. It sits above <Routes>
+          so every route (and the route-external ConditionalFooter) can
+          consume the same cached team-membership answer via
+          useTeamMembership().
+        */}
+        <TeamMembershipProvider>
+          <PageTracker />
+          <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/contractors" element={<Contractors />} />
@@ -139,8 +151,9 @@ const App = () => (
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
-        </Routes>
-        <ConditionalFooter />
+          </Routes>
+          <ConditionalFooter />
+        </TeamMembershipProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

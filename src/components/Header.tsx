@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, NavLink } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { performSignOut } from "@/lib/signOut";
+import { useTeamMembership } from "@/contexts/TeamMembershipContext";
 import tradestoneLogo from "@/assets/tradestone-logo.png";
 
 interface UserProfile {
@@ -32,7 +33,7 @@ const Header = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { isTeamMember, loading: teamLoading } = useTeamMembership();
 
   useEffect(() => {
     const getSession = async () => {
@@ -78,16 +79,7 @@ const Header = () => {
     setProfile(data);
   };
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({ variant: "destructive", title: "Logout failed", description: error.message });
-      return;
-    }
-
-    toast({ title: "Logged out", description: "You have been logged out successfully." });
-    navigate("/");
-  };
+  const handleLogout = () => performSignOut(navigate);
 
   const handleDropdownNav = (href: string) => {
     setDropdownOpen(false);
@@ -137,31 +129,46 @@ const Header = () => {
     </div>
   );
 
-  // Role-aware base path — used for the home icon, dropdown nav, and brand mark
-  const dashboardPath = user && profile
-    ? profile.user_type === "contractor"
-      ? "/dashboard/contractor"
-      : profile.user_type === "business"
-      ? "/dashboard/business"
-      : "/dashboard/homeowner"
-    : "/";
+  // Role-aware base path — used for the home icon, dropdown nav, and brand
+  // mark. 'personal' user_type is ambiguous — it covers both genuine
+  // homeowners and team member sub-accounts, which must never land on
+  // /dashboard/homeowner (see TeamMembershipContext). While team-membership
+  // status is still resolving, dashboardPath is null rather than guessing
+  // homeowner and correcting later — the three click targets below treat
+  // null as "not ready yet" and omit/disable themselves accordingly.
+  const dashboardPath = !user || !profile
+    ? "/"
+    : profile.user_type === "contractor"
+    ? "/dashboard/contractor"
+    : profile.user_type === "business"
+    ? "/dashboard/business"
+    : teamLoading
+    ? null
+    : isTeamMember
+    ? "/field"
+    : "/dashboard/homeowner";
 
-  const profilePath = profile?.user_type === "contractor"
-    ? `${dashboardPath}?view=canvas-editor`
-    : `${dashboardPath}?view=settings`;
+  const profilePath = dashboardPath
+    ? profile?.user_type === "contractor"
+      ? `${dashboardPath}?view=canvas-editor`
+      : `${dashboardPath}?view=settings`
+    : null;
 
-  const settingsPath = `${dashboardPath}?view=settings`;
+  const settingsPath = dashboardPath ? `${dashboardPath}?view=settings` : null;
 
   const dropdownNavItems = [
-    { icon: "ti-layout-dashboard", label: "My dashboard", href: dashboardPath },
-    { icon: "ti-user", label: "My profile", href: profilePath },
-    { icon: "ti-settings", label: "Account settings", href: settingsPath },
-  ];
+    dashboardPath ? { icon: "ti-layout-dashboard", label: "My dashboard", href: dashboardPath } : null,
+    profilePath ? { icon: "ti-user", label: "My profile", href: profilePath } : null,
+    settingsPath ? { icon: "ti-settings", label: "Account settings", href: settingsPath } : null,
+  ].filter((item): item is { icon: string; label: string; href: string } => item !== null);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-300 bg-white">
       <div className="container flex h-16 items-center justify-between px-4">
-        <Link to={dashboardPath} className="flex items-center gap-2.5">
+        {/* Falls back to "/" while dashboardPath is still resolving (personal
+            user_type, team-membership check in flight) — safe destination,
+            never /dashboard/homeowner. */}
+        <Link to={dashboardPath ?? "/"} className="flex items-center gap-2.5">
           <img src={tradestoneLogo} alt="TradeStone logo" className="h-7 w-auto" />
           <span
             className="leading-none uppercase tracking-wide"
@@ -181,15 +188,19 @@ const Header = () => {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              {/* Home / dashboard shortcut icon */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate(dashboardPath)}
-                title="Go to dashboard"
-              >
-                <i className="ti ti-home" style={{ fontSize: 18 }} />
-              </Button>
+              {/* Home / dashboard shortcut icon — omitted while dashboardPath
+                  is still resolving so it can never point at
+                  /dashboard/homeowner for a not-yet-confirmed team member. */}
+              {dashboardPath && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(dashboardPath)}
+                  title="Go to dashboard"
+                >
+                  <i className="ti ti-home" style={{ fontSize: 18 }} />
+                </Button>
+              )}
 
               <NotificationBell />
 

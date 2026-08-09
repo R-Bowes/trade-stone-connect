@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
+import { useTeamMembership } from "@/contexts/TeamMembershipContext";
 
 type UserRole = "personal" | "business" | "contractor";
 
@@ -22,6 +23,7 @@ const ProtectedRoute = ({
   const [authenticated, setAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const { isTeamMember, loading: teamLoading } = useTeamMembership();
 
   // Tracks whose session is currently loaded, so a SIGNED_IN event for the
   // same user (re-emitted on some token refresh cycles) doesn't trigger a
@@ -118,6 +120,22 @@ const ProtectedRoute = ({
 
   if (!authenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Team members carry user_type = 'personal' — indistinguishable from a
+  // genuine homeowner by userRole alone — so requiredRole="personal" (today,
+  // only /dashboard/homeowner) needs its own membership-aware gate on top of
+  // the ordinary role check below. Scoped to requiredRole === "personal"
+  // deliberately: this is the one route a team member must never render,
+  // per the approved pre-work list — other protected routes don't pay the
+  // extra membership round trip.
+  if (requiredRole === "personal") {
+    if (teamLoading) {
+      return <LoadingState message="Checking your session..." />;
+    }
+    if (isTeamMember) {
+      return <Navigate to="/field" replace />;
+    }
   }
 
   if (requiredRole && userRole && userRole !== requiredRole) {

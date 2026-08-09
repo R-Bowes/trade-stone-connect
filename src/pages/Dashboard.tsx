@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { ErrorState } from "@/components/AsyncState";
 import Header from "@/components/Header";
+import { useTeamMembership } from "@/contexts/TeamMembershipContext";
 
 type UserType = "personal" | "business" | "contractor";
 
@@ -11,8 +12,15 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { isTeamMember, loading: teamLoading } = useTeamMembership();
 
   useEffect(() => {
+    // Wait for the shared team-membership context to resolve before doing
+    // anything — it's the same DB round trip this effect used to run
+    // itself; sourcing it from context instead of a local query is the
+    // only behavioural change here (see TeamMembershipContext.tsx).
+    if (teamLoading) return;
+
     const redirectToDashboard = async () => {
       setLoadError(null);
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -42,14 +50,7 @@ const Dashboard = () => {
       // a contractor account, regardless of what profiles.user_type says
       // (team members sign up through the ordinary flow, which defaults
       // user_type to 'personal' — see handle_new_user).
-      const { data: teamMember } = await supabase
-        .from("team_members")
-        .select("id")
-        .eq("profile_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (teamMember) {
+      if (isTeamMember) {
         const { count: ownJobsCount } = await supabase
           .from("jobs")
           .select("id", { count: "exact", head: true })
@@ -101,7 +102,7 @@ const Dashboard = () => {
     };
 
     redirectToDashboard();
-  }, [navigate]);
+  }, [navigate, teamLoading, isTeamMember]);
 
   if (loadError) {
     return <ErrorState message={loadError} onRetry={() => window.location.reload()} />;
