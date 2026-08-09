@@ -13,6 +13,7 @@ import {
   drawTotalsBlock,
   formatDocNumber,
   wrapText,
+  sanitizeForPdf,
   DARK,
   MID,
   NAVY,
@@ -172,26 +173,26 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
   ensureSpace(80);
   page.drawText("CLIENT", { x: MARGIN, y, size: 8, font: bold, color: MID });
   y -= 14;
-  page.drawText(quote.client_name, { x: MARGIN, y, size: 11, font: bold, color: DARK });
+  page.drawText(sanitizeForPdf(quote.client_name), { x: MARGIN, y, size: 11, font: bold, color: DARK });
   y -= 14;
   if (quote.business_name) {
-    page.drawText(quote.business_name, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    page.drawText(sanitizeForPdf(quote.business_name), { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
   }
   // Platform communications invariant: no phone/email on generated documents
   // — all contact goes via TradeStone messaging.
   for (const line of [quote.client_address].filter(Boolean)) {
-    page.drawText(line as string, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    page.drawText(sanitizeForPdf(line as string), { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
   }
   y -= 8;
 
   // ── Job title + description ─────────────────────────────────────────────────
   ensureSpace(40);
-  page.drawText(quote.title, { x: MARGIN, y, size: 13, font: bold, color: NAVY });
+  page.drawText(sanitizeForPdf(quote.title), { x: MARGIN, y, size: 13, font: bold, color: NAVY });
   y -= 16;
   if (quote.description) {
-    const lines = wrapText(quote.description, regular, 9, PAGE_WIDTH - 2 * MARGIN);
+    const lines = wrapText(sanitizeForPdf(quote.description), regular, 9, PAGE_WIDTH - 2 * MARGIN);
     for (const line of lines) {
       ensureSpace(14);
       page.drawText(line, { x: MARGIN, y, size: 9, font: regular, color: DARK });
@@ -249,7 +250,7 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
       }
       const rowY = y - 12;
       const stageAmount = stage.percentage != null ? (quote.total * stage.percentage) / 100 : 0;
-      page.drawText(`${stage.stage_number}. ${stage.title}`, { x: MARGIN + 6, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(`${stage.stage_number}. ${sanitizeForPdf(stage.title)}`, { x: MARGIN + 6, y: rowY, size: 8, font: regular, color: DARK });
       page.drawText(TRIGGER_LABEL[stage.trigger_type] ?? stage.trigger_type, { x: colTrigger, y: rowY, size: 8, font: regular, color: DARK });
       const pctText = stage.percentage != null ? `${stage.percentage}%` : "—";
       const pctTextW = regular.widthOfTextAtSize(pctText, 8);
@@ -264,7 +265,7 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
 
   if (quote.completion_time) {
     ensureSpace(16);
-    page.drawText(`Estimated completion: ${quote.completion_time}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    page.drawText(`Estimated completion: ${sanitizeForPdf(quote.completion_time)}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 18;
   }
 
@@ -272,7 +273,7 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
     ensureSpace(20);
     page.drawText("TERMS", { x: MARGIN, y, size: 8, font: bold, color: MID });
     y -= 13;
-    for (const line of wrapText(quote.terms, regular, 9, PAGE_WIDTH - 2 * MARGIN)) {
+    for (const line of wrapText(sanitizeForPdf(quote.terms), regular, 9, PAGE_WIDTH - 2 * MARGIN)) {
       ensureSpace(14);
       page.drawText(line, { x: MARGIN, y, size: 9, font: regular, color: DARK });
       y -= 13;
@@ -284,7 +285,7 @@ async function buildQuotePdf(quote: IssuedQuote, contractor: ContractorProfile):
     ensureSpace(20);
     page.drawText("NOTES", { x: MARGIN, y, size: 8, font: bold, color: MID });
     y -= 13;
-    for (const line of wrapText(quote.notes, regular, 9, PAGE_WIDTH - 2 * MARGIN)) {
+    for (const line of wrapText(sanitizeForPdf(quote.notes), regular, 9, PAGE_WIDTH - 2 * MARGIN)) {
       ensureSpace(14);
       page.drawText(line, { x: MARGIN, y, size: 9, font: regular, color: DARK });
       y -= 13;

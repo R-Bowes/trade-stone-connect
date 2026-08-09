@@ -761,6 +761,38 @@ public client ratings; automatic service refusal based on payment history.
 
 ## Tech debt / known issues to revisit
 
+- **`.update()` without `.select()`, then patching local state with what the
+  client sent, diverges from the database wherever a trigger computes a
+  value on that write.** Confirmed root cause of a real bug (2026-08-09):
+  `JobManagement.tsx`'s `changeStatus`/`moveToPrevStatus` sent
+  `{status: nextStatus}` and patched only `status` into local state —
+  `actual_start`/`actual_end` (set server-side by `set_job_timestamps()`)
+  and `sla_status`/`sla_completion_due` (set by `trigger_check_sla_breach()`)
+  never reached the client without a full page reload, which is why a job
+  completed via `/field` (a different tab/session entirely) didn't appear
+  in the "Completed · last 90 days" section — that filter reads
+  `actual_end`. Fixed there by chaining `.select(...).single()` and
+  spreading the full returned row into local state instead of the sent
+  field alone. **Not yet applied to the other call sites with the identical
+  shape** (grepped, not fixed, this pass):
+  - `ThreadJobSection.tsx:68` — `changeStatus`, same `{status: newStatus}`
+    pattern, same missing `.select()`, contractor-side thread view (a
+    second, separate path to the same bug `JobManagement.tsx` had).
+  - `FieldStatusStepper.tsx:50` — `/field`'s own status stepper, identical
+    shape. Lower priority today only because nothing in `/field` currently
+    renders `actual_end`/`sla_status` — but the same trigger-divergence
+    exists the moment something there reads either.
+  - `useQuoteScheduling.ts:640` — `{start_date: confirmedDate}} — worth
+    checking whether anything trigger-derived reacts to `start_date`
+    changes (e.g. `trg_block_date_on_job_confirmed`) before assuming this
+    one's safe.
+  - `ClientJobsView.tsx` (two `jobs` updates, ~205/221),
+    `useCoolingOff.ts:112`, `ProjectDelivery.tsx:464` — not yet checked
+    against which trigger-computed columns each write could be diverging
+    from; listed for the audit, not confirmed bugs.
+  Audit each against the specific triggers on `jobs` (`pg_trigger`, not the
+  migration files, per the completion-certificate audit's own lesson) before
+  deciding whether it needs the same `.select()` fix.
 - **Field view — untested in browser** (`/field`, team member sub-account
   build, 2026-08-08). The location-first rendering, address block,
   Navigate/Call buttons, and bare-em-dash gaps noted here previously are

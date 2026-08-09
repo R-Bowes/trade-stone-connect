@@ -23,6 +23,58 @@ export const LINE = rgb(0.85, 0.85, 0.85);
 
 const FOOTER_TEXT = "Powered by TradeStone · tradesltd.co.uk";
 
+// ── User-text sanitisation ──────────────────────────────────────────────────
+// pdf-lib's standard fonts are WinAnsi-encoded (~Windows-1252) and THROW on
+// any code point outside that set — this is what took the whole PDF down
+// when a ✓ (U+2713) landed in drawText. Verified directly against
+// @pdf-lib/standard-fonts' own shipped encoding table (not guessed): ASCII,
+// Latin-1 supplement (café, naïve, etc.), and a defined set of typographic
+// punctuation — em/en dash, curly quotes, bullet, ellipsis, trademark, euro
+// — are all safe. Checkmarks, arrows, emoji, and most non-Latin scripts are
+// not, and there is no server-side control over what a customer types into
+// a job title, a checklist item on a phone keyboard, or a signatory name.
+// Every user-supplied string must go through this before any drawText call.
+const WINANSI_EXTRA_SAFE = new Set([
+  0x20ac, // €
+  0x2018, 0x2019, // ‘ ’
+  0x201c, 0x201d, // “ ”
+  0x2013, 0x2014, // – —
+  0x2022, // •
+  0x2026, // …
+  0x2122, // ™
+  0x2039, 0x203a, // ‹ ›
+  0x2020, 0x2021, // † ‡
+  0x2030, // ‰
+  0x0152, 0x0153, // Œ œ
+  0x0160, 0x0161, // Š š
+  0x0178, 0x017d, 0x017e, // Ÿ Ž ž
+  0x0192, // ƒ
+  0x02c6, 0x02dc, // ˆ ˜
+]);
+
+export function sanitizeForPdf(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0x3f;
+    if ((cp >= 0x20 && cp <= 0x7e) || (cp >= 0xa0 && cp <= 0xff) || WINANSI_EXTRA_SAFE.has(cp)) {
+      out += ch;
+    } else {
+      out += "?";
+    }
+  }
+  return out;
+}
+
+// ── Vector tick ──────────────────────────────────────────────────────────────
+// Replaces a drawn "✓" glyph, which pdf-lib's WinAnsi standard fonts cannot
+// encode (confirmed: not in the 218-entry table). No custom font embed —
+// disproportionate for one glyph. x/y is the tick's bottom-left origin.
+export function drawTick(page: PDFPage, x: number, y: number, color: RGB, size = 8): void {
+  const s = size / 8;
+  page.drawLine({ start: { x: x, y: y + 3 * s }, end: { x: x + 2.5 * s, y: y }, thickness: 1.3, color });
+  page.drawLine({ start: { x: x + 2.5 * s, y: y }, end: { x: x + 7 * s, y: y + 6 * s }, thickness: 1.3, color });
+}
+
 // ── Text helpers ────────────────────────────────────────────────────────────
 
 // deno-lint-ignore no-explicit-any
@@ -110,8 +162,17 @@ export async function drawContractorHeader(
   font: PDFFont,
   boldFont: PDFFont,
 ): Promise<number> {
+  const startY = y;
   let cursorY = y;
   let textX = MARGIN;
+  // Bottom edge of the logo, if one was drawn — tracked separately from
+  // cursorY because the logo and the text column are two independent
+  // vertical extents from the same startY (logo at MARGIN, text at
+  // textX). The returned cursor must clear whichever is taller, or
+  // content drawn after this call overlaps a logo whose text column
+  // (name/code/address/VAT) is shorter than 56px — exactly what happened
+  // with "COMPLETION CERTIFICATE" overlapping the logo image.
+  let logoBottomY: number | null = null;
 
   // TODO: remote logo embedding. pdf-lib needs raw PNG/JPG bytes, not a URL —
   // fetch, sniff content-type, embed. Any failure (network, unsupported
@@ -134,13 +195,15 @@ export async function drawContractorHeader(
 
         if (image) {
           const dim = image.scaleToFit(56, 56);
+          const logoY = startY - dim.height;
           page.drawImage(image, {
             x: MARGIN,
-            y: cursorY - dim.height,
+            y: logoY,
             width: dim.width,
             height: dim.height,
           });
           textX = MARGIN + 70;
+          logoBottomY = logoY;
         }
       }
     } catch (_err) {
@@ -148,7 +211,7 @@ export async function drawContractorHeader(
     }
   }
 
-  const name = contractor.company_name || contractor.full_name || "Contractor";
+  const name = sanitizeForPdf(contractor.company_name || contractor.full_name || "Contractor");
   cursorY -= 16;
   page.drawText(name, { x: textX, y: cursorY, size: 16, font: boldFont, color: NAVY });
 
@@ -166,7 +229,11 @@ export async function drawContractorHeader(
 
   for (const line of detailLines) {
     cursorY -= 13;
-    page.drawText(line, { x: textX, y: cursorY, size: 10, font, color: DARK });
+    page.drawText(sanitizeForPdf(line), { x: textX, y: cursorY, size: 10, font, color: DARK });
+  }
+
+  if (logoBottomY !== null) {
+    cursorY = Math.min(cursorY, logoBottomY);
   }
 
   return cursorY - 10;
@@ -227,7 +294,7 @@ export function drawLineItemsTable(
       });
     }
     const rowTextY = cursorY - 14;
-    page.drawText(item.description, { x: MARGIN + 6, y: rowTextY, size: 9, font, color: DARK });
+    page.drawText(sanitizeForPdf(item.description), { x: MARGIN + 6, y: rowTextY, size: 9, font, color: DARK });
     drawRightAligned(page, String(item.quantity), colUnit - 8, rowTextY, 9, font, DARK);
     drawRightAligned(page, `${currency}${item.unit_price.toFixed(2)}`, MARGIN + tableWidth - 90, rowTextY, 9, font, DARK);
     drawRightAligned(page, `${currency}${item.total.toFixed(2)}`, MARGIN + tableWidth - 6, rowTextY, 9, font, DARK);

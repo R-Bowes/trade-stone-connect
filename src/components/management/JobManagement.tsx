@@ -590,12 +590,30 @@ export function JobManagement() {
     }
 
     setSavingJobId(job.id);
-    const { error } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", job.id);
+    // .select() chained so the trigger-computed columns (actual_start/
+    // actual_end from set_job_timestamps(), sla_status/sla_completion_due
+    // from trigger_check_sla_breach()) come back from the DB rather than
+    // being silently left stale in local state — patching only the field
+    // the client itself sent (the previous shape here) diverges from the
+    // database wherever a trigger computes a value off this write. This is
+    // exactly what made a job that had just completed not show up in the
+    // "Completed · last 90 days" section: actual_end stayed null locally
+    // until a full page reload.
+    const { data, error } = await supabase
+      .from("jobs")
+      .update({ status: nextStatus })
+      .eq("id", job.id)
+      .select("id, status, actual_start, actual_end, sla_status, sla_completion_due")
+      .single();
 
-    if (error) {
-      toast({ title: "Status update failed", description: error.message, variant: "destructive" });
+    if (error || !data) {
+      toast({ title: "Status update failed", description: error?.message, variant: "destructive" });
     } else {
-      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: nextStatus } : j)));
+      // status re-asserted from the known-good local value rather than
+      // trusting the DB response's shape — the live column is plain text,
+      // wider than the JobStatus union, and the trigger never changes it
+      // out from under this write anyway.
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, ...data, status: nextStatus } : j)));
       // notify_job_status_change notifies both customer_id and contractor_id
       // unconditionally — suppress our own toast for it, we show this one.
       markRecentAction(job.id);
@@ -610,12 +628,18 @@ export function JobManagement() {
     const prevStatus = STATUS_ORDER[statusIdx - 1];
 
     setSavingJobId(job.id);
-    const { error } = await supabase.from("jobs").update({ status: prevStatus }).eq("id", job.id);
+    // Same staleness fix as changeStatus above — see that comment.
+    const { data, error } = await supabase
+      .from("jobs")
+      .update({ status: prevStatus })
+      .eq("id", job.id)
+      .select("id, status, actual_start, actual_end, sla_status, sla_completion_due")
+      .single();
 
-    if (error) {
-      toast({ title: "Status update failed", description: error.message, variant: "destructive" });
+    if (error || !data) {
+      toast({ title: "Status update failed", description: error?.message, variant: "destructive" });
     } else {
-      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: prevStatus } : j)));
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, ...data, status: prevStatus } : j)));
       markRecentAction(job.id);
       toast({ title: "Job moved back", description: `${job.title} moved to ${statusLabel[prevStatus]}.` });
     }

@@ -9,8 +9,10 @@ import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import {
   createBrandedPage,
   drawContractorHeader,
+  drawTick,
   formatDocNumber,
   wrapText,
+  sanitizeForPdf,
   DARK,
   MID,
   NAVY,
@@ -151,7 +153,7 @@ async function buildRamsPdf(
   for (const [label, value] of detailRows) {
     ensureSpace(14);
     page.drawText(`${label}:`, { x: MARGIN, y, size: 9, font: bold, color: DARK });
-    const lines = wrapText(value, regular, 9, PAGE_WIDTH - 2 * MARGIN - 130);
+    const lines = wrapText(sanitizeForPdf(value), regular, 9, PAGE_WIDTH - 2 * MARGIN - 130);
     page.drawText(lines[0] ?? "", { x: MARGIN + 130, y, size: 9, font: regular, color: DARK });
     y -= 13;
     for (const extra of lines.slice(1)) {
@@ -180,8 +182,8 @@ async function buildRamsPdf(
   }
 
   for (const h of ramsRow.hazards) {
-    const hazardLines = wrapText(h.hazard, regular, 8, colRisk - colHazard - 6);
-    const controlLines = wrapText(h.control_measures, regular, 8, colResidual - colControl - 6);
+    const hazardLines = wrapText(sanitizeForPdf(h.hazard), regular, 8, colRisk - colHazard - 6);
+    const controlLines = wrapText(sanitizeForPdf(h.control_measures), regular, 8, colResidual - colControl - 6);
     const rowLines = Math.max(hazardLines.length, controlLines.length, 1);
     const rowHeight = rowLines * 10 + 6;
 
@@ -217,13 +219,13 @@ async function buildRamsPdf(
   }
 
   for (const step of ramsRow.method_steps) {
-    const lines = wrapText(step.description, regular, 9, PAGE_WIDTH - 2 * MARGIN - 30);
+    const lines = wrapText(sanitizeForPdf(step.description), regular, 9, PAGE_WIDTH - 2 * MARGIN - 30);
     ensureSpace(lines.length * 12 + 14);
     page.drawText(`${step.step_number}.`, { x: MARGIN, y, size: 9, font: bold, color: NAVY });
     lines.forEach((l, i) => page.drawText(l, { x: MARGIN + 20, y: y - i * 12, size: 9, font: regular, color: DARK }));
     y -= lines.length * 12;
     if (step.responsible) {
-      page.drawText(`Responsible: ${step.responsible}`, { x: MARGIN + 20, y, size: 8, font: regular, color: MID });
+      page.drawText(`Responsible: ${sanitizeForPdf(step.responsible)}`, { x: MARGIN + 20, y, size: 8, font: regular, color: MID });
       y -= 12;
     }
     y -= 4;
@@ -245,7 +247,9 @@ async function buildRamsPdf(
     ramsRow.ppe_requirements.forEach((item, i) => {
       const col = i % cols;
       if (col === 0) ensureSpace(14);
-      page.drawText(`✓ ${item}`, { x: MARGIN + col * colWidth, y, size: 9, font: regular, color: DARK });
+      const itemX = MARGIN + col * colWidth;
+      drawTick(page, itemX, y - 5, NAVY, 7);
+      page.drawText(sanitizeForPdf(item), { x: itemX + 12, y, size: 9, font: regular, color: DARK });
       if (col === cols - 1) y -= 14;
     });
     if (ramsRow.ppe_requirements.length % cols !== 0) y -= 14;
@@ -256,7 +260,7 @@ async function buildRamsPdf(
   ensureSpace(24);
   page.drawText("5. EMERGENCY PROCEDURES", { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
-  const emergencyLines = wrapText(ramsRow.emergency_procedures || "Not specified.", regular, 9, tableWidth);
+  const emergencyLines = wrapText(sanitizeForPdf(ramsRow.emergency_procedures || "Not specified."), regular, 9, tableWidth);
   for (const line of emergencyLines) {
     ensureSpace(13);
     page.drawText(line, { x: MARGIN, y, size: 9, font: regular, color: DARK });
@@ -269,7 +273,7 @@ async function buildRamsPdf(
     ensureSpace(24);
     page.drawText("6. ADDITIONAL NOTES", { x: MARGIN, y, size: 10, font: bold, color: MID });
     y -= 16;
-    const noteLines = wrapText(ramsRow.additional_notes, regular, 9, tableWidth);
+    const noteLines = wrapText(sanitizeForPdf(ramsRow.additional_notes), regular, 9, tableWidth);
     for (const line of noteLines) {
       ensureSpace(13);
       page.drawText(line, { x: MARGIN, y, size: 9, font: regular, color: DARK });
@@ -284,13 +288,13 @@ async function buildRamsPdf(
   y -= 16;
   page.drawText("This RAMS has been specifically prepared for the above works.", { x: MARGIN, y, size: 9, font: regular, color: DARK });
   y -= 15;
-  page.drawText(`Tailored by: ${ramsRow.tailored_by ?? "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+  page.drawText(`Tailored by: ${ramsRow.tailored_by ? sanitizeForPdf(ramsRow.tailored_by) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
   page.drawText(`Date: ${fmtDate(ramsRow.tailored_at)}`, { x: MARGIN + 260, y, size: 9, font: regular, color: DARK });
   y -= 15;
   if (ramsRow.status === "signed") {
-    page.drawText(`Signed off by: ${ramsRow.signed_off_by_name ?? "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    page.drawText(`Signed off by: ${ramsRow.signed_off_by_name ? sanitizeForPdf(ramsRow.signed_off_by_name) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
-    page.drawText(`Role: ${ramsRow.signed_off_by_role ?? "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
+    page.drawText(`Role: ${ramsRow.signed_off_by_role ? sanitizeForPdf(ramsRow.signed_off_by_role) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     page.drawText(`Date: ${fmtDate(ramsRow.signed_off_at)}`, { x: MARGIN + 260, y, size: 9, font: regular, color: DARK });
     y -= 15;
   }

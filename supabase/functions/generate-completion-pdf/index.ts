@@ -16,13 +16,16 @@ import {
   drawContractorHeader,
   drawLineItemsTable,
   drawTotalsBlock,
+  drawTick,
   formatDocNumber,
   wrapText,
+  sanitizeForPdf,
   DARK,
   MID,
   NAVY,
   WHITE,
   PALE,
+  LINE,
   MARGIN,
   PAGE_WIDTH,
   LineItem,
@@ -98,6 +101,20 @@ interface Job {
   completed_at: string | null;
   contractor_signed_off_at: string | null;
   signed_off_at: string | null;
+  // Site signature — captured on site by a team member. Deliberately
+  // separate from signed_off_at (customer's own attested act) and
+  // contractor_signed_off_at (contractor's own counter-signature); see
+  // 20260808130000's column comments.
+  site_signed_off_at: string | null;
+  site_signed_off_name: string | null;
+  site_signed_off_by: string | null;
+}
+
+interface ChecklistItemRow {
+  item_text: string;
+  stage: string;
+  checked_by_name: string | null;
+  checked_at: string | null;
 }
 
 interface IssuedQuoteSummary {
@@ -173,6 +190,8 @@ async function buildCompletionPdf(
   invoice: PaidInvoice | null,
   certificates: CertificateRow[],
   variations: VariationRow[],
+  checklistItems: ChecklistItemRow[],
+  siteSignature: { storagePath: string; capturedByName: string | null } | null,
   fetchPhotoBytes: (path: string) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -198,12 +217,12 @@ async function buildCompletionPdf(
   page.drawText(jobRef, { x: PAGE_WIDTH - MARGIN - refW, y: y + 4, size: 12, font: bold, color: NAVY });
   y -= 22;
 
-  page.drawText(job.title, { x: MARGIN, y, size: 13, font: bold, color: DARK });
+  page.drawText(sanitizeForPdf(job.title), { x: MARGIN, y, size: 13, font: bold, color: DARK });
   y -= 16;
-  page.drawText(`Client: ${clientName}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
+  page.drawText(`Client: ${sanitizeForPdf(clientName)}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
   y -= 13;
   if (job.location) {
-    page.drawText(`Location: ${job.location}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
+    page.drawText(`Location: ${sanitizeForPdf(job.location)}`, { x: MARGIN, y, size: 9, font: regular, color: MID });
     y -= 13;
   }
   y -= 12;
@@ -247,6 +266,33 @@ async function buildCompletionPdf(
     ensureSpace(70);
     y = drawTotalsBlock(page, y, quote.subtotal, quote.tax_rate, quote.tax_amount, quote.total, regular, bold);
     y -= 10;
+  }
+
+  // ── Checklist (completed items only) ────────────────────────────────────────
+  if (checklistItems.length > 0) {
+    ensureSpace(24);
+    page.drawText("CHECKLIST", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    for (const item of checklistItems) {
+      ensureSpace(26);
+      const lines = wrapText(sanitizeForPdf(item.item_text), regular, 9, PAGE_WIDTH - 2 * MARGIN - 16);
+      drawTick(page, MARGIN, y - 6, NAVY);
+      for (const [i, line] of lines.entries()) {
+        if (i > 0) ensureSpace(13);
+        page.drawText(line, { x: MARGIN + 14, y, size: 9, font: regular, color: DARK });
+        if (i < lines.length - 1) y -= 13;
+      }
+      const who = [item.checked_by_name ? sanitizeForPdf(item.checked_by_name) : null, item.checked_at ? fmtDateTime(item.checked_at) : null]
+        .filter((p): p is string => !!p)
+        .join(" — ");
+      if (who) {
+        const whoW = regular.widthOfTextAtSize(who, 8);
+        page.drawText(who, { x: PAGE_WIDTH - MARGIN - whoW, y, size: 8, font: regular, color: MID });
+      }
+      y -= 15;
+    }
+    y -= 6;
   }
 
   // ── Photos ────────────────────────────────────────────────────────────────
@@ -309,6 +355,49 @@ async function buildCompletionPdf(
     }
   }
 
+  // ── Site signature ───────────────────────────────────────────────────────
+  // Deliberately its own section, separate from the Timeline's contractor/
+  // customer sign-off dates: this is a THIRD, distinct attestation — the
+  // contractor (via a team member) asserting that someone signed on site —
+  // not the customer's own authenticated act (Timeline: "Client signed
+  // off") and not the contractor's own counter-signature (Timeline:
+  // "Contractor signed off"). Never merge these.
+  if (job.site_signed_off_at && siteSignature) {
+    ensureSpace(24);
+    page.drawText("SITE SIGNATURE", { x: MARGIN, y, size: 8, font: bold, color: MID });
+    y -= 16;
+
+    const sigBytes = await fetchPhotoBytes(siteSignature.storagePath);
+    if (sigBytes) {
+      try {
+        const sigImage = siteSignature.storagePath.match(/\.png$/i)
+          ? await pdfDoc.embedPng(sigBytes)
+          : await pdfDoc.embedJpg(sigBytes);
+        const sigDim = sigImage.scaleToFit(220, 90);
+        ensureSpace(sigDim.height + 10);
+        page.drawImage(sigImage, { x: MARGIN, y: y - sigDim.height, width: sigDim.width, height: sigDim.height });
+        page.drawRectangle({
+          x: MARGIN, y: y - sigDim.height, width: sigDim.width, height: sigDim.height,
+          borderColor: LINE, borderWidth: 0.75,
+        });
+        y -= sigDim.height + 10;
+      } catch {
+        // corrupt/unsupported signature image bytes — fall through to the
+        // attestation text below, which stands on its own regardless.
+      }
+    }
+
+    ensureSpace(28);
+    page.drawText(`Signed by: ${job.site_signed_off_name ? sanitizeForPdf(job.site_signed_off_name) : "Unknown"}`, { x: MARGIN, y, size: 9, font: bold, color: DARK });
+    y -= 13;
+    const capturedLine = [
+      fmtDateTime(job.site_signed_off_at),
+      siteSignature.capturedByName ? `Captured by ${sanitizeForPdf(siteSignature.capturedByName)}` : null,
+    ].filter((p): p is string => !!p).join("   ·   ");
+    page.drawText(capturedLine, { x: MARGIN, y, size: 8, font: regular, color: MID });
+    y -= 16;
+  }
+
   // ── Payment ──────────────────────────────────────────────────────────────
   if (invoice) {
     ensureSpace(50);
@@ -334,15 +423,15 @@ async function buildCompletionPdf(
 
     for (const cert of certificates) {
       ensureSpace(28);
-      const typeLabel = CERTIFICATE_TYPE_LABELS[cert.certificate_type] ?? cert.certificate_type;
-      page.drawText(cert.certificate_name, { x: MARGIN, y, size: 9, font: bold, color: DARK });
+      const typeLabel = sanitizeForPdf(CERTIFICATE_TYPE_LABELS[cert.certificate_type] ?? cert.certificate_type);
+      page.drawText(sanitizeForPdf(cert.certificate_name), { x: MARGIN, y, size: 9, font: bold, color: DARK });
       const typeW = regular.widthOfTextAtSize(typeLabel, 8);
       page.drawText(typeLabel, { x: PAGE_WIDTH - MARGIN - typeW, y, size: 8, font: regular, color: MID });
       y -= 13;
 
       const detailParts = [
-        cert.certificate_number ? `No. ${cert.certificate_number}` : null,
-        cert.issuer ? `Issuer: ${cert.issuer}` : null,
+        cert.certificate_number ? `No. ${sanitizeForPdf(cert.certificate_number)}` : null,
+        cert.issuer ? `Issuer: ${sanitizeForPdf(cert.issuer)}` : null,
         `Issued: ${fmtDateTime(cert.issued_date)?.split(",")[0] ?? cert.issued_date}`,
         cert.expiry_date ? `Expires: ${fmtDateTime(cert.expiry_date)?.split(",")[0] ?? cert.expiry_date}` : null,
         cert.warranty_duration_months ? `Duration: ${cert.warranty_duration_months} months` : null,
@@ -397,8 +486,8 @@ async function buildCompletionPdf(
       }
       const rowY = y - 12;
       page.drawText(String(v.variation_number), { x: MARGIN + 6, y: rowY, size: 8, font: regular, color: DARK });
-      page.drawText(v.title, { x: colTitle, y: rowY, size: 8, font: regular, color: DARK });
-      page.drawText(VARIATION_REASON_LABELS[v.reason] ?? v.reason, { x: colReason, y: rowY, size: 7, font: regular, color: MID });
+      page.drawText(sanitizeForPdf(v.title), { x: colTitle, y: rowY, size: 8, font: regular, color: DARK });
+      page.drawText(sanitizeForPdf(VARIATION_REASON_LABELS[v.reason] ?? v.reason), { x: colReason, y: rowY, size: 7, font: regular, color: MID });
       const amtText = `${v.amount >= 0 ? "+" : ""}£${v.amount.toFixed(2)}`;
       page.drawText(amtText, { x: colAmount, y: rowY, size: 8, font: regular, color: DARK });
       page.drawText(v.responded_at ? (fmtDateTime(v.responded_at)?.split(",")[0] ?? "") : "", { x: colDate, y: rowY, size: 8, font: regular, color: DARK });
@@ -448,7 +537,8 @@ serve(async (req) => {
       .from("jobs")
       .select(
         "id, job_number, title, location, contractor_id, customer_id, issued_quote_id, " +
-        "created_at, actual_start, completed_at, contractor_signed_off_at, signed_off_at",
+        "created_at, actual_start, completed_at, contractor_signed_off_at, signed_off_at, " +
+        "site_signed_off_at, site_signed_off_name, site_signed_off_by",
       )
       .eq("id", job_id)
       .maybeSingle();
@@ -494,13 +584,79 @@ serve(async (req) => {
       clientName = clientProfile?.full_name ?? "Client";
     }
 
+    // 'both'/'public' are not real visibility values — job_photos_visibility_check
+    // permits only 'internal'/'customer' live, so that half of the original OR
+    // clause could never match and this always returned zero rows. Fixed to the
+    // real customer-facing value. Signature captures are job_photos rows too
+    // (tags @> {signature}) but are NOT a job photo — excluded here; they get
+    // their own SITE SIGNATURE section below instead.
     const { data: photoRows } = await supabase
       .from("job_photos")
       .select("storage_path, photo_approval_status, visibility")
       .eq("job_id", job_id)
-      .or("photo_approval_status.eq.approved,visibility.in.(both,public)")
+      .or("photo_approval_status.eq.approved,visibility.eq.customer")
+      .not("tags", "cs", '{signature}')
       .limit(12);
     const photos = (photoRows ?? []) as PhotoRow[];
+
+    // Site signature — captured on site by a team member, distinct from
+    // signed_off_at/by (the customer's own attested act) and
+    // contractor_signed_off_at/name (the contractor's own counter-signature).
+    // Never conflated in this document — see the dedicated section below.
+    let siteSignature: { storagePath: string; capturedByName: string | null } | null = null;
+    if (job.site_signed_off_at) {
+      const { data: sigRow } = await supabase
+        .from("job_photos")
+        .select("storage_path")
+        .eq("job_id", job_id)
+        .contains("tags", ["signature"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let capturedByName: string | null = null;
+      if (job.site_signed_off_by) {
+        const { data: capturerProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", job.site_signed_off_by)
+          .maybeSingle();
+        capturedByName = capturerProfile?.full_name ?? null;
+      }
+
+      if (sigRow?.storage_path) {
+        siteSignature = { storagePath: sigRow.storage_path, capturedByName };
+      }
+    }
+
+    // Checklist — completed items only, with who ticked them and when.
+    const { data: checklistRows } = await supabase
+      .from("job_checklist_items")
+      .select("item_text, stage, is_checked, checked_by, checked_at")
+      .eq("job_id", job_id)
+      .eq("is_checked", true)
+      .order("stage", { ascending: true })
+      .order("sort_order", { ascending: true });
+
+    const checkedByIds = Array.from(
+      new Set((checklistRows ?? []).map((r) => r.checked_by).filter((id): id is string => !!id)),
+    );
+    let checkedByNames: Record<string, string> = {};
+    if (checkedByIds.length > 0) {
+      const { data: checkerProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", checkedByIds);
+      for (const p of checkerProfiles ?? []) {
+        if (p.full_name) checkedByNames[p.id] = p.full_name;
+      }
+    }
+    const checklistItems: ChecklistItemRow[] = (checklistRows ?? []).map((r) => ({
+      item_text: r.item_text,
+      stage: r.stage,
+      checked_by_name: r.checked_by ? checkedByNames[r.checked_by] ?? null : null,
+      checked_at: r.checked_at,
+    }));
 
     const { data: invoiceRow } = await supabase
       .from("invoices")
@@ -546,6 +702,8 @@ serve(async (req) => {
         invoice,
         certificates,
         variations,
+        checklistItems,
+        siteSignature,
         fetchPhotoBytes,
       );
     } catch (err) {

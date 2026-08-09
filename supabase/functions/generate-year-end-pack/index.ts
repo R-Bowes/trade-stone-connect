@@ -16,6 +16,7 @@ import {
   drawContractorHeader,
   formatDocNumber,
   wrapText,
+  sanitizeForPdf,
   DARK,
   MID,
   NAVY,
@@ -218,10 +219,11 @@ function drawTable(ctx: PdfCtx, columns: TableColumn[], rows: string[][]) {
     const textY = ctx.y - 13;
     row.forEach((cell, ci) => {
       const col = columns[ci];
+      const safeCell = sanitizeForPdf(cell);
       if (col.align === "right") {
-        drawRight(ctx, cell, colX[ci] + col.width * tableWidth - 6, textY, 8.5, ctx.font, DARK);
+        drawRight(ctx, safeCell, colX[ci] + col.width * tableWidth - 6, textY, 8.5, ctx.font, DARK);
       } else {
-        ctx.page.drawText(cell, { x: colX[ci] + 4, y: textY, size: 8.5, font: ctx.font, color: DARK });
+        ctx.page.drawText(safeCell, { x: colX[ci] + 4, y: textY, size: 8.5, font: ctx.font, color: DARK });
       }
     });
     ctx.y -= rowHeight;
