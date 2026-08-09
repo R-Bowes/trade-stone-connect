@@ -1102,3 +1102,12 @@ Links back to the dropped `business_members.site_scope` column (v1 rebuild).
   them on visit completion). The visit-completion handler is the correct place,
   not a general job-completion hook. **Verify against the shipped PPM
   auto-rolling visits before building — this may now be done.**
+
+## Team member account self-service (from /field routing fix, 2026-08-09)
+
+`/field` has no settings surface. Proposal: `/field/account` behind
+`FieldGuard`, reusing the account fields from `HomeownerDashboard`'s
+settings view (full name, password change) with `FieldHeader` chrome. Needs
+an entry point from `FieldHeader`. No TS-P code — resolve employer TS-C via
+`team_members.contractor_id`, same pattern as `useFieldTeamMember.ts`.
+Sign-out shipped separately with the `/field` routing fix.

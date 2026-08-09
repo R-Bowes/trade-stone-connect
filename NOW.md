@@ -280,3 +280,14 @@ that were explicitly deferred: `IssuedQuotes.tsx`, `ContractorDashboard.tsx`'s
 Same fix shape each time (check `.error`, toast or `ErrorState`,
 `finally { setLoading(false) }`) — do the rest in one pass rather than
 piecemeal.
+
+
+- Team member account self-service: settings/profile are query-param views
+  inside HomeownerDashboard (?view=settings). Post-/field-routing-fix,
+  team members have no route to manage their own account (password,
+  personal details). Sign-out addressed; settings surface still open.
+  See LATER.md.
+- Auth.tsx returnTo: honours a returnTo query param post-login, currently
+  only set by ContractorProfile.tsx to a profile path. Now backstopped by
+  team-aware ProtectedRoute — no fix needed, but any future returnTo
+  pointing at a dashboard route must not bypass the role/team resolver.
