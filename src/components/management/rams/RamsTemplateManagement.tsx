@@ -2,14 +2,31 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
-import { useRams } from "@/hooks/useRams";
+import { Loader2, Plus, Edit, Trash2, ArrowLeft, Copy } from "lucide-react";
+import { useRams, type RamsTemplate } from "@/hooks/useRams";
 import { RamsTemplateEditor } from "@/components/management/rams/RamsEditor";
+import { useToast } from "@/hooks/use-toast";
+
+// "Name (copy)", then "Name (copy 2)", "Name (copy 3)"... until a name that
+// doesn't collide with the contractor's existing template names is found.
+// Never silently merges into an existing template of the same name.
+function resolveCollisionName(desiredName: string, existingNames: Set<string>): string {
+  if (!existingNames.has(desiredName)) return desiredName;
+  let candidate = `${desiredName} (copy)`;
+  let n = 2;
+  while (existingNames.has(candidate)) {
+    candidate = `${desiredName} (copy ${n})`;
+    n++;
+  }
+  return candidate;
+}
 
 export function RamsTemplateManagement() {
-  const { templates, loading, deleteTemplate } = useRams();
+  const { templates, loading, deleteTemplate, createTemplate } = useRams();
+  const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null | undefined>(undefined); // undefined = list view, null = new, string = edit
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
 
   const myTemplates = templates.filter((t) => t.owner_contractor_id !== null);
   const platformTemplates = templates.filter((t) => t.owner_contractor_id === null);
@@ -17,6 +34,34 @@ export function RamsTemplateManagement() {
   const handleDelete = async (id: string) => {
     await deleteTemplate(id);
     setDeletingId(null);
+  };
+
+  // Copies a platform (TradeStone) template into the contractor's own
+  // library, then opens it in the editor so they can tailor it immediately.
+  // Reads only from the platform template — never writes to it. Deep-copies
+  // the JSONB arrays by value (structuredClone) so the clone shares no
+  // references with the source.
+  const handleCopyPlatformTemplate = async (template: RamsTemplate) => {
+    setCopyingId(template.id);
+    try {
+      const existingNames = new Set(myTemplates.map((t) => t.name));
+      const newName = resolveCollisionName(template.name, existingNames);
+      const created = await createTemplate({
+        name: newName,
+        description: template.description,
+        trade_category: template.trade_category,
+        hazards: structuredClone(template.hazards),
+        method_steps: structuredClone(template.method_steps),
+        ppe_requirements: structuredClone(template.ppe_requirements),
+        emergency_procedures: template.emergency_procedures,
+      });
+      if (created) {
+        toast({ title: "Template copied", description: `Added to My Templates as "${newName}".` });
+        setEditingId(created.id);
+      }
+    } finally {
+      setCopyingId(null);
+    }
   };
 
   if (loading) {
@@ -82,10 +127,25 @@ export function RamsTemplateManagement() {
         <div className="grid sm:grid-cols-2 gap-3">
           {platformTemplates.map((t) => (
             <Card key={t.id}>
-              <CardContent className="p-3 space-y-1">
+              <CardContent className="p-3 space-y-2">
                 <div className="font-medium text-sm">{t.name}</div>
                 {t.description && <p className="text-xs text-muted-foreground">{t.description}</p>}
                 <Badge variant="outline" className="text-[10px]">{t.hazards.length} hazards</Badge>
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={copyingId === t.id}
+                    onClick={() => handleCopyPlatformTemplate(t)}
+                  >
+                    {copyingId === t.id ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Copy to my templates
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
