@@ -10,7 +10,7 @@ import {
   DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
   Filter, MessageCircle, Star, Loader2,
   XCircle, MessageSquare, Calendar,
-  AlertTriangle, Wrench, UserCheck,
+  AlertTriangle, Wrench, UserCheck, MapPin, X,
 } from "lucide-react";
 import { summariseInvoices } from "@/lib/invoiceMoney";
 import { useOnboardingTour, type TourStep } from "@/hooks/useOnboardingTour";
@@ -95,6 +95,19 @@ const ContractorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  // Postcode capture nudge (service-area coverage). Non-blocking, unlike
+  // profileIncomplete above which force-switches to the profile tab --
+  // this is a dismissible banner only. Dismissal is sessionStorage, not
+  // localStorage, so it reappears next session per spec ("persists for
+  // the session only").
+  const [needsPostcode, setNeedsPostcode] = useState(false);
+  const [postcodeBannerDismissed, setPostcodeBannerDismissed] = useState(
+    () => sessionStorage.getItem("ts_postcode_banner_dismissed") === "1",
+  );
+  const dismissPostcodeBanner = () => {
+    sessionStorage.setItem("ts_postcode_banner_dismissed", "1");
+    setPostcodeBannerDismissed(true);
+  };
 
   const { engagements, loading: pipelineLoading, error: pipelineError, refetch: refetchPipeline } = useContractorPipeline();
   const [filterStage, setFilterStage] = useState<PipelineStage | null>(null);
@@ -288,7 +301,7 @@ const ContractorDashboard = () => {
       const pid = profileRow?.id ?? null;
       setProfileId(pid);
 
-      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id').eq('user_id', currentUser.id).single();
+      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id, postcode, coverage_type').eq('user_id', currentUser.id).single();
       setStripeAccountId((profileData as any)?.stripe_account_id ?? null);
       const trades = (profileData as any)?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
@@ -296,6 +309,9 @@ const ContractorDashboard = () => {
         setProfileIncomplete(true);
         setActiveTab("profile");
       }
+      setNeedsPostcode(
+        !!profileData && !(profileData as any).postcode && (profileData as any).coverage_type === 'radius',
+      );
 
       const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
         .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
@@ -457,6 +473,34 @@ const ContractorDashboard = () => {
             {profileId && <PanelInvites profileId={profileId} />}
 
             {!stripeAccountId && <StripeConnect />}
+
+            {needsPostcode && !postcodeBannerDismissed && (
+              <Card className="border-primary/50 bg-primary/5">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm">
+                      Add your postcode so clients searching nearby areas can find you.
+                    </p>
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-sm"
+                      onClick={() => setActiveTab("profile")}
+                    >
+                      Add postcode
+                    </Button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={dismissPostcodeBanner}
+                    aria-label="Dismiss"
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Needs you / Waiting on others — first on mobile, second on desktop */}
             <div className="order-1 md:order-2 flex flex-col gap-8">

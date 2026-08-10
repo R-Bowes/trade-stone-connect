@@ -6,10 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 const TRADES = CONTRACTOR_TRADES;
 
-const RADII = ["5 miles", "10 miles", "15 miles", "25 miles", "50 miles", "Nationwide"];
+// service_area_radius_miles is now canonical (Step-0 audit: working_radius
+// was collected but never used in search). 'Nationwide' is dropped from
+// this picker entirely -- coverage_type = 'national' is admin-set only,
+// no self-serve path sets it.
+const RADII_MILES = [5, 10, 15, 25, 50];
+
+interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  admin_district: string | null;
+  outcode: string;
+}
 
 const ContractorOnboarding = () => {
   const navigate = useNavigate();
@@ -18,6 +30,10 @@ const ContractorOnboarding = () => {
   const [saving, setSaving] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [tradeSearch, setTradeSearch] = useState("");
+  const [postcodeError, setPostcodeError] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState("");
+  const [resolvedTown, setResolvedTown] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     account_type: "",
@@ -27,7 +43,10 @@ const ContractorOnboarding = () => {
     website: "",
     address: "",
     location: "",
-    working_radius: "25 miles",
+    postcode: "",
+    service_area_radius_miles: 25,
+    center_lat: null as number | null,
+    center_lng: null as number | null,
     trades: [] as string[],
     hourly_rate: "",
     years_experience: "",
@@ -46,6 +65,32 @@ const ContractorOnboarding = () => {
         : [...f.trades, trade],
     }));
 
+  // Resolves the postcode to lat/lng via the geocode-postcode edge function
+  // and shows the returned admin_district as a "recognised as" confirmation.
+  // A failed geocode never blocks onboarding -- it just leaves center_lat/
+  // center_lng NULL, same as any contractor who skips this later; the
+  // ILIKE search fallback (Commit 4) covers that case, nobody loses
+  // visibility because postcodes.io was briefly unavailable.
+  const handlePostcodeBlur = async () => {
+    const postcode = form.postcode.trim();
+    if (!postcode) return;
+    setGeocoding(true);
+    setGeocodeError("");
+    setResolvedTown(null);
+    try {
+      const result = await invokeEdgeFunction<GeocodeResult>("geocode-postcode", {
+        body: { postcode },
+      });
+      setForm((f) => ({ ...f, center_lat: result.latitude, center_lng: result.longitude }));
+      setResolvedTown(result.admin_district ?? result.outcode);
+    } catch (e: any) {
+      setGeocodeError(e.message ?? "Couldn't resolve that postcode.");
+      setForm((f) => ({ ...f, center_lat: null, center_lng: null }));
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const canProceed = () => {
     if (step === 1) return form.account_type !== "";
     if (step === 2) return form.full_name.trim() !== "" && form.phone.trim() !== "";
@@ -61,6 +106,11 @@ const ContractorOnboarding = () => {
         return;
       }
       setLocationError("");
+      if (!form.postcode.trim()) {
+        setPostcodeError("Postcode is required");
+        return;
+      }
+      setPostcodeError("");
     }
     if (step < 4) {
       setStep(step + 1);
@@ -72,6 +122,11 @@ const ContractorOnboarding = () => {
   const save = async () => {
     if (!form.location.trim()) {
       setLocationError("Location is required");
+      setStep(3);
+      return;
+    }
+    if (!form.postcode.trim()) {
+      setPostcodeError("Postcode is required");
       setStep(3);
       return;
     }
@@ -89,7 +144,14 @@ const ContractorOnboarding = () => {
           website: form.website,
           address: form.address,
           location: form.location,
-          working_radius: form.working_radius,
+          postcode: form.postcode,
+          service_area_center_lat: form.center_lat,
+          service_area_center_lng: form.center_lng,
+          service_area_radius_miles: form.service_area_radius_miles,
+          // Kept in sync in parallel for this commit only, per the
+          // migration's deprecation note -- working_radius stays written
+          // so nothing reading it regresses mid-migration.
+          working_radius: `${form.service_area_radius_miles} miles`,
           trades: form.trades,
           hourly_rate: form.hourly_rate ? parseFloat(form.hourly_rate) : null,
           years_experience: form.years_experience ? parseInt(form.years_experience) : null,
@@ -253,22 +315,60 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="mb-4">
+                <Label htmlFor="contractor-postcode" className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
+                  Your postcode <span className="text-[#E8640A]">*</span>
+                </Label>
+                <Input
+                  id="contractor-postcode"
+                  required
+                  aria-invalid={!!postcodeError}
+                  aria-describedby={postcodeError ? "contractor-postcode-error" : undefined}
+                  value={form.postcode}
+                  onChange={(e) => {
+                    update("postcode", e.target.value);
+                    if (e.target.value.trim()) setPostcodeError("");
+                    setResolvedTown(null);
+                  }}
+                  onBlur={() => {
+                    if (!form.postcode.trim()) {
+                      setPostcodeError("Postcode is required");
+                      return;
+                    }
+                    void handlePostcodeBlur();
+                  }}
+                  placeholder="M1 1AE"
+                  className={postcodeError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                />
+                {postcodeError ? (
+                  <p id="contractor-postcode-error" className="text-sm text-destructive mt-1.5" role="alert">
+                    {postcodeError}
+                  </p>
+                ) : geocoding ? (
+                  <p className="text-xs text-muted-foreground mt-1.5">Looking that up…</p>
+                ) : geocodeError ? (
+                  <p className="text-xs text-destructive mt-1.5">{geocodeError}</p>
+                ) : resolvedTown ? (
+                  <p className="text-xs text-green-700 mt-1.5">Recognised as {resolvedTown}</p>
+                ) : null}
+              </div>
+
+              <div className="mb-4">
                 <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-2 block">
                   How far will you travel?
                 </Label>
                 <div className="flex flex-wrap gap-2">
-                  {RADII.map((r) => (
+                  {RADII_MILES.map((r) => (
                     <button
                       key={r}
                       type="button"
-                      onClick={() => update("working_radius", r)}
+                      onClick={() => update("service_area_radius_miles", r)}
                       className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition-all ${
-                        form.working_radius === r
+                        form.service_area_radius_miles === r
                           ? "border-[#1C2B3A] bg-[#1C2B3A] text-white"
                           : "border-[#E5E0D8] text-gray-500 hover:border-gray-300"
                       }`}
                     >
-                      {r}
+                      {r} miles
                     </button>
                   ))}
                 </div>

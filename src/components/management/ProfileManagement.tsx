@@ -15,6 +15,7 @@ import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { ChangePasswordCard } from "@/components/ui/ChangePasswordCard";
 import { StripeConnect } from "@/components/management/StripeConnect";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 interface Profile {
   full_name: string;
@@ -23,18 +24,30 @@ interface Profile {
   company_name: string;
   trades: string[];
   location: string;
-  working_radius: string;
+  postcode: string;
+  service_area_radius_miles: number | null;
+  service_area_center_lat: number | null;
+  service_area_center_lng: number | null;
   bio: string;
   logo_url: string;
   vat_registered: boolean;
   vat_number: string;
 }
 
+interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  admin_district: string | null;
+  outcode: string;
+}
+
 const allTrades = [...CONTRACTOR_TRADES];
 
-const radiusOptions = [
-  "5 miles", "10 miles", "15 miles", "20 miles", "25 miles", "30 miles", "50 miles", "100 miles", "Nationwide"
-];
+// service_area_radius_miles is canonical (Step-0 audit: the old
+// working_radius text label was collected but never used in search).
+// 'Nationwide' is dropped from this picker -- coverage_type = 'national'
+// is admin-set only, no self-serve path sets it.
+const radiusOptions = [5, 10, 15, 20, 25, 30, 50, 100];
 
 export function ProfileManagement() {
   const [profile, setProfile] = useState<Profile>({
@@ -44,7 +57,10 @@ export function ProfileManagement() {
     company_name: "",
     trades: [],
     location: "",
-    working_radius: "",
+    postcode: "",
+    service_area_radius_miles: null,
+    service_area_center_lat: null,
+    service_area_center_lng: null,
     bio: "",
     logo_url: "",
     vat_registered: false,
@@ -58,11 +74,14 @@ export function ProfileManagement() {
   const [userId, setUserId] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState("");
+  const [resolvedTown, setResolvedTown] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const isProfileIncomplete = isContractor && (
-    profile.trades.length === 0 || !profile.location || !profile.working_radius || !profile.logo_url
+    profile.trades.length === 0 || !profile.location || !profile.service_area_radius_miles || !profile.logo_url
   );
 
   useEffect(() => {
@@ -98,7 +117,10 @@ export function ProfileManagement() {
           company_name: data.company_name || "",
           trades,
           location: (data as any).location || "",
-          working_radius: (data as any).working_radius || "",
+          postcode: (data as any).postcode || "",
+          service_area_radius_miles: (data as any).service_area_radius_miles ?? null,
+          service_area_center_lat: (data as any).service_area_center_lat ?? null,
+          service_area_center_lng: (data as any).service_area_center_lng ?? null,
           bio: (data as any).bio || "",
           logo_url: (data as any).logo_url || "",
           vat_registered: (data as any).vat_registered || false,
@@ -170,6 +192,34 @@ export function ProfileManagement() {
     }
   };
 
+  // Resolves the postcode to lat/lng via the geocode-postcode edge function
+  // and shows the returned admin_district as a "recognised as" confirmation.
+  // A failed geocode never blocks saving -- it just leaves
+  // service_area_center_lat/_lng unchanged, same fallback posture as
+  // Commit 4's ILIKE path covers for any contractor without coordinates.
+  const handlePostcodeBlur = async () => {
+    const postcode = profile.postcode.trim();
+    if (!postcode) return;
+    setGeocoding(true);
+    setGeocodeError("");
+    setResolvedTown(null);
+    try {
+      const result = await invokeEdgeFunction<GeocodeResult>("geocode-postcode", {
+        body: { postcode },
+      });
+      setProfile((prev) => ({
+        ...prev,
+        service_area_center_lat: result.latitude,
+        service_area_center_lng: result.longitude,
+      }));
+      setResolvedTown(result.admin_district ?? result.outcode);
+    } catch (e: any) {
+      setGeocodeError(e.message ?? "Couldn't resolve that postcode.");
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -186,7 +236,18 @@ export function ProfileManagement() {
       if (isContractor) {
         updateData.trades = profile.trades;
         updateData.location = profile.location;
-        updateData.working_radius = profile.working_radius;
+        updateData.postcode = profile.postcode || null;
+        updateData.service_area_radius_miles = profile.service_area_radius_miles;
+        updateData.service_area_center_lat = profile.service_area_center_lat;
+        updateData.service_area_center_lng = profile.service_area_center_lng;
+        // Kept in sync in parallel, same as ContractorOnboarding.tsx --
+        // ContractorProfile.tsx's public display ("Works within X miles of
+        // Y") still reads working_radius, so it must not go stale the
+        // moment a contractor edits their radius through this screen.
+        // Deprecated in place per the migration's comment, not orphaned.
+        updateData.working_radius = profile.service_area_radius_miles
+          ? `${profile.service_area_radius_miles} miles`
+          : null;
         updateData.bio = profile.bio;
         updateData.vat_registered = profile.vat_registered;
         updateData.vat_number = profile.vat_registered ? profile.vat_number.trim() : null;
@@ -362,14 +423,42 @@ export function ProfileManagement() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="postcode">Postcode</Label>
+              <Input
+                id="postcode"
+                placeholder="e.g. M1 1AE"
+                value={profile.postcode}
+                onChange={(e) => {
+                  setProfile({ ...profile, postcode: e.target.value });
+                  setResolvedTown(null);
+                }}
+                onBlur={() => void handlePostcodeBlur()}
+              />
+              {geocoding ? (
+                <p className="text-xs text-muted-foreground">Looking that up…</p>
+              ) : geocodeError ? (
+                <p className="text-xs text-destructive">{geocodeError}</p>
+              ) : resolvedTown ? (
+                <p className="text-xs text-green-700">Recognised as {resolvedTown}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Lets clients searching nearby areas find you, not just exact location matches.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="working_radius">Working Radius *</Label>
-              <Select value={profile.working_radius} onValueChange={(val) => setProfile({ ...profile, working_radius: val })}>
-                <SelectTrigger id="working_radius" className={!profile.working_radius ? "border-primary/50" : ""}>
+              <Select
+                value={profile.service_area_radius_miles != null ? String(profile.service_area_radius_miles) : ""}
+                onValueChange={(val) => setProfile({ ...profile, service_area_radius_miles: parseInt(val, 10) })}
+              >
+                <SelectTrigger id="working_radius" className={!profile.service_area_radius_miles ? "border-primary/50" : ""}>
                   <SelectValue placeholder="Select working radius" />
                 </SelectTrigger>
                 <SelectContent>
                   {radiusOptions.map((r) => (
-                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                    <SelectItem key={r} value={String(r)}>{r} miles</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

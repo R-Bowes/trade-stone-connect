@@ -261,10 +261,10 @@ function BioBlock({ section, profile }: { section: CanvasSection; profile: PageP
       ) : (
         <p style={{ fontSize: 14, color: "#aaa", fontStyle: "italic", margin: 0 }}>No bio added yet.</p>
       )}
-      {profile.working_radius && profile.location && (
+      {profile.service_area_radius_miles && profile.location && (
         <div style={{ marginTop: 10, fontSize: 12, color: "#888", display: "flex", alignItems: "center", gap: 6 }}>
           <i className="ti ti-map-pin" style={{ fontSize: 14, color: ORANGE }} />
-          Works within {profile.working_radius} of {profile.location}
+          Works within {profile.service_area_radius_miles} miles of {profile.location}
         </div>
       )}
     </SectionCard>
@@ -783,10 +783,10 @@ function AvailabilityBlock({ section, availability, profile }: { section: Canvas
             <i className={`ti ${availability.isAvailable ? "ti-circle-check" : "ti-circle-x"}`} style={{ fontSize: 20, color: availability.isAvailable ? "#16a34a" : "#aaa" }} />
             <span style={{ fontSize: 14, fontWeight: 600, color: availability.isAvailable ? "#15803d" : "#888" }}>{availability.label}</span>
           </div>
-          {profile.working_radius && profile.location && (
+          {profile.service_area_radius_miles && profile.location && (
             <div style={{ marginTop: 10, fontSize: 13, color: "#888", display: "flex", alignItems: "center", gap: 6 }}>
               <i className="ti ti-map-pin" style={{ fontSize: 14, color: ORANGE }} />
-              Works within {profile.working_radius} miles of {profile.location}
+              Works within {profile.service_area_radius_miles} miles of {profile.location}
             </div>
           )}
         </>
@@ -894,7 +894,7 @@ function ServiceAreaBlock({ section, profile }: { section: CanvasSection; profil
           {profile.location ? (
             <p style={{ fontSize: 14, color: "#444", margin: 0, lineHeight: 1.6 }}>
               Based in <strong>{profile.location}</strong>
-              {profile.working_radius && <>, covering a <strong>{profile.working_radius}</strong> radius</>}
+              {profile.service_area_radius_miles && <>, covering a <strong>{profile.service_area_radius_miles} miles</strong> radius</>}
             </p>
           ) : (
             <p style={{ fontSize: 14, color: "#aaa", fontStyle: "italic", margin: 0 }}>No service area set.</p>
