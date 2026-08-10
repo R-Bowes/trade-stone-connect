@@ -5734,6 +5734,7 @@ export type Database = {
           company_name: string | null
           completed_jobs: number | null
           cover_url: string | null
+          coverage_type: string
           created_at: string
           credentials_heading: string | null
           cta_label: string | null
@@ -5749,6 +5750,7 @@ export type Database = {
           onboarding_completed: boolean | null
           onboarding_completed_at: string | null
           phone: string | null
+          postcode: string | null
           profile_is_published: boolean
           profile_published_at: string | null
           profile_seo_description: string | null
@@ -5797,6 +5799,7 @@ export type Database = {
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
+          coverage_type?: string
           created_at?: string
           credentials_heading?: string | null
           cta_label?: string | null
@@ -5812,6 +5815,7 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           phone?: string | null
+          postcode?: string | null
           profile_is_published?: boolean
           profile_published_at?: string | null
           profile_seo_description?: string | null
@@ -5860,6 +5864,7 @@ export type Database = {
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
+          coverage_type?: string
           created_at?: string
           credentials_heading?: string | null
           cta_label?: string | null
@@ -5875,6 +5880,7 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
           phone?: string | null
+          postcode?: string | null
           profile_is_published?: boolean
           profile_published_at?: string | null
           profile_seo_description?: string | null
@@ -9946,6 +9952,7 @@ export type Database = {
           company_name: string | null
           completed_jobs: number | null
           cover_url: string | null
+          coverage_type: string | null
           created_at: string | null
           cta_label: string | null
           full_name: string | null
@@ -9956,6 +9963,7 @@ export type Database = {
           is_verified: boolean | null
           location: string | null
           logo_url: string | null
+          postcode: string | null
           profile_is_published: boolean | null
           rating: number | null
           review_count: number | null
@@ -9977,6 +9985,7 @@ export type Database = {
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
+          coverage_type?: string | null
           created_at?: string | null
           cta_label?: string | null
           full_name?: string | null
@@ -9987,6 +9996,7 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          postcode?: string | null
           profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
@@ -10008,6 +10018,7 @@ export type Database = {
           company_name?: string | null
           completed_jobs?: number | null
           cover_url?: string | null
+          coverage_type?: string | null
           created_at?: string | null
           cta_label?: string | null
           full_name?: string | null
@@ -10018,6 +10029,7 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
+          postcode?: string | null
           profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
