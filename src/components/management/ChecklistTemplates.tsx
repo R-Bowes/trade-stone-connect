@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Copy } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -47,15 +49,48 @@ interface Template {
   items: TemplateRow[];
 }
 
+// Templates are groups of job_checklist_templates rows sharing `name` —
+// the table has no separate "template" entity. Used for both the
+// contractor's own rows and the global (company_id IS NULL AND
+// contractor_id IS NULL) rows — same grouping shape, different source scope.
+function groupByName(rows: TemplateRow[]): Template[] {
+  const groups: Record<string, Template> = {};
+  for (const row of rows) {
+    const key = row.name ?? "Untitled";
+    if (!groups[key]) groups[key] = { name: key, jobType: row.job_type, items: [] };
+    groups[key].items.push(row);
+  }
+  return Object.values(groups);
+}
+
+// "Name (copy)", then "Name (copy 2)", "Name (copy 3)"... until a name that
+// doesn't collide with the contractor's existing template names is found.
+// Never silently merges into an existing template of the same name.
+function resolveCollisionName(desiredName: string, existingNames: Set<string>): string {
+  if (!existingNames.has(desiredName)) return desiredName;
+  let candidate = `${desiredName} (copy)`;
+  let n = 2;
+  while (existingNames.has(candidate)) {
+    candidate = `${desiredName} (copy ${n})`;
+    n++;
+  }
+  return candidate;
+}
+
 /**
- * Owner-only checklist template library. Templates are groups of
- * job_checklist_templates rows sharing (contractor_id, name) — the table
- * has no separate "template" entity, see 20260808120000's header comment.
- * Team members have no access here (no acting_contractor_ids() anywhere).
+ * Checklist template library. "My Templates" (contractor_id = self) is
+ * fully editable. "TradeStone Templates" (company_id IS NULL AND
+ * contractor_id IS NULL — the global tier the RLS SELECT policy already
+ * exposes to every contractor) is read-only here, mirroring
+ * RamsTemplateManagement.tsx's structure: platform rows are never written
+ * to directly, only copied into an owned template via "Copy to my
+ * templates". Team members have no access here (no acting_contractor_ids()
+ * anywhere).
  */
 export function ChecklistTemplates() {
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [globalTemplates, setGlobalTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -68,6 +103,7 @@ export function ChecklistTemplates() {
   const [itemStage, setItemStage] = useState<Stage>("work_started");
   const [addingItem, setAddingItem] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
+  const [copyingName, setCopyingName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,27 +120,35 @@ export function ChecklistTemplates() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("job_checklist_templates")
-      .select("*")
-      .eq("contractor_id", cId)
-      .order("name")
-      .order("sort_order");
+    const [ownRes, globalRes] = await Promise.all([
+      supabase
+        .from("job_checklist_templates")
+        .select("*")
+        .eq("contractor_id", cId)
+        .order("name")
+        .order("sort_order"),
+      supabase
+        .from("job_checklist_templates")
+        .select("*")
+        .is("company_id", null)
+        .is("contractor_id", null)
+        .order("name")
+        .order("sort_order"),
+    ]);
 
-    if (error) {
-      console.error("Error loading checklist templates:", error);
+    if (ownRes.error) {
+      console.error("Error loading checklist templates:", ownRes.error);
       toast.error("Failed to load checklist templates");
       setLoading(false);
       return;
     }
-
-    const groups: Record<string, Template> = {};
-    for (const row of data ?? []) {
-      const key = row.name ?? "Untitled";
-      if (!groups[key]) groups[key] = { name: key, jobType: row.job_type, items: [] };
-      groups[key].items.push(row);
+    if (globalRes.error) {
+      // Non-fatal — own templates still loaded fine, just no shared library.
+      console.error("Error loading shared checklist templates:", globalRes.error);
     }
-    setTemplates(Object.values(groups));
+
+    setTemplates(groupByName(ownRes.data ?? []));
+    setGlobalTemplates(groupByName(globalRes.data ?? []));
     setLoading(false);
   }, []);
 
@@ -189,6 +233,37 @@ export function ChecklistTemplates() {
     await load();
   };
 
+  // Copies a global (TradeStone) template's rows into the contractor's own
+  // library. Reads only from the global template passed in — never writes
+  // to it. Collision-safe name resolution; never merges into an existing
+  // template of the same name.
+  const handleCopyGlobalTemplate = async (template: Template) => {
+    if (!contractorId) return;
+    setCopyingName(template.name);
+    try {
+      const existingNames = new Set(templates.map((t) => t.name));
+      const newName = resolveCollisionName(template.name, existingNames);
+      const rows = template.items.map((item) => ({
+        contractor_id: contractorId,
+        company_id: null,
+        name: newName,
+        job_type: item.job_type,
+        stage: item.stage,
+        item_text: item.item_text,
+        sort_order: item.sort_order,
+      }));
+      const { error } = await supabase.from("job_checklist_templates").insert(rows);
+      if (error) throw error;
+      toast.success(`Copied to My Templates as "${newName}"`);
+      await load();
+    } catch (error) {
+      console.error("Error copying checklist template:", error);
+      toast.error("Failed to copy template");
+    } finally {
+      setCopyingName(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center p-12">
@@ -213,29 +288,68 @@ export function ChecklistTemplates() {
         </Button>
       </div>
 
-      {templates.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            No checklist templates yet. Create one to speed up job checklists.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((t) => (
-            <Card key={t.name} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setEditing(t)}>
-              <CardContent className="p-4 space-y-2">
-                <p className="font-semibold">{t.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">
-                  {JOB_TYPES.find((j) => j.value === t.jobType)?.label ?? "General"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {t.items.length} item{t.items.length === 1 ? "" : "s"}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">My Templates</h3>
+        {templates.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              No checklist templates yet. Create one to speed up job checklists.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {templates.map((t) => (
+              <Card key={t.name} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setEditing(t)}>
+                <CardContent className="p-4 space-y-2">
+                  <p className="font-semibold">{t.name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {JOB_TYPES.find((j) => j.value === t.jobType)?.label ?? "General"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {t.items.length} item{t.items.length === 1 ? "" : "s"}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">TradeStone Templates</h3>
+        {globalTemplates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No shared templates available.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {globalTemplates.map((t) => (
+              <Card key={t.name}>
+                <CardContent className="p-4 space-y-2">
+                  <p className="font-semibold">{t.name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {JOB_TYPES.find((j) => j.value === t.jobType)?.label ?? "General"}
+                  </p>
+                  <Badge variant="outline" className="text-[10px]">
+                    {t.items.length} item{t.items.length === 1 ? "" : "s"}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={copyingName === t.name}
+                    onClick={() => handleCopyGlobalTemplate(t)}
+                  >
+                    {copyingName === t.name ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Copy to my templates
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>

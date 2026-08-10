@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -22,10 +24,26 @@ const STAGE_LABEL: Record<Stage, string> = {
   final_checks: "Final checks",
 };
 
+type TemplateScope = "own" | "global";
+
 interface TemplateGroup {
+  scope: TemplateScope;
+  // Unique picker key — name alone isn't unique once own + global templates
+  // can share a name (e.g. after a global template is copied unedited).
+  key: string;
   name: string;
   jobType: string | null;
   items: Template[];
+}
+
+function groupByName(rows: Template[], scope: TemplateScope): TemplateGroup[] {
+  const groups: Record<string, TemplateGroup> = {};
+  for (const row of rows) {
+    const key = row.name ?? "Untitled";
+    if (!groups[key]) groups[key] = { scope, key: `${scope}:${key}`, name: key, jobType: row.job_type, items: [] };
+    groups[key].items.push(row);
+  }
+  return Object.values(groups);
 }
 
 export function JobChecklistPanel({
@@ -37,6 +55,7 @@ export function JobChecklistPanel({
 }) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [templates, setTemplates] = useState<TemplateGroup[]>([]);
+  const [globalTemplates, setGlobalTemplates] = useState<TemplateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
@@ -46,7 +65,7 @@ export function JobChecklistPanel({
 
   const load = async () => {
     setLoading(true);
-    const [itemsRes, templatesRes] = await Promise.all([
+    const [itemsRes, ownTemplatesRes, globalTemplatesRes] = await Promise.all([
       supabase.from("job_checklist_items").select("*").eq("job_id", jobId).order("stage").order("sort_order"),
       supabase
         .from("job_checklist_templates")
@@ -55,19 +74,20 @@ export function JobChecklistPanel({
         .eq("is_active", true)
         .order("name")
         .order("sort_order"),
+      supabase
+        .from("job_checklist_templates")
+        .select("*")
+        .is("company_id", null)
+        .is("contractor_id", null)
+        .eq("is_active", true)
+        .order("name")
+        .order("sort_order"),
     ]);
 
     if (!itemsRes.error) setItems(itemsRes.data ?? []);
+    if (!ownTemplatesRes.error) setTemplates(groupByName(ownTemplatesRes.data ?? [], "own"));
+    if (!globalTemplatesRes.error) setGlobalTemplates(groupByName(globalTemplatesRes.data ?? [], "global"));
 
-    if (!templatesRes.error) {
-      const groups: Record<string, TemplateGroup> = {};
-      for (const row of templatesRes.data ?? []) {
-        const key = row.name ?? "Untitled";
-        if (!groups[key]) groups[key] = { name: key, jobType: row.job_type, items: [] };
-        groups[key].items.push(row);
-      }
-      setTemplates(Object.values(groups));
-    }
     setLoading(false);
   };
 
@@ -111,8 +131,12 @@ export function JobChecklistPanel({
     setAdding(false);
   };
 
+  // Works identically for an own or a global (TradeStone) template — both
+  // are just job_checklist_templates rows being copied into
+  // job_checklist_items client-side; the source scope only changes which
+  // list the group was read from.
   const applyTemplate = async () => {
-    const group = templates.find((t) => t.name === selectedTemplate);
+    const group = [...templates, ...globalTemplates].find((t) => t.key === selectedTemplate);
     if (!group) return;
     setApplyingTemplate(true);
     try {
@@ -153,21 +177,37 @@ export function JobChecklistPanel({
   }
 
   const stages: Stage[] = ["work_started", "final_checks"];
+  const hasTemplates = templates.length > 0 || globalTemplates.length > 0;
 
   return (
     <div className="space-y-4">
-      {templates.length > 0 && (
+      {hasTemplates && (
         <div className="flex gap-2">
           <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Apply a saved template…" />
             </SelectTrigger>
             <SelectContent>
-              {templates.map((t) => (
-                <SelectItem key={t.name} value={t.name}>
-                  {t.name} ({t.items.length} item{t.items.length === 1 ? "" : "s"})
-                </SelectItem>
-              ))}
+              {templates.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>My Templates</SelectLabel>
+                  {templates.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      {t.name} ({t.items.length} item{t.items.length === 1 ? "" : "s"})
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {globalTemplates.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>TradeStone Templates</SelectLabel>
+                  {globalTemplates.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      {t.name} ({t.items.length} item{t.items.length === 1 ? "" : "s"})
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
           <Button onClick={applyTemplate} disabled={!selectedTemplate || applyingTemplate} variant="outline">
