@@ -1111,3 +1111,18 @@ settings view (full name, password change) with `FieldHeader` chrome. Needs
 an entry point from `FieldHeader`. No TS-P code — resolve employer TS-C via
 `team_members.contractor_id`, same pattern as `useFieldTeamMember.ts`.
 Sign-out shipped separately with the `/field` routing fix.
+
+
+- Client/B2B visibility of RAMS and checklists: job_rams_select RLS
+  already permits jobs.customer_id and is_company_member(); "Participants
+  can view checklist items" permits customer_id on job_checklist_items.
+  No client- or business-facing screen reads either table. FM clients
+  typically require RAMS pre-start — likely needed before B2B validation.
+- Field view cannot apply checklist templates: FieldChecklist.tsx supports
+  one-off items only. Team members on site must have the contractor
+  pre-apply the template.
+- CLAUDE.md drift found in Step-0 audit: contractor_credentials RLS is
+  narrower than documented (verified = true, not USING(true)); four
+  undocumented columns incl. expires_at, which contradicts the documented
+  "no expiry dates here" rule — confirm whether expires_at has any write
+  path. WO- prefix documented in CLAUDE.md but absent from documentRefs.ts.

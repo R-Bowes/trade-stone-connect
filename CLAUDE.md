@@ -806,3 +806,27 @@ explicitly removed dead `from('quotes')` reads from `ContractorDashboard` and
 missed this edge function — it was never updated off the legacy table.
 
 </details>
+
+
+### RAMS (risk assessment & method statement)
+
+Fully built. `rams_templates` (reusable; `owner_contractor_id IS NULL`
+= platform-wide, 10 seeded) and `job_rams` (per-job instance, tailored
+from a template). `hazards`, `method_steps`, `ppe_requirements` are
+JSONB arrays with structured client-side editors — never raw JSON.
+`job_rams.status` locks edits at `signed` via RLS. PDF via the
+`generate-rams-pdf` edge function, single call site in RamsEditor.tsx.
+Contractor UI: `/dashboard/contractor?view=rams-templates` (library)
+and the RAMS section of the job detail card in JobManagement.tsx.
+No status gate — reachable from job creation onward.
+
+### Checklists
+
+`job_checklist_templates` (definitions) → `job_checklist_items`
+(per-job instances). A "template" is not an entity — it is the group
+of rows sharing `(contractor_id, name)`. Three scope tiers via
+nullable columns: global (`company_id IS NULL AND contractor_id IS
+NULL`), company, contractor. Template rows become job items purely
+client-side via applyTemplate in JobChecklistPanel.tsx — no trigger,
+RPC, or edge function. FieldChecklist.tsx reads/writes
+`job_checklist_items` only and cannot apply templates.
