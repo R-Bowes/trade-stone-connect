@@ -1126,3 +1126,50 @@ Sign-out shipped separately with the `/field` routing fix.
   undocumented columns incl. expires_at, which contradicts the documented
   "no expiry dates here" rule — confirm whether expires_at has any write
   path. WO- prefix documented in CLAUDE.md but absent from documentRefs.ts.
+
+
+  ## Internationalisation — country_code and currency migration
+
+Deferred until there is a named US or Canadian prospect AND a
+confirmed answer from Stripe on cross-border connected accounts
+under a UK platform account.
+
+Full schema audit in I18N-AUDIT.md. Design already worked through:
+- ISO 3166-1 alpha-2 ('GB', not 'UK'); ISO 4217 for currency
+- Tier A (carries country_code): profiles, companies, jobs,
+  enquiries, issued_quotes, invoices, payments
+- Tier B (inherits via FK, no column): line items, attachments,
+  status history, messages
+- Tier C (country-scoped reference data): mileage rates, tax rates,
+  trades taxonomy, compliance certificate types
+- currency only on issued_quotes, invoices, payments, with a
+  cross-column CHECK pinning currency to country
+- Immutable via trigger on records (jobs, enquiries, issued_quotes,
+  invoices, payments); mutable on people (profiles, companies)
+- Transitional 'GB'/'GBP' defaults must be DROPPED in the same
+  migration as first non-UK launch, so unstamped inserts fail loudly
+
+Not urgent: money is stored as numeric decimal, which serves GBP,
+USD and CAD without modification. Backfill cost scales with row
+count, which is currently near zero.
+
+## Date handling — 9 unsafe toLocaleDateString call sites
+
+Zero timezone literals exist anywhere in the codebase. Invisible in
+the UK because GMT == UTC. West of Greenwich, a date-only value
+parsed as UTC midnight renders as the previous day — an off-by-one
+on invoice due dates, quote expiry and job dates.
+
+The ~90 files using date-fns "d MMM yyyy" tokens are SAFE: parseISO
+returns local midnight, not UTC. The risk is confined to the 9
+toLocaleDateString call sites called without a locale argument
+(listed in I18N-AUDIT.md Section 6). Nine-line fix, not a sweep.
+
+## Mileage — hmrc_mileage_rates is a tax regime, not a rate table
+
+UK tax year runs 6 April to 5 April; US and Canada use calendar
+years. HMRC is two-tier by mileage threshold; IRS is a single rate;
+CRA is two-tier by kilometre threshold. mileage_trips.tax_year holds
+a UK-shaped string ("2025-26") that becomes an integer in both other
+countries. Redesign required before any non-UK mileage support —
+this is not a currency-symbol problem.

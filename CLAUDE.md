@@ -830,3 +830,8 @@ NULL`), company, contractor. Template rows become job items purely
 client-side via applyTemplate in JobChecklistPanel.tsx — no trigger,
 RPC, or edge function. FieldChecklist.tsx reads/writes
 `job_checklist_items` only and cannot apply templates.
+
+- Job creation runs through the `mint_job_from_quote` RPC.
+  `createJobFromQuote.ts` no longer exists.
+- Money is stored as `numeric` decimal (pounds), not integer minor
+  units. Conversion to minor units happens only at the Stripe boundary.

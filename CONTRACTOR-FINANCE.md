@@ -188,6 +188,11 @@ Platform-managed, not contractor-editable. Updated when HMRC changes rates.
   vehicle-tagged expenses × business_use_pct
 - Annual mileage summary exportable for Self Assessment
 
+> **Scope note:** The mileage design is specific to the HMRC regime
+> (6 April–5 April tax year, two-tier threshold, `tax_year` as a
+> "2025-26" string). It is not a country-neutral rate table and will
+> not survive US or Canadian expansion without redesign. See LATER.md.
+
 ---
 
 ## 4. P&L DASHBOARD
