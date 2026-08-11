@@ -68,6 +68,9 @@ function normalizeItems(raw: unknown): LineItem[] {
       quantity,
       unit_price: unitPrice,
       total,
+      // Optional — historic items have no unit key at all. Carried through
+      // as-is; never participates in any calculation above.
+      unit: typeof r.unit === "string" ? r.unit : undefined,
     };
   });
 }

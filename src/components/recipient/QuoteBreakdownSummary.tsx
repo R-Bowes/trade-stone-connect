@@ -2,12 +2,15 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { unitLabel } from "@/constants/units";
 
 interface LineItem {
   description: string;
   quantity: number;
   unit_price: number;
   total: number;
+  /** Stored unit id (e.g. 'sqm'). Optional — historic rows have no unit key. */
+  unit?: string;
 }
 
 interface QuoteBreakdownSummaryProps {
@@ -62,7 +65,9 @@ export function QuoteBreakdownSummary({
           {visibleItems.map((item, i) => (
             <tr key={i} className="border-t border-border/40">
               <td className="py-1.5 pr-2">{item.description}</td>
-              <td className="py-1.5 text-right">{item.quantity}</td>
+              <td className="py-1.5 text-right">
+                {item.quantity}{unitLabel(item.unit) ? ` ${unitLabel(item.unit)}` : ""}
+              </td>
               <td className="py-1.5 text-right">£{fmt(item.unit_price)}</td>
               <td className="py-1.5 text-right font-medium">£{fmt(item.total)}</td>
             </tr>

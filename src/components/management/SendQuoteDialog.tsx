@@ -13,6 +13,7 @@ import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { PaymentScheduleBuilder, isScheduleValid, type BuilderStage } from "@/components/management/quotes/PaymentScheduleBuilder";
+import { unitsForCountry } from "@/constants/units";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
 // allocator) — never generated client-side, hence the Omit here.
@@ -50,7 +51,12 @@ type LineItem = {
   description: string;
   quantity: number;
   unit_price: number;
+  /** Stored unit id (e.g. 'sqm'), or "" for no unit selected. Never a display glyph. */
+  unit: string;
 };
+
+// GB-only for now — no country/locale selector added, per scope.
+const UNIT_OPTIONS = unitsForCountry("GB");
 
 interface SendQuoteDialogProps {
   open: boolean;
@@ -60,7 +66,7 @@ interface SendQuoteDialogProps {
 }
 
 function blankItem(): LineItem {
-  return { key: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0 };
+  return { key: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0, unit: "" };
 }
 
 export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: SendQuoteDialogProps) {
@@ -178,11 +184,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       // enquiry.customer_id is already a profiles.id; null for guest enquiries.
       const recipientId: string | null = enquiry.customer_id ?? null;
 
-      const lineItems = filledItems.map(({ description, quantity, unit_price }) => ({
+      const lineItems = filledItems.map(({ description, quantity, unit_price, unit }) => ({
         description: description.trim(),
         quantity,
         unit_price,
         total: quantity * unit_price,
+        // Omit the key entirely when no unit is selected — never write an
+        // empty-string unit. Historic rows have no `unit` key at all.
+        ...(unit ? { unit } : {}),
       }));
 
       const quotePayload: IssuedQuoteInsert = {
@@ -352,14 +361,15 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
           <div className="space-y-2">
             <Label>Line items</Label>
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_72px_104px_32px] gap-2 px-1 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[1fr_64px_80px_104px_32px] gap-2 px-1 text-xs font-medium text-muted-foreground">
                 <span>Description <span className="text-destructive">*</span></span>
                 <span className="text-right">Qty</span>
+                <span>Unit</span>
                 <span className="text-right">Unit price (£)</span>
                 <span />
               </div>
               {items.map((item) => (
-                <div key={item.key} className="grid grid-cols-[1fr_72px_104px_32px] gap-2 items-center">
+                <div key={item.key} className="grid grid-cols-[1fr_64px_80px_104px_32px] gap-2 items-center">
                   <Input
                     value={item.description}
                     onChange={(e) => updateItem(item.key, "description", e.target.value)}
@@ -374,6 +384,20 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
                     className="text-right"
                     disabled={submitting}
                   />
+                  <Select
+                    value={item.unit || "__none"}
+                    onValueChange={(v) => updateItem(item.key, "unit", v === "__none" ? "" : v)}
+                  >
+                    <SelectTrigger disabled={submitting} className="h-9 px-2">
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">—</SelectItem>
+                      {UNIT_OPTIONS.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     type="number"
                     min={0}

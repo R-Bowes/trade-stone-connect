@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { unitsForCountry } from "@/constants/units";
 import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
@@ -21,7 +23,12 @@ interface LineItem {
   quantity: number;
   unit_price: number;
   total: number;
+  /** Stored unit id (e.g. 'sqm'). Optional — historic rows have no unit key. */
+  unit?: string;
 }
+
+// GB-only for now — no country/locale selector added, per scope.
+const UNIT_OPTIONS = unitsForCountry("GB");
 
 interface IssuedQuote {
   id: string;
@@ -354,6 +361,11 @@ function QuoteEditPanel({
     const item = { ...items[idx] };
     if (field === "description") {
       item.description = raw;
+    } else if (field === "unit") {
+      // Store the id only, or drop the key entirely when "—" is chosen —
+      // unit never participates in total, so no recompute needed here.
+      if (raw) item.unit = raw;
+      else delete item.unit;
     } else {
       item[field] = Number(raw);
     }
@@ -419,6 +431,7 @@ function QuoteEditPanel({
               <tr className="border-b">
                 <th className="text-left pb-1.5 font-medium text-muted-foreground">Description</th>
                 <th className="text-right pb-1.5 font-medium text-muted-foreground w-16">Qty</th>
+                <th className="text-left pb-1.5 font-medium text-muted-foreground w-20 pl-1.5">Unit</th>
                 <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Unit £</th>
                 <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Total</th>
                 <th className="w-8" />
@@ -443,6 +456,22 @@ function QuoteEditPanel({
                       value={item.quantity}
                       onChange={e => updateItem(idx, "quantity", e.target.value)}
                     />
+                  </td>
+                  <td className="py-1 pl-1.5">
+                    <Select
+                      value={item.unit || "__none"}
+                      onValueChange={v => updateItem(idx, "unit", v === "__none" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-7 text-sm px-2">
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">—</SelectItem>
+                        {UNIT_OPTIONS.map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
                   <td className="py-1 pl-1.5">
                     <Input

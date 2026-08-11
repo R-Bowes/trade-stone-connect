@@ -246,10 +246,34 @@ export interface LineItem {
   quantity: number;
   unit_price: number;
   total: number;
+  /** Stored unit id (e.g. 'sqm'). Optional — historic rows have no unit key. */
+  unit?: string;
 }
 
 export interface LineItemsTableOptions {
   currency?: string;
+}
+
+// Minimal id -> display label map, mirroring src/constants/units.ts. Edge
+// functions cannot import from src/ — duplicated here deliberately, same
+// pattern as the document-ref format duplication documented in CLAUDE.md.
+// Keep in sync with src/constants/units.ts's UNITS list if that vocabulary
+// changes; this only needs the label, never the full unit metadata.
+const UNIT_LABELS: Record<string, string> = {
+  each: "each", point: "pt", job: "job", visit: "visit",
+  hour: "hr", day: "day", week: "wk", month: "mo",
+  m: "m", mm: "mm", lm: "lm", ft: "ft", in: "in", lft: "ln ft", yd: "yd",
+  sqm: "m²", sqft: "sq ft", sqyd: "sq yd",
+  cum: "m³", cuft: "cu ft", cuyd: "cu yd",
+  kg: "kg", tonne: "t", lb: "lb", ton: "ton",
+  litre: "L", gal: "gal",
+  roll: "roll", sheet: "sheet", box: "box", pack: "pack", bag: "bag", pallet: "pallet",
+};
+
+/** Resolve a stored unit id to its display label. '' for unknown/missing. */
+function pdfUnitLabel(unitId: string | null | undefined): string {
+  if (!unitId) return "";
+  return UNIT_LABELS[unitId] ?? "";
 }
 
 export function drawLineItemsTable(
@@ -263,7 +287,9 @@ export function drawLineItemsTable(
   const currency = options.currency ?? "£";
   const tableWidth = PAGE_WIDTH - 2 * MARGIN;
   const colQty = MARGIN + tableWidth * 0.55;
-  const colUnit = MARGIN + tableWidth * 0.72;
+  // Nudged left from 0.72 to 0.66 to give the Qty column room for an
+  // appended unit label (e.g. "40 sq yd") without crowding Unit Price.
+  const colUnit = MARGIN + tableWidth * 0.66;
   const rowHeight = 20;
 
   let cursorY = y;
@@ -295,7 +321,9 @@ export function drawLineItemsTable(
     }
     const rowTextY = cursorY - 14;
     page.drawText(sanitizeForPdf(item.description), { x: MARGIN + 6, y: rowTextY, size: 9, font, color: DARK });
-    drawRightAligned(page, String(item.quantity), colUnit - 8, rowTextY, 9, font, DARK);
+    const unitSuffix = pdfUnitLabel(item.unit);
+    const qtyText = unitSuffix ? `${item.quantity} ${unitSuffix}` : String(item.quantity);
+    drawRightAligned(page, sanitizeForPdf(qtyText), colUnit - 8, rowTextY, 9, font, DARK);
     drawRightAligned(page, `${currency}${item.unit_price.toFixed(2)}`, MARGIN + tableWidth - 90, rowTextY, 9, font, DARK);
     drawRightAligned(page, `${currency}${item.total.toFixed(2)}`, MARGIN + tableWidth - 6, rowTextY, 9, font, DARK);
     cursorY -= rowHeight;
