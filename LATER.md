@@ -1173,3 +1173,36 @@ CRA is two-tier by kilometre threshold. mileage_trips.tax_year holds
 a UK-shaped string ("2025-26") that becomes an integer in both other
 countries. Redesign required before any non-UK mileage support —
 this is not a currency-symbol problem.
+
+## Currency and number formatting — single formatter module
+
+~90 files contain a literal `£`; 20 contain the string "GBP".
+Additionally, 6 call sites use `.toLocaleString()` on numeric values
+with no locale argument (ContractManagement.tsx:384;
+CRMManagement.tsx:119,171; crm/ClientDetail.tsx:78,147;
+ui/chart.tsx:212). With no locale argument these follow the viewer's
+browser locale — 1,234.56 in en-GB, 1 234,56 in fr-CA.
+
+Fix is a single formatMoney(amount, currency) module that reads the
+record's stored currency column (now present on issued_quotes,
+invoices, payments) rather than assuming GBP. Note
+`pdfBranding.ts` already has the only currency-parameterised code
+path in the codebase, currently unused by any caller — wire it up
+as part of this work.
+
+## issued_quotes tax model is UK-VAT-shaped
+
+`issued_quotes` stores a single quote-level `tax_rate` scalar with a
+derived `tax_amount`. That is a UK VAT shape. US sales tax is
+multi-jurisdiction with taxability differing between labour and
+materials by state; Canada is GST/HST federal plus PST/QST
+provincial. A single quote-level rate will not survive either.
+Requires a tax-lines-per-line-item model, and realistically a vendor
+(Stripe Tax, Avalara) rather than own logic. Blocks any non-UK
+launch.
+
+## Completion PDF — stray glyph under logo
+
+The completion certificate PDF renders a stray "M" glyph directly
+beneath the contractor logo. Observed on J-4AE203-0003. Cosmetic but
+customer-facing.

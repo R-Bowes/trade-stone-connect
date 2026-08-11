@@ -992,6 +992,17 @@ day near..."), `supabase/functions/process-recurring-expenses/index.ts:38`
 UTC midnight, no local-timezone drift"). These are careful DATE-column
 handling, not timezone-locale hardcoding.
 
+
+
+> **Correction (11 Aug 2026):** The "9 unsafe no-locale-arg call
+> sites" figure conflates two different defects. Only 3 are
+> `toLocaleDateString()` on dates — fixed via `src/lib/formatDate.ts`
+> (ContractManagement.tsx:411,416; SubcontractManagement.tsx:366).
+> The remaining 6 are `toLocaleString()` on NUMBERS (contract_value,
+> total_revenue, subcontract_value, chart item.value). Those are a
+> currency/number formatting defect, not a date defect — no
+> UTC-midnight bug applies. They belong with the currency formatter
+> work, tracked in LATER.md.
 ---
 
 ## SECTION 7 — MIGRATION FLOOR
