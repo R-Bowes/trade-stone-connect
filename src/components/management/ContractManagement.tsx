@@ -11,6 +11,7 @@ import { Plus, Trash2, Edit, Loader2, FileText } from "lucide-react";
 import { SubcontractManagement } from "./SubcontractManagement";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDate } from "@/lib/formatDate";
 
 interface Contract {
   id: string;
@@ -408,12 +409,12 @@ export function ContractManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-muted-foreground">Start Date</p>
-                    <p>{new Date(contract.start_date).toLocaleDateString()}</p>
+                    <p>{formatDate(contract.start_date)}</p>
                   </div>
                   {contract.end_date && (
                     <div>
                       <p className="text-muted-foreground">End Date</p>
-                      <p>{new Date(contract.end_date).toLocaleDateString()}</p>
+                      <p>{formatDate(contract.end_date)}</p>
                     </div>
                   )}
                 </div>

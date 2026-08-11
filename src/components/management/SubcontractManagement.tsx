@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Edit, Loader2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDate } from "@/lib/formatDate";
 
 interface Subcontract {
   id: string;
@@ -363,7 +364,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1">{sub.scope_description}</p>
                 <p className="text-xs mt-1">
-                  £{sub.subcontract_value.toLocaleString()} • {new Date(sub.start_date).toLocaleDateString()}
+                  £{sub.subcontract_value.toLocaleString()} • {formatDate(sub.start_date)}
                 </p>
               </div>
               <div className="flex gap-1">
