@@ -146,9 +146,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Platform settings form state
-  const [commTier1, setCommTier1] = useState('6');
-  const [commTier2, setCommTier2] = useState('4');
-  const [commTier3, setCommTier3] = useState('2.5');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [platformEmailName, setPlatformEmailName] = useState('TradeStone');
   const [platformEmailAddress, setPlatformEmailAddress] = useState('noreply@tradestone.com');
@@ -304,9 +301,6 @@ export default function AdminDashboard() {
     for (const row of (settingsRes.data || [])) {
       settings[row.key] = row.value;
     }
-    setCommTier1(settings['commission_tier_1'] || '6');
-    setCommTier2(settings['commission_tier_2'] || '4');
-    setCommTier3(settings['commission_tier_3'] || '2.5');
     setMaintenanceMode(settings['maintenance_mode'] === 'true');
     setPlatformEmailName(settings['platform_email_name'] || 'TradeStone');
     setPlatformEmailAddress(settings['platform_email_address'] || 'noreply@tradestone.com');
@@ -597,9 +591,6 @@ export default function AdminDashboard() {
     setSettingsSaving(true);
     setSettingsMsg('');
     const updates = [
-      { key: 'commission_tier_1', value: commTier1 },
-      { key: 'commission_tier_2', value: commTier2 },
-      { key: 'commission_tier_3', value: commTier3 },
       { key: 'maintenance_mode', value: maintenanceMode ? 'true' : 'false' },
       { key: 'platform_email_name', value: platformEmailName },
       { key: 'platform_email_address', value: platformEmailAddress },
@@ -613,9 +604,6 @@ export default function AdminDashboard() {
       }, { onConflict: 'key' });
     }
     await logActivity('update_platform_settings', 'settings', 'platform_settings', {
-      commission_tier_1: commTier1,
-      commission_tier_2: commTier2,
-      commission_tier_3: commTier3,
       maintenance_mode: String(maintenanceMode),
     });
     setSettingsMsg('Settings saved.');
@@ -1058,30 +1046,6 @@ export default function AdminDashboard() {
             {/* ── PLATFORM SETTINGS ────────────────────────────────────── */}
             {activeTab === 'settings' && isSuperAdmin && (
               <div style={{ maxWidth: 580 }}>
-                <div style={{ marginBottom: 32 }}>
-                  <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>Commission Rates</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-                    {[
-                      { label: '£0 – £500',     val: commTier1, set: setCommTier1 },
-                      { label: '£500 – £2,000', val: commTier2, set: setCommTier2 },
-                      { label: '£2,000+',        val: commTier3, set: setCommTier3 },
-                    ].map(t => (
-                      <div key={t.label}>
-                        <label style={labelS}>{t.label}</label>
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            value={t.val}
-                            onChange={e => t.set(e.target.value)}
-                            style={{ ...inputS, paddingRight: 28 }}
-                            type="number" step="0.1" min="0" max="100"
-                          />
-                          <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div style={{ marginBottom: 32 }}>
                   <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>Platform Email</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
