@@ -1234,3 +1234,61 @@ UNVERIFIED — confirm with Stripe support directly:
   determines who bears a disputed job and interacts with the
   existing `chargebacks` table.
 - The exact cross-border payout fee figure.
+
+
+## Directory search — geocoding coverage gap
+
+The service-area feature is shipped but effectively inert. Two
+compounding causes (LOCATION-AUDIT.md finding 2):
+- 6 of 7 live contractor rows have no service_area_center_lat/lng,
+  so they fall through to the ILIKE path.
+- Place-name searches never reach the haversine path at all. Only a
+  full postcode entered by the searcher triggers geometry.
+
+Net effect: nearly every directory search still runs on substring
+match, so the originating Bournemouth problem (a Southampton
+contractor who would travel to Bournemouth being invisible to a
+Bournemouth search) is still live. Needs: backfill geocoding for
+existing contractors, and a place-name → coordinates path on the
+search side.
+
+## Two radius fields, only one canonical
+
+working_radius is actively read in 9 files for display, but
+service_area_radius_miles is canonical for search
+(LOCATION-AUDIT.md finding 1). If they disagree, a contractor sees
+a coverage number that does not match their actual directory reach.
+Either collapse to one field or derive display from the canonical
+one.
+
+## /projects/:id queries the legacy projects table
+
+Two parallel tendering location models coexist live: the current
+tenders → tender_sites → sites system, and a legacy `projects`
+table with structured city/postcode columns and 0 rows.
+TenderDetail.tsx at the live /projects/:id route still queries the
+legacy one (LOCATION-AUDIT.md finding 3). Verify in the browser
+whether that route is broken.
+
+## issued_quotes.client_address is a dead column
+
+0 of 22 rows non-null; nothing in the current codebase writes it.
+mint_job_from_quote's comment describes a SendQuoteDialog.tsx write
+that no longer exists (LOCATION-AUDIT.md finding 4). Either wire it
+up or drop the column and correct the RPC comment.
+
+## sites has no country_code
+
+sites was deliberately excluded from migration 20260811090000
+pending the location design pass. A site's country cannot currently
+be read off its own row, despite jobs and enquiries referencing it
+(LOCATION-AUDIT.md finding 5). It is the most country-bound record
+in the schema. Include in the structured location capture work.
+
+## geocode-postcode is UK-only by construction
+
+The edge function is postcodes.io-backed, which is UK-only and has
+no US or Canadian equivalent behind the same interface. Any non-UK
+geocoding needs either a per-country provider switch or a
+multi-country service. Decision deferred until non-UK addresses
+actually exist.
