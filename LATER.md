@@ -1206,3 +1206,31 @@ launch.
 The completion certificate PDF renders a stray "M" glyph directly
 beneath the contractor logo. Observed on J-4AE203-0003. Cosmetic but
 customer-facing.
+
+## Stripe cross-border — ANSWERED (11 Aug 2026)
+
+A single UK platform account CAN onboard US and Canadian connected
+accounts under destination charges. No separate platform account
+per country required. Confirms the single-codebase /
+single-platform architecture.
+
+Requirements:
+- `on_behalf_of` must be set to the connected account ID on the
+  PaymentIntent for cross-region charges. Drives local acquiring
+  and regulatory compliance. Not currently set anywhere in
+  create-payment-intent or accept-quote.
+- 0.25% cross-border payout fee on transfers to US/CA connected
+  accounts. Against a 5% platform fee this is ~5% relative margin
+  loss on non-UK jobs. Argues for a US entity at volume, not now.
+- Settlement: US accounts in USD, CA accounts in CAD (or USD with
+  an eligible USD-denominated Canadian bank account).
+- FX conversion fees (1-2%) apply where charge currency differs
+  from the connected account's payout currency.
+
+UNVERIFIED — confirm with Stripe support directly:
+- Whether `on_behalf_of` genuinely transfers chargeback liability
+  to the connected account, or whether the platform remains
+  merchant of record and liable under destination charges. This
+  determines who bears a disputed job and interacts with the
+  existing `chargebacks` table.
+- The exact cross-border payout fee figure.
