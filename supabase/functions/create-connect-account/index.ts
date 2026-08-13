@@ -88,7 +88,7 @@ serve(async (req) => {
     // Check if contractor already has a Stripe account
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("stripe_account_id, full_name, email")
+      .select("stripe_account_id, full_name, email, country_code")
       .eq("user_id", user.id)
       .single();
 
@@ -99,15 +99,34 @@ serve(async (req) => {
     let accountId = profile?.stripe_account_id;
 
     if (!accountId) {
+      // Stripe Connect account country is IMMUTABLE after creation --
+      // there is no fallback to a default here on purpose. profiles.country_code
+      // is NOT NULL in the DB, but this endpoint must not trust that alone:
+      // fail loudly rather than silently minting a wrongly-domiciled account
+      // for any value this endpoint doesn't explicitly recognise.
+      const ALLOWED_STRIPE_COUNTRIES = ["GB", "US", "CA"] as const;
+      const countryCode = profile?.country_code;
+      if (!countryCode || !(ALLOWED_STRIPE_COUNTRIES as readonly string[]).includes(countryCode)) {
+        return jsonResponse(400, {
+          success: false,
+          error: `Cannot create a Stripe account: profile country_code is missing or unsupported (got ${JSON.stringify(countryCode ?? null)}). Must be one of: ${ALLOWED_STRIPE_COUNTRIES.join(", ")}.`,
+        });
+      }
+
       // Create a new Express account.
       //
-      // These settings apply to NEWLY CREATED accounts only — existing
-      // connected accounts (including acct_1TnLKCK6BjgGpUY4) need updating
-      // separately; see the Brief 2 report for how to list them and update
-      // in bulk.
+      // These settings apply to NEWLY CREATED accounts only. Account
+      // country is immutable in Stripe, so any account already created
+      // under the previous hard-coded "GB" is permanently GB-domiciled
+      // and would need deleting and re-onboarding to change.
+      //
+      // default_currency is deliberately NOT set here -- Stripe derives it
+      // from `country`, and for CA that choice (CAD vs USD settlement) is
+      // the contractor's own bank setup to make during onboarding, not ours
+      // to impose.
       const account = await stripe.accounts.create({
         type: "express",
-        country: "GB",
+        country: countryCode,
         email: profile?.email || user.email,
         capabilities: {
           card_payments: { requested: true },
