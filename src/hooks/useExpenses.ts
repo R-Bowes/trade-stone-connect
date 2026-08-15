@@ -21,7 +21,6 @@ export type ExpenseStatus = "confirmed" | "pending_confirmation" | "skipped";
 export type Expense = {
   id: string;
   contractor_id: string;
-  category: string;
   category_id: string | null;
   description: string;
   amount: number;
@@ -150,19 +149,7 @@ export function useExpenses() {
     await Promise.all([fetchExpenses(), getPendingExpenses()]);
   };
 
-  const resolveCategoryName = async (categoryId: string | null): Promise<string> => {
-    if (!categoryId) return "General";
-    const { data } = await supabase
-      .from("expense_categories")
-      .select("name, parent:parent_id(name)")
-      .eq("id", categoryId)
-      .maybeSingle();
-
-    if (!data) return "General";
-    return data.parent ? `${data.parent.name} > ${data.name}` : data.name;
-  };
-
-  const addExpense = async (expense: Omit<ExpenseInsert, "contractor_id" | "category">) => {
+  const addExpense = async (expense: Omit<ExpenseInsert, "contractor_id">) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -172,11 +159,8 @@ export function useExpenses() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const category = await resolveCategoryName(expense.category_id);
-
     const { error } = await supabase.from("expenses").insert({
       ...expense,
-      category,
       contractor_id: profileRow?.id,
     });
 
@@ -189,13 +173,8 @@ export function useExpenses() {
     fetchExpenses();
   };
 
-  const updateExpense = async (id: string, updates: Partial<Omit<ExpenseInsert, "category">>) => {
-    const patch: Partial<ExpenseInsert> = { ...updates };
-    if ("category_id" in updates) {
-      patch.category = await resolveCategoryName(updates.category_id ?? null);
-    }
-
-    const { error } = await supabase.from("expenses").update(patch).eq("id", id);
+  const updateExpense = async (id: string, updates: Partial<ExpenseInsert>) => {
+    const { error } = await supabase.from("expenses").update(updates).eq("id", id);
 
     if (error) {
       toast({ title: "Error", description: "Failed to update expense", variant: "destructive" });
@@ -250,11 +229,6 @@ export function useExpenses() {
   // Compute totals
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  const expensesByCategory = expenses.reduce<Record<string, number>>((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
-    return acc;
-  }, {});
-
   return {
     expenses,
     pendingExpenses,
@@ -268,7 +242,6 @@ export function useExpenses() {
     skipPendingExpense,
     getPendingExpenses,
     totalExpenses,
-    expensesByCategory,
     refetch: fetchExpenses,
   };
 }

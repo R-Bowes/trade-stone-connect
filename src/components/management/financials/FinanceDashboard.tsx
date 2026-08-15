@@ -8,6 +8,7 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceSummary } from "@/hooks/useFinanceSummary";
+import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { YearEndPackDialog } from "@/components/management/financials/YearEndPackDialog";
 import { summariseInvoices } from "@/lib/invoiceMoney";
 
@@ -36,6 +37,7 @@ type Props = {
 
 export function FinanceDashboard({ onNavigate }: Props) {
   const { vatPosition } = useFinanceSummary();
+  const { getCategoryName } = useExpenseCategories();
 
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -192,7 +194,8 @@ export function FinanceDashboard({ onNavigate }: Props) {
       });
 
     const expenseTx: TxRow[] = expenses.map((e) => ({
-      key: `exp-${e.id}`, date: e.expense_date, kind: "expense", label: e.category,
+      key: `exp-${e.id}`, date: e.expense_date, kind: "expense",
+      label: e.category_id ? getCategoryName(e.category_id) : "Uncategorised",
       amount: -Number(e.amount), badge: "Expense", tab: "expenses",
     }));
 
@@ -204,7 +207,7 @@ export function FinanceDashboard({ onNavigate }: Props) {
     return [...invoiceTx, ...expenseTx, ...mileageTx]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 10);
-  }, [invoices, expenses, trips, payments]);
+  }, [invoices, expenses, trips, payments, getCategoryName]);
 
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading finance dashboard…</div>;

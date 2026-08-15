@@ -265,15 +265,14 @@ export function useFinanceSummary() {
   );
 
   // HMRC parent category name for an expense: resolve via category_id ->
-  // (its own name if it's a parent, or its parent's name if it's a
-  // subcategory) -> falls back to the denormalised `category` text for
-  // legacy rows with no category_id, so nothing gets silently dropped from
-  // the roll-up.
+  // its own name if it's a parent, or its parent's name if it's a
+  // subcategory. "Other" if category_id is unset or the category was
+  // deleted, so nothing gets silently dropped from the roll-up.
   const parentCategoryName = useCallback(
     (expense: ExpenseRow): string => {
-      if (!expense.category_id) return expense.category || "Other";
+      if (!expense.category_id) return "Other";
       const cat = categories.find((c) => c.id === expense.category_id);
-      if (!cat) return expense.category || "Other";
+      if (!cat) return "Other";
       if (!cat.parent_id) return cat.name;
       const parent = categories.find((c) => c.id === cat.parent_id);
       return parent?.name ?? cat.name;

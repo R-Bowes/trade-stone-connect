@@ -44,6 +44,9 @@ export function ExpenseList() {
   } = useExpenses();
   const { categories: expenseCategoryTree, getCategoryName } = useExpenseCategories();
 
+  const expenseCategoryName = (expense: Expense): string =>
+    expense.category_id ? getCategoryName(expense.category_id) : "Uncategorised";
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [search, setSearch] = useState("");
@@ -88,7 +91,7 @@ export function ExpenseList() {
       const matchesSearch = !search ||
         e.description.toLowerCase().includes(search.toLowerCase()) ||
         (e.vendor?.toLowerCase().includes(search.toLowerCase()));
-      const matchesCategory = categoryFilter === "all" || e.category === categoryFilter;
+      const matchesCategory = categoryFilter === "all" || expenseCategoryName(e) === categoryFilter;
       return matchesSearch && matchesCategory;
     });
   }, [expenses, search, categoryFilter]);
@@ -117,7 +120,7 @@ export function ExpenseList() {
       ["Date", "Category", "Description", "Vendor", "Amount", "VAT", "VAT Reclaimable", "Payment Method", "Job", "Notes"],
       filteredExpenses.map((e) => [
         e.expense_date,
-        e.category_id ? getCategoryName(e.category_id) : e.category,
+        expenseCategoryName(e),
         e.description,
         e.vendor ?? "",
         Number(e.amount).toFixed(2),
@@ -276,8 +279,8 @@ export function ExpenseList() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getCategoryColor(expense.category)}>
-                        {expense.category_id ? getCategoryName(expense.category_id) : expense.category}
+                      <Badge className={getCategoryColor(expenseCategoryName(expense))}>
+                        {expenseCategoryName(expense)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{expense.vendor || "—"}</TableCell>

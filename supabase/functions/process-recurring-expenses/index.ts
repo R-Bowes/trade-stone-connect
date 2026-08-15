@@ -17,7 +17,6 @@ type RecurrenceInterval = "weekly" | "fortnightly" | "monthly" | "quarterly" | "
 type RecurringExpenseRow = {
   id: string;
   contractor_id: string;
-  category: string;
   category_id: string | null;
   description: string;
   amount: number;
@@ -85,7 +84,7 @@ serve(async (req) => {
     const { data: dueRows, error: dueError } = await supabase
       .from("expenses")
       .select(`
-        id, contractor_id, category, category_id, description, amount,
+        id, contractor_id, category_id, description, amount,
         vat_amount, vat_rate, vat_reclaimable, payment_method, job_id, project_id,
         vendor, notes, recurrence_interval, recurrence_next_due, recurrence_end_date,
         recurrence_auto_confirm
@@ -107,7 +106,6 @@ serve(async (req) => {
         .from("expenses")
         .insert({
           contractor_id: row.contractor_id,
-          category: row.category,
           category_id: row.category_id,
           description: row.description,
           amount: row.amount,

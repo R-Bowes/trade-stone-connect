@@ -456,6 +456,7 @@ export type Database = {
           company_size: string | null
           contact_email: string | null
           contact_phone: string | null
+          country_code: string
           created_at: string | null
           email: string | null
           id: string
@@ -478,6 +479,7 @@ export type Database = {
           company_size?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country_code?: string
           created_at?: string | null
           email?: string | null
           id?: string
@@ -500,6 +502,7 @@ export type Database = {
           company_size?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country_code?: string
           created_at?: string | null
           email?: string | null
           id?: string
@@ -2296,6 +2299,7 @@ export type Database = {
           budget_range: string | null
           company_id: string | null
           contractor_id: string | null
+          country_code: string
           created_at: string | null
           customer_email: string | null
           customer_id: string | null
@@ -2327,6 +2331,7 @@ export type Database = {
           budget_range?: string | null
           company_id?: string | null
           contractor_id?: string | null
+          country_code?: string
           created_at?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -2358,6 +2363,7 @@ export type Database = {
           budget_range?: string | null
           company_id?: string | null
           contractor_id?: string | null
+          country_code?: string
           created_at?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -2537,7 +2543,6 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
-          category: string
           category_id: string | null
           contractor_id: string
           created_at: string
@@ -2564,7 +2569,6 @@ export type Database = {
         }
         Insert: {
           amount: number
-          category?: string
           category_id?: string | null
           contractor_id: string
           created_at?: string
@@ -2591,7 +2595,6 @@ export type Database = {
         }
         Update: {
           amount?: number
-          category?: string
           category_id?: string | null
           contractor_id?: string
           created_at?: string
@@ -2622,6 +2625,20 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_contractor_id_fk"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_contractor_id_fk"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2853,7 +2870,9 @@ export type Database = {
           client_name: string
           client_phone: string | null
           contractor_id: string
+          country_code: string
           created_at: string
+          currency: string
           deposit_amount: number | null
           deposit_deducted: number | null
           deposit_paid: boolean | null
@@ -2888,7 +2907,9 @@ export type Database = {
           client_name: string
           client_phone?: string | null
           contractor_id: string
+          country_code?: string
           created_at?: string
+          currency?: string
           deposit_amount?: number | null
           deposit_deducted?: number | null
           deposit_paid?: boolean | null
@@ -2923,7 +2944,9 @@ export type Database = {
           client_name?: string
           client_phone?: string | null
           contractor_id?: string
+          country_code?: string
           created_at?: string
+          currency?: string
           deposit_amount?: number | null
           deposit_deducted?: number | null
           deposit_paid?: boolean | null
@@ -3007,7 +3030,9 @@ export type Database = {
           client_type: string
           completion_time: string | null
           contractor_id: string
+          country_code: string
           created_at: string
+          currency: string
           customer_note: string | null
           deposit_amount: number | null
           deposit_paid: boolean | null
@@ -3051,7 +3076,9 @@ export type Database = {
           client_type?: string
           completion_time?: string | null
           contractor_id: string
+          country_code?: string
           created_at?: string
+          currency?: string
           customer_note?: string | null
           deposit_amount?: number | null
           deposit_paid?: boolean | null
@@ -3095,7 +3122,9 @@ export type Database = {
           client_type?: string
           completion_time?: string | null
           contractor_id?: string
+          country_code?: string
           created_at?: string
+          currency?: string
           customer_note?: string | null
           deposit_amount?: number | null
           deposit_paid?: boolean | null
@@ -4452,6 +4481,7 @@ export type Database = {
           contractor_id: string
           contractor_signed_off_at: string | null
           contractor_signed_off_name: string | null
+          country_code: string
           created_at: string
           customer_id: string
           description: string | null
@@ -4496,6 +4526,7 @@ export type Database = {
           contractor_id: string
           contractor_signed_off_at?: string | null
           contractor_signed_off_name?: string | null
+          country_code?: string
           created_at?: string
           customer_id: string
           description?: string | null
@@ -4540,6 +4571,7 @@ export type Database = {
           contractor_id?: string
           contractor_signed_off_at?: string | null
           contractor_signed_off_name?: string | null
+          country_code?: string
           created_at?: string
           customer_id?: string
           description?: string | null
@@ -5220,7 +5252,9 @@ export type Database = {
         Row: {
           amount: number
           contractor_payout: number | null
+          country_code: string
           created_at: string | null
+          currency: string
           escrow_released_at: string | null
           id: string
           invoice_id: string | null
@@ -5246,7 +5280,9 @@ export type Database = {
         Insert: {
           amount: number
           contractor_payout?: number | null
+          country_code?: string
           created_at?: string | null
+          currency?: string
           escrow_released_at?: string | null
           id?: string
           invoice_id?: string | null
@@ -5272,7 +5308,9 @@ export type Database = {
         Update: {
           amount?: number
           contractor_payout?: number | null
+          country_code?: string
           created_at?: string | null
+          currency?: string
           escrow_released_at?: string | null
           id?: string
           invoice_id?: string | null
@@ -5733,6 +5771,7 @@ export type Database = {
           bio_heading: string | null
           company_name: string | null
           completed_jobs: number | null
+          country_code: string
           cover_url: string | null
           coverage_type: string
           created_at: string
@@ -5798,6 +5837,7 @@ export type Database = {
           bio_heading?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          country_code?: string
           cover_url?: string | null
           coverage_type?: string
           created_at?: string
@@ -5863,6 +5903,7 @@ export type Database = {
           bio_heading?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          country_code?: string
           cover_url?: string | null
           coverage_type?: string
           created_at?: string
@@ -9951,6 +9992,7 @@ export type Database = {
           bio: string | null
           company_name: string | null
           completed_jobs: number | null
+          country_code: string | null
           cover_url: string | null
           coverage_type: string | null
           created_at: string | null
@@ -9984,6 +10026,7 @@ export type Database = {
           bio?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          country_code?: string | null
           cover_url?: string | null
           coverage_type?: string | null
           created_at?: string | null
@@ -10017,6 +10060,7 @@ export type Database = {
           bio?: string | null
           company_name?: string | null
           completed_jobs?: number | null
+          country_code?: string | null
           cover_url?: string | null
           coverage_type?: string | null
           created_at?: string | null
