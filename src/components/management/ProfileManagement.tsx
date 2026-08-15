@@ -30,8 +30,6 @@ interface Profile {
   service_area_center_lng: number | null;
   bio: string;
   logo_url: string;
-  vat_registered: boolean;
-  vat_number: string;
 }
 
 interface GeocodeResult {
@@ -63,13 +61,18 @@ export function ProfileManagement() {
     service_area_center_lng: null,
     bio: "",
     logo_url: "",
-    vat_registered: false,
-    vat_number: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isContractor, setIsContractor] = useState(false);
+  // VAT status is canonical on finance_settings.vat_status, not
+  // profiles.vat_registered (FINANCE-AUDIT.md Landmine L1 — profiles.
+  // vat_registered/vat_number are deprecated, kept only to avoid a schema
+  // break, no longer read or written here).
+  const [vatRegistered, setVatRegistered] = useState(false);
+  const [vatNumber, setVatNumber] = useState("");
+  const [vatStatusLoaded, setVatStatusLoaded] = useState<string | null>(null);
   const [tradeSearch, setTradeSearch] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -109,7 +112,8 @@ export function ProfileManagement() {
           trades = rawTrades;
         }
 
-        setIsContractor(data.user_type === "contractor");
+        const contractorProfile = data.user_type === "contractor";
+        setIsContractor(contractorProfile);
         setProfile({
           full_name: data.full_name || "",
           email: data.email || "",
@@ -123,9 +127,19 @@ export function ProfileManagement() {
           service_area_center_lng: (data as any).service_area_center_lng ?? null,
           bio: (data as any).bio || "",
           logo_url: (data as any).logo_url || "",
-          vat_registered: (data as any).vat_registered || false,
-          vat_number: (data as any).vat_number || "",
         });
+
+        if (contractorProfile) {
+          const { data: financeSettingsRow } = await supabase
+            .from("finance_settings")
+            .select("vat_status, vat_number")
+            .eq("contractor_id", user.id)
+            .maybeSingle();
+          const status = financeSettingsRow?.vat_status ?? "not_registered";
+          setVatStatusLoaded(status);
+          setVatRegistered(status !== "not_registered");
+          setVatNumber(financeSettingsRow?.vat_number ?? "");
+        }
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -249,8 +263,6 @@ export function ProfileManagement() {
           ? `${profile.service_area_radius_miles} miles`
           : null;
         updateData.bio = profile.bio;
-        updateData.vat_registered = profile.vat_registered;
-        updateData.vat_number = profile.vat_registered ? profile.vat_number.trim() : null;
       }
 
       const { error } = await supabase
@@ -259,6 +271,34 @@ export function ProfileManagement() {
         .eq("user_id", user.id);
 
       if (error) throw error;
+
+      if (isContractor) {
+        // 'flat_rate' is also a registered state — only step DOWN to
+        // 'not_registered' when unchecked, never silently downgrade an
+        // existing flat_rate contractor to 'standard' just because this
+        // simple toggle doesn't offer a scheme picker (that lives in the
+        // dedicated Finance Settings screen).
+        const nextVatStatus = vatRegistered
+          ? (vatStatusLoaded === "flat_rate" ? "flat_rate" : "standard")
+          : "not_registered";
+        const vatPayload = {
+          vat_status: nextVatStatus,
+          vat_number: vatRegistered ? vatNumber.trim() : null,
+        };
+
+        const { data: existingFinanceSettings } = await supabase
+          .from("finance_settings")
+          .select("id")
+          .eq("contractor_id", user.id)
+          .maybeSingle();
+
+        const { error: fsError } = existingFinanceSettings
+          ? await supabase.from("finance_settings").update(vatPayload).eq("contractor_id", user.id)
+          : await supabase.from("finance_settings").insert({ contractor_id: user.id, ...vatPayload });
+
+        if (fsError) throw fsError;
+        setVatStatusLoaded(nextVatStatus);
+      }
 
       toast({ title: "Success", description: "Profile updated successfully" });
     } catch (error) {
@@ -491,24 +531,23 @@ export function ProfileManagement() {
               <input
                 type="checkbox"
                 id="vat_registered"
-                checked={profile.vat_registered}
-                onChange={(e) => setProfile({
-                  ...profile,
-                  vat_registered: e.target.checked,
-                  vat_number: e.target.checked ? profile.vat_number : "",
-                })}
+                checked={vatRegistered}
+                onChange={(e) => {
+                  setVatRegistered(e.target.checked);
+                  if (!e.target.checked) setVatNumber("");
+                }}
                 className="h-4 w-4"
               />
               <Label htmlFor="vat_registered" className="cursor-pointer">I am VAT registered</Label>
             </div>
-            {profile.vat_registered && (
+            {vatRegistered && (
               <div className="space-y-2">
                 <Label htmlFor="vat_number">VAT Number</Label>
                 <Input
                   id="vat_number"
                   placeholder="GB123456789"
-                  value={profile.vat_number}
-                  onChange={(e) => setProfile({ ...profile, vat_number: e.target.value.toUpperCase() })}
+                  value={vatNumber}
+                  onChange={(e) => setVatNumber(e.target.value.toUpperCase())}
                   className="max-w-xs font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
