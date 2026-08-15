@@ -18,6 +18,9 @@ type JobProfit = {
   invoicedAmount: number;
   paidAmount: number;
   expensesAmount: number;
+  materialsAmount: number;
+  subcontractorAmount: number;
+  otherExpensesAmount: number;
   mileageAmount: number;
   totalCosts: number;
   profit: number;
@@ -27,6 +30,22 @@ type JobProfit = {
 
 type SortKey = "jobNumber" | "clientName" | "quotedAmount" | "invoicedAmount" | "totalCosts" | "profit" | "margin";
 type StatusFilter = "all" | "active" | "complete";
+
+// §5.1's three cost buckets. Every parent expense_categories row maps to
+// exactly one of these via hmrc_category; a subcategory has no
+// hmrc_category of its own (FinanceSettings.tsx's addSubcategory never
+// sets it) and must be resolved through its parent_id instead — see
+// bucketForCategoryId below.
+type CostBucket = "materials" | "subcontractor" | "other";
+
+function bucketForHmrcCategory(hmrcCategory: string | null): CostBucket {
+  // Live slugs confirmed against expense_categories (FINANCE-AUDIT.md
+  // Section B1) — 'cost_of_goods' and 'subcontractor', NOT
+  // CONTRACTOR-FINANCE.md's own stub names ('materials', 'labour').
+  if (hmrcCategory === "cost_of_goods") return "materials";
+  if (hmrcCategory === "subcontractor") return "subcontractor";
+  return "other";
+}
 
 const gbp = (n: number) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -76,13 +95,31 @@ export function JobProfitability() {
       { data: invoices },
       { data: expenses },
       { data: trips },
+      { data: expenseCategories },
     ] = await Promise.all([
       supabase.from("jobs").select("id, title, job_number, status, contract_value, customer_id, issued_quote_id").eq("contractor_id", profileRow.id),
       supabase.from("issued_quotes").select("id, total, client_name").eq("contractor_id", profileRow.id),
       supabase.from("invoices").select("job_id, total, status").eq("contractor_id", profileRow.id).not("job_id", "is", null),
-      supabase.from("expenses").select("job_id, amount").eq("contractor_id", profileRow.id).not("job_id", "is", null),
+      supabase.from("expenses").select("job_id, amount, category_id").eq("contractor_id", profileRow.id).not("job_id", "is", null),
       supabase.from("mileage_trips").select("job_id, claim_amount").eq("contractor_id", profileRow.id).not("job_id", "is", null),
+      supabase
+        .from("expense_categories")
+        .select("id, hmrc_category, parent_id")
+        .or(`owner_contractor_id.is.null,owner_contractor_id.eq.${profileRow.id}`),
     ]);
+
+    const categoriesById = new Map((expenseCategories ?? []).map((c) => [c.id, c]));
+    const bucketForCategoryId = (categoryId: string | null): CostBucket => {
+      if (!categoryId) return "other";
+      const cat = categoriesById.get(categoryId);
+      if (!cat) return "other";
+      // Subcategories carry no hmrc_category of their own — resolve
+      // through the parent row instead.
+      const hmrcCategory = cat.parent_id
+        ? categoriesById.get(cat.parent_id)?.hmrc_category ?? null
+        : cat.hmrc_category;
+      return bucketForHmrcCategory(hmrcCategory);
+    };
 
     const jobRows = jobs ?? [];
     const quotesById = new Map((quotes ?? []).map((q) => [q.id, q]));
@@ -95,10 +132,15 @@ export function JobProfitability() {
       invoicesByJob.set(inv.job_id, list);
     }
 
-    const expensesByJob = new Map<string, number>();
+    type JobExpenseBreakdown = { materials: number; subcontractor: number; other: number; total: number };
+    const expensesByJob = new Map<string, JobExpenseBreakdown>();
     for (const e of expenses ?? []) {
       if (!e.job_id) continue;
-      expensesByJob.set(e.job_id, (expensesByJob.get(e.job_id) ?? 0) + Number(e.amount));
+      const bucket = bucketForCategoryId(e.category_id);
+      const entry = expensesByJob.get(e.job_id) ?? { materials: 0, subcontractor: 0, other: 0, total: 0 };
+      entry[bucket] += Number(e.amount);
+      entry.total += Number(e.amount);
+      expensesByJob.set(e.job_id, entry);
     }
 
     const mileageByJob = new Map<string, number>();
@@ -130,7 +172,8 @@ export function JobProfitability() {
       const jobInvoices = invoicesByJob.get(job.id) ?? [];
       const invoicedAmount = jobInvoices.reduce((sum, i) => sum + i.total, 0);
       const paidAmount = jobInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.total, 0);
-      const expensesAmount = expensesByJob.get(job.id) ?? 0;
+      const expenseBreakdown = expensesByJob.get(job.id) ?? { materials: 0, subcontractor: 0, other: 0, total: 0 };
+      const expensesAmount = expenseBreakdown.total;
       const mileageAmount = mileageByJob.get(job.id) ?? 0;
       const totalCosts = expensesAmount + mileageAmount;
       const profit = invoicedAmount - totalCosts;
@@ -149,6 +192,9 @@ export function JobProfitability() {
         invoicedAmount,
         paidAmount,
         expensesAmount,
+        materialsAmount: expenseBreakdown.materials,
+        subcontractorAmount: expenseBreakdown.subcontractor,
+        otherExpensesAmount: expenseBreakdown.other,
         mileageAmount,
         totalCosts,
         profit,
@@ -208,12 +254,16 @@ export function JobProfitability() {
   const handleExport = () => {
     downloadCsv(
       tradestoneCsvFilename("job_profitability"),
-      ["Job", "Client", "Quoted", "Invoiced", "Costs", "Profit", "Margin %", "Status"],
+      ["Job", "Client", "Quoted", "Invoiced", "Materials", "Subcontractor", "Other Expenses", "Mileage", "Costs", "Profit", "Margin %", "Status"],
       sorted.map((j) => [
         `J-${String(j.jobNumber).padStart(4, "0")} ${j.jobTitle}`,
         j.clientName,
         j.quotedAmount.toFixed(2),
         j.invoicedAmount.toFixed(2),
+        j.materialsAmount.toFixed(2),
+        j.subcontractorAmount.toFixed(2),
+        j.otherExpensesAmount.toFixed(2),
+        j.mileageAmount.toFixed(2),
         j.totalCosts.toFixed(2),
         j.profit.toFixed(2),
         j.margin.toFixed(1),
@@ -344,7 +394,17 @@ export function JobProfitability() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">{gbp(j.invoicedAmount)}</TableCell>
-                      <TableCell className="text-right text-red-600">{gbp(j.totalCosts)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="font-medium text-red-600">{gbp(j.totalCosts)}</div>
+                        {j.totalCosts > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-0.5 mt-0.5">
+                            {j.materialsAmount > 0 && <div>Materials {gbp(j.materialsAmount)}</div>}
+                            {j.subcontractorAmount > 0 && <div>Subcontractor {gbp(j.subcontractorAmount)}</div>}
+                            {j.otherExpensesAmount > 0 && <div>Other {gbp(j.otherExpensesAmount)}</div>}
+                            {j.mileageAmount > 0 && <div>Mileage {gbp(j.mileageAmount)}</div>}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className={`text-right font-medium ${j.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
                         {gbp(j.profit)}
                       </TableCell>
