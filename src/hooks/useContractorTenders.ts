@@ -173,6 +173,9 @@ export function useContractorTenders(profileId: string | null): UseContractorTen
         const application = applicationByTenderId.get(t.id) ?? null;
         return {
           ...t,
+          tender_type: t.tender_type as TenderType,
+          status: t.status as TenderStatus,
+          bid_visibility: t.bid_visibility as BidVisibility,
           companyName: companyNameById.get(t.company_id) ?? null,
           invitation,
           application,

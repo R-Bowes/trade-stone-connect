@@ -172,8 +172,7 @@ export function ProfileEditor() {
       const { data: teamData } = await supabase
         .from("team_members")
         .select("id, full_name, role")
-        .eq("contractor_id", user.id)
-        .eq("is_active", true);
+        .match({ contractor_id: user.id, is_active: true });
       setTeam(teamData ?? []);
 
       // job_reviews uses profiles.id FK (two-step)

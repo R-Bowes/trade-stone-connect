@@ -133,7 +133,7 @@ export function BusinessTenderDetail() {
       setLoading(false);
       return;
     }
-    setTender(tenderRow);
+    setTender(tenderRow as TenderDetailRow);
 
     const [
       { data: siteLinks },

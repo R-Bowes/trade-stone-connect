@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+// invoice_number is assigned by a BEFORE INSERT trigger (contractor_counters
+// allocator) — never generated client-side, hence the Omit here.
+type InvoiceInsert = Omit<Database["public"]["Tables"]["invoices"]["Insert"], "invoice_number">;
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -644,7 +649,7 @@ const ProjectDelivery = () => {
         const clientEmail = clientProfile?.email;
         if (!clientEmail) throw new Error("Client profile has no email address — retention invoice cannot be raised. Ask the client to add an email to their profile.");
 
-        const { error: invErr } = await supabase.from("invoices").insert({
+        const invoicePayload: InvoiceInsert = {
           contractor_id: proposal.contractor_id,
           recipient_id: clientProfile?.user_id ?? null,
           project_id: id,
@@ -666,7 +671,11 @@ const ProjectDelivery = () => {
           notes: `Retention release — ${project.title}`,
           due_date: dueDateStr,
           status: "draft",
-        });
+        };
+
+        const { error: invErr } = await supabase
+          .from("invoices")
+          .insert(invoicePayload as Database["public"]["Tables"]["invoices"]["Insert"]);
         if (invErr) throw invErr;
       }
 

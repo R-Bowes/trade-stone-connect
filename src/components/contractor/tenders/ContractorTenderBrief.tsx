@@ -109,9 +109,11 @@ type PrequalRecordFields = {
 // Mirrors MAPPABLE_PREQUAL_KINDS in BusinessTenderForm.tsx -- the six kinds
 // the RED-block (submit_tender_application) actually checks against
 // panel_prequalification. Any other kind is "not verifiable", never red.
+type PrequalExpiryField = "public_liability_expiry" | "employers_liability_expiry" | "trade_cert_expiry";
+
 const MAPPABLE_PREQUAL_KINDS: Record<
   string,
-  { label: string; verifiedField: keyof PrequalRecordFields; expiryField: keyof PrequalRecordFields | null }
+  { label: string; verifiedField: keyof PrequalRecordFields; expiryField: PrequalExpiryField | null }
 > = {
   public_liability: { label: "Public liability insurance", verifiedField: "public_liability_verified", expiryField: "public_liability_expiry" },
   employers_liability: { label: "Employers' liability insurance", verifiedField: "employers_liability_verified", expiryField: "employers_liability_expiry" },
@@ -235,7 +237,7 @@ export function ContractorTenderBrief({ profileId, tenderId, onBack, onStub }: P
       setLoading(false);
       return;
     }
-    setTender(tenderRow);
+    setTender(tenderRow as TenderDetail);
 
     const [
       { data: companyRow },

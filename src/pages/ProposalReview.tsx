@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+// job_number is assigned by a BEFORE INSERT trigger (contractor_counters
+// allocator) — never generated client-side, hence the Omit here.
+type JobInsert = Omit<Database["public"]["Tables"]["jobs"]["Insert"], "job_number">;
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -328,18 +333,20 @@ const ProposalReview = () => {
       const phases = (proposal.phases as unknown as PhaseJson[]) ?? [];
       for (let i = 0; i < phases.length; i++) {
         const phase = phases[i];
+        const jobPayload: JobInsert = {
+          title: phase.title,
+          contractor_id: proposal.contractor_id,
+          customer_id: project.posted_by,
+          status: "scheduled",
+          contract_value: phase.cost,
+          start_date: phase.start_date,
+          description: phase.description ?? null,
+          project_id: id,
+        };
+
         const { data: job, error: jobError } = await supabase
           .from("jobs")
-          .insert({
-            title: phase.title,
-            contractor_id: proposal.contractor_id,
-            customer_id: project.posted_by,
-            status: "scheduled",
-            contract_value: phase.cost,
-            start_date: phase.start_date,
-            description: phase.description ?? null,
-            project_id: id,
-          })
+          .insert(jobPayload as Database["public"]["Tables"]["jobs"]["Insert"])
           .select("id")
           .single();
 

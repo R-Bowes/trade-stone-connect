@@ -1134,7 +1134,7 @@ const ContractorProfile = () => {
       const needsVideos = enabledSections.some(s => s.widget_key === "video");
       const needsBeforeAfter = enabledSections.some(s => s.widget_key === "before_after");
 
-      const fetches: Promise<void>[] = [];
+      const fetches: PromiseLike<void>[] = [];
 
       // Verification tier badge — always shown, not tied to widget enablement.
       // current_tier is read via the SECURITY DEFINER compliance-gate RPC
@@ -1277,13 +1277,12 @@ const ContractorProfile = () => {
       }
 
       if (needsTeam) {
+        const teamMembersQuery = supabase
+          .from("team_members")
+          .select("id, full_name, role")
+          .match({ contractor_id: assembled.user_id, is_active: true });
         fetches.push(
-          supabase
-            .from("team_members")
-            .select("id, full_name, role")
-            .eq("contractor_id", assembled.user_id)
-            .eq("is_active", true)
-            .then(({ data }) => setTeamMembers((data ?? []) as TeamMember[]))
+          teamMembersQuery.then(({ data }) => setTeamMembers((data ?? []) as TeamMember[]))
         );
       }
 

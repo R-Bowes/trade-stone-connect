@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+
+// ts_site_code is assigned by a BEFORE INSERT trigger (assign_site_ts_code)
+// — never generated client-side, hence the Omit here.
+type SiteInsert = Omit<Database["public"]["Tables"]["sites"]["Insert"], "ts_site_code">;
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +85,10 @@ const SitesTab = ({
       if (error) { toast({ title: 'Error', description: 'Failed to update site.', variant: 'destructive' }); setSaving(false); return; }
       toast({ title: 'Site updated' });
     } else {
-      const { error } = await supabase.from('sites').insert({ ...form, company_id: companyId });
+      const sitePayload: SiteInsert = { ...form, company_id: companyId };
+      const { error } = await supabase
+        .from('sites')
+        .insert(sitePayload as Database["public"]["Tables"]["sites"]["Insert"]);
       if (error) { toast({ title: 'Error', description: 'Failed to create site.', variant: 'destructive' }); setSaving(false); return; }
       toast({ title: 'Site created' });
     }
@@ -818,7 +826,7 @@ export const MaintenanceManagement = ({ companyId, profileId, defaultTab, embedd
 
     // Assets
     const { data: assetsData } = await supabase.from('assets').select('*').eq('company_id', companyId).eq('is_active', true).order('name');
-    setAssets(assetsData ?? []);
+    setAssets((assetsData ?? []) as Asset[]);
 
     // Panel contractors (approved)
     const { data: panelData } = await supabase

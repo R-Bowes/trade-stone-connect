@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+
+// company_code is assigned by a BEFORE INSERT trigger (assign_company_code)
+// — never generated client-side, hence the Omit here.
+type CompanyInsert = Omit<Database["public"]["Tables"]["companies"]["Insert"], "company_code">;
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -105,15 +110,17 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       .eq("id", profileId)
       .maybeSingle();
 
+    const companyPayload: CompanyInsert = {
+      owner_id: profileId,
+      name: profile?.company_name || profile?.full_name || "My Business",
+      contact_email: profile?.email,
+      contact_phone: profile?.phone,
+      city: profile?.location,
+    };
+
     const { data: newCompany, error } = await supabase
       .from("companies")
-      .insert({
-        owner_id: profileId,
-        name: profile?.company_name || profile?.full_name || "My Business",
-        contact_email: profile?.email,
-        contact_phone: profile?.phone,
-        city: profile?.location,
-      })
+      .insert(companyPayload as Database["public"]["Tables"]["companies"]["Insert"])
       .select("id")
       .single();
 
@@ -213,7 +220,12 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       return;
     }
 
-    setLookupResult(data);
+    setLookupResult({
+      id: data.id,
+      name: data.full_name,
+      ts_code: data.ts_profile_code,
+      trades: data.trades,
+    });
   };
 
   // --- Send invite ---

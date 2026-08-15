@@ -6,8 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Loader2, ArrowLeft, Save } from "lucide-react";
+
+// company_code is assigned by a BEFORE INSERT trigger (assign_company_code)
+// — never generated client-side, hence the Omit here.
+type CompanyInsert = Omit<Database["public"]["Tables"]["companies"]["Insert"], "company_code">;
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { LoadingState, ErrorState } from "@/components/AsyncState";
@@ -152,16 +157,18 @@ const BusinessSettings = ({ embedded = false }: BusinessSettingsProps) => {
 
         if (companyError) throw companyError;
       } else if (company.name) {
+        const companyPayload: CompanyInsert = {
+          owner_id: profileId,
+          name: company.name,
+          address_line1: company.address_line1 || null,
+          address_line2: company.address_line2 || null,
+          city: company.city || null,
+          postcode: company.postcode || null,
+        };
+
         const { data: newCompany, error: insertError } = await supabase
           .from("companies")
-          .insert({
-            owner_id: profileId,
-            name: company.name,
-            address_line1: company.address_line1 || null,
-            address_line2: company.address_line2 || null,
-            city: company.city || null,
-            postcode: company.postcode || null,
-          })
+          .insert(companyPayload as Database["public"]["Tables"]["companies"]["Insert"])
           .select("id")
           .single();
 

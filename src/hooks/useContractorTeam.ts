@@ -82,8 +82,7 @@ export function usePublicTeam(contractorProfileId: string) {
       const { data } = await supabase
         .from("team_members")
         .select("*")
-        .eq("contractor_id", contractorProfileId)
-        .eq("is_active", true)
+        .match({ contractor_id: contractorProfileId, is_active: true })
         .order("full_name", { ascending: true });
       setMembers(data ?? []);
       setLoading(false);

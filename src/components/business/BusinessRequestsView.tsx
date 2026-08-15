@@ -268,15 +268,17 @@ export function BusinessRequestsView({ companyId, profileId: _profileId }: Props
       return;
     }
 
-    await supabase.from("notifications").insert({
-      user_id: formContractorId,
-      title: "New work request",
-      message: `${company.name} sent a new work request: ${formTitle.trim()}`,
-      type: "enquiry",
-      reference_id: enquiryRow.id,
-      reference_type: "enquiry",
-      is_read: false,
-    }).catch(console.error);
+    await Promise.resolve(
+      supabase.from("notifications").insert({
+        user_id: formContractorId,
+        title: "New work request",
+        message: `${company.name} sent a new work request: ${formTitle.trim()}`,
+        type: "enquiry",
+        reference_id: enquiryRow.id,
+        reference_type: "enquiry",
+        is_read: false,
+      }),
+    ).catch(console.error);
 
     supabase.functions
       .invoke("notify-contractor", { body: { enquiry_id: enquiryRow.id } })

@@ -99,15 +99,17 @@ export function ContractorMessageDialog({
       if (msgError) throw msgError;
 
       if (contractorProfile.user_id) {
-        await supabase.from("notifications").insert({
-          user_id: contractorProfile.user_id,
-          title: "New enquiry received",
-          message: `A customer sent an enquiry: ${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}`,
-          type: "enquiry",
-          reference_id: enquiryRow.id,
-          reference_type: "enquiry",
-          is_read: false,
-        }).catch(console.error);
+        await Promise.resolve(
+          supabase.from("notifications").insert({
+            user_id: contractorProfile.user_id,
+            title: "New enquiry received",
+            message: `A customer sent an enquiry: ${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}`,
+            type: "enquiry",
+            reference_id: enquiryRow.id,
+            reference_type: "enquiry",
+            is_read: false,
+          }),
+        ).catch(console.error);
 
         supabase.functions
           .invoke("notify-contractor", { body: { enquiry_id: enquiryRow.id } })

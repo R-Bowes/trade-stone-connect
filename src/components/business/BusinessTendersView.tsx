@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
-import { useTenders, type TenderRow } from "@/hooks/useTenders";
+import { useTenders, type TenderRow, type TenderStatus } from "@/hooks/useTenders";
 import { STATUS_LABEL, STATUS_COLOUR, TYPE_LABEL, MUTED_STATUSES } from "@/lib/tenderStatus";
 
 interface Props {

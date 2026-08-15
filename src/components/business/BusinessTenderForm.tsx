@@ -21,6 +21,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Check, ChevronDown, Trash2, FileText, Upload } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+// tender_number is assigned by a BEFORE INSERT trigger (assign_tender_number_trigger)
+// — never generated client-side, hence the Omit here.
+type TenderInsert = Omit<Database["public"]["Tables"]["tenders"]["Insert"], "tender_number">;
 
 interface Props {
   companyId: string;
@@ -362,7 +367,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
             r.kind === "references" ? ((r.config as { count?: number } | null)?.count ?? 1) : undefined,
           pricingSchedule:
             r.kind === "pricing_schedule"
-              ? ((r.config as PricingScheduleConfig | null) ?? { rows: [], columns: [] })
+              ? ((r.config as unknown as PricingScheduleConfig | null) ?? { rows: [], columns: [] })
               : undefined,
         }));
         const loadedPrequalReqs: PrequalRequirementState[] = (prequalReqs ?? []).map((r) => ({
@@ -541,7 +546,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
 
     setSaving(true);
 
-    const payload = {
+    const payload: TenderInsert = {
       company_id: companyId,
       created_by: profileId,
       tender_type: form.tenderType,
@@ -575,7 +580,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
       // status is omitted too and defaults to 'draft'.
       const { data, error } = await supabase
         .from("tenders")
-        .insert(payload)
+        .insert(payload as Database["public"]["Tables"]["tenders"]["Insert"])
         .select("id, tender_number")
         .single();
       if (error) {
@@ -669,7 +674,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
         addedKinds.map((k) => ({
           tender_id: savedId!,
           kind: k,
-          config: configForKind(k),
+          config: configForKind(k) as unknown as Json,
         })),
       );
       if (reqAddError) {
@@ -682,7 +687,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
     for (const k of changedKinds) {
       const { error: reqUpdateError } = await supabase
         .from("tender_response_requirements")
-        .update({ config: configForKind(k) })
+        .update({ config: configForKind(k) as unknown as Json })
         .eq("tender_id", savedId!)
         .eq("kind", k);
       if (reqUpdateError) {
