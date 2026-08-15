@@ -229,6 +229,11 @@ export function useFinanceSummary() {
       return;
     }
 
+    // Material Cost Architecture (locked, see LATER.md): `expenses` is the
+    // single source of cost data feeding P&L/VAT/job-costing. `contractor_
+    // materials` / `job_material_usage` (inventory) are never read here —
+    // see the matching note in JobProfitability.tsx and FINANCE-AUDIT.md's
+    // Landmine L2.
     const [
       { data: invoiceRows },
       { data: expenseRows },

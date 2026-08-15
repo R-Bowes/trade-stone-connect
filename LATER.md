@@ -1174,6 +1174,39 @@ a UK-shaped string ("2025-26") that becomes an integer in both other
 countries. Redesign required before any non-UK mileage support —
 this is not a currency-symbol problem.
 
+## Material Cost Architecture (locked)
+
+**Decision**: `expenses` is the single source of truth for all job material
+costs and financial reporting. `contractor_materials` / `job_material_usage`
+are inventory/ops tables only — they do NOT feed into P&L, Job
+Profitability, or any financial view. Verified live 2026-08-15: neither
+table is referenced anywhere under `src/components/management/financials/`,
+`useFinanceSummary.ts`, or `JobProfitability.tsx` — only in
+`JobEquipmentMaterials.tsx` and `InventoryManagement.tsx` (both ops
+screens). Documented in-line at both read sites
+(`JobProfitability.tsx`, `useFinanceSummary.ts`) so this doesn't drift back
+into ambiguity next time someone touches job costing.
+
+**Why this needed locking down** (FINANCE-AUDIT.md Landmine L2): both
+systems can record a cost against the same job — a contractor logging
+materials via the Inventory/stock drawdown flow records cost on
+`job_material_usage`; the same contractor logging a materials receipt via
+Expenses records it on `expenses`. Only one may ever feed profit
+calculations, or a contractor's margin figure becomes order-dependent on
+which screen they happened to use to log the cost, and worse, silently
+double-counts if a future change reads both.
+
+**If inventory-driven costing is needed later**: auto-generate `expenses`
+records from `job_material_usage` allocations (a trigger or app-level write
+on material-usage insert), so `expenses` stays the sole P&L input and the
+inventory system becomes a *writer into* it rather than a second reader
+financial views also have to know about. (Note: FINANCE-AUDIT.md's Landmine
+L2 raises the conflict and asks the question — it does not itself name this
+approach; the auto-generate-into-expenses direction is recorded here as the
+answer, not quoted from there.) Do not make Job Profitability or any P&L
+component read `job_material_usage` directly — that reopens the
+double-source risk this decision closed.
+
 ## Currency and number formatting — single formatter module
 
 ~90 files contain a literal `£`; 20 contain the string "GBP".

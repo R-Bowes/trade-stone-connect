@@ -61,6 +61,15 @@ export function JobProfitability() {
       return;
     }
 
+    // Material Cost Architecture (locked, see LATER.md): `expenses` is the
+    // ONLY source of job cost data here. `contractor_materials` /
+    // `job_material_usage` (the stock/inventory feature) are deliberately
+    // never read in this component or anywhere else in financial reporting
+    // — they're ops tables, not a P&L input. See FINANCE-AUDIT.md's
+    // Landmine L2 for why this needed locking down: both systems can
+    // record a cost against the same job, and only one may ever feed
+    // profit calculations, or a contractor's margin figure becomes
+    // order-dependent on which screen they used to log the cost.
     const [
       { data: jobs },
       { data: quotes },
