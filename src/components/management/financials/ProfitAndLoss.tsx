@@ -45,8 +45,9 @@ export function ProfitAndLoss() {
   const pieData = useMemo(() => {
     const data = pnl.expensesByCategory.filter((c) => c.amount > 0).map((c) => ({ name: c.category, value: c.amount }));
     if (pnl.totalMileage > 0) data.push({ name: "Mileage Claims", value: pnl.totalMileage });
+    if (pnl.platformFees > 0) data.push({ name: "Platform Fees", value: pnl.platformFees });
     return data;
-  }, [pnl.expensesByCategory, pnl.totalMileage]);
+  }, [pnl.expensesByCategory, pnl.totalMileage, pnl.platformFees]);
 
   const handleExport = () => {
     const rows: (string | number)[][] = [
@@ -57,10 +58,11 @@ export function ProfitAndLoss() {
       ["COST OF SALES", ""],
       ...pnl.expensesByCategory.filter((c) => c.amount > 0).map((c) => [c.category, gbp(c.amount)]),
       ...(pnl.totalMileage > 0 ? [["Mileage Claims", gbp(pnl.totalMileage)]] : []),
+      ["Platform Fees", gbp(pnl.platformFees)],
       ["Total Costs", gbp(pnl.totalCosts)],
       ["", ""],
-      ["Gross Profit", gbp(pnl.grossProfit)],
-      ["Profit Margin", `${pnl.profitMargin.toFixed(1)}%`],
+      ["Net Profit", gbp(pnl.netProfit)],
+      ["Net Profit Margin", `${pnl.netProfitMargin.toFixed(1)}%`],
     ];
     downloadCsv(tradestoneCsvFilename("pnl"), ["Category", "Amount"], rows);
   };
@@ -134,19 +136,19 @@ export function ProfitAndLoss() {
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{gbp(pnl.totalCosts)}</div>
             <p className="text-xs text-muted-foreground">
-              {gbp(pnl.totalExpenses)} expenses + {gbp(pnl.totalMileage)} mileage
+              {gbp(pnl.totalExpenses)} expenses + {gbp(pnl.totalMileage)} mileage + {gbp(pnl.platformFees)} platform fees
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Profit</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Net Profit</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${pnl.grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {pnl.grossProfit < 0 ? "-" : ""}{gbp(Math.abs(pnl.grossProfit))}
+            <div className={`text-2xl font-bold ${pnl.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {pnl.netProfit < 0 ? "-" : ""}{gbp(Math.abs(pnl.netProfit))}
             </div>
-            <p className="text-xs text-muted-foreground">Gross profit</p>
+            <p className="text-xs text-muted-foreground">After expenses, mileage and platform fees</p>
           </CardContent>
         </Card>
         <Card>
@@ -154,13 +156,13 @@ export function ProfitAndLoss() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Margin</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${pnl.profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {pnl.profitMargin.toFixed(1)}%
+            <div className={`text-2xl font-bold ${pnl.netProfitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {pnl.netProfitMargin.toFixed(1)}%
             </div>
             <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-2">
               <div
-                className={`h-full rounded-full ${pnl.profitMargin >= 0 ? "bg-green-600" : "bg-red-600"}`}
-                style={{ width: `${Math.min(100, Math.max(0, Math.abs(pnl.profitMargin)))}%` }}
+                className={`h-full rounded-full ${pnl.netProfitMargin >= 0 ? "bg-green-600" : "bg-red-600"}`}
+                style={{ width: `${Math.min(100, Math.max(0, Math.abs(pnl.netProfitMargin)))}%` }}
               />
             </div>
           </CardContent>
@@ -196,11 +198,11 @@ export function ProfitAndLoss() {
                   <Area type="monotone" dataKey="income" stroke="hsl(221, 83%, 53%)" fill="url(#incomeGradient)" strokeWidth={2} name="Income" />
                   <Area
                     type="monotone"
-                    dataKey={(d: { expenses: number; mileage: number }) => d.expenses + d.mileage}
+                    dataKey={(d: { expenses: number; mileage: number; platformFees: number }) => d.expenses + d.mileage + d.platformFees}
                     stroke="hsl(24, 95%, 53%)"
                     fill="url(#costGradient)"
                     strokeWidth={2}
-                    name="Expenses"
+                    name="Costs"
                   />
                   <Line type="monotone" dataKey="profit" stroke="hsl(160, 84%, 39%)" strokeWidth={2} dot={false} name="Profit" />
                 </ComposedChart>
@@ -273,19 +275,23 @@ export function ProfitAndLoss() {
                 <span>{gbp(pnl.totalMileage)}</span>
               </div>
             )}
+            <div className="flex justify-between py-1">
+              <span>Platform Fees</span>
+              <span>{gbp(pnl.platformFees)}</span>
+            </div>
             <div className="flex justify-between py-1 border-t font-semibold">
               <span>Total Costs</span>
               <span>{gbp(pnl.totalCosts)}</span>
             </div>
 
             <div className="font-semibold uppercase tracking-wide text-sm mt-6 mb-2">Profit</div>
-            <div className={`flex justify-between py-1 font-semibold ${pnl.grossProfit >= 0 ? "" : "text-red-600"}`}>
-              <span>Gross Profit</span>
-              <span>{pnl.grossProfit < 0 ? "-" : ""}{gbp(Math.abs(pnl.grossProfit))}</span>
+            <div className={`flex justify-between py-1 font-semibold ${pnl.netProfit >= 0 ? "" : "text-red-600"}`}>
+              <span>Net Profit</span>
+              <span>{pnl.netProfit < 0 ? "-" : ""}{gbp(Math.abs(pnl.netProfit))}</span>
             </div>
             <div className="flex justify-between py-1 text-muted-foreground">
-              <span>Profit Margin</span>
-              <span>{pnl.profitMargin.toFixed(1)}%</span>
+              <span>Net Profit Margin</span>
+              <span>{pnl.netProfitMargin.toFixed(1)}%</span>
             </div>
           </div>
         </CardContent>

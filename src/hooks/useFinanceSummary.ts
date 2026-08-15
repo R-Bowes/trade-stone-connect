@@ -10,6 +10,7 @@ type ExpenseRow = Database["public"]["Tables"]["expenses"]["Row"];
 type MileageTrip = Database["public"]["Tables"]["mileage_trips"]["Row"];
 type FinanceSettingsRow = Database["public"]["Tables"]["finance_settings"]["Row"];
 type ExpenseCategoryRow = Database["public"]["Tables"]["expense_categories"]["Row"];
+type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
 
 export type Period = "currentTaxYear" | "previousTaxYear" | "currentQuarter" | "custom";
 
@@ -20,18 +21,24 @@ export type ProfitAndLoss = {
 
   totalExpenses: number;
   totalMileage: number;
+  // Every TradeStone platform fee (payments.platform_fee) taken on this
+  // contractor's released payments in the period — see CONTRACTOR-
+  // FINANCE.md §4.1 and FINANCE-AUDIT.md Landmine L6. Included in
+  // totalCosts so netProfit is genuinely net, not gross, income.
+  platformFees: number;
   totalCosts: number;
 
   expensesByCategory: { category: string; amount: number }[];
 
-  grossProfit: number;
-  profitMargin: number;
+  netProfit: number;
+  netProfitMargin: number;
 
   monthlyBreakdown: {
     month: string;
     income: number;
     expenses: number;
     mileage: number;
+    platformFees: number;
     profit: number;
   }[];
 };
@@ -205,6 +212,7 @@ export function useFinanceSummary() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [trips, setTrips] = useState<MileageTrip[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryRow[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [financeSettings, setFinanceSettings] = useState<FinanceSettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -239,6 +247,7 @@ export function useFinanceSummary() {
       { data: expenseRows },
       { data: tripRows },
       { data: categoryRows },
+      { data: paymentRows },
       { data: settingsRow },
     ] = await Promise.all([
       supabase.from("invoices").select("*").eq("contractor_id", profileRow.id),
@@ -248,6 +257,10 @@ export function useFinanceSummary() {
         .from("expense_categories")
         .select("*")
         .or(`owner_contractor_id.is.null,owner_contractor_id.eq.${profileRow.id}`),
+      // "released" is this schema's equivalent of "paid" for a payment (see
+      // payments_status_check — there is no literal 'paid' status). Fees are
+      // only real once the payment has actually released to the contractor.
+      supabase.from("payments").select("*").eq("payee_id", profileRow.id).eq("status", "released"),
       supabase.from("finance_settings").select("*").eq("contractor_id", profileRow.id).maybeSingle(),
     ]);
 
@@ -255,6 +268,7 @@ export function useFinanceSummary() {
     setExpenses(expenseRows ?? []);
     setTrips(tripRows ?? []);
     setCategories(categoryRows ?? []);
+    setPayments(paymentRows ?? []);
     setFinanceSettings(settingsRow ?? null);
     setLoading(false);
   }, []);
@@ -297,7 +311,14 @@ export function useFinanceSummary() {
     const periodTrips = trips.filter((t) => inRange(t.trip_date, start, end));
     const totalMileage = periodTrips.reduce((sum, t) => sum + Number(t.claim_amount), 0);
 
-    const totalCosts = totalExpenses + totalMileage;
+    // payments.created_at, not escrow_released_at — escrow_released_at is
+    // not reliably populated even on 'released' rows (confirmed against
+    // live data before writing this), so filtering on it would silently
+    // drop real fees from the period. created_at is always set.
+    const periodPayments = payments.filter((p) => inRange(p.created_at, start, end));
+    const platformFees = periodPayments.reduce((sum, p) => sum + Number(p.platform_fee ?? 0), 0);
+
+    const totalCosts = totalExpenses + totalMileage + platformFees;
 
     const categoryTotals = new Map<string, number>();
     for (const e of periodExpenses) {
@@ -308,8 +329,8 @@ export function useFinanceSummary() {
       .map(([category, amount]) => ({ category, amount }))
       .sort((a, b) => b.amount - a.amount);
 
-    const grossProfit = totalIncome - totalCosts;
-    const profitMargin = totalIncome > 0 ? (grossProfit / totalIncome) * 100 : 0;
+    const netProfit = totalIncome - totalCosts;
+    const netProfitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
 
     const months = start <= end ? eachMonthOfInterval({ start, end }) : [];
     const monthlyBreakdown = months.map((m) => {
@@ -324,12 +345,16 @@ export function useFinanceSummary() {
       const mileage = periodTrips
         .filter((t) => inRange(t.trip_date, mStart, mEnd))
         .reduce((sum, t) => sum + Number(t.claim_amount), 0);
+      const monthPlatformFees = periodPayments
+        .filter((p) => inRange(p.created_at, mStart, mEnd))
+        .reduce((sum, p) => sum + Number(p.platform_fee ?? 0), 0);
       return {
         month: format(m, "MMM yyyy"),
         income,
         expenses: monthExpenses,
         mileage,
-        profit: income - monthExpenses - mileage,
+        platformFees: monthPlatformFees,
+        profit: income - monthExpenses - mileage - monthPlatformFees,
       };
     });
 
@@ -339,13 +364,14 @@ export function useFinanceSummary() {
       invoiceCount: paidInvoices.length,
       totalExpenses,
       totalMileage,
+      platformFees,
       totalCosts,
       expensesByCategory,
-      grossProfit,
-      profitMargin,
+      netProfit,
+      netProfitMargin,
       monthlyBreakdown,
     };
-  }, [invoices, expenses, trips, periodDates, parentCategoryName]);
+  }, [invoices, expenses, trips, payments, periodDates, parentCategoryName]);
 
   const vatPosition: VatPosition = useMemo(() => {
     const { start, end } = periodDates;
