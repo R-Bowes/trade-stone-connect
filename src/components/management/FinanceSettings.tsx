@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { UK_VAT_REGISTRATION_THRESHOLD } from "@/constants/tax";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -405,7 +406,7 @@ export function FinanceSettings() {
 
           {settings.vat_status === "not_registered" && (
             <p className="text-sm text-muted-foreground bg-muted rounded-md p-3">
-              You must register for VAT once your taxable turnover exceeds £90,000 in any
+              You must register for VAT once your taxable turnover exceeds £{UK_VAT_REGISTRATION_THRESHOLD.toLocaleString("en-GB")} in any
               rolling 12-month period. TradeStone tracks your position automatically as you
               invoice.
             </p>

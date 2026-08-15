@@ -3,14 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subYears } from "date-fns";
 import { getTaxYear } from "@/hooks/useMileage";
 import type { Database } from "@/integrations/supabase/types";
+import { UK_VAT_REGISTRATION_THRESHOLD } from "@/constants/tax";
 
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type ExpenseRow = Database["public"]["Tables"]["expenses"]["Row"];
 type MileageTrip = Database["public"]["Tables"]["mileage_trips"]["Row"];
 type FinanceSettingsRow = Database["public"]["Tables"]["finance_settings"]["Row"];
 type ExpenseCategoryRow = Database["public"]["Tables"]["expense_categories"]["Row"];
-
-export const VAT_THRESHOLD = 90000;
 
 export type Period = "currentTaxYear" | "previousTaxYear" | "currentQuarter" | "custom";
 
@@ -378,7 +377,7 @@ export function useFinanceSummary() {
     const rollingTurnover = invoices
       .filter((inv) => inv.status !== "draft" && inRange(inv.issued_date, rollingStart, new Date()))
       .reduce((sum, inv) => sum + Number(inv.total), 0);
-    const thresholdPercentage = (rollingTurnover / VAT_THRESHOLD) * 100;
+    const thresholdPercentage = (rollingTurnover / UK_VAT_REGISTRATION_THRESHOLD) * 100;
 
     const quarters = getQuartersInRange(start, end);
     const quarterlyBreakdown: QuarterVat[] = quarters.map((q) => {
@@ -400,7 +399,7 @@ export function useFinanceSummary() {
       flatRateVatDue,
       flatRateFirstYearDiscount,
       rollingTurnover,
-      vatThreshold: VAT_THRESHOLD,
+      vatThreshold: UK_VAT_REGISTRATION_THRESHOLD,
       thresholdPercentage,
       quarterlyBreakdown,
     };

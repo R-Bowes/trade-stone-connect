@@ -53,6 +53,13 @@ const jsonResponse = (status: number, payload: Record<string, unknown>, cors: He
   });
 
 const DISCLAIMER = "This document is a financial summary, not tax advice. Consult a qualified accountant for tax filing purposes.";
+// TODO: kept as a local literal, not imported from src/constants/tax.ts —
+// edge functions run on Deno and can't import from the Vite/src tree, and
+// this migration's constraints excluded edge functions from the code sweep
+// (see FINANCE-AUDIT.md Section C3 / the tax-threshold centralisation
+// change). Must be kept numerically in sync with
+// UK_VAT_REGISTRATION_THRESHOLD in src/constants/tax.ts by hand until both
+// read from a shared config source.
 const VAT_THRESHOLD = 90000;
 
 // ── UK tax-year math (duplicated from src/hooks — see header note) ─────────

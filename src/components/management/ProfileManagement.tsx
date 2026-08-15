@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle, X, Upload, Wrench } from "lucide-react";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
+import { UK_VAT_REGISTRATION_THRESHOLD } from "@/constants/tax";
 import { ChangePasswordCard } from "@/components/ui/ChangePasswordCard";
 import { StripeConnect } from "@/components/management/StripeConnect";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
@@ -523,7 +524,7 @@ export function ProfileManagement() {
           <CardHeader>
             <CardTitle>VAT Registration</CardTitle>
             <CardDescription>
-              If your taxable turnover exceeds £90,000 you must register for VAT. Once registered, your invoices will default to 20% VAT.
+              If your taxable turnover exceeds £{UK_VAT_REGISTRATION_THRESHOLD.toLocaleString("en-GB")} you must register for VAT. Once registered, your invoices will default to 20% VAT.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

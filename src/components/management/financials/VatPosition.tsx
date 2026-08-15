@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFinanceSummary, type Period, type QuarterVat } from "@/hooks/useFinanceSummary";
 import { downloadCsv, tradestoneCsvFilename } from "@/lib/csvExport";
+import { UK_VAT_REGISTRATION_THRESHOLD } from "@/constants/tax";
 
 const PERIOD_LABELS: Record<Period, string> = {
   currentTaxYear: "This tax year",
@@ -100,7 +101,7 @@ export function VatPosition() {
           <CardHeader>
             <CardTitle>VAT registration threshold</CardTitle>
             <CardDescription>
-              HMRC requires VAT registration once your taxable turnover exceeds £90,000 in any rolling 12-month period.
+              HMRC requires VAT registration once your taxable turnover exceeds £{UK_VAT_REGISTRATION_THRESHOLD.toLocaleString("en-GB")} in any rolling 12-month period.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
