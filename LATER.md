@@ -219,212 +219,344 @@ a notification system that re-fires the same nudge on every cron run.
 
 ## Materials Marketplace
 
-**Status:** Designed, not built. Build only after B2B/FM wedge is validated
-with paying customers. Schema must NOT be pushed to Supabase until build begins.
+**Status:** Designed. Decisions LOCKED. Not built.
 
-**What it is**
-A two-sided marketplace for trade materials and supplies sitting inside
-TradeStone. Sellers list materials; buyers (contractors, homeowners, businesses)
-purchase them. Distinct from the Hire page (which finds people) — this finds
-things.
+**Build gate:** Do not start until the core job flow (enquiry → quote → job →
+deposit → invoice → payment) has been validated end-to-end with a real
+contractor and a real B2B client. This gate has not been met.
 
-**The differentiated angle**
-Contractors regularly have surplus materials after a job — unopened packs of
-tiles, unused plasterboard, leftover conduit. Currently sold on Facebook
-Marketplace with zero trust signals. A TradeStone-native listing carries the
-seller's TS code, verified trade status, and job history. That trust layer
-cannot be replicated on any general marketplace.
+**Schema gate:** All SQL in this section is marked DO NOT RUN. When build
+begins, run a Step-0 schema report against the live DB first (I18N-AUDIT.md
+pattern), then author fresh timestamped migration files above the current
+floor. Do not paste the SQL below directly.
 
 ---
 
-### Seller types (three tiers, phased)
+### What it is
 
-**Phase 1 — Contractor surplus (build this first)**
-Any verified contractor (TS-C code) can list items they no longer need.
-Optionally linkable to a job (`job_id`) for provenance context ("leftover
-from a loft conversion"). No separate onboarding — they already have a
-TradeStone account and Stripe Connect set up.
+A marketplace for surplus trade materials inside TradeStone. Sellers list
+items; buyers purchase them. Distinct from the Hire page — that finds people,
+this finds things.
 
-**Phase 2 — Business/FM clearance**
-Business accounts (TS-B codes) can list bulk clearance from sites or asset
-disposals. Same listing flow as contractor surplus. Lot listings (entire
-quantity must go together) supported.
+**The differentiated angle:** contractors routinely have surplus after a job —
+unopened tile packs, leftover plasterboard, spare conduit. Today that goes to
+Facebook Marketplace with zero trust signals, or to a skip. A TradeStone
+listing carries the seller's TS-C code, verified trade status, job history,
+and escrowed payment. None of that is replicable on a general marketplace.
 
-**Phase 3 — Retail outlets / trade merchants**
-Screwfix-type retailers, trade counters, independent merchants listing new
-stock. Completely separate commercial relationship — requires merchant
-onboarding flow, VAT handling, delivery/click-and-collect logistics, and a
-supplier agreement. Do NOT build until Phase 1 is proven and there is volume
-to offer merchants. Schema accommodates Phase 3 via `seller_type` field but
-no UI or onboarding for retail until then.
+**Model reference:** Vinted, not eBay. See locked decisions below.
+
+---
+
+### LOCKED DECISIONS
+
+These supersede all earlier drafts of this section. Do not reopen without an
+explicit decision to do so.
+
+**L1 — Fixed price plus offers. No auctions, ever.**
+Auctions require multiple bidders per lot to function. At realistic early
+volume there will be one interested buyer per listing, at which point an
+auction is a fixed-price sale with added latency and a worse UX. Buyers may
+submit an offer; sellers accept, decline, or counter once.
+
+**L2 — Buyer-side fee. Sellers list free and keep 100%.**
+Fee is 5% of item price + £0.70, presented at checkout as a "Buyer Protection"
+line, framed as what funds escrow and the dispute window.
+Rationale: supply is the constrained side. A contractor clearing £60 of
+leftover tiles will not accept a cut on stock they were going to skip. Zero
+seller fees is precisely why Vinted took this category from eBay. Do not tax
+the constrained side.
+NOTE: this supersedes the earlier "5% platform fee" line which did not name
+the side the fee lands on.
+
+**L3 — Escrow. Funds held until collection confirmed.**
+Buyer pays into platform-held funds. Release to seller on buyer confirmation
+of collection, or automatically 48 hours after the seller marks the item
+collected, whichever is sooner. A dispute raised inside that window freezes
+the release pending admin review.
+IMPLEMENTATION WARNING: this cannot use the destination-charge pattern used
+for job payments — destination charges transfer to the connected account
+immediately. Escrow requires a charge on the platform account with a
+`transfer_group`, followed by a separate Transfer to the connected account at
+release time. This is a deliberate deviation from the job payment
+architecture. Confirm the exact approach against current Stripe docs at build
+time.
+
+**L4 — Collection only. No shipping.**
+No courier integration, no delivery liability, no logistics partner. Listings
+show the seller's postcode district only (e.g. `IP28`); full address is
+released to the buyer after funds are held. Sellers may optionally offer local
+delivery within a self-set radius for a flat fee, as an add-on line.
+This is a feature, not a compromise: collection means the buyer physically
+inspects goods before taking them, which eliminates the "item not as
+described" case that generates the bulk of eBay's dispute volume. The 48-hour
+window becomes a safety net rather than the primary protection mechanism.
+Reuse the haversine radius logic already in `useContractors.ts` for delivery
+radius matching.
+
+**L5 — Trade-to-trade only in Phase 1. Homeowners cannot buy or sell.**
+Contractor (TS-C) and business (TS-B) accounts only.
+Rationale: a contractor selling to a homeowner is a B2C distance sale. That
+triggers the Consumer Contracts Regulations — 14-day right to cancel, return
+cost rules, the full consumer compliance surface — landing on a trade seller
+with no capability to handle it. Trade-to-trade sidesteps this entirely, and
+it is where the demand actually is: a sparky wants leftover conduit, a
+homeowner does not.
+Open to homeowners in Phase 2 only if volume justifies building the consumer
+compliance layer.
+
+**L6 — VAT status derived from the seller profile.**
+A VAT-registered business selling surplus in the course of business owes
+output VAT on that sale. This is a materially different tax position from
+Vinted's model, which assumes private individuals disposing of personal
+property.
+VAT-registered sellers: list ex-VAT, VAT shown as a separate line, buyer
+receives a compliant document generated via `documentRefs.ts` so they can
+reclaim.
+Non-registered sellers: list inclusive, no VAT line.
+TradeStone is not the deemed supplier for UK-to-UK domestic sales — liability
+sits with the seller — but the platform must give sellers the tooling to be
+correct.
+PREREQUISITE: `profiles` needs `vat_registered boolean` and `vat_number text`
+if not already present. Confirm at Step-0.
+
+**L7 — Marketplace rating is isolated from the job scoring system.**
+A separate `marketplace_rating`, displayed next to the seller's TS code on
+listings. It NEVER feeds Craft, Service, Client Outcomes, or Professional
+Conduct. SCORING.md is unchanged by this feature.
+Rationale: someone slow to answer messages about a pallet of blocks is not a
+worse plasterer. The Craft score remains independent of client opinion and
+independent of this.
+A confirmed pattern of marketplace non-delivery may eventually flag
+Professional Conduct — deferred, not in Phase 1.
+
+**L8 — Seeded from job completion, launched in one region.**
+Cold start is the primary failure mode. A visibly empty marketplace damages
+trust in the rest of the platform.
+Seeding: when a contractor marks a job complete, prompt "Any materials left
+over? List them in 30 seconds." Job context and photos are already to hand.
+The optional `job_id` link on a listing provides provenance ("leftover from a
+loft conversion").
+Launch: one geographic region, tied to wherever the first real contractors
+land. Density in one postcode area beats sparse national coverage.
+Nav: keep the marketplace entry point out of the main nav until there is
+stock in it.
+
+---
+
+### Listing flow
+
+Photo first, everything else after. Camera → title → category → condition →
+price → postcode district. Target: under 60 seconds on a phone, standing in a
+van.
+
+eBay's listing flow is a form. Vinted's is a camera. Build the camera.
+
+Listings are free-text, not catalogue-matched. No SKU database.
 
 ---
 
 ### Listing taxonomy
 
-Every listing has two classification fields — never conflate them into a
-single "condition" dropdown.
+Two classification fields. Never conflate them into a single dropdown.
 
-**`condition`** (enum)
-- `new_sealed` — unopened, in original packaging
-- `new_opened` — unused but packaging opened or damaged
-- `part_used` — some consumed, remainder available (e.g. half a roll of
-  cable, part bag of cement)
-- `used_good` — used, good working order, no significant damage
-- `used_fair` — used, some wear or cosmetic damage, fully functional
+`condition` (enum)
+- `new_sealed` — unopened, original packaging
+- `new_opened` — unused, packaging opened or damaged
+- `part_used` — some consumed, remainder available
+- `used_good` — used, fully serviceable
+- `used_worn` — used, functional, visible wear
 
-**`source_type`** (enum)
-- `retail` — sold by a retail/merchant account (Phase 3 only)
-- `surplus` — contractor unused stock from a job or overorder
-- `clearance` — end-of-project lot, site clearance, or asset disposal
-
-Both fields display on every card and listing detail: e.g. "New (sealed) ·
-Surplus" or "Part used · Surplus".
+`seller_type` (enum)
+- `contractor_surplus` — Phase 1
+- `business_clearance` — Phase 2, TS-B site clearance and asset disposal
+- `retail_merchant` — Phase 3, requires separate merchant onboarding,
+  supplier agreement, and logistics. Do NOT build until Phase 1 is proven.
 
 ---
 
-### Listing fields
+### Order state machine
 
-| Field | Type | Notes |
-|---|---|---|
-| `title` | text | Short and specific ("Dulux Trade Matt 10L White x3 tins") |
-| `description` | text | Condition context, reason for sale, any defects |
-| `category` | enum | See category tree below |
-| `condition` | enum | See taxonomy above |
-| `source_type` | enum | See taxonomy above |
-| `quantity` | numeric | Available quantity |
-| `unit` | enum | `each`, `m`, `m2`, `m3`, `kg`, `tonne`, `litre`, `pack`, `pallet`, `lot` |
-| `price` | numeric(10,2) | GBP. For `lot` listings, single price for entire quantity |
-| `is_lot` | boolean | true = entire quantity must be purchased together |
-| `negotiable` | boolean | Seller open to offers |
-| `location_postcode` | text | Area only. Full address shared only after purchase confirmed |
-| `photos` | — | Min 1, max 10. Storage bucket: `marketplace-photos` |
-| `job_id` | uuid FK | Optional. Links to `jobs.id`. Display uses the job ref from `documentRefs.ts` (`J-4AE203-0008`) — there is no TS-J scheme |
-| `seller_id` | uuid FK | References `profiles(id)` |
-| `seller_type` | enum | `contractor`, `business`, `retail` |
-| `status` | enum | `draft`, `active`, `reserved`, `sold`, `removed` |
-| `expires_at` | timestamptz | Auto-set 90 days from publish. Seller prompted to renew or remove |
+Listing status: `draft` → `active` → `reserved` → `sold`
+Side exits: `withdrawn`, `expired`
 
----
+Order status:
+`pending_payment` → `funds_held` → `collected` → `released` → `completed`
+Side exits: `disputed`, `refunded`, `cancelled`
 
-### Category tree (top level — subcategories at build time)
+Transitions and who may trigger them:
+- `pending_payment` → `funds_held` — Stripe webhook on successful charge
+- `funds_held` → `collected` — seller marks collected; starts the 48h clock
+- `collected` → `released` — buyer confirms, OR cron auto-release at T+48h
+- `released` → `completed` — Stripe Transfer succeeds
+- `funds_held`/`collected` → `disputed` — buyer raises, inside the window only
+- `disputed` → `refunded` or `released` — admin decides
+- `pending_payment` → `cancelled` — timeout or buyer abandons
 
-Electrical · Plumbing & heating · Groundworks & drainage · Timber & sheet
-materials · Insulation · Plastering & drylining · Roofing · Fixings &
-fasteners · Tools & equipment · Flooring · Tiles & adhesives · Painting &
-decorating · Doors, windows & ironmongery · General building materials · Other
+Every consequential transition goes through a SECURITY DEFINER function that
+validates `auth.uid()` internally. No client-side status writes.
 
 ---
 
-### Schema (DO NOT RUN — for reference at build time only)
+### Messaging
+
+In-thread, platform-only. No phone numbers or email addresses exposed on
+listings, in messages, or on any generated document — consistent with the
+existing platform invariant. Full address released to the buyer only once
+funds are held.
+
+---
+
+### Schema — DO NOT RUN
+
+Reference only. Do not paste into a migration. Run a Step-0 report first and
+author fresh migrations at build time.
+
+Open questions to resolve at Step-0:
+- Confirm the money column convention used by `invoices` (integer pence vs
+  numeric) and match it exactly. The pence assumption below is unverified.
+- Confirm `profiles` has `vat_registered` and `vat_number`.
+- Confirm `country_code` / `currency` conventions per the I18N audit — these
+  are Tier A tables and need both.
 
 ```sql
--- DO NOT RUN
--- Marketplace listings
-CREATE TABLE marketplace_listings (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_id       uuid NOT NULL REFERENCES profiles(id),
-  seller_type     text NOT NULL CHECK (seller_type IN ('contractor','business','retail')),
-  title           text NOT NULL,
-  description     text,
-  category        text NOT NULL,
-  condition       text NOT NULL CHECK (condition IN (
-                    'new_sealed','new_opened','part_used','used_good','used_fair'
-                  )),
-  source_type     text NOT NULL CHECK (source_type IN ('retail','surplus','clearance')),
-  quantity        numeric NOT NULL,
-  unit            text NOT NULL CHECK (unit IN (
-                    'each','m','m2','m3','kg','tonne','litre','pack','pallet','lot'
-                  )),
-  price           numeric(10,2) NOT NULL,
-  is_lot          boolean NOT NULL DEFAULT false,
-  negotiable      boolean NOT NULL DEFAULT false,
-  location_postcode text,
-  job_id          uuid REFERENCES jobs(id),
-  status          text NOT NULL DEFAULT 'draft' CHECK (status IN (
-                    'draft','active','reserved','sold','removed'
-                  )),
-  expires_at      timestamptz,
-  created_at      timestamptz DEFAULT now(),
-  updated_at      timestamptz DEFAULT now()
+-- DO NOT RUN. Reference only.
+
+create table marketplace_listings (
+  id uuid primary key default gen_random_uuid(),
+  seller_id uuid not null references profiles(id) on delete cascade,
+  seller_type text not null default 'contractor_surplus',
+  job_id uuid references jobs(id) on delete set null,
+  title text not null,
+  description text,
+  category text not null,
+  condition text not null,
+  quantity integer not null default 1,
+  unit text,
+  price_ex_vat bigint not null,
+  vat_rate numeric(5,2) not null default 0,
+  vat_amount bigint not null default 0,
+  seller_vat_registered boolean not null default false,
+  currency text not null default 'GBP',
+  country_code text not null default 'GB',
+  postcode_district text not null,
+  latitude double precision,
+  longitude double precision,
+  delivery_offered boolean not null default false,
+  delivery_radius_miles integer,
+  delivery_fee bigint,
+  accepts_offers boolean not null default true,
+  status text not null default 'draft',
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Listing photos (multiple per listing)
-CREATE TABLE marketplace_listing_photos (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id      uuid NOT NULL REFERENCES marketplace_listings(id) ON DELETE CASCADE,
-  storage_path    text NOT NULL,
-  display_order   int NOT NULL DEFAULT 0,
-  created_at      timestamptz DEFAULT now()
+create table marketplace_listing_photos (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references marketplace_listings(id) on delete cascade,
+  storage_path text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
 );
 
--- Orders (buyer purchases a listing)
-CREATE TABLE marketplace_orders (
-  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id               uuid NOT NULL REFERENCES marketplace_listings(id),
-  buyer_id                 uuid NOT NULL REFERENCES profiles(id),
-  quantity_purchased       numeric NOT NULL,
-  amount_paid              numeric(10,2) NOT NULL,
+create table marketplace_orders (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references marketplace_listings(id),
+  buyer_id uuid not null references profiles(id),
+  seller_id uuid not null references profiles(id),
+  item_total bigint not null,
+  vat_amount bigint not null default 0,
+  delivery_fee bigint not null default 0,
+  buyer_protection_fee bigint not null,
+  grand_total bigint not null,
+  currency text not null default 'GBP',
+  country_code text not null default 'GB',
+  fulfilment_method text not null default 'collection',
+  status text not null default 'pending_payment',
   stripe_payment_intent_id text,
-  status                   text NOT NULL DEFAULT 'pending' CHECK (status IN (
-                             'pending','paid','collection_arranged','completed',
-                             'refunded','disputed'
-                           )),
-  created_at               timestamptz DEFAULT now(),
-  updated_at               timestamptz DEFAULT now()
+  stripe_transfer_group text,
+  stripe_transfer_id text,
+  collected_at timestamptz,
+  release_due_at timestamptz,
+  released_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table marketplace_order_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references marketplace_orders(id) on delete cascade,
+  from_status text,
+  to_status text not null,
+  actor_id uuid references profiles(id),
+  actor_role text not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table marketplace_disputes (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references marketplace_orders(id),
+  raised_by uuid not null references profiles(id),
+  reason text not null,
+  detail text,
+  status text not null default 'open',
+  resolution text,
+  resolved_by uuid,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table marketplace_ratings (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references marketplace_orders(id) unique,
+  rated_profile_id uuid not null references profiles(id),
+  rater_profile_id uuid not null references profiles(id),
+  score integer not null check (score between 1 and 5),
+  comment text,
+  created_at timestamptz not null default now()
 );
 ```
 
----
-
-### UI components to build
-
-**Marketplace browse page** (replace existing placeholder page)
-Search + category filter + condition filter + distance radius filter.
-Card grid: lead photo, title, condition+source badge pair, price, seller TS
-code + trade badge, location area, posted date. Sort: newest / price asc /
-price desc / nearest.
-
-**Listing detail page**
-Photo gallery (swipeable), full condition+source display, seller identity card
-(TS code, trade, score, job count — links to public profile), optional job
-provenance link, price/quantity/unit, "Make an offer" button if negotiable,
-"Buy now" → Stripe payment flow.
-
-**Create listing flow** (contractor/business dashboard — multi-step)
-Step 1: Category + condition + source type
-Step 2: Title, description, quantity, unit, price, negotiable toggle, lot toggle
-Step 3: Photos (min 1 required)
-Step 4: Location postcode, optional job link, expiry acknowledgement
-Step 5: Preview + publish
-
-**My listings** (dashboard section)
-Tabs: Active / Reserved / Sold / Expired. Renew / edit / remove actions per
-listing. Order notification on purchase.
+RLS notes for build time:
+- Two-step lookup everywhere:
+  `seller_id in (select id from profiles where user_id = auth.uid())`
+- Active listings are publicly readable to authenticated trade accounts only
+  (L5). Draft/withdrawn listings are seller-only.
+- Orders readable by buyer and seller only.
+- `marketplace_order_events` is insert-only via SECURITY DEFINER; no direct
+  client writes.
+- Do not reference `acting_contractor_ids()` or `my_team_member_ids()` in any
+  policy on `profiles` or `team_members`.
 
 ---
 
-### Payment model
-Stripe Connect destination charge — same pattern as job payments.
-Platform fee: to be decided at build time. Job payments are 5%; marketplace
-carries lower relationship value and higher dispute risk on physical goods,
-so a higher rate is arguable — but decide it deliberately, don't inherit a
-number from this document.
-Buyer protection: 48-hour dispute window after collection confirmed.
-No physical fulfilment handling by TradeStone — collection or local delivery
-arranged between buyer and seller **through platform messaging**. Offers,
-collection arrangements and address exchange all route through the messaging
-system; no phone numbers or email addresses are exposed at any point.
+### UI surfaces
+
+- Marketplace browse (light e-commerce product cards — deliberately distinct
+  from the dark navy contractor cards on the Hire page)
+- Listing detail with photo carousel, seller TS code, marketplace rating
+- Create listing flow (camera-first, mobile-optimised)
+- Offer thread
+- Checkout with itemised Buyer Protection line
+- My Listings (seller)
+- My Orders (buyer)
+- Mark collected / confirm collection actions
+- Raise dispute
+- Admin dispute queue
 
 ---
 
-### Explicitly out of scope until Phase 3
-- Delivery/logistics integration
-- Retail outlet onboarding and merchant agreements
-- VAT invoice generation for merchant sales (contractor P2P surplus sales
-  carry no VAT obligation for non-VAT-registered sellers)
-- Product catalogue / SKU database (listings are free-text, not catalogue-matched)
-- Tool and equipment hire (separate liability model — see Tool Hire below)
+### Explicitly out of scope
+
+- Shipping, couriers, delivery fulfilment (L4)
+- Homeowner buyers or sellers (L5)
+- Retail merchant onboarding (Phase 3)
+- Product catalogue / SKU matching
+- Auctions (L1, permanent)
+- Any effect on Craft/Service/Outcomes/Conduct scoring (L7)
+- Tool and equipment hire — separate section, different liability model
 
 ---
 
