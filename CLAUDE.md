@@ -539,6 +539,47 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   pg_policies / counts) only. This rule was breached twice (accept_business_invite
   RPC and prevent_last_owner_removal trigger applied via editor), requiring drift
   repair migration 20260613XXXXXX_b2b_invite_accept_modes.
+- **Pre-flight checks in migrations must FAIL, never DELETE.** A migration
+  that needs clean data before adding a constraint must verify the
+  precondition and `RAISE EXCEPTION` with the offending count if it fails —
+  forcing a human decision. It must NOT silently delete the offending rows.
+  A `DELETE` written as a "defensive no-op because the live count is zero
+  today" is a data-loss primitive with a reassuring comment on it: the count
+  is only zero at authoring time, and migrations get replayed against
+  branches, restored backups, and future drifted state where it will not be.
+  This matters most on financial tables — `expenses`, `invoices`,
+  `mileage_trips`, `refunds`, `contractor_debts` — where UK businesses are
+  legally required to retain records for six years, and a silent delete
+  destroys evidence rather than surfacing a problem.
+
+  Correct pattern:
+
+```sql
+  DO $$
+  DECLARE orphan_count integer;
+  BEGIN
+    SELECT count(*) INTO orphan_count
+    FROM public.expenses e
+    WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = e.contractor_id);
+
+    IF orphan_count > 0 THEN
+      RAISE EXCEPTION
+        'Cannot add FK: % orphaned expenses rows. Resolve manually before applying.',
+        orphan_count;
+    END IF;
+  END $$;
+
+  ALTER TABLE public.expenses
+    ADD CONSTRAINT expenses_contractor_id_fk
+    FOREIGN KEY (contractor_id) REFERENCES public.profiles(id);
+```
+
+  Origin: `20260815100000_finance_schema_hardening.sql` shipped unconditional
+  `DELETE`s on `expenses` and `finance_settings` ahead of its FK and unique
+  constraints, justified in comments as safe because live counts were zero.
+  They were zero, so no data was lost — but the pattern is wrong and must not
+  be repeated. That migration is applied and immutable; do not attempt to
+  amend it.
 - **Migration git ritual**: run `git status` after every migration push; every
   migration file must be explicitly committed.
 
