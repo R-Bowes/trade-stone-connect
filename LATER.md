@@ -413,14 +413,18 @@ Reference only. Do not paste into a migration. Run a Step-0 report first and
 author fresh migrations at build time.
 
 Open questions to resolve at Step-0:
-- Confirm the money column convention used by `invoices` (integer pence vs
-  numeric) and match it exactly. The pence assumption below is unverified.
+- RESOLVED: money is stored as `numeric` decimal POUNDS, not integer
+  minor units (CLAUDE.md, Document reference system section). Conversion
+  to minor units happens only at the Stripe boundary. The schema below
+  has been corrected accordingly.
 - Confirm `profiles` has `vat_registered` and `vat_number`.
 - Confirm `country_code` / `currency` conventions per the I18N audit — these
   are Tier A tables and need both.
 
 ```sql
 -- DO NOT RUN. Reference only.
+-- Money columns are numeric(12,2) in POUNDS, per CLAUDE.md. Do not
+-- convert to pence anywhere except at the Stripe boundary.
 
 create table marketplace_listings (
   id uuid primary key default gen_random_uuid(),
@@ -433,9 +437,9 @@ create table marketplace_listings (
   condition text not null,
   quantity integer not null default 1,
   unit text,
-  price_ex_vat bigint not null,
+  price_ex_vat numeric(12,2) not null,
   vat_rate numeric(5,2) not null default 0,
-  vat_amount bigint not null default 0,
+  vat_amount numeric(12,2) not null default 0,
   seller_vat_registered boolean not null default false,
   currency text not null default 'GBP',
   country_code text not null default 'GB',
@@ -444,7 +448,7 @@ create table marketplace_listings (
   longitude double precision,
   delivery_offered boolean not null default false,
   delivery_radius_miles integer,
-  delivery_fee bigint,
+  delivery_fee numeric(12,2),
   accepts_offers boolean not null default true,
   status text not null default 'draft',
   expires_at timestamptz,
@@ -465,11 +469,11 @@ create table marketplace_orders (
   listing_id uuid not null references marketplace_listings(id),
   buyer_id uuid not null references profiles(id),
   seller_id uuid not null references profiles(id),
-  item_total bigint not null,
-  vat_amount bigint not null default 0,
-  delivery_fee bigint not null default 0,
-  buyer_protection_fee bigint not null,
-  grand_total bigint not null,
+  item_total numeric(12,2) not null,
+  vat_amount numeric(12,2) not null default 0,
+  delivery_fee numeric(12,2) not null default 0,
+  buyer_protection_fee numeric(12,2) not null,
+  grand_total numeric(12,2) not null,
   currency text not null default 'GBP',
   country_code text not null default 'GB',
   fulfilment_method text not null default 'collection',
@@ -520,8 +524,14 @@ create table marketplace_ratings (
 ```
 
 RLS notes for build time:
-- Two-step lookup everywhere:
-  `seller_id in (select id from profiles where user_id = auth.uid())`
+- Direct comparison against auth.uid(), per CLAUDE.md's Row-level
+  security section: `seller_id = auth.uid()`, `buyer_id = auth.uid()`.
+  The two-step subquery form is NOT the house pattern and must not be
+  used here — `marketplace_listings.seller_id` and
+  `marketplace_orders.buyer_id`/`seller_id` all reference `profiles(id)`,
+  which is guaranteed equal to `auth.uid()` by the
+  `CHECK (id = user_id)` invariant. (This bullet previously specified
+  the two-step form; that was an error, corrected 2026-08-16.)
 - Active listings are publicly readable to authenticated trade accounts only
   (L5). Draft/withdrawn listings are seller-only.
 - Orders readable by buyer and seller only.

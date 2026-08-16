@@ -141,6 +141,18 @@ Contractor reads of company rows are covered by "Companies readable by panel
 contractors" instead. Any contractor with legitimate service visits should
 already be in `contractor_panel`.
 
+**Known divergence — the four contractor finance tables.** `expenses` uses
+the direct `contractor_id = auth.uid()` house form (restored in
+20260815100000). Its three siblings — `finance_settings`, `mileage_trips`,
+`contractor_vehicles` — still use the two-step subquery form on every
+policy. Functionally equivalent under the `CHECK (id = user_id)` invariant;
+this is a style inconsistency, not a security gap. Deliberately NOT
+aligned: rewriting working RLS on live tables carries more risk than the
+cosmetic benefit is worth, and zero-row UPDATEs fail silently (see failure
+modes below), so a botched alignment would be hard to detect. Do not "fix"
+this without a reason beyond consistency. Any NEW policy uses the direct
+form.
+
 ### RLS / PostgREST failure modes
 
 - **STABLE helper functions are blind to same-statement inserts.** A `STABLE`
