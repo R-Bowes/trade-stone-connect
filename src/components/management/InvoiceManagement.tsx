@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
-  Search, Send, CheckCircle, Loader2, Download, Banknote
+  Search, Send, CheckCircle, Loader2, Download, Banknote, Undo2
 } from "lucide-react";
 import { generateInvoicePdf, fetchContractorProfileForPdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
@@ -19,6 +19,7 @@ import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices
 import { isOverdue as invoiceIsOverdue, depositSettled } from "@/lib/invoiceMoney";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaymentDialog";
+import { RequestRefundDialog } from "@/components/management/RequestRefundDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
 
@@ -32,6 +33,7 @@ export function InvoiceManagement() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [recordPaymentInvoice, setRecordPaymentInvoice] = useState<Invoice | null>(null);
+  const [refundRequestInvoice, setRefundRequestInvoice] = useState<Invoice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientTsCodeMap, setClientTsCodeMap] = useState<Record<string, string>>({});
@@ -241,6 +243,11 @@ export function InvoiceManagement() {
                           }} title="Download PDF">
                           <Download className="h-4 w-4" />
                         </Button>
+                        {isPaid && (
+                          <Button variant="ghost" size="sm" onClick={() => setRefundRequestInvoice(inv)} title="Request refund">
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                        )}
                         {!isPaid && inv.status === "draft" && (
                           <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
                             <Send className="h-4 w-4" />
@@ -291,6 +298,13 @@ export function InvoiceManagement() {
         invoice={recordPaymentInvoice}
         onClose={() => setRecordPaymentInvoice(null)}
         onConfirm={(payment) => recordManualPayment(recordPaymentInvoice!, payment)}
+      />
+
+      {/* Request Refund Dialog */}
+      <RequestRefundDialog
+        open={!!refundRequestInvoice}
+        invoice={refundRequestInvoice}
+        onClose={() => setRefundRequestInvoice(null)}
       />
 
       {/* Invoice Preview Dialog */}

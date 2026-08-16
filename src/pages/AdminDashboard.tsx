@@ -56,6 +56,50 @@ type Invoice = {
   total_amount: number | null;
   created_at: string;
   invoice_number: number | null;
+  client_name: string | null;
+};
+
+// Stripe-side refund audit trail (public.refunds) — NOT the in-platform
+// public.disputes table used by the Jobs tab's Raise Dispute action.
+type Refund = {
+  id: string;
+  payment_id: string;
+  invoice_id: string | null;
+  job_id: string | null;
+  contractor_id: string;
+  requested_by: string;
+  amount: number;
+  reason: string;
+  reason_detail: string | null;
+  status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_reason: string | null;
+  stripe_refund_id: string | null;
+  created_at: string;
+};
+
+type ContractorDebt = {
+  id: string;
+  contractor_id: string;
+  source_type: string;
+  source_id: string;
+  amount: number;
+  recovered_amount: number;
+  status: string;
+  created_at: string;
+};
+
+// Mirrors the refunds.reason CHECK constraint — must stay in lockstep with
+// REFUND_REASONS in src/components/management/RequestRefundDialog.tsx.
+const REFUND_REASON_LABELS: Record<string, string> = {
+  cooling_off_cancellation: 'Cooling-off cancellation',
+  work_not_completed: 'Work not completed',
+  work_defective: 'Work defective',
+  overpayment: 'Overpayment',
+  duplicate_payment: 'Duplicate payment',
+  goodwill: 'Goodwill',
+  other: 'Other',
 };
 
 type Conversation = {
@@ -101,7 +145,7 @@ type Stats = {
   totalInvoices: number;
 };
 
-type Tab = 'overview' | 'users' | 'verification' | 'enquiries' | 'jobs' | 'invoices' | 'revenue' | 'messages' | 'admins' | 'settings' | 'activity' | 'broadcast';
+type Tab = 'overview' | 'users' | 'verification' | 'enquiries' | 'jobs' | 'invoices' | 'refunds' | 'revenue' | 'messages' | 'admins' | 'settings' | 'activity' | 'broadcast';
 
 type BroadcastEmail = {
   id: string;
@@ -180,6 +224,15 @@ export default function AdminDashboard() {
   const [markPaidInvoiceId, setMarkPaidInvoiceId] = useState<string | null>(null);
   const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
 
+  // Data — refunds (Stripe refund audit trail) and contractor debt ledger
+  const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [contractorDebts, setContractorDebts] = useState<ContractorDebt[]>([]);
+
+  // UI state — refund actions
+  const [refundActionLoadingId, setRefundActionLoadingId] = useState<string | null>(null);
+  const [rejectRefundId, setRejectRefundId] = useState<string | null>(null);
+  const [rejectRefundReason, setRejectRefundReason] = useState('');
+
   // UI state — messages
   const [messagesSlideOver, setMessagesSlideOver] = useState<Conversation | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
@@ -248,6 +301,8 @@ export default function AdminDashboard() {
       adminUsersRes,
       activityRes,
       settingsRes,
+      refundsRes,
+      contractorDebtsRes,
     ] = await Promise.all([
       db.from('profiles')
         .select('id, ts_profile_code, full_name, user_type, email, trades, location, bio, stripe_account_id, is_verified, created_at')
@@ -259,7 +314,7 @@ export default function AdminDashboard() {
         .select('id, status, created_at, contractor_id, customer_id')
         .order('created_at', { ascending: false }),
       db.from('invoices')
-        .select('id, status, total_amount, created_at, invoice_number')
+        .select('id, status, total_amount, created_at, invoice_number, client_name')
         .order('created_at', { ascending: false }),
       db.from('job_conversations')
         .select('id, context, created_at, job_messages(id, sender_id, content, created_at)')
@@ -273,6 +328,12 @@ export default function AdminDashboard() {
         .order('created_at', { ascending: false })
         .limit(200),
       db.from('platform_settings').select('key, value'),
+      db.from('refunds')
+        .select('id, payment_id, invoice_id, job_id, contractor_id, requested_by, amount, reason, reason_detail, status, approved_by, approved_at, rejected_reason, stripe_refund_id, created_at')
+        .order('created_at', { ascending: false }),
+      db.from('contractor_debts')
+        .select('id, contractor_id, source_type, source_id, amount, recovered_amount, status, created_at')
+        .order('created_at', { ascending: false }),
     ]);
 
     if (profilesRes.error)      console.error('[Admin] profiles query failed:',      profilesRes.error.message,      profilesRes.error.code, profilesRes.error.details);
@@ -283,6 +344,8 @@ export default function AdminDashboard() {
     if (adminUsersRes.error)    console.error('[Admin] admin_users query failed:',    adminUsersRes.error.message,     adminUsersRes.error.code, adminUsersRes.error.details);
     if (activityRes.error)      console.error('[Admin] activity log query failed:',   activityRes.error.message,       activityRes.error.code, activityRes.error.details);
     if (settingsRes.error)      console.error('[Admin] platform_settings failed:',    settingsRes.error.message,       settingsRes.error.code, settingsRes.error.details);
+    if (refundsRes.error)       console.error('[Admin] refunds query failed:',        refundsRes.error.message,        refundsRes.error.code, refundsRes.error.details);
+    if (contractorDebtsRes.error) console.error('[Admin] contractor_debts query failed:', contractorDebtsRes.error.message, contractorDebtsRes.error.code, contractorDebtsRes.error.details);
 
     const p: Profile[] = profilesRes.data || [];
     if (!profilesRes.error && p.length === 0) {
@@ -296,6 +359,8 @@ export default function AdminDashboard() {
     setConversations(conversationsRes.data || []);
     setAdminUsers(adminUsersRes.data || []);
     setActivityLog(activityRes.data || []);
+    setRefunds(refundsRes.data || []);
+    setContractorDebts(contractorDebtsRes.data || []);
 
     const settings: Record<string, string> = {};
     for (const row of (settingsRes.data || [])) {
@@ -483,6 +548,54 @@ export default function AdminDashboard() {
     await (supabase as any).from('invoices').update({ status: 'voided' }).eq('id', id);
     await logActivity('void_invoice', 'invoice', id);
     setVoidInvoiceId(null);
+    loadData();
+  }
+
+  // ── Refunds (Stripe) ─────────────────────────────────────────────────────
+  // Two client-side steps by design (see supabase/migrations/20260807250000):
+  // approve_refund() only flips status, then process-refund is invoked with
+  // the admin's own session token — supabase.functions.invoke sends the
+  // current auth session automatically, same as handleSendNowBroadcast's
+  // 'send-broadcast' call above.
+
+  async function handleApproveRefund(refund: Refund) {
+    setRefundActionLoadingId(refund.id);
+    const { error: approveError } = await (supabase as any).rpc('approve_refund', { p_refund_id: refund.id });
+    if (approveError) {
+      alert(`Failed to approve refund: ${approveError.message}`);
+      setRefundActionLoadingId(null);
+      return;
+    }
+    await logActivity('approve_refund', 'refund', refund.id, { amount: refund.amount, reason: refund.reason });
+
+    const { error: fnError } = await supabase.functions.invoke('process-refund', { body: { refundId: refund.id } });
+    if (fnError) {
+      alert(`Refund approved but processing with Stripe failed: ${fnError.message}. It will appear under Needs Attention — use Retry there.`);
+    }
+    setRefundActionLoadingId(null);
+    loadData();
+  }
+
+  async function handleRetryRefund(refundId: string) {
+    setRefundActionLoadingId(refundId);
+    const { error } = await supabase.functions.invoke('process-refund', { body: { refundId } });
+    if (error) {
+      alert(`Retry failed: ${error.message}`);
+    }
+    setRefundActionLoadingId(null);
+    loadData();
+  }
+
+  async function handleRejectRefund() {
+    if (!rejectRefundId) return;
+    const { error } = await (supabase as any).rpc('reject_refund', { p_refund_id: rejectRefundId, p_reason: rejectRefundReason });
+    if (error) {
+      alert(`Failed to reject refund: ${error.message}`);
+      return;
+    }
+    await logActivity('reject_refund', 'refund', rejectRefundId, { reason: rejectRefundReason });
+    setRejectRefundId(null);
+    setRejectRefundReason('');
     loadData();
   }
 
@@ -691,13 +804,13 @@ export default function AdminDashboard() {
   );
 
   const allTabs: Tab[] = [
-    'overview', 'users', 'verification', 'enquiries', 'jobs', 'invoices', 'revenue', 'messages',
+    'overview', 'users', 'verification', 'enquiries', 'jobs', 'invoices', 'refunds', 'revenue', 'messages',
     ...(isSuperAdmin ? ['admins', 'settings'] as Tab[] : []),
     'broadcast', 'activity',
   ];
   const tabLabel: Record<Tab, string> = {
     overview: 'Overview', users: 'Users', verification: 'Verification', enquiries: 'Enquiries',
-    jobs: 'Jobs', invoices: 'Invoices', revenue: 'Revenue', messages: 'Messages',
+    jobs: 'Jobs', invoices: 'Invoices', refunds: 'Refunds', revenue: 'Revenue', messages: 'Messages',
     admins: 'Admins', settings: 'Settings', activity: 'Activity Log',
     broadcast: 'Broadcast',
   };
@@ -709,6 +822,25 @@ export default function AdminDashboard() {
   const profileMap = Object.fromEntries(
     profiles.map(p => [p.id, p.full_name || p.email || p.id.slice(0, 8)])
   );
+
+  // Refunds tab lookups — invoice ref + client name, and a name+TS-code
+  // contractor label (never email, per CLAUDE.md).
+  const invoiceMap = Object.fromEntries(invoices.map(inv => [inv.id, inv]));
+  const contractorDisplay = (contractorId: string): string => {
+    const c = profiles.find(p => p.id === contractorId);
+    if (!c) return contractorId.slice(0, 8);
+    return c.ts_profile_code ? `${c.full_name || '—'} · ${c.ts_profile_code}` : (c.full_name || contractorId.slice(0, 8));
+  };
+  const invoiceRefFor = (invoiceId: string | null): string => {
+    if (!invoiceId) return '—';
+    const inv = invoiceMap[invoiceId];
+    return inv?.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : '—';
+  };
+
+  const pendingRefunds = refunds.filter(r => r.status === 'requested');
+  const stuckRefunds = refunds.filter(r => (r.status === 'approved' || r.status === 'processing') && !r.stripe_refund_id);
+  const failedRefunds = refunds.filter(r => r.status === 'failed');
+  const outstandingDebts = contractorDebts.filter(d => d.status !== 'recovered' && d.status !== 'written_off');
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -944,6 +1076,111 @@ export default function AdminDashboard() {
                   </table>
                 </>
               )
+            )}
+
+            {/* ── REFUNDS ──────────────────────────────────────────────── */}
+            {activeTab === 'refunds' && (
+              <div>
+                <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 16px' }}>Pending Requests</h3>
+                {pendingRefunds.length === 0 ? emptyState('No pending refund requests') : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginBottom: 40 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Invoice', 'Contractor', 'Customer', 'Amount', 'Reason', 'Detail', 'Requested', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingRefunds.map(r => (
+                        <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 13 }}>{invoiceRefFor(r.invoice_id)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{contractorDisplay(r.contractor_id)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                            {(r.invoice_id && invoiceMap[r.invoice_id]?.client_name) || '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4' }}>£{Number(r.amount).toFixed(2)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>{REFUND_REASON_LABELS[r.reason] || r.reason}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.45)', fontSize: 12, maxWidth: 220 }}>
+                            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason_detail || '—'}</span>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                            {new Date(r.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
+                            <button style={btnSuccess} disabled={refundActionLoadingId === r.id} onClick={() => handleApproveRefund(r)}>
+                              {refundActionLoadingId === r.id ? 'Processing…' : 'Approve'}
+                            </button>
+                            <button style={btnDanger} disabled={refundActionLoadingId === r.id} onClick={() => setRejectRefundId(r.id)}>Reject</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 16px' }}>Needs Attention</h3>
+                {(stuckRefunds.length === 0 && failedRefunds.length === 0) ? emptyState('Nothing stuck or failed') : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginBottom: 40 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Invoice', 'Contractor', 'Amount', 'Status', 'Note', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stuckRefunds.map(r => (
+                        <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 13 }}>{invoiceRefFor(r.invoice_id)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{contractorDisplay(r.contractor_id)}</td>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4' }}>£{Number(r.amount).toFixed(2)}</td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge(r.status)}>{r.status}</span></td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Approved but not yet processed by Stripe — safe to retry</td>
+                          <td style={{ padding: '10px 16px' }}>
+                            <button style={btn} disabled={refundActionLoadingId === r.id} onClick={() => handleRetryRefund(r.id)}>
+                              {refundActionLoadingId === r.id ? 'Retrying…' : 'Retry'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {failedRefunds.map(r => (
+                        <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4', fontFamily: 'monospace', fontSize: 13 }}>{invoiceRefFor(r.invoice_id)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{contractorDisplay(r.contractor_id)}</td>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4' }}>£{Number(r.amount).toFixed(2)}</td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge('failed')}>failed</span></td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.45)', fontSize: 12, maxWidth: 220 }}>
+                            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.rejected_reason || '—'}</span>
+                          </td>
+                          <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>Read-only</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <h3 style={{ color: '#e8eef4', fontSize: 16, fontWeight: 600, margin: '0 0 16px' }}>Outstanding Contractor Debt</h3>
+                {outstandingDebts.length === 0 ? emptyState('No outstanding contractor debt') : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        {['Contractor', 'Source', 'Amount', 'Recovered', 'Status', 'Date'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {outstandingDebts.map(d => (
+                        <tr key={d.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{contractorDisplay(d.contractor_id)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)', fontSize: 13, textTransform: 'capitalize' }}>{d.source_type}</td>
+                          <td style={{ padding: '12px 16px', color: '#e8eef4' }}>£{Number(d.amount).toFixed(2)}</td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>£{Number(d.recovered_amount).toFixed(2)}</td>
+                          <td style={{ padding: '12px 16px' }}><span style={badge(d.status)}>{d.status.replace('_', ' ')}</span></td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                            {new Date(d.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             )}
 
             {/* ── MESSAGES ─────────────────────────────────────────────── */}
@@ -1616,6 +1853,30 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setVoidInvoiceId(null)} style={btnSecondary}>Cancel</button>
               <button onClick={() => handleVoidInvoice(voidInvoiceId)} style={{ ...btnPrimary, background: '#ef4444' }}>Void Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject refund */}
+      {rejectRefundId && (
+        <div style={overlay} onClick={() => { setRejectRefundId(null); setRejectRefundReason(''); }}>
+          <div style={modal} onClick={e => e.stopPropagation()}>
+            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Reject Refund Request</h2>
+            <div>
+              <label style={labelS}>Reason</label>
+              <textarea
+                value={rejectRefundReason}
+                onChange={e => setRejectRefundReason(e.target.value)}
+                style={{ ...inputS, minHeight: 80, resize: 'vertical' }}
+                placeholder="Explain why this refund request is being rejected — the contractor sees this."
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setRejectRefundId(null); setRejectRefundReason(''); }} style={btnSecondary}>Cancel</button>
+              <button onClick={handleRejectRefund} disabled={!rejectRefundReason} style={{ ...btnPrimary, background: '#ef4444', opacity: rejectRefundReason ? 1 : 0.5, cursor: rejectRefundReason ? 'pointer' : 'not-allowed' }}>
+                Reject Refund
+              </button>
             </div>
           </div>
         </div>

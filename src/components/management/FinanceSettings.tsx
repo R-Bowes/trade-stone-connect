@@ -35,6 +35,7 @@ type FinanceSettingsRow = Database["public"]["Tables"]["finance_settings"]["Row"
 type FinanceSettingsUpdate = Database["public"]["Tables"]["finance_settings"]["Update"];
 type Vehicle = Database["public"]["Tables"]["contractor_vehicles"]["Row"];
 type ExpenseCategory = Database["public"]["Tables"]["expense_categories"]["Row"];
+type ContractorDebt = Database["public"]["Tables"]["contractor_debts"]["Row"];
 
 const VEHICLE_TYPES = [
   { value: "car", label: "Car" },
@@ -65,6 +66,8 @@ export function FinanceSettings() {
   const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Vehicle | null>(null);
+
+  const [debts, setDebts] = useState<ContractorDebt[]>([]);
 
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
@@ -115,7 +118,7 @@ export function FinanceSettings() {
       setPaymentTermsDraft(settingsRow.default_payment_terms_days?.toString() ?? "30");
     }
 
-    const [{ data: vehicleRows }, { data: categoryRows }] = await Promise.all([
+    const [{ data: vehicleRows }, { data: categoryRows }, { data: debtRows }] = await Promise.all([
       supabase
         .from("contractor_vehicles")
         .select("*")
@@ -126,10 +129,17 @@ export function FinanceSettings() {
         .select("*")
         .or(`owner_contractor_id.is.null,owner_contractor_id.eq.${profileRow.id}`)
         .order("sort_order", { ascending: true }),
+      supabase
+        .from("contractor_debts")
+        .select("*")
+        .eq("contractor_id", profileRow.id)
+        .in("status", ["outstanding", "partially_recovered"])
+        .order("created_at", { ascending: false }),
     ]);
 
     setVehicles(vehicleRows ?? []);
     setCategories(categoryRows ?? []);
+    setDebts(debtRows ?? []);
     setLoading(false);
   }, []);
 
@@ -315,6 +325,10 @@ export function FinanceSettings() {
   }
 
   const activeVehicles = vehicles.filter((v) => v.is_active);
+  const outstandingDebtTotal = debts.reduce(
+    (sum, d) => sum + (Number(d.amount) - Number(d.recovered_amount)),
+    0,
+  );
 
   return (
     <div className="space-y-6 p-6 max-w-3xl">
@@ -654,6 +668,29 @@ export function FinanceSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Outstanding balance to TradeStone — quiet, factual, non-punitive.
+          Renders nothing at all when there is no debt (CLAUDE.md: no fake
+          placeholder states, no "you owe £0.00"). */}
+      {outstandingDebtTotal > 0 && (
+        <div className="text-sm text-muted-foreground border-t pt-4 space-y-1.5">
+          <p>
+            Outstanding balance to TradeStone:{" "}
+            <span className="font-medium text-foreground">£{outstandingDebtTotal.toFixed(2)}</span>.
+            This arises when a refund or chargeback could not be fully recovered from your Stripe
+            balance — often not a reflection of anything you did.
+          </p>
+          <ul className="list-disc list-inside">
+            {debts.map((d) => (
+              <li key={d.id}>
+                £{(Number(d.amount) - Number(d.recovered_amount)).toFixed(2)} —{" "}
+                {d.source_type === "chargeback" ? "Chargeback" : "Refund"} shortfall,{" "}
+                {new Date(d.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <VehicleDialog
         open={vehicleDialogOpen}
