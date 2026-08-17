@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_activity_log: {
@@ -351,7 +376,9 @@ export type Database = {
           closed_at: string | null
           contractor_debt: number
           contractor_id: string | null
+          country_code: string
           created_at: string
+          currency: string
           customer_id: string | null
           dispute_fee: number | null
           evidence_due_by: string | null
@@ -374,7 +401,9 @@ export type Database = {
           closed_at?: string | null
           contractor_debt?: number
           contractor_id?: string | null
+          country_code?: string
           created_at?: string
+          currency?: string
           customer_id?: string | null
           dispute_fee?: number | null
           evidence_due_by?: string | null
@@ -397,7 +426,9 @@ export type Database = {
           closed_at?: string | null
           contractor_debt?: number
           contractor_id?: string | null
+          country_code?: string
           created_at?: string
+          currency?: string
           customer_id?: string | null
           dispute_fee?: number | null
           evidence_due_by?: string | null
@@ -448,6 +479,15 @@ export type Database = {
       }
       companies: {
         Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           address: string | null
           address_line1: string | null
           address_line2: string | null
@@ -471,6 +511,15 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           address_line1?: string | null
           address_line2?: string | null
@@ -494,6 +543,15 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           address_line1?: string | null
           address_line2?: string | null
@@ -1904,6 +1962,15 @@ export type Database = {
       }
       crm_clients: {
         Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           address: string | null
           company_name: string | null
           contractor_id: string
@@ -1920,6 +1987,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           company_name?: string | null
           contractor_id: string
@@ -1936,6 +2012,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           company_name?: string | null
           contractor_id?: string
@@ -2295,6 +2380,15 @@ export type Database = {
         Row: {
           access_notes: string | null
           additional_details: string | null
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           asset_id: string | null
           budget_range: string | null
           company_id: string | null
@@ -2327,6 +2421,15 @@ export type Database = {
         Insert: {
           access_notes?: string | null
           additional_details?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           asset_id?: string | null
           budget_range?: string | null
           company_id?: string | null
@@ -2359,6 +2462,15 @@ export type Database = {
         Update: {
           access_notes?: string | null
           additional_details?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           asset_id?: string | null
           budget_range?: string | null
           company_id?: string | null
@@ -2545,7 +2657,9 @@ export type Database = {
           amount: number
           category_id: string | null
           contractor_id: string
+          country_code: string
           created_at: string
+          currency: string
           description: string
           expense_date: string
           expense_status: string
@@ -2571,7 +2685,9 @@ export type Database = {
           amount: number
           category_id?: string | null
           contractor_id: string
+          country_code?: string
           created_at?: string
+          currency?: string
           description: string
           expense_date?: string
           expense_status?: string
@@ -2597,7 +2713,9 @@ export type Database = {
           amount?: number
           category_id?: string | null
           contractor_id?: string
+          country_code?: string
           created_at?: string
+          currency?: string
           description?: string
           expense_date?: string
           expense_status?: string
@@ -2749,6 +2867,7 @@ export type Database = {
         Row: {
           business_type: string
           contractor_id: string
+          country_code: string
           created_at: string
           default_payment_terms_days: number | null
           financial_year_end_day: number | null
@@ -2763,6 +2882,7 @@ export type Database = {
         Insert: {
           business_type?: string
           contractor_id: string
+          country_code?: string
           created_at?: string
           default_payment_terms_days?: number | null
           financial_year_end_day?: number | null
@@ -2777,6 +2897,7 @@ export type Database = {
         Update: {
           business_type?: string
           contractor_id?: string
+          country_code?: string
           created_at?: string
           default_payment_terms_days?: number | null
           financial_year_end_day?: number | null
@@ -2864,6 +2985,15 @@ export type Database = {
       }
       invoices: {
         Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           amount_due: number | null
           client_address: string | null
           client_email: string
@@ -2901,6 +3031,15 @@ export type Database = {
           viewed_at: string | null
         }
         Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           amount_due?: number | null
           client_address?: string | null
           client_email: string
@@ -2938,6 +3077,15 @@ export type Database = {
           viewed_at?: string | null
         }
         Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           amount_due?: number | null
           client_address?: string | null
           client_email?: string
@@ -2977,17 +3125,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "invoices_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "job_adjusted_contract_value"
-            referencedColumns: ["job_id"]
-          },
-          {
-            foreignKeyName: "invoices_job_id_fkey"
-            columns: ["job_id"]
+            columns: ["job_id", "country_code"]
             isOneToOne: false
             referencedRelation: "jobs"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "country_code"]
           },
           {
             foreignKeyName: "invoices_project_id_fkey"
@@ -2998,10 +3139,10 @@ export type Database = {
           },
           {
             foreignKeyName: "invoices_quote_id_fkey"
-            columns: ["quote_id"]
+            columns: ["quote_id", "country_code"]
             isOneToOne: false
             referencedRelation: "issued_quotes"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "country_code"]
           },
           {
             foreignKeyName: "invoices_recipient_id_fkey"
@@ -3022,6 +3163,15 @@ export type Database = {
       issued_quotes: {
         Row: {
           accepted_at: string | null
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           business_name: string | null
           client_address: string | null
           client_email: string
@@ -3068,6 +3218,15 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           business_name?: string | null
           client_address?: string | null
           client_email: string
@@ -3114,6 +3273,15 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           business_name?: string | null
           client_address?: string | null
           client_email?: string
@@ -3161,10 +3329,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "issued_quotes_enquiry_id_fkey"
-            columns: ["enquiry_id"]
+            columns: ["enquiry_id", "country_code"]
             isOneToOne: false
             referencedRelation: "enquiries"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "country_code"]
           },
           {
             foreignKeyName: "issued_quotes_parent_quote_id_fkey"
@@ -3929,6 +4097,15 @@ export type Database = {
       job_rams: {
         Row: {
           additional_notes: string | null
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           contractor_id: string
           created_at: string
           emergency_procedures: string | null
@@ -3953,6 +4130,15 @@ export type Database = {
         }
         Insert: {
           additional_notes?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           contractor_id: string
           created_at?: string
           emergency_procedures?: string | null
@@ -3977,6 +4163,15 @@ export type Database = {
         }
         Update: {
           additional_notes?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           contractor_id?: string
           created_at?: string
           emergency_procedures?: string | null
@@ -4474,6 +4669,15 @@ export type Database = {
         Row: {
           actual_end: string | null
           actual_start: string | null
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           asset_id: string | null
           company_id: string | null
           completed_at: string | null
@@ -4519,6 +4723,15 @@ export type Database = {
         Insert: {
           actual_end?: string | null
           actual_start?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           asset_id?: string | null
           company_id?: string | null
           completed_at?: string | null
@@ -4564,6 +4777,15 @@ export type Database = {
         Update: {
           actual_end?: string | null
           actual_start?: string | null
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           asset_id?: string | null
           company_id?: string | null
           completed_at?: string | null
@@ -4859,7 +5081,9 @@ export type Database = {
         Row: {
           claim_amount: number
           contractor_id: string
+          country_code: string
           created_at: string
+          currency: string
           from_location: string
           id: string
           job_id: string | null
@@ -4875,7 +5099,9 @@ export type Database = {
         Insert: {
           claim_amount?: number
           contractor_id: string
+          country_code?: string
           created_at?: string
+          currency?: string
           from_location: string
           id?: string
           job_id?: string | null
@@ -4891,7 +5117,9 @@ export type Database = {
         Update: {
           claim_amount?: number
           contractor_id?: string
+          country_code?: string
           created_at?: string
+          currency?: string
           from_location?: string
           id?: string
           job_id?: string | null
@@ -5336,10 +5564,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payments_invoice_id_fkey"
-            columns: ["invoice_id"]
+            columns: ["invoice_id", "country_code"]
             isOneToOne: false
             referencedRelation: "invoices"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "country_code"]
           },
           {
             foreignKeyName: "payments_job_id_fkey"
@@ -5764,6 +5992,15 @@ export type Database = {
       }
       profiles: {
         Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           address: string | null
           availability_heading: string | null
           avatar_url: string | null
@@ -5830,6 +6067,15 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           availability_heading?: string | null
           avatar_url?: string | null
@@ -5896,6 +6142,15 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string | null
           availability_heading?: string | null
           avatar_url?: string | null
@@ -6579,6 +6834,15 @@ export type Database = {
       projects: {
         Row: {
           account_type: string
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           address_line_1: string | null
           address_line_2: string | null
           budget: number | null
@@ -6606,6 +6870,15 @@ export type Database = {
         }
         Insert: {
           account_type?: string
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address_line_1?: string | null
           address_line_2?: string | null
           budget?: number | null
@@ -6633,6 +6906,15 @@ export type Database = {
         }
         Update: {
           account_type?: string
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address_line_1?: string | null
           address_line_2?: string | null
           budget?: number | null
@@ -6933,7 +7215,9 @@ export type Database = {
           approved_by: string | null
           contractor_debt: number
           contractor_id: string
+          country_code: string
           created_at: string
+          currency: string
           id: string
           invoice_id: string | null
           job_id: string | null
@@ -6955,7 +7239,9 @@ export type Database = {
           approved_by?: string | null
           contractor_debt?: number
           contractor_id: string
+          country_code?: string
           created_at?: string
+          currency?: string
           id?: string
           invoice_id?: string | null
           job_id?: string | null
@@ -6977,7 +7263,9 @@ export type Database = {
           approved_by?: string | null
           contractor_debt?: number
           contractor_id?: string
+          country_code?: string
           created_at?: string
+          currency?: string
           id?: string
           invoice_id?: string | null
           job_id?: string | null
@@ -7896,11 +8184,21 @@ export type Database = {
       }
       sites: {
         Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
           address: string
           address_line1: string | null
           address_line2: string | null
           city: string | null
           company_id: string
+          country_code: string | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -7914,11 +8212,21 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address: string
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
           company_id: string
+          country_code?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -7932,11 +8240,21 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
           address?: string
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
           company_id?: string
+          country_code?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -10653,6 +10971,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       asset_category: [
