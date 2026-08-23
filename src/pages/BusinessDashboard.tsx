@@ -12,8 +12,6 @@ import { SiteAutonomySettings } from "@/components/business/SiteAutonomySettings
 import { ServiceCategoryManager } from "@/components/business/ServiceCategoryManager";
 import { SiteContactManager } from "@/components/business/SiteContactManager";
 import { PpmComplianceDashboard } from "@/components/business/PpmComplianceDashboard";
-import { BusinessComplianceView } from "@/components/business/BusinessComplianceView";
-import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
 import { BusinessTeamView } from "@/components/business/BusinessTeamView";
 import { SiteGroupsView } from "@/components/business/SiteGroupsView";
@@ -240,7 +238,7 @@ const BusinessDashboard = () => {
     }
 
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "compliance", "prequal", "team", "groups", "tenders", "tender-form", "tender-detail"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "team", "groups", "tenders", "tender-form", "tender-detail"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -359,12 +357,6 @@ const BusinessDashboard = () => {
             )}
           </div>
         );
-
-      case "compliance":
-        return <BusinessComplianceView companyId={companyId!} />;
-
-      case "prequal":
-        return <BusinessPrequalView companyId={companyId!} profileId={profileId} />;
 
       case "invoices":
         return (

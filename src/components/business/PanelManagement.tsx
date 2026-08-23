@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+import { differenceInDays, formatDistanceToNow } from "date-fns";
+import { BusinessPrequalView } from "@/components/business/BusinessPrequalView";
 
 // company_code is assigned by a BEFORE INSERT trigger (assign_company_code)
 // — never generated client-side, hence the Omit here.
@@ -27,6 +29,9 @@ import {
   UserCheck,
   ChevronRight,
   Building2,
+  Award,
+  FileCheck2,
+  History,
 } from "lucide-react";
 
 // --- Types ---
@@ -57,6 +62,90 @@ interface PanelManagementProps {
   userId: string;
 }
 
+// --- contractor_scores ---
+// craft_confidence/service_confidence/value_confidence are a 3-tier text enum
+// ('building' | 'provisional' | 'established'), NOT a numeric 0–1 value — confirmed
+// in 20260730230000_contractor_scores.sql's CHECK constraint. 'building' is
+// server-derived from the paired count column being < 3
+// (see the v_*_confidence CASE blocks in 20260730270000_calculate_contractor_scores.sql),
+// so the confidence check and the count check below are the same underlying
+// condition observed twice — matches the gate ScoreBreakdown.tsx / ScoreGauge.tsx
+// already use (`confidence === "building" || score === null`).
+// composite_score is intentionally never selected here — it's marked
+// "internal ranking use only, never displayed" in the schema comment.
+interface ContractorScoreRow {
+  contractor_id: string;
+  craft_score: number | null;
+  craft_confidence: string | null;
+  craft_signal_count: number;
+  service_score: number | null;
+  service_confidence: string | null;
+  service_review_count: number;
+  value_score: number | null;
+  value_confidence: string | null;
+  value_signal_count: number;
+}
+
+function hasEnoughData(confidence: string | null, count: number): boolean {
+  return confidence != null && confidence !== "building" && count >= 3;
+}
+
+const SCORE_DIMENSIONS: { key: "craft" | "service" | "value"; label: string }[] = [
+  { key: "craft", label: "Craft" },
+  { key: "service", label: "Service" },
+  { key: "value", label: "Value" },
+];
+
+function scoreFor(row: ContractorScoreRow, dim: "craft" | "service" | "value") {
+  if (dim === "craft") return { score: row.craft_score, confidence: row.craft_confidence, count: row.craft_signal_count };
+  if (dim === "service") return { score: row.service_score, confidence: row.service_confidence, count: row.service_review_count };
+  return { score: row.value_score, confidence: row.value_confidence, count: row.value_signal_count };
+}
+
+// --- panel_prequalification-derived document status ---
+// Only 3 of the 6 prequal checklist items carry an expiry column at all
+// (public_liability, employers_liability, trade_cert — see CHECKLIST_ITEMS in
+// BusinessPrequalView.tsx; site_induction/nda/terms are boolean-only). Status is
+// derived ONLY from panel_prequalification.*_expiry — never from
+// prequalification_documents.expiry_date, which is descriptive file metadata.
+interface PrequalExpiryRow {
+  contractor_id: string;
+  public_liability_expiry: string | null;
+  employers_liability_expiry: string | null;
+  trade_cert_expiry: string | null;
+}
+
+const DOC_EXPIRY_ITEMS: { key: keyof Omit<PrequalExpiryRow, "contractor_id">; label: string }[] = [
+  { key: "public_liability_expiry", label: "Public liability" },
+  { key: "employers_liability_expiry", label: "Employers liability" },
+  { key: "trade_cert_expiry", label: "Trade cert" },
+];
+
+type ExpiryTone = "expired" | "soon" | "neutral";
+
+function expiryTone(expiry: string | null): ExpiryTone {
+  if (!expiry) return "neutral";
+  const days = differenceInDays(new Date(expiry), new Date());
+  if (days < 0) return "expired";
+  if (days <= 30) return "soon";
+  return "neutral";
+}
+
+const toneClass: Record<ExpiryTone, string> = {
+  expired: "bg-red-100 text-red-800 border-red-200",
+  soon: "bg-amber-100 text-amber-800 border-amber-200",
+  neutral: "bg-gray-100 text-gray-700 border-gray-200",
+};
+
+// --- sla_rules (relocated from BusinessComplianceView.tsx — see report) ---
+interface SlaRule {
+  id: string;
+  name: string | null;
+  applies_to_trade: string | null;
+  response_hours: number | null;
+  resolution_hours: number | null;
+}
+
 // --- Status helpers ---
 const statusConfig: Record<string, { label: string; colour: string; icon: React.ElementType }> = {
   pending:   { label: "Pending",   colour: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: Clock },
@@ -70,6 +159,53 @@ const tierConfig: Record<string, { label: string; colour: string; icon: React.El
   approved:     { label: "Approved",     colour: "bg-blue-100 text-blue-800 border-blue-200",       icon: Shield },
   probationary: { label: "Probationary", colour: "bg-gray-100 text-gray-700 border-gray-200",       icon: AlertTriangle },
 };
+
+// --- Score block (shared by card + detail dialog) ---
+function ScoreBlock({ row }: { row: ContractorScoreRow | undefined }) {
+  if (!row) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {SCORE_DIMENSIONS.map((d) => {
+        const { score, confidence, count } = scoreFor(row, d.key);
+        const ok = hasEnoughData(confidence, count) && score !== null;
+        return (
+          <div key={d.key} className="flex items-center gap-1 text-xs">
+            <Award className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">{d.label}:</span>
+            {ok ? (
+              <span className="font-mono font-semibold">{score!.toFixed(1)}/10</span>
+            ) : (
+              <span className="text-muted-foreground italic">Not enough jobs yet</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Document status chips (shared by card + detail dialog) ---
+function DocumentChips({ row }: { row: PrequalExpiryRow | undefined }) {
+  if (!row) {
+    return (
+      <Badge variant="outline" className={`text-[10px] ${toneClass.neutral}`}>
+        Not prequalified
+      </Badge>
+    );
+  }
+  return (
+    <>
+      {DOC_EXPIRY_ITEMS.map((item) => {
+        const tone = expiryTone(row[item.key]);
+        return (
+          <Badge key={item.key} variant="outline" className={`text-[10px] ${toneClass[tone]}`}>
+            {item.label}
+          </Badge>
+        );
+      })}
+    </>
+  );
+}
 
 // --- Main component ---
 export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => {
@@ -90,9 +226,15 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
   const [selectedMember, setSelectedMember] = useState<PanelMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [prequalOpen, setPrequalOpen] = useState(false);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [scoresMap, setScoresMap] = useState<Record<string, ContractorScoreRow>>({});
+  const [prequalMap, setPrequalMap] = useState<Record<string, PrequalExpiryRow>>({});
+  const [lastWorkedMap, setLastWorkedMap] = useState<Record<string, string>>({});
+  const [slaRules, setSlaRules] = useState<SlaRule[]>([]);
 
   // --- Ensure company row exists ---
   const ensureCompany = useCallback(async (): Promise<string | null> => {
@@ -130,6 +272,50 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     }
     return newCompany.id;
   }, [profileId]);
+
+  // --- Load score/document/last-worked enrichment for the current panel, batched ---
+  const loadEnrichment = useCallback(async (cId: string, contractorIds: string[]) => {
+    if (!contractorIds.length) {
+      setScoresMap({});
+      setPrequalMap({});
+      setLastWorkedMap({});
+      return;
+    }
+
+    const [scoresRes, prequalRes, jobsRes] = await Promise.all([
+      supabase
+        .from("contractor_scores")
+        .select("contractor_id, craft_score, craft_confidence, craft_signal_count, service_score, service_confidence, service_review_count, value_score, value_confidence, value_signal_count" as const)
+        .in("contractor_id", contractorIds),
+      supabase
+        .from("panel_prequalification")
+        .select("contractor_id, public_liability_expiry, employers_liability_expiry, trade_cert_expiry" as const)
+        .eq("company_id", cId)
+        .in("contractor_id", contractorIds),
+      supabase
+        .from("jobs")
+        .select("contractor_id, completed_at" as const)
+        .eq("company_id", cId)
+        .eq("status", "complete")
+        .in("contractor_id", contractorIds)
+        .order("completed_at", { ascending: false }),
+    ]);
+
+    const sMap: Record<string, ContractorScoreRow> = {};
+    for (const row of scoresRes.data ?? []) sMap[row.contractor_id] = row as ContractorScoreRow;
+    setScoresMap(sMap);
+
+    const pMap: Record<string, PrequalExpiryRow> = {};
+    for (const row of prequalRes.data ?? []) pMap[row.contractor_id] = row as PrequalExpiryRow;
+    setPrequalMap(pMap);
+
+    // jobsRes is ordered completed_at desc, so the first row seen per contractor is the most recent.
+    const jMap: Record<string, string> = {};
+    for (const row of jobsRes.data ?? []) {
+      if (row.completed_at && !jMap[row.contractor_id]) jMap[row.contractor_id] = row.completed_at;
+    }
+    setLastWorkedMap(jMap);
+  }, []);
 
   // --- Load panel ---
   const loadPanel = useCallback(async () => {
@@ -182,8 +368,19 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     );
 
     setPanel(hydrated);
+
+    const contractorIds = hydrated.map((m) => m.contractor_id).filter((id): id is string => !!id);
+    await loadEnrichment(cId, contractorIds);
+
+    const { data: slaRows } = await supabase
+      .from("sla_rules")
+      .select("id, name, applies_to_trade, response_hours, resolution_hours" as const)
+      .eq("company_id", cId)
+      .order("applies_to_trade");
+    setSlaRules((slaRows ?? []) as SlaRule[]);
+
     setLoading(false);
-  }, [companyId, ensureCompany, toast]);
+  }, [companyId, ensureCompany, loadEnrichment, toast]);
 
   useEffect(() => {
     loadPanel();
@@ -456,6 +653,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
             const status = statusConfig[member.status ?? "pending"] ?? statusConfig.pending;
             const tier = member.tier ? tierConfig[member.tier] : null;
             const StatusIcon = status.icon;
+            const cid = member.contractor_id;
+            const lastWorked = cid ? lastWorkedMap[cid] : undefined;
 
             return (
               <Card
@@ -507,12 +706,70 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
+
+                  {/* Score block, document chips, last worked */}
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <ScoreBlock row={cid ? scoresMap[cid] : undefined} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <FileCheck2 className="h-3 w-3 text-muted-foreground" />
+                      <DocumentChips row={cid ? prequalMap[cid] : undefined} />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <History className="h-3 w-3" />
+                      {lastWorked
+                        ? `Last worked ${formatDistanceToNow(new Date(lastWorked), { addSuffix: true })}`
+                        : "No jobs yet"}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
+
+      {/* SLA rules reference — relocated from BusinessComplianceView.tsx (see report) */}
+      <div className="space-y-4">
+        <h2 className="font-heading text-lg font-semibold">SLA rules</h2>
+        {slaRules.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground">
+              No SLA rules configured for this company.
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground text-xs">
+                    <th className="text-left py-3 px-6 font-medium">Rule</th>
+                    <th className="text-left py-3 pr-6 font-medium">Applies to</th>
+                    <th className="text-left py-3 pr-6 font-medium">Response target</th>
+                    <th className="text-left py-3 pr-6 font-medium">Resolution target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaRules.map((rule) => (
+                    <tr key={rule.id} className="border-b last:border-0">
+                      <td className="py-3 px-6 font-medium">{rule.name ?? "Unnamed rule"}</td>
+                      <td className="py-3 pr-6 text-muted-foreground capitalize">
+                        {rule.applies_to_trade ? rule.applies_to_trade.replace(/_/g, " ") : "All trades"}
+                      </td>
+                      <td className="py-3 pr-6 font-mono">
+                        {rule.response_hours != null ? `${rule.response_hours}h` : "—"}
+                      </td>
+                      <td className="py-3 pr-6 font-mono">
+                        {rule.resolution_hours != null ? `${rule.resolution_hours}h` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* --- Invite Dialog --- */}
       <Dialog open={inviteOpen} onOpenChange={(o) => {
@@ -600,6 +857,8 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
           {selectedMember && (() => {
             const status = statusConfig[selectedMember.status ?? "pending"] ?? statusConfig.pending;
             const tier = selectedMember.tier ? tierConfig[selectedMember.tier] : null;
+            const cid = selectedMember.contractor_id;
+            const lastWorked = cid ? lastWorkedMap[cid] : undefined;
             return (
               <>
                 <DialogHeader>
@@ -629,6 +888,36 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                       </div>
                     </div>
                   ) : null}
+
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Scores</p>
+                    <ScoreBlock row={cid ? scoresMap[cid] : undefined} />
+                    {!(cid && scoresMap[cid]) && <p className="text-sm text-muted-foreground">No scores yet.</p>}
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Compliance documents</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <DocumentChips row={cid ? prequalMap[cid] : undefined} />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 text-xs"
+                      onClick={() => setPrequalOpen(true)}
+                    >
+                      Manage prequalification &amp; documents
+                    </Button>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground">Last worked</p>
+                    <p className="text-sm">
+                      {lastWorked
+                        ? `${formatDistanceToNow(new Date(lastWorked), { addSuffix: true })}`
+                        : "No jobs yet"}
+                    </p>
+                  </div>
 
                   {selectedMember.notes && (
                     <div>
@@ -686,6 +975,13 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Prequalification & documents (reuses BusinessPrequalView as-is) --- */}
+      <Dialog open={prequalOpen} onOpenChange={setPrequalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
+          {companyId && <BusinessPrequalView companyId={companyId} profileId={profileId} />}
         </DialogContent>
       </Dialog>
     </div>
