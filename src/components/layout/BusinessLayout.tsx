@@ -111,6 +111,10 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
     return localStorage.getItem("biz_collapsed") === "true";
   });
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+  );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
@@ -118,6 +122,22 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
   useEffect(() => {
     localStorage.setItem("biz_collapsed", String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -147,7 +167,10 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
 
   const handleNav = (value: string) => {
     navigate(`/dashboard/business?view=${value}`);
+    setMobileOpen(false);
   };
+
+  const effectiveCollapsed = isMobile ? false : collapsed;
 
   const initials = profile?.company_name
     ? profile.company_name
@@ -163,17 +186,47 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
   return (
     <>
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Mobile backdrop */}
+      {isMobile && mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 49,
+            background: "rgba(0,0,0,0.4)",
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        style={{
-          width: collapsed ? 52 : 220,
-          transition: "width 0.2s ease",
-          background: "#1a2744",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
+        style={
+          isMobile
+            ? {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                height: "100vh",
+                width: 280,
+                zIndex: 50,
+                transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+                transition: "transform 0.25s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }
+            : {
+                width: collapsed ? 52 : 220,
+                transition: "width 0.2s ease",
+                background: "#1a2744",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 0,
+                overflow: "hidden",
+              }
+        }
       >
         {/* Toggle row */}
         <div
@@ -181,41 +234,64 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
             padding: "12px 10px",
             display: "flex",
             alignItems: "center",
+            justifyContent: isMobile ? "flex-end" : "flex-start",
             flexShrink: 0,
           }}
         >
-          <button
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(255,255,255,0.8)",
-              padding: 4,
-              borderRadius: 4,
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-              lineHeight: 1,
-            }}
-          >
-            <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+                fontSize: 22,
+              }}
+            >
+              ×
+            </button>
+          ) : (
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.8)",
+                padding: 4,
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+            >
+              <i className="ti ti-menu-2" style={{ fontSize: 20 }} />
+            </button>
+          )}
         </div>
 
         {/* Profile block */}
         <div
           style={{
             borderBottom: "1px solid rgba(255,255,255,0.08)",
-            padding: collapsed ? "10px 0 12px" : "0 10px 14px",
+            padding: effectiveCollapsed ? "10px 0 12px" : "0 10px 14px",
             display: "flex",
-            flexDirection: collapsed ? "column" : "row",
+            flexDirection: effectiveCollapsed ? "column" : "row",
             alignItems: "center",
-            gap: collapsed ? 0 : 10,
+            gap: effectiveCollapsed ? 0 : 10,
             overflow: "hidden",
             flexShrink: 0,
-            justifyContent: collapsed ? "center" : "flex-start",
+            justifyContent: effectiveCollapsed ? "center" : "flex-start",
           }}
         >
           {/* Squared avatar — reads as organisation */}
@@ -262,7 +338,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
               {initials}
             </div>
           )}
-          {!collapsed && profile && (
+          {!effectiveCollapsed && profile && (
             <div style={{ overflow: "hidden", minWidth: 0 }}>
               <div
                 style={{
@@ -303,7 +379,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
         >
           {NAV_GROUPS.map((group) => (
             <div key={group.group}>
-              {!collapsed && (
+              {!effectiveCollapsed && (
                 <div
                   style={{
                     padding: "8px 12px 4px",
@@ -324,14 +400,14 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
                   <button
                     key={item.value}
                     onClick={() => handleNav(item.value)}
-                    title={collapsed ? item.label : undefined}
+                    title={effectiveCollapsed ? item.label : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
                       width: "100%",
-                      padding: collapsed ? "9px 0" : "7px 12px",
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      padding: effectiveCollapsed ? "9px 0" : "7px 12px",
+                      justifyContent: effectiveCollapsed ? "center" : "flex-start",
                       background: isActive ? "rgba(240,120,32,0.18)" : "transparent",
                       border: "none",
                       borderLeft: isActive ? "3px solid #f07820" : "3px solid transparent",
@@ -350,7 +426,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
                       className={`ti ${item.icon}`}
                       style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}
                     />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!effectiveCollapsed && <span>{item.label}</span>}
                   </button>
                 );
               })}
@@ -358,7 +434,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
           ))}
         </nav>
 
-        <SidebarHelpButton collapsed={collapsed} />
+        <SidebarHelpButton collapsed={effectiveCollapsed} />
       </aside>
 
       {/* Main column */}
@@ -379,8 +455,32 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
           }}
         >
+          {isMobile && (
+            <button
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              style={{
+                width: 40,
+                height: 40,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#1a2744",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                padding: 0,
+              }}
+            >
+              <i className="ti ti-menu" style={{ fontSize: 22 }} />
+            </button>
+          )}
           <h1
             className="font-heading text-2xl font-bold"
             style={{ margin: 0 }}
