@@ -32,7 +32,7 @@ import {
 // --- Types ---
 // DB constraint: status = ANY ('pending','approved','suspended','removed')
 type PanelStatus = "pending" | "approved" | "suspended" | "removed";
-type PanelTier = "preferred" | "approved" | "under_review";
+type PanelTier = "preferred" | "approved" | "probationary";
 
 interface PanelMember {
   id: string;
@@ -68,7 +68,7 @@ const statusConfig: Record<string, { label: string; colour: string; icon: React.
 const tierConfig: Record<string, { label: string; colour: string; icon: React.ElementType }> = {
   preferred:    { label: "Preferred",    colour: "bg-orange-100 text-orange-800 border-orange-200", icon: Star },
   approved:     { label: "Approved",     colour: "bg-blue-100 text-blue-800 border-blue-200",       icon: Shield },
-  under_review: { label: "Under Review", colour: "bg-gray-100 text-gray-700 border-gray-200",       icon: AlertTriangle },
+  probationary: { label: "Probationary", colour: "bg-gray-100 text-gray-700 border-gray-200",       icon: AlertTriangle },
 };
 
 // --- Main component ---
@@ -567,7 +567,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                     <SelectContent>
                       <SelectItem value="preferred">Preferred — first in line for jobs</SelectItem>
                       <SelectItem value="approved">Approved — standard panel member</SelectItem>
-                      <SelectItem value="under_review">Under Review — vetting in progress</SelectItem>
+                      <SelectItem value="probationary">Probationary — vetting in progress</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -665,7 +665,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
                     <p className="text-sm font-medium mt-4 mb-3">Change tier</p>
                     <div className="flex flex-wrap gap-2">
-                      {(["preferred", "approved", "under_review"] as PanelTier[]).map((t) => (
+                      {(["preferred", "approved", "probationary"] as PanelTier[]).map((t) => (
                         <Button key={t} size="sm"
                           variant={selectedMember.tier === t ? "default" : "outline"}
                           onClick={() => updateMember(selectedMember.id, { tier: t })}>
