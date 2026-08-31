@@ -1,17 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ShoppingCart, UserRound, FileText } from "lucide-react";
+import { UserRound, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const quickActions = [
-  {
-    icon: ShoppingCart,
-    title: "Buy Materials",
-    description: "Find surplus tools & materials near you.",
-    link: "/marketplace",
-  },
   {
     icon: UserRound,
     title: "Hire Contractors",
@@ -84,7 +78,7 @@ const HeroSection = () => {
         </div>
       </div>
 
-      <div className="mx-auto mt-8 grid max-w-[1500px] grid-cols-1 gap-6 px-4 md:mt-12 md:grid-cols-3">
+      <div className="mx-auto mt-8 grid max-w-3xl grid-cols-1 gap-6 px-4 md:mt-12 md:grid-cols-2">
         {quickActions.map((action) => (
           <Link key={action.title} to={action.link}>
             <Card className="flex h-full min-h-40 flex-col items-center justify-center gap-3 rounded-2xl border-zinc-200 bg-[#f8f8f8] p-7 text-center shadow-sm transition-transform duration-200 hover:-translate-y-1">

@@ -1,11 +1,9 @@
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Users, 
-  Crown, 
-  CheckCircle2,
+import {
+  Users,
+  Hammer,
   UserPlus,
   Search,
   Handshake,
@@ -54,69 +52,18 @@ const HowItWorks = () => {
   const accountTypes = [
     {
       type: "Personal",
-      subtitle: "For DIYers & Homeowners",
       icon: Users,
-      popular: false,
-      free: {
-        features: [
-          "Browse contractor directory",
-          "Request quotes from contractors",
-          "Buy & sell surplus materials",
-          "Access community forums"
-        ]
-      },
-      paid: null
+      description: "For homeowners getting work done on their own property. Request quotes and hire a contractor directly."
     },
     {
       type: "Business",
-      subtitle: "For Commercial Entities",
       icon: Building2,
-      popular: false,
-      free: {
-        features: [
-          "Browse contractor directory",
-          "Request quotes",
-          "Access community forums"
-        ]
-      },
-      paid: {
-        price: "£19",
-        period: "/month",
-        label: "Business Pro",
-        features: [
-          "Post contract opportunities",
-          "Manage multiple projects",
-          "Team collaboration tools",
-          "Company profile & branding",
-          <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> project assistant</>
-        ]
-      }
+      description: "For property managers, landlords and facilities teams. Manage work across multiple sites, from request through to payment."
     },
     {
       type: "Contractor",
-      subtitle: "For Professional Tradespeople",
-      icon: Crown,
-      popular: true,
-      free: {
-        features: [
-          "Public contractor profile",
-          "Receive quote requests",
-          "Access community forums"
-        ]
-      },
-      paid: {
-        price: "£29",
-        period: "/month",
-        label: "Contractor Pro",
-        features: [
-          "Invoicing & payment system",
-          "Contract bidding access",
-          "Schedule & team management",
-          <>AI <span className="text-[0.85em] opacity-90">(Coming Soon)</span> business assistant</>,
-          <>Escrow-protected payments <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-          <>Loyalty rebate tiers <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>
-        ]
-      }
+      icon: Hammer,
+      description: "For trade businesses. Receive enquiries, send quotes, and get paid for the work you do."
     }
   ];
 
@@ -153,154 +100,42 @@ const HowItWorks = () => {
           </div>
         </section>
 
-        {/* Account Types Section */}
+        {/* Simple Pricing Section */}
         <section className="py-16 px-4 bg-muted/30">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center">
+              <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
+                Simple <span className="text-primary">Pricing</span>
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                TradeStone charges 5% of the value of completed payments, deducted automatically when you get paid. There are no subscriptions, no listing fees and no lead fees. If you don't get paid, we don't get paid.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Which Account Is Right For You Section */}
+        <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-                Choose Your <span className="text-primary">Account Type</span>
+                Which Account Is <span className="text-primary">Right For You?</span>
               </h2>
               <p className="text-lg text-muted-foreground">
-                Every account starts free. Upgrade when you're ready for more.
+                Every account type has a different focus. Compare what each one gives you.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {accountTypes.map((account, index) => (
-                <Card key={index} className={`relative overflow-hidden ${account.popular ? 'border-primary shadow-lg' : ''}`}>
-                  {account.popular && (
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-b-lg text-sm font-medium z-10">
-                      Most Popular
-                    </div>
-                  )}
-
-                  {/* Header */}
-                  <div className={`text-center p-6 pb-4 ${account.popular ? 'pt-10' : ''}`}>
-                    <account.icon className={`h-10 w-10 mx-auto mb-3 ${account.popular ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <h3 className="text-xl font-bold">{account.type}</h3>
-                    <p className="text-sm text-muted-foreground">{account.subtitle}</p>
+                <Card key={index} className="text-center p-6">
+                  <div className="bg-primary/10 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                    <account.icon className="h-8 w-8 text-primary" />
                   </div>
-
-                  {/* Free Tier */}
-                  <div className="px-6 pb-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg font-bold">Free</span>
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Always</span>
-                    </div>
-                    <ul className="space-y-2">
-                      {account.free.features.map((feature, i) => (
-                        <li key={i} className="flex items-start text-sm">
-                          <CheckCircle2 className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Paid Tier */}
-                  {account.paid ? (
-                    <>
-                      <Separator className="mx-6 w-auto" />
-                      <div className="px-6 pt-4 pb-6">
-                        <div className="flex items-baseline gap-1 mb-1">
-                          <span className="text-2xl font-bold">{account.paid.price}</span>
-                          <span className="text-sm text-muted-foreground">{account.paid.period}</span>
-                        </div>
-                        <p className="text-xs font-medium text-primary mb-3">{account.paid.label}</p>
-                        <ul className="space-y-2 mb-5">
-                          {account.paid.features.map((feature, i) => (
-                            <li key={i} className="flex items-start text-sm">
-                              <CheckCircle2 className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                              <span>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        <Button
-                          className={`w-full ${account.popular ? 'hero-gradient' : ''}`}
-                          variant={account.popular ? 'default' : 'outline'}
-                          onClick={() => navigate('/auth')}
-                        >
-                          Start Pro Trial
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="px-6 pb-6 pt-2">
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => navigate('/auth')}
-                      >
-                        Get Started Free
-                      </Button>
-                    </div>
-                  )}
+                  <h3 className="text-xl font-bold mb-2">{account.type}</h3>
+                  <p className="text-sm text-muted-foreground">{account.description}</p>
                 </Card>
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Feature Comparison Table */}
-        <section className="py-16 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-                Feature <span className="text-primary">Comparison</span>
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                See exactly what's included in each plan at a glance.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-4 px-4 font-semibold text-foreground">Feature</th>
-                    <th className="text-center py-4 px-4 font-semibold text-foreground">Personal<br/><span className="text-xs font-normal text-muted-foreground">Free</span></th>
-                    <th className="text-center py-4 px-4 font-semibold text-foreground">Business<br/><span className="text-xs font-normal text-muted-foreground">Free / £19/mo</span></th>
-                    <th className="text-center py-4 px-4 font-semibold text-primary">Contractor<br/><span className="text-xs font-normal text-muted-foreground">Free / £29/mo</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { feature: "Browse contractor directory", personal: true, business: true, contractor: true },
-                    { feature: "Request quotes", personal: true, business: true, contractor: false },
-                    { feature: "Community forums", personal: true, business: true, contractor: true },
-                    { feature: "Buy & sell surplus materials", personal: true, business: false, contractor: false },
-                    { feature: "Public contractor profile", personal: false, business: false, contractor: true },
-                    { feature: "Receive quote requests", personal: false, business: false, contractor: true },
-                    { feature: "Post contract opportunities", personal: false, business: "pro", contractor: false },
-                    { feature: "Manage multiple projects", personal: false, business: "pro", contractor: false },
-                    { feature: "Team collaboration tools", personal: false, business: "pro", contractor: false },
-                    { feature: "Company profile & branding", personal: false, business: "pro", contractor: false },
-                    { feature: "Invoicing & payment system", personal: false, business: false, contractor: "pro" },
-                    { feature: "Contract bidding access", personal: false, business: false, contractor: "pro" },
-                    { feature: "Schedule & team management", personal: false, business: false, contractor: "pro" },
-                    { feature: "AI assistant (Coming Soon)", personal: false, business: "pro", contractor: "pro" },
-                    { feature: "Escrow-protected payments (Coming Soon)", personal: false, business: false, contractor: "pro" },
-                    { feature: "Loyalty rebate tiers (Coming Soon)", personal: false, business: false, contractor: "pro" },
-                  ].map((row, i) => (
-                    <tr key={i} className={`border-b border-border ${i % 2 === 0 ? 'bg-muted/20' : ''}`}>
-                      <td className="py-3 px-4 text-sm text-foreground">{row.feature}</td>
-                      {[row.personal, row.business, row.contractor].map((val, j) => (
-                        <td key={j} className="py-3 px-4 text-center">
-                          {val === true ? (
-                            <CheckCircle2 className="h-5 w-5 text-primary mx-auto" />
-                          ) : val === "pro" ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                              <Crown className="h-3 w-3" /> Pro
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
 
             <div className="text-center mt-10">
