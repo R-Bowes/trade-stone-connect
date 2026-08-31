@@ -582,6 +582,41 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   amend it.
 - **Migration git ritual**: run `git status` after every migration push; every
   migration file must be explicitly committed.
+- **Copy rule: no verification claims.** No copy anywhere in the product may
+  assert that TradeStone has verified, vetted, checked or approved a
+  contractor's credentials, qualifications, licences or insurance. The
+  footer and Terms section 5 both disclaim verification, and any copy
+  asserting otherwise directly contradicts them. This is a legal exposure
+  under the CPRs and the CAP Code, not a style preference. The only
+  credential-adjacent claim currently available is "identity-checked via
+  Stripe", and only once live Connect onboarding is in place. Applies to
+  marketing copy, UI labels, empty states, tooltips and email templates.
+- **Reviews: "verified reviews" is reclaimable.** The `job_reviews` INSERT
+  policy requires `client_id = auth.uid()` AND the related job to be in
+  `completed` status. Reviews can therefore only be authored by the actual
+  client of a completed on-platform job. This makes "verified reviews" a
+  defensible claim — it is true by construction, and stronger than most
+  competitors can offer. It was removed from public copy in August 2026
+  only because `job_reviews` had zero rows, making it a claim with no
+  backing content. Reinstate once there is meaningful review volume. Note
+  this is a DIFFERENT claim from contractor credential verification above,
+  and is not covered by that prohibition.
+- **OPEN DECISION: verification tiers vs the footer disclaimer.**
+  Unresolved. Must be settled before the first real contractor onboards.
+  There is an admin-operated verification-tier feature — Tiers 1 to 4, with
+  `AdminVerification.tsx`, `VerificationBadge.tsx`, and badges rendered on
+  contractor profiles. The footer on every page states that TradeStone does
+  not verify contractor qualifications or insurance. Both cannot be true.
+  If the tiers reflect real document checks performed by an admin, the
+  badges are a genuine asset and the footer disclaimer is the inaccurate
+  statement and needs rewording. If the tiers are aspirational scaffolding,
+  a tier badge is a STRONGER false claim than any marketing copy, because
+  it is a specific representation about a named trader at the point of
+  hiring decision — the exact thing a consumer relies on. To resolve,
+  establish: what each of Tiers 1 to 4 requires an admin to verify, whether
+  that process is documented, and what the badge says to the person viewing
+  a profile. Do not add, alter or extend tier badges until this is
+  resolved.
 
 ## Stack
 - Frontend: React/TypeScript, Vite, shadcn/ui, Tailwind
