@@ -19,7 +19,7 @@ const PrivacyPolicy = () => {
           <p><strong>Company:</strong> TradeStone Group Ltd</p>
           <p><strong>Company No:</strong> 17229262</p>
           <p><strong>Registered Address:</strong> 82a James Carter Road, Mildenhall, Bury St. Edmunds, England, IP28 7DE</p>
-          <p><strong>Contact:</strong> <a href="mailto:rb.tradestone@gmail.com" className="text-[#f07820] hover:underline">rb.tradestone@gmail.com</a></p>
+          <p><strong>Contact:</strong> <a href="mailto:support@tradesltd.co.uk" className="text-[#f07820] hover:underline">support@tradesltd.co.uk</a></p>
           <p><strong>ICO Registration:</strong> C1969229</p>
         </div>
 
@@ -132,7 +132,7 @@ const PrivacyPolicy = () => {
               <li>Not be subject to decisions based solely on automated processing.</li>
             </ul>
             <p className={body}>
-              To exercise any of these rights, contact us at <a href="mailto:rb.tradestone@gmail.com" className="text-[#f07820] hover:underline">rb.tradestone@gmail.com</a>.
+              To exercise any of these rights, contact us at <a href="mailto:support@tradesltd.co.uk" className="text-[#f07820] hover:underline">support@tradesltd.co.uk</a>.
               If you remain unhappy with how we have handled your data, you can complain to the Information Commissioner's
               Office at <a href="https://ico.org.uk" target="_blank" rel="noopener noreferrer" className="text-[#f07820] hover:underline">ico.org.uk</a>.
             </p>
@@ -177,7 +177,7 @@ const PrivacyPolicy = () => {
             <h2 className={sectionHeading} style={{ fontFamily: "'Lexend', sans-serif" }}>13. Contact Us</h2>
             <p className={body}>
               If you have any questions about this Privacy Policy, please contact us at{" "}
-              <a href="mailto:rb.tradestone@gmail.com" className="text-[#f07820] hover:underline">rb.tradestone@gmail.com</a>.
+              <a href="mailto:support@tradesltd.co.uk" className="text-[#f07820] hover:underline">support@tradesltd.co.uk</a>.
             </p>
           </section>
         </div>

@@ -1,46 +1,12 @@
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, FileText, MessageSquare, CheckCircle2, Shield, Clock, Users, Lock, Sparkles } from "lucide-react";
+import { Search, MessageSquare, CheckCircle2, Shield, Clock, Users, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const Contracts = () => {
   const [searchTerm, setSearchTerm] = useState("");
-
-  const contractHighlights = [
-    {
-      icon: FileText,
-      title: <>AI-Assisted Contracts <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-      description: <>Generate and review contracts with automated quality checks and suggested terms tailored to each project <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
-    },
-    {
-      icon: MessageSquare,
-      title: "Collaborative Workflows",
-      description: "Track revisions, manage approvals, and keep every stakeholder aligned with clear communication threads."
-    },
-    {
-      icon: CheckCircle2,
-      title: "Compliance & Documentation",
-      description: "Store certificates, insurance, and regulatory documents with reminders so nothing slips through the cracks."
-    },
-    {
-      icon: Shield,
-      title: <>Secure Escrow Payments <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-      description: <>Funds held securely until milestones are met, protecting both contractors and clients <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
-    },
-    {
-      icon: Clock,
-      title: <>Milestone Tracking <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-      description: <>Break projects into phases with clear deliverables and automatic payment releases <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
-    },
-    {
-      icon: Users,
-      title: <>Multi-Party Agreements <span className="text-[0.85em] opacity-90">(Coming Soon)</span></>,
-      description: <>Manage contracts involving multiple subcontractors, suppliers, and stakeholders in one place <span className="text-[0.85em] opacity-90">(Coming Soon)</span>.</>
-    }
-  ];
 
   const availableTools = [
     {
@@ -59,7 +25,7 @@ const Contracts = () => {
       icon: Shield,
       title: "Secure Escrow Payments",
       description: "Protect both sides of a project with milestone-based fund releases.",
-      status: "Coming Soon"
+      status: "Available Now"
     },
     {
       icon: Clock,
@@ -127,10 +93,6 @@ const Contracts = () => {
 
               <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm text-muted-foreground">
                 <span>Showing {filteredTools.length} of {availableTools.length} tools</span>
-                <Button variant="ghost" size="sm" className="pointer-events-none">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Pro features highlighted
-                </Button>
               </div>
             </div>
 
@@ -149,36 +111,6 @@ const Contracts = () => {
               ))}
             </div>
 
-            <div className="border-t pt-12">
-              <div className="mb-8">
-                <h2 className="font-heading text-2xl font-bold mb-2">Everything else you still get</h2>
-                <p className="text-muted-foreground">
-                  The full Contracts experience remains below, now moved down for quicker access to available features first.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-                {contractHighlights.map((highlight, index) => (
-                  <Card key={index} className="p-6 h-full flex flex-col hover:shadow-lg transition-tradestone">
-                    <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
-                      <highlight.icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-3">{highlight.title}</h3>
-                    <p className="text-muted-foreground flex-1">{highlight.description}</p>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-muted/30 rounded-2xl p-8 text-center">
-              <h2 className="font-heading text-2xl font-bold mb-4">Ready to streamline your contracts?</h2>
-              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                Join TradeStone Pro to access our full contract management suite, including AI-powered <span className="text-[0.85em] opacity-90">(Coming Soon)</span> reviews and secure payment processing.
-              </p>
-              <Button size="lg" className="bg-orange-500 text-white hover:bg-orange-400">
-                Get Started with Pro
-              </Button>
-            </div>
           </div>
         </section>
       </main>

@@ -36,7 +36,7 @@ const Footer = () => {
           <p>Registered in England &amp; Wales</p>
           <p>82a James Carter Road, Mildenhall, Bury St. Edmunds, IP28 7DE</p>
           <p>
-            <a href="mailto:rb.tradestone@gmail.com" className="hover:text-[#f07820]">rb.tradestone@gmail.com</a>
+            <a href="mailto:support@tradesltd.co.uk" className="hover:text-[#f07820]">support@tradesltd.co.uk</a>
           </p>
           <p>ICO Registration: C1969229</p>
         </div>

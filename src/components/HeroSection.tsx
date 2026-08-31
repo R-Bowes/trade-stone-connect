@@ -15,7 +15,7 @@ const quickActions = [
   {
     icon: UserRound,
     title: "Hire Contractors",
-    description: "Browse verified professionals.",
+    description: "Browse contractors by trade and location.",
     link: "/contractors",
   },
   {

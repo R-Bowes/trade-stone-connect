@@ -204,7 +204,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
         <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h3 className="font-heading text-lg font-semibold">Need work done?</h3>
-            <p className="text-sm text-muted-foreground">Browse trusted, verified contractors near you</p>
+            <p className="text-sm text-muted-foreground">Find contractors near you</p>
           </div>
           <Button
             onClick={() => navigate("/dashboard/homeowner?view=hire")}

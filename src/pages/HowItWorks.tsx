@@ -47,7 +47,7 @@ const HowItWorks = () => {
       number: "5",
       icon: Star,
       title: "Rate & Review",
-      description: "Build your reputation through verified reviews and ratings from completed projects."
+      description: "Build your reputation through reviews and ratings from completed projects."
     }
   ];
 

@@ -63,10 +63,10 @@ const ContractorDirectory = () => {
         {/* Header */}
         <div className="text-center mb-12">
           <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-            Find Trusted <span className="text-primary">Contractors</span>
+            Find <span className="text-primary">Contractors</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Search our verified directory of professional contractors by trade, location, or unique TradeStone code.
+            Search contractors by trade, location, or unique TradeStone code.
           </p>
         </div>
 

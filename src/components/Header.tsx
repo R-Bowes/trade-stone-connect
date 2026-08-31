@@ -180,8 +180,6 @@ const Header = () => {
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-700">
           <NavLink to="/" end className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Home</NavLink>
-          <NavLink to="/marketplace" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Marketplace</NavLink>
-          <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Hire</NavLink>
           <NavLink to="/contracts" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Contracts</NavLink>
         </nav>
 
@@ -337,8 +335,6 @@ const Header = () => {
         <div className="border-t border-zinc-200 bg-white px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3 text-sm text-slate-700">
             <NavLink to="/" end onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Home</NavLink>
-            <NavLink to="/marketplace" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Marketplace</NavLink>
-            <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Hire</NavLink>
             <NavLink to="/contracts" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Contracts</NavLink>
             {user ? (
               <>

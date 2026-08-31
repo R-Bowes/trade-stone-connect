@@ -14,7 +14,7 @@ const TermsAndConditions = () => {
         </Link>
 
         <h1 className="text-4xl font-bold mb-2">Terms &amp; Conditions</h1>
-        <p className="text-sm text-slate-500 mb-8">Last updated: 27 June 2026</p>
+        <p className="text-sm text-slate-500 mb-8">Last updated: 31 August 2026</p>
 
         <div style={{ fontFamily: "'Source Serif 4', serif" }}>
           <section className="mb-8">
@@ -114,8 +114,9 @@ const TermsAndConditions = () => {
           <section className="mb-8">
             <h2 className={sectionHeading} style={heading}>10. Fees and Subscriptions</h2>
             <p className={body}>
-              Current pricing is published on the platform. Subscription fees are non-refundable. We will give at
-              least 30 days' notice of any change to our fees.
+              Our platform fee is 5% of the value of completed payments, deducted at source. We do not charge
+              listing or lead fees. Subscription fees are non-refundable. We will give at least 30 days' notice of
+              any change to our fees.
             </p>
           </section>
 
@@ -200,7 +201,7 @@ const TermsAndConditions = () => {
             <h2 className={sectionHeading} style={heading}>20. Contact</h2>
             <p className={body}>
               For any questions about these Terms, contact us at{" "}
-              <a href="mailto:rb.tradestone@gmail.com" className="text-[#f07820] hover:underline">rb.tradestone@gmail.com</a>.
+              <a href="mailto:support@tradesltd.co.uk" className="text-[#f07820] hover:underline">support@tradesltd.co.uk</a>.
             </p>
           </section>
         </div>

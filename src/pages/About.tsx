@@ -31,7 +31,7 @@ const userJourneys = [
         icon: FileCheck2,
       },
       {
-        title: "Compare verified pros",
+        title: "Compare pros",
         description: "Review profiles, ratings, and response speed before inviting shortlisted contractors.",
         icon: Search,
       },
@@ -75,7 +75,7 @@ const userJourneys = [
     steps: [
       {
         title: "Showcase your expertise",
-        description: "Build a profile with trade skills, photos, and verified reviews to win trust fast.",
+        description: "Build a profile with trade skills, photos, and reviews to win trust fast.",
         icon: UserRound,
       },
       {

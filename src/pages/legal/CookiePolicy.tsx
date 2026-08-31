@@ -129,7 +129,7 @@ const CookiePolicy = () => {
             <h2 className={sectionHeading} style={heading}>7. Contact Us</h2>
             <p className={body}>
               If you have any questions about this Cookie Policy, contact us at{" "}
-              <a href="mailto:rb.tradestone@gmail.com" className="text-[#f07820] hover:underline">rb.tradestone@gmail.com</a>.
+              <a href="mailto:support@tradesltd.co.uk" className="text-[#f07820] hover:underline">support@tradesltd.co.uk</a>.
             </p>
           </section>
         </div>
