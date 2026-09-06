@@ -1,10 +1,32 @@
 import { Link } from "react-router-dom";
+import { useEffect, useRef } from "react";
 
 const sectionHeading = "text-2xl font-semibold mb-3";
 const body = "leading-relaxed mb-3";
 const heading = { fontFamily: "'Lexend', sans-serif" };
 
 const CookiePolicy = () => {
+  const declarationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = declarationRef.current;
+    if (!container) return;
+
+    // Guard against double-injection under React StrictMode's dev double-mount.
+    if (container.querySelector("#CookieDeclaration")) return;
+
+    const script = document.createElement("script");
+    script.id = "CookieDeclaration";
+    script.src = "https://consent.cookiebot.com/ddc201c2-3ac1-4cde-bbe0-854b34c67650/cd.js";
+    script.type = "text/javascript";
+    script.async = true;
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = "";
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-[#1a2744]" style={{ fontFamily: "'Lexend', sans-serif" }}>
       <div className="max-w-3xl mx-auto px-6 py-12">
@@ -28,12 +50,7 @@ const CookiePolicy = () => {
           <section className="mb-8">
             <h2 className={sectionHeading} style={heading}>2. Cookies We Use</h2>
 
-            <script
-              id="CookieDeclaration"
-              src="https://consent.cookiebot.com/ddc201c2-3ac1-4cde-bbe0-854b34c67650/cd.js"
-              type="text/javascript"
-              async
-            ></script>
+            <div ref={declarationRef} />
           </section>
 
           <section className="mb-8">
