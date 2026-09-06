@@ -110,7 +110,6 @@ const App = () => (
           <Route path="/c/:code" element={<RedirectToContractor />} />
           <Route path="/contractor/:code" element={<ContractorProfile />} />
           <Route path="/hire/:slug" element={<ContractorProfile />} />
-          <Route path="/business" element={<BusinessManagement />} />
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/marketplace/materials" element={<MarketplaceMaterials />} />
           <Route path="/marketplace/equipment" element={<MarketplaceEquipment />} />
@@ -129,6 +128,7 @@ const App = () => (
           <Route path="/site-portal" element={<ProtectedRoute><SitePortal /></ProtectedRoute>} />
 
           {/* Protected routes */}
+          <Route path="/business" element={<ProtectedRoute requiredRole="contractor"><BusinessManagement /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/dashboard/homeowner" element={<ProtectedRoute requiredRole="personal"><HomeownerDashboard /></ProtectedRoute>} />

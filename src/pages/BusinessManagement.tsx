@@ -1,26 +1,14 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import {
-  DollarSign,
   Users,
-  FileText,
-  Calendar,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
   Plus,
   Download,
-  Edit,
-  Archive,
   Filter,
   MessageCircle,
-  Star,
 } from "lucide-react";
 import Header from "@/components/Header";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
@@ -47,31 +35,6 @@ const businessManagementViews = [
 
 const BusinessManagement = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-
-  const dashboardStats = [
-    { title: "Monthly Revenue", value: "£12,450", change: "+15.3%", icon: DollarSign, trend: "up" },
-    { title: "Active Projects", value: "8", change: "+2", icon: FileText, trend: "up" },
-    { title: "Pending Invoices", value: "£3,200", change: "5 invoices", icon: Clock, trend: "warning" },
-    { title: "Clients", value: "23", change: "+3 this month", icon: Users, trend: "up" },
-  ];
-
-  const activeProjects = [
-    { id: "PRJ-001", name: "Kitchen Renovation - Wilson Home", client: "Mrs. Wilson", progress: 75, deadline: "2024-02-15", value: "£4,500", status: "on-track" },
-    { id: "PRJ-002", name: "Bathroom Remodel - Davis Property", client: "Davis Family", progress: 45, deadline: "2024-03-01", value: "£3,200", status: "at-risk" },
-    { id: "PRJ-003", name: "Garage Extension - Brown House", client: "Mr. Brown", progress: 90, deadline: "2024-01-30", value: "£8,900", status: "ahead" },
-  ];
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "paid": return "bg-green-100 text-green-800";
-      case "pending": return "bg-yellow-100 text-yellow-800";
-      case "overdue": return "bg-red-100 text-red-800";
-      case "on-track": return "bg-blue-100 text-blue-800";
-      case "at-risk": return "bg-red-100 text-red-800";
-      case "ahead": return "bg-green-100 text-green-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,23 +66,6 @@ const BusinessManagement = () => {
           </div>
 
           <TabsContent value="dashboard" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {dashboardStats.map((stat, index) => (
-                <Card key={index}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                    <stat.icon className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
-                    <p className={`text-xs ${stat.trend === 'up' ? 'text-green-600' : stat.trend === 'warning' ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                      {stat.change}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <Card>
                 <CardHeader>
@@ -145,26 +91,7 @@ const BusinessManagement = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {activeProjects.slice(0, 3).map((project) => (
-                      <div key={project.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-medium">{project.name}</p>
-                            <p className="text-sm text-muted-foreground">{project.client}</p>
-                          </div>
-                          <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Progress</span>
-                            <span>{project.progress}%</span>
-                          </div>
-                          <Progress value={project.progress} className="h-2" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-sm text-muted-foreground text-center py-6">No active projects yet.</p>
                 </CardContent>
               </Card>
             </div>
@@ -229,32 +156,11 @@ const BusinessManagement = () => {
               <h2 className="font-heading text-2xl font-bold">Project Management</h2>
               <Button><Plus className="h-4 w-4 mr-2" />New Project</Button>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {activeProjects.map((project) => (
-                <Card key={project.id}>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{project.name}</CardTitle>
-                        <CardDescription>{project.client}</CardDescription>
-                      </div>
-                      <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex justify-between text-sm"><span>Value:</span><span className="font-medium">{project.value}</span></div>
-                    <div className="flex justify-between text-sm"><span>Deadline:</span><span>{project.deadline}</span></div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm"><span>Progress</span><span>{project.progress}%</span></div>
-                      <Progress value={project.progress} />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1"><Edit className="h-4 w-4 mr-2" />Edit</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">No projects yet.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="clients" className="space-y-6">
@@ -284,11 +190,11 @@ const BusinessManagement = () => {
               <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button>
             </div>
             <TransactionFeeNotice />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card><CardHeader><CardTitle className="text-lg">Outstanding Payments</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-red-600">£3,200</div><p className="text-sm text-muted-foreground">5 overdue invoices</p></CardContent></Card>
-              <Card><CardHeader><CardTitle className="text-lg">This Month</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">£8,450</div><p className="text-sm text-muted-foreground">12 payments received</p></CardContent></Card>
-              <Card><CardHeader><CardTitle className="text-lg">Average Payment Time</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">18 days</div><p className="text-sm text-muted-foreground">3 days faster than last month</p></CardContent></Card>
-            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">No payments yet.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
@@ -296,24 +202,11 @@ const BusinessManagement = () => {
               <h2 className="font-heading text-2xl font-bold">Business Reports</h2>
               <Button variant="outline"><Download className="h-4 w-4 mr-2" />Generate Report</Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader><CardTitle>Financial Overview</CardTitle><CardDescription>Revenue and expense tracking</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between"><span>Total Revenue (YTD)</span><span className="font-bold">£45,200</span></div>
-                  <div className="flex justify-between"><span>Total Expenses (YTD)</span><span className="font-bold">£18,400</span></div>
-                  <div className="flex justify-between border-t pt-2"><span className="font-medium">Net Profit</span><span className="font-bold text-green-600">£26,800</span></div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><CardTitle>Project Performance</CardTitle><CardDescription>Completed projects and efficiency metrics</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between"><span>Projects Completed</span><span className="font-bold">15</span></div>
-                  <div className="flex justify-between"><span>On-Time Completion Rate</span><span className="font-bold">87%</span></div>
-                  <div className="flex justify-between"><span>Client Satisfaction</span><span className="font-bold text-muted-foreground">No reviews yet</span></div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">No report data yet.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="profile"><ProfileManagement /></TabsContent>
