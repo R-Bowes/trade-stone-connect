@@ -4,33 +4,6 @@ const sectionHeading = "text-2xl font-semibold mb-3";
 const body = "leading-relaxed mb-3";
 const heading = { fontFamily: "'Lexend', sans-serif" };
 
-const cookieTable = (
-  rows: { name: string; provider: string; duration: string; purpose: string }[]
-) => (
-  <div className="overflow-x-auto mb-4">
-    <table className="w-full text-sm border border-slate-200" style={heading}>
-      <thead className="bg-slate-50">
-        <tr>
-          <th className="text-left p-2 border-b border-slate-200">Cookie</th>
-          <th className="text-left p-2 border-b border-slate-200">Provider</th>
-          <th className="text-left p-2 border-b border-slate-200">Duration</th>
-          <th className="text-left p-2 border-b border-slate-200">Purpose</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.name}>
-            <td className="p-2 border-b border-slate-100 font-mono text-xs">{row.name}</td>
-            <td className="p-2 border-b border-slate-100">{row.provider}</td>
-            <td className="p-2 border-b border-slate-100">{row.duration}</td>
-            <td className="p-2 border-b border-slate-100">{row.purpose}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
 const CookiePolicy = () => {
   return (
     <div className="min-h-screen bg-white text-[#1a2744]" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -55,26 +28,12 @@ const CookiePolicy = () => {
           <section className="mb-8">
             <h2 className={sectionHeading} style={heading}>2. Cookies We Use</h2>
 
-            <h3 className="text-lg font-semibold mb-2 mt-4" style={heading}>Strictly Necessary (no consent needed)</h3>
-            {cookieTable([
-              { name: "sb-access-token", provider: "Supabase", duration: "Session", purpose: "Maintains your logged-in auth session" },
-              { name: "sb-refresh-token", provider: "Supabase", duration: "7 days", purpose: "Refreshes your login session" },
-              { name: "__stripe_mid", provider: "Stripe", duration: "1 year", purpose: "Fraud detection" },
-              { name: "__stripe_sid", provider: "Stripe", duration: "30 minutes", purpose: "Fraud detection" },
-            ])}
-
-            <h3 className="text-lg font-semibold mb-2 mt-6" style={heading}>Analytics (consent required)</h3>
-            {cookieTable([
-              { name: "_ga", provider: "Google Analytics", duration: "2 years", purpose: "Distinguishes unique users" },
-              { name: "_ga_*", provider: "Google Analytics", duration: "2 years", purpose: "Tracks page views" },
-              { name: "_gid", provider: "Google Analytics", duration: "24 hours", purpose: "Distinguishes users" },
-              { name: "_gcl_au", provider: "Google Tag Manager", duration: "90 days", purpose: "Tracks conversions" },
-            ])}
-
-            <h3 className="text-lg font-semibold mb-2 mt-6" style={heading}>Preference (consent required)</h3>
-            {cookieTable([
-              { name: "ts_cookie_consent", provider: "TradeStone", duration: "1 year", purpose: "Stores your cookie preferences" },
-            ])}
+            <script
+              id="CookieDeclaration"
+              src="https://consent.cookiebot.com/ddc201c2-3ac1-4cde-bbe0-854b34c67650/cd.js"
+              type="text/javascript"
+              async
+            ></script>
           </section>
 
           <section className="mb-8">

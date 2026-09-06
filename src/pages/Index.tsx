@@ -1,6 +1,5 @@
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
-import CookieConsent from "@/components/CookieConsent";
 
 const Index = () => {
   return (
@@ -10,8 +9,6 @@ const Index = () => {
       <main>
         <HeroSection />
       </main>
-
-      <CookieConsent />
     </div>
   );
 };

@@ -1,5 +1,11 @@
 import { Link } from "react-router-dom";
 
+const openCookieSettings = () => {
+  if (typeof window !== "undefined" && window.Cookiebot) {
+    window.Cookiebot.renew();
+  }
+};
+
 const Footer = () => {
   return (
     <footer style={{ backgroundColor: "#1a2744", color: "#ffffff" }}>
@@ -26,6 +32,15 @@ const Footer = () => {
             <li><Link to="/privacy" className="hover:text-[#f07820]">Privacy Policy</Link></li>
             <li><Link to="/terms" className="hover:text-[#f07820]">Terms &amp; Conditions</Link></li>
             <li><Link to="/cookies" className="hover:text-[#f07820]">Cookie Policy</Link></li>
+            <li>
+              <button
+                type="button"
+                onClick={openCookieSettings}
+                className="p-0 border-0 bg-transparent text-inherit font-inherit cursor-pointer hover:text-[#f07820]"
+              >
+                Cookie Settings
+              </button>
+            </li>
           </ul>
         </div>
 

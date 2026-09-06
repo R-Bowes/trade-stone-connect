@@ -18,6 +18,12 @@ interface Window {
 }
 
 interface Window {
+  Cookiebot?: {
+    renew: () => void;
+  };
+}
+
+interface Window {
   turnstile?: {
     render: (container: string | HTMLElement, options: {
       sitekey: string;
