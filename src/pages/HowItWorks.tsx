@@ -27,7 +27,7 @@ const HowItWorks = () => {
       number: "2",
       icon: Search,
       title: "Connect & Discover",
-      description: "Find contractors by trade, location, or code. Browse contract opportunities and materials marketplace."
+      description: "Find contractors by trade, location, or code, and view their profile, ratings, and reviews."
     },
     {
       number: "3",

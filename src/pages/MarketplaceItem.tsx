@@ -113,9 +113,6 @@ const MarketplaceItem = () => {
                 <p className="text-sm">
                   <span className="font-medium">Seller:</span> {item.seller?.company_name || item.seller?.full_name || "TradeStone Seller"}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  All communications go through TradeStone's secure messaging system
-                </p>
               </div>
             </Card>
 

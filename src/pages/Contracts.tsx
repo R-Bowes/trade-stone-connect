@@ -12,7 +12,7 @@ const Contracts = () => {
     {
       icon: MessageSquare,
       title: "Collaborative Workflows",
-      description: "Track revisions, approvals, and communication from first draft to final signature.",
+      description: "Track revisions, approvals, and communication from first draft through to acceptance.",
       status: "Available Now"
     },
     {
@@ -30,8 +30,8 @@ const Contracts = () => {
     {
       icon: Clock,
       title: "Milestone Tracking",
-      description: "Set clear project phases and monitor work completion before payout.",
-      status: "Coming Soon"
+      description: "Break a job into stages and issue an invoice for each one as it's completed.",
+      status: "Available Now"
     },
     {
       icon: Users,
