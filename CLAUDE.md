@@ -923,3 +923,26 @@ RPC, or edge function. FieldChecklist.tsx reads/writes
   `createJobFromQuote.ts` no longer exists.
 - Money is stored as `numeric` decimal (pounds), not integer minor
   units. Conversion to minor units happens only at the Stripe boundary.
+
+  ## Backup before migrations (free tier — no automatic backups)
+
+Supabase Free Plan includes no scheduled backups and no PITR. There is
+exactly one copy of the database.
+
+Before any session that runs `npx supabase db push`:
+
+  $ts = Get-Date -Format "yyyyMMdd_HHmm"
+  pg_dump "postgresql://postgres.tnvxfzmdjpsswjszwbvf:[PASSWORD]@aws-1-eu-west-2.pooler.supabase.com:5432/postgres" -f "C:\Users\richa\tradestone-backups\full_$ts.sql"
+
+Verify before proceeding — the file must contain COPY statements:
+
+  Select-String -Path "...\full_$ts.sql" -Pattern "COPY public.profiles"
+
+Notes:
+- `npx supabase db dump` requires Docker; not installed. Use pg_dump.
+- Direct connection (db.<ref>.supabase.co) is IPv6-only and fails on this
+  network. Use the session pooler host above.
+- Dumps contain live personal data. Never commit them to the repo.
+
+Upgrade trigger: before the first real contractor completes Stripe
+Connect onboarding, move to Supabase Pro for daily backups.

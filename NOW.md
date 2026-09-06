@@ -291,3 +291,8 @@ piecemeal.
   only set by ContractorProfile.tsx to a profile path. Now backstopped by
   team-aware ProtectedRoute — no fix needed, but any future returnTo
   pointing at a dashboard route must not bypass the role/team resolver.
+
+
+  GCM Basic Mode — before AdSense goes live, add gtag('consent', 'default', ...) to index.html to upgrade Cookiebot to Advanced Mode. Compliance unaffected; measurement only.
+Cookiebot trial ends ~20 Sept. Day 12 check: does Free keep auto-blocking, and does custom banner copy survive?
+Cookiebot dialog sets aria-hidden on an ancestor of the focused button — third-party accessibility defect, not fixable by us.
