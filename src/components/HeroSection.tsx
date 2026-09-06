@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { UserRound, FileText } from "lucide-react";
+import { UserRound, Hammer } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,10 +13,10 @@ const quickActions = [
     link: "/contractors",
   },
   {
-    icon: FileText,
-    title: "Apply for Contracts",
-    description: "Bid on government and private jobs.",
-    link: "/contracts",
+    icon: Hammer,
+    title: "Join as a Contractor",
+    description: "Win work, quote, and get paid in one place.",
+    link: "/auth",
   },
 ];
 

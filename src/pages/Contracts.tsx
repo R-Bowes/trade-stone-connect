@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, MessageSquare, CheckCircle2, Shield, Clock, Users, Sparkles } from "lucide-react";
+import { Search, MessageSquare, CheckCircle2, Clock, Users, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const Contracts = () => {
@@ -17,14 +17,8 @@ const Contracts = () => {
     },
     {
       icon: CheckCircle2,
-      title: "Compliance & Documentation",
-      description: "Organise insurance, certification, and legal paperwork with deadline reminders.",
-      status: "Available Now"
-    },
-    {
-      icon: Shield,
-      title: "Secure Escrow Payments",
-      description: "Protect both sides of a project with milestone-based fund releases.",
+      title: "Expiry Reminders",
+      description: "Get warned before insurance cover or certifications lapse.",
       status: "Available Now"
     },
     {
@@ -67,7 +61,7 @@ const Contracts = () => {
                 Manage <span className="text-primary">Contracts</span> with Confidence
               </h1>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                From bid to signature, TradeStone keeps every agreement organised, transparent, and ready for action.
+                Track quote revisions and messages, stay ahead of insurance and certification deadlines, and invoice in stages as work is completed.
               </p>
             </div>
 

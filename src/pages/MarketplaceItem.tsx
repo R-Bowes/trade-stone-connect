@@ -115,12 +115,6 @@ const MarketplaceItem = () => {
                 </p>
               </div>
             </Card>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button className="flex-1">Contact Seller</Button>
-              <Button variant="outline" className="flex-1">Save Listing</Button>
-            </div>
           </div>
         </div>
       </main>
