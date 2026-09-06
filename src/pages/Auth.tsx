@@ -24,13 +24,26 @@ const Auth = () => {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  const [signupEmail, setSignupEmail] = useState("");
+  // Pre-fill only — seeded once from the hero signup card's query params
+  // (?email=&type=) and never referenced again. Does not touch handleSignup,
+  // validation, or the supabase.auth.signUp() call itself.
+  const initialSearchParams = new URLSearchParams(location.search);
+  const VALID_USER_TYPES = ["personal", "business", "contractor"] as const;
+  const paramType = initialSearchParams.get("type");
+  const seededUserType = (VALID_USER_TYPES as readonly string[]).includes(paramType ?? "")
+    ? (paramType as (typeof VALID_USER_TYPES)[number])
+    : "personal";
+  const seededEmail = initialSearchParams.get("email") ?? "";
+  const initialActiveTab =
+    initialSearchParams.has("email") || initialSearchParams.has("type") ? "signup" : "login";
+
+  const [signupEmail, setSignupEmail] = useState(seededEmail);
   const [signupPassword, setSignupPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [userType, setUserType] = useState<"personal" | "business" | "contractor">("personal");
+  const [userType, setUserType] = useState<"personal" | "business" | "contractor">(seededUserType);
   const [companyName, setCompanyName] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [activeTab, setActiveTab] = useState("login");
+  const [activeTab, setActiveTab] = useState(initialActiveTab);
 
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HCaptcha | null>(null);
@@ -360,7 +373,7 @@ const Auth = () => {
             </Card>
           )}
 
-          <Tabs defaultValue="login" className="w-full" onValueChange={setActiveTab}>
+          <Tabs defaultValue={activeTab} className="w-full" onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>

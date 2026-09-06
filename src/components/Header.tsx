@@ -3,18 +3,9 @@ import { Menu, FolderKanban } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, NavLink } from "react-router-dom";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 import { performSignOut } from "@/lib/signOut";
-import { useTeamMembership } from "@/contexts/TeamMembershipContext";
-import tradestoneLogo from "@/assets/tradestone-logo.png";
-
-interface UserProfile {
-  user_type: "personal" | "business" | "contractor";
-  full_name: string | null;
-  ts_profile_code: string | null;
-  logo_url: string | null;
-}
+import { Wordmark } from "@/components/Wordmark";
+import { useDashboardPath } from "@/hooks/useDashboardPath";
 
 const getInitials = (name: string | null | undefined) => {
   if (!name) return "?";
@@ -28,30 +19,10 @@ const getInitials = (name: string | null | undefined) => {
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { isTeamMember, loading: teamLoading } = useTeamMembership();
-
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-    };
-
-    getSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user, profile, dashboardPath } = useDashboardPath();
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -63,21 +34,6 @@ const Header = () => {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [dropdownOpen]);
-
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("user_type, full_name, ts_profile_code, logo_url")
-      .eq("user_id", userId)
-      .single();
-
-    if (error) {
-      console.error("Error fetching profile:", error);
-      return;
-    }
-
-    setProfile(data);
-  };
 
   const handleLogout = () => performSignOut(navigate);
 
@@ -129,25 +85,9 @@ const Header = () => {
     </div>
   );
 
-  // Role-aware base path — used for the home icon, dropdown nav, and brand
-  // mark. 'personal' user_type is ambiguous — it covers both genuine
-  // homeowners and team member sub-accounts, which must never land on
-  // /dashboard/homeowner (see TeamMembershipContext). While team-membership
-  // status is still resolving, dashboardPath is null rather than guessing
-  // homeowner and correcting later — the three click targets below treat
-  // null as "not ready yet" and omit/disable themselves accordingly.
-  const dashboardPath = !user || !profile
-    ? "/"
-    : profile.user_type === "contractor"
-    ? "/dashboard/contractor"
-    : profile.user_type === "business"
-    ? "/dashboard/business"
-    : teamLoading
-    ? null
-    : isTeamMember
-    ? "/field"
-    : "/dashboard/homeowner";
-
+  // dashboardPath itself now comes from useDashboardPath() above — shared
+  // with HeroSection so the role-resolution logic (including the null
+  // state while team membership is still resolving) has one source.
   const profilePath = dashboardPath
     ? profile?.user_type === "contractor"
       ? `${dashboardPath}?view=canvas-editor`
@@ -169,18 +109,13 @@ const Header = () => {
             user_type, team-membership check in flight) — safe destination,
             never /dashboard/homeowner. */}
         <Link to={dashboardPath ?? "/"} className="flex items-center gap-2.5">
-          <img src={tradestoneLogo} alt="TradeStone logo" className="h-7 w-auto" />
-          <span
-            className="leading-none uppercase tracking-wide"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: '28px', letterSpacing: '1px' }}
-          >
-            <span style={{ color: '#1e3a5f' }}>TRADE</span><span style={{ color: '#f07820' }}>STONE</span>
-          </span>
+          <Wordmark theme="light" size={26} />
         </Link>
 
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-700">
-          <NavLink to="/" end className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Home</NavLink>
-          <NavLink to="/contracts" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Contracts</NavLink>
+          <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Find Contractors</NavLink>
+          <NavLink to="/how-it-works" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>How It Works</NavLink>
+          <Link to="/#pricing" className="hover:text-slate-900">Pricing</Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -334,8 +269,9 @@ const Header = () => {
       {isMenuOpen && (
         <div className="border-t border-zinc-200 bg-white px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3 text-sm text-slate-700">
-            <NavLink to="/" end onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Home</NavLink>
-            <NavLink to="/contracts" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Contracts</NavLink>
+            <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Find Contractors</NavLink>
+            <NavLink to="/how-it-works" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>How It Works</NavLink>
+            <Link to="/#pricing" onClick={() => setIsMenuOpen(false)}>Pricing</Link>
             {user ? (
               <>
                 {dropdownNavItems.map((item) => (
