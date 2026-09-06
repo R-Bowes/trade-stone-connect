@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import tradestoneLogo from "@/assets/tradestone-logo-correct.png";
+import tradestoneLogo from "@/assets/tradestone-mark.png";
 
 const ComingSoon = () => {
   return (

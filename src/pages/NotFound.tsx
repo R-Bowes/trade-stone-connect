@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import tradestoneLogo from "@/assets/tradestone-logo-correct.png";
+import tradestoneLogo from "@/assets/tradestone-mark.png";
 
 const NotFound = () => {
   const location = useLocation();
