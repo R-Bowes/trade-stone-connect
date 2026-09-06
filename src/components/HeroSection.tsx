@@ -65,7 +65,7 @@ const HeroSection = () => {
             Build & Grow with <span style={{ color: '#f07820' }}>TradeStone</span>
           </h1>
           <p className="max-w-2xl text-xl leading-relaxed text-slate-100 md:text-[1.4rem]">
-            Connect with professionals, buy surplus materials, and win contracts with ease.
+            Request quotes, agree the work, and pay securely — all in one place.
           </p>
           {!isLoggedIn && (
             <Button
