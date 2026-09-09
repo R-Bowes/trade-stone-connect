@@ -115,7 +115,6 @@ const Header = () => {
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-700">
           <NavLink to="/contractors" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>Find Contractors</NavLink>
           <NavLink to="/how-it-works" className={({ isActive }) => isActive ? "font-semibold text-orange-500" : "hover:text-slate-900"}>How It Works</NavLink>
-          <Link to="/#pricing" className="hover:text-slate-900">Pricing</Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -271,7 +270,6 @@ const Header = () => {
           <nav className="flex flex-col gap-3 text-sm text-slate-700">
             <NavLink to="/contractors" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>Find Contractors</NavLink>
             <NavLink to="/how-it-works" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "font-semibold text-orange-500" : ""}>How It Works</NavLink>
-            <Link to="/#pricing" onClick={() => setIsMenuOpen(false)}>Pricing</Link>
             {user ? (
               <>
                 {dropdownNavItems.map((item) => (
