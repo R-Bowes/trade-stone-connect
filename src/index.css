@@ -31,8 +31,8 @@
     --popover: 0 0% 89%;
     --popover-foreground: 0 0% 9%;
 
-    /* TradeStone orange primary */
-    --primary: 20 90% 48%;
+    /* TradeStone orange primary — #f07820 */
+    --primary: 25.4 87.4% 53.3%;
     --primary-foreground: 33 100% 96%;
     --primary-glow: 25 95% 63%;
 
@@ -52,7 +52,7 @@
 
     --border: 0 0% 83%;
     --input: 0 0% 83%;
-    --ring: 20 90% 48%;
+    --ring: 25.4 87.4% 53.3%;
 
     --radius: 0.75rem;
 

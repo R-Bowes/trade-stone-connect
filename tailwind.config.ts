@@ -129,7 +129,7 @@ export default {
   				'monospace'
   			],
 			heading: [
-				'Space Grotesk',
+				'Barlow Condensed',
 				'Roboto',
 				'ui-sans-serif',
 				'system-ui',
