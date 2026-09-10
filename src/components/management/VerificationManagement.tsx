@@ -174,7 +174,7 @@ export function VerificationManagement() {
         });
       if (insertError) throw insertError;
 
-      toast({ title: "Credential submitted", description: "It will show as pending until TradeStone verifies it against the awarding body." });
+      toast({ title: "Credential submitted", description: "It will show as pending until a TradeStone admin reviews it." });
       setDialogOpen(false);
       resetForm();
       load();
@@ -259,7 +259,7 @@ export function VerificationManagement() {
       <Card>
         <CardHeader>
           <CardTitle>Public liability insurance</CardTitle>
-          <CardDescription>Cross-checked against your insurer — self-declared dates alone don't verify this.</CardDescription>
+          <CardDescription>Your public liability insurance details on file.</CardDescription>
         </CardHeader>
         <CardContent>
           {!verification?.insurance_expires_at ? (
@@ -284,7 +284,7 @@ export function VerificationManagement() {
       <Card>
         <CardHeader>
           <CardTitle>Trade register checks</CardTitle>
-          <CardDescription>Gas Safe, NICEIC, NAPIT, F-Gas — checked against the live register, not a photo of a card.</CardDescription>
+          <CardDescription>Gas Safe, NICEIC, NAPIT, F-Gas — shown here once verified.</CardDescription>
         </CardHeader>
         <CardContent>
           {registerChecks.length === 0 ? (
@@ -311,7 +311,7 @@ export function VerificationManagement() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Credentials</CardTitle>
-              <CardDescription>NVQ, City & Guilds, manufacturer accreditations — confirmed against the awarding body.</CardDescription>
+              <CardDescription>NVQ, City & Guilds, manufacturer accreditations — reviewed by a TradeStone admin before they show as verified.</CardDescription>
             </div>
             <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
@@ -354,7 +354,7 @@ export function VerificationManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add credential</DialogTitle>
-            <DialogDescription>Submit a qualification or accreditation for TradeStone to verify against the awarding body.</DialogDescription>
+            <DialogDescription>Submit a qualification or accreditation for a TradeStone admin to review.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2 relative">

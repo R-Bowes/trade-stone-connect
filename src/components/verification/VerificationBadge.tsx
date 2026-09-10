@@ -5,18 +5,20 @@ export interface VerificationBadgeProps {
   size?: "sm" | "md" | "lg";
 }
 
+// Tiers 3 and 4 are deliberately absent — no contractor holds either tier,
+// and neither claim (insurance verification, background checks) has a
+// working write path in the product yet. They remain in the data model
+// (contractor_verification.current_tier, recalculate_contractor_tier) for
+// when real checks are built; only the public display was removed. See
+// CLAUDE.md's verification-tiers entry for the full record.
 const TIER_STYLES: Record<number, { label: string; bg: string; border: string; color: string; filled: boolean; icon: string }> = {
   1: { label: "Registered", bg: "transparent", border: "#c9c9c9", color: "#888", filled: false, icon: "" },
-  2: { label: "ID Verified", bg: "#2563eb", border: "#2563eb", color: "#fff", filled: true, icon: "✓" },
-  3: { label: "Compliance Verified", bg: "#f07820", border: "#f07820", color: "#fff", filled: true, icon: "✓" },
-  4: { label: "Fully Verified", bg: "#1a2744", border: "#1a2744", color: "#fff", filled: true, icon: "✓✓" },
+  2: { label: "Stripe Verified", bg: "#2563eb", border: "#2563eb", color: "#fff", filled: true, icon: "✓" },
 };
 
 const TIER_TOOLTIPS: Record<number, string> = {
   1: "This contractor has registered on TradeStone",
-  2: "Identity confirmed via Stripe verification",
-  3: "Insurance and credentials verified by TradeStone",
-  4: "Fully verified — identity, compliance, and background checks complete",
+  2: "Identity checks completed with Stripe during payment setup",
 };
 
 const SIZES: Record<NonNullable<VerificationBadgeProps["size"]>, { fontSize: number; padding: string; iconSize: number; gap: number }> = {

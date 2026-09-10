@@ -601,22 +601,51 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   backing content. Reinstate once there is meaningful review volume. Note
   this is a DIFFERENT claim from contractor credential verification above,
   and is not covered by that prohibition.
-- **OPEN DECISION: verification tiers vs the footer disclaimer.**
-  Unresolved. Must be settled before the first real contractor onboards.
-  There is an admin-operated verification-tier feature — Tiers 1 to 4, with
-  `AdminVerification.tsx`, `VerificationBadge.tsx`, and badges rendered on
-  contractor profiles. The footer on every page states that TradeStone does
-  not verify contractor qualifications or insurance. Both cannot be true.
-  If the tiers reflect real document checks performed by an admin, the
-  badges are a genuine asset and the footer disclaimer is the inaccurate
-  statement and needs rewording. If the tiers are aspirational scaffolding,
-  a tier badge is a STRONGER false claim than any marketing copy, because
-  it is a specific representation about a named trader at the point of
-  hiring decision — the exact thing a consumer relies on. To resolve,
-  establish: what each of Tiers 1 to 4 requires an admin to verify, whether
-  that process is documented, and what the badge says to the person viewing
-  a profile. Do not add, alter or extend tier badges until this is
-  resolved.
+- **RESOLVED (Sept 2026): verification tiers vs the footer disclaimer.**
+  An audit traced every tier-gating field to its write path. Tier 3
+  (`insurance_verified`) had no write path anywhere in the shipped
+  product — no admin control, no contractor path. Tier 4 (`dbs_verified`)
+  was an unevidenced admin checkbox with no document ever attached. The
+  public profile's "verified against the live register" (Gas Safe/NICEIC/
+  NAPIT/F-Gas) had no integration behind it at all —
+  `contractor_register_checks` has no application write path and held
+  zero rows. Tier 2 (`identity_verified`) had been set once by a migration
+  that checked only `stripe_account_id IS NOT NULL` (onboarding started,
+  not that Stripe's verification completed); `phone_verified` had no
+  verification mechanism anywhere in the codebase. Live data at the time:
+  2 contractors, one Tier 1 and one Tier 2, 0 credentials, 0 register
+  checks, `insurance_verified` false everywhere.
+
+  Decision: the footer disclaimer ("We do not verify contractor
+  qualifications or insurance") was correct and is unchanged. The badges
+  were reduced to match what is actually checked:
+  - **Tier 2 badge reworded** to attribute the check to Stripe, not
+    TradeStone — label "Stripe Verified", tooltip "Identity checks
+    completed with Stripe during payment setup". Its condition in
+    `recalculate_contractor_tier` now reads `profiles.stripe_payouts_enabled`
+    (a real signal, kept live by `stripe-webhook`'s `account.updated`
+    handler and tied to a `profiles` trigger so it doesn't drift) instead
+    of `identity_verified AND phone_verified`. Those two columns are kept
+    in `contractor_verification`, now vestigial — not read by tier
+    calculation, not dropped from the schema.
+  - **Tier 3 and 4 display removed** from `VerificationBadge.tsx` and the
+    duplicated `TIER_EXPLANATIONS`/`TIER_BADGES` sets in
+    `ContractorProfile.tsx`. The tiers themselves, and
+    `recalculate_contractor_tier`'s Tier 3/4 conditions, remain in the
+    data model unchanged, for when insurance verification and DBS checks
+    are actually built.
+  - **Register-check display removed** from `ContractorProfile.tsx`'s
+    public profile. `contractor_register_checks` stays in the schema;
+    only the "verified against the live register" claim was removed,
+    since no such check exists.
+  - Contractor-facing copy in `VerificationManagement.tsx` corrected to
+    stop claiming an insurer cross-check or awarding-body confirmation
+    that don't happen — credential review is described as what it is (a
+    TradeStone admin reviewing an optionally-attached document), not
+    third-party confirmation.
+  - Do not reintroduce Tier 3/4 display, the register-check display, or
+    the pre-fix Tier 2 wording without first building the check each one
+    claims.
 
 ## Stack
 - Frontend: React/TypeScript, Vite, shadcn/ui, Tailwind
@@ -946,3 +975,9 @@ Notes:
 
 Upgrade trigger: before the first real contractor completes Stripe
 Connect onboarding, move to Supabase Pro for daily backups.
+
+Brand colours:
+- Navy   #1a2744 — hero panel, wordmark, primary UI, headings
+- Orange #f07820 — primary actions, accents, numerals
+- Brown  #533B31 — full-bleed dark content sections (pricing, footer).
+                   Not for UI controls, not for the hero.

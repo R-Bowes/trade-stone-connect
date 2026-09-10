@@ -450,11 +450,11 @@ function CredentialsBlock({ section, credentials }: { section: CanvasSection; cr
   );
 }
 
+// Tiers 3 and 4 are deliberately absent — see VerificationBadge.tsx's
+// header comment. Only tiers 1-2 are ever reachable here now.
 const TIER_EXPLANATIONS: Record<number, string> = {
   1: "This contractor has registered on TradeStone.",
-  2: "Identity confirmed via Stripe verification.",
-  3: "Insurance and credentials verified by TradeStone.",
-  4: "Fully verified — identity, compliance, and background checks complete.",
+  2: "Identity checks completed with Stripe during payment setup.",
 };
 
 function HeroVerificationBadge({ tier }: { tier: number | null }) {
@@ -480,17 +480,12 @@ function HeroVerificationBadge({ tier }: { tier: number | null }) {
   );
 }
 
+// Tier 3 and 4 entries removed — no contractor holds either tier and
+// neither claim has a working write path yet (see CLAUDE.md's
+// verification-tiers entry). Only tier 2 is ever reachable via the guard
+// below now.
 const TIER_BADGES: Record<number, { label: string; icon: string }> = {
-  2: { label: "Identity Verified", icon: "ti-user-check" },
-  3: { label: "Compliance Verified", icon: "ti-shield-check" },
-  4: { label: "Credential Verified", icon: "ti-award" },
-};
-
-const REGISTER_LABELS: Record<string, string> = {
-  gas_safe: "Gas Safe",
-  niceic: "NICEIC",
-  napit: "NAPIT",
-  fgas: "F-Gas",
+  2: { label: "Stripe Verified", icon: "ti-user-check" },
 };
 
 function VerificationBadgeBlock({ tier, registerChecks, credentials }: {
@@ -505,30 +500,21 @@ function VerificationBadgeBlock({ tier, registerChecks, credentials }: {
 
   return (
     <SectionCard heading="Verification">
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: (registerChecks.length || credentials.length) ? 14 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: credentials.length ? 14 : 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(22,163,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <i className={`ti ${badge.icon}`} style={{ fontSize: 19, color: "#16a34a" }} />
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{badge.label}</div>
-          <div style={{ fontSize: 12, color: "#888" }}>Verified by TradeStone</div>
+          <div style={{ fontSize: 12, color: "#888" }}>Verified by Stripe</div>
         </div>
       </div>
 
-      {registerChecks.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: credentials.length ? 10 : 0 }}>
-          {registerChecks.map(rc => (
-            <div key={rc.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-              <i className="ti ti-circle-check" style={{ fontSize: 15, color: "#16a34a", flexShrink: 0 }} />
-              <span style={{ color: NAVY, fontWeight: 600 }}>{REGISTER_LABELS[rc.register_name] ?? rc.register_name}</span>
-              {rc.registration_number && (
-                <span style={{ color: "#aaa", fontFamily: "'Roboto Mono', monospace", fontSize: 11 }}>{rc.registration_number}</span>
-              )}
-              <span style={{ color: "#888", fontSize: 11 }}>&middot; verified against the live register</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Register-check display (Gas Safe/NICEIC/NAPIT/F-Gas) removed — no
+          register integration exists, contractor_register_checks has no
+          application write path, and the table holds no rows. Left in the
+          schema; only the display was removed. registerChecks is still
+          fetched by the caller but is now unused here. */}
 
       {credentials.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

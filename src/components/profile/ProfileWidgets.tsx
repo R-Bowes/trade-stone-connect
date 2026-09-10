@@ -246,15 +246,6 @@ export function HeroBlock({
                 {ts_profile_code}
               </span>
             )}
-            {is_verified && (
-              <span style={{
-                fontSize: 11, color: "#86efac", background: "rgba(34,197,94,0.15)",
-                padding: "2px 8px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4,
-              }}>
-                <i className="ti ti-circle-check" style={{ fontSize: 13 }} />
-                Verified
-              </span>
-            )}
             {location && (
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", gap: 4 }}>
                 <i className="ti ti-map-pin" style={{ fontSize: 13 }} />
