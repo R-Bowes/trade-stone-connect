@@ -21,24 +21,24 @@ const MESSAGES: HeroMessage[] = [
     supporting: "One place for quotes, scheduling, invoicing and payment.",
   },
   {
-    eyebrow: "HIRING BUILDING WORK",
-    tagline: "Agree the price before work starts.",
-    supporting: "A written quote you accept, a deposit, and a date in the diary.",
-  },
-  {
     eyebrow: "NO LEAD FEES",
-    tagline: "Stop paying for leads that go nowhere.",
-    supporting: "5% when a job is paid. Nothing when it isn't.",
+    tagline: "Stop paying for phone numbers.",
+    supporting: "You don't buy leads here. You keep the job and the customer.",
   },
   {
-    eyebrow: "FOR SITE OPERATORS",
-    tagline: "Run every site from one place.",
-    supporting: "Quotes, jobs and invoices across multiple properties.",
+    eyebrow: "HOMEOWNERS",
+    tagline: "A written quote, every time.",
+    supporting: "See the price, the date and what's included before anyone starts.",
   },
   {
-    eyebrow: "CONTRACTOR ADMIN",
-    tagline: "Stop chasing invoices.",
-    supporting: "Send it, get paid through the platform, see what's outstanding.",
+    eyebrow: "MULTI-SITE",
+    tagline: "Every site, one screen.",
+    supporting: "Raise work, approve quotes and track jobs across all your properties.",
+  },
+  {
+    eyebrow: "GETTING PAID",
+    tagline: "Straight to your bank.",
+    supporting: "Card payments land in your account through Stripe. No cheques, no cash on the drive.",
   },
 ];
 
