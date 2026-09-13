@@ -241,6 +241,20 @@ export function useProfileEditor() {
     setIsDirty(JSON.stringify(draft) !== savedRef.current);
   }, [draft]);
 
+  // Warn on tab close / browser back while there are unsaved edits. Listener
+  // is added only while isDirty is true and removed the moment it goes
+  // false (or on unmount) — not a permanently-attached handler that checks
+  // isDirty internally, an actually-absent one otherwise.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
   // ── Core save implementation (accepts a specific draft value) ─────────────
   const saveToDb = useCallback(async (d: ProfileDraft) => {
     if (!contractorId) return;
