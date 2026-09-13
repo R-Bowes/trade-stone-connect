@@ -215,7 +215,7 @@ export function HeroBlock({
         ) : (
           <div style={{
             width: 72, height: 72, borderRadius: "50%",
-            border: "3px solid #f07820", background: "#0f2038",
+            border: "3px solid #f07820", background: "#1a2744",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0, color: "white", fontSize: 24, fontWeight: 700,
           }}>

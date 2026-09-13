@@ -82,7 +82,7 @@ const InvitePage = () => {
 
         {pageState === "unauthenticated" && (
           <div className="text-center space-y-4">
-            <i className="ti ti-mail-opened" style={{ fontSize: 40, color: "#1e3a5f" }} />
+            <i className="ti ti-mail-opened" style={{ fontSize: 40, color: "#1a2744" }} />
             <h1 className="font-heading text-2xl font-bold">You have been invited</h1>
             <p className="text-muted-foreground text-sm">
               Sign in to accept your invitation and join the team on TradeStone.

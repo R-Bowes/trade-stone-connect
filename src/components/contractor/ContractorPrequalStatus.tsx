@@ -255,7 +255,7 @@ export function ContractorPrequalStatus({ profileId }: Props) {
                     ) : (
                       <div
                         className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 text-sm font-semibold"
-                        style={{ background: "#1e3a5f", color: "#fff" }}
+                        style={{ background: "#1a2744", color: "#fff" }}
                       >
                         {initials(entry.company_name)}
                       </div>

@@ -41,7 +41,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
               <div
                 className={cn(
                   "h-10 w-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative",
-                  isCompleted && "bg-[#1e3a5f] border-[#1e3a5f]",
+                  isCompleted && "bg-[#1a2744] border-[#1a2744]",
                   isActive && "border-[#f07820] animate-pulse",
                   !isCompleted && !isActive && "border-muted-foreground/30 bg-muted/30",
                 )}
@@ -60,7 +60,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
               <span
                 className={cn(
                   "mt-1.5 text-[10px] text-center leading-tight w-16",
-                  isCompleted && "font-medium text-[#1e3a5f]",
+                  isCompleted && "font-medium text-[#1a2744]",
                   !isCompleted && !isActive && "text-muted-foreground/40",
                 )}
                 style={isActive ? { color: "#f07820", fontWeight: 600 } : undefined}
@@ -77,7 +77,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
               <div
                 className={cn(
                   "flex-1 h-0.5 mt-5",
-                  idx < currentIdx ? "bg-[#1e3a5f]" : "bg-muted-foreground/20",
+                  idx < currentIdx ? "bg-[#1a2744]" : "bg-muted-foreground/20",
                 )}
               />
             )}

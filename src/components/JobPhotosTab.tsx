@@ -472,7 +472,7 @@ export default function JobPhotosTab({
       <div className="flex items-center justify-between">
         <h4
           className="text-sm font-semibold"
-          style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}
+          style={{ fontFamily: "Lexend, sans-serif", color: "#1a2744" }}
         >
           Job Photos
         </h4>
@@ -497,8 +497,8 @@ export default function JobPhotosTab({
             onClick={() => setActiveTag(null)}
             className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
               !activeTag
-                ? "bg-[#1e2d4a] border-[#1e2d4a] text-white"
-                : "border-muted-foreground/30 text-muted-foreground hover:border-[#1e2d4a] hover:text-[#1e2d4a]"
+                ? "bg-[#1a2744] border-[#1a2744] text-white"
+                : "border-muted-foreground/30 text-muted-foreground hover:border-[#1a2744] hover:text-[#1a2744]"
             }`}
           >
             All
@@ -691,7 +691,7 @@ export default function JobPhotosTab({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}
+              style={{ fontFamily: "Lexend, sans-serif", color: "#1a2744" }}
             >
               Upload Photo
             </DialogTitle>
@@ -851,7 +851,7 @@ export default function JobPhotosTab({
                   }`}
                   style={
                     visibility === "internal"
-                      ? { backgroundColor: "#1e2d4a" }
+                      ? { backgroundColor: "#1a2744" }
                       : undefined
                   }
                 >
@@ -867,7 +867,7 @@ export default function JobPhotosTab({
                   }`}
                   style={
                     visibility === "customer"
-                      ? { backgroundColor: "#1e2d4a" }
+                      ? { backgroundColor: "#1a2744" }
                       : undefined
                   }
                 >

@@ -181,8 +181,8 @@ const ContractorOnboarding = () => {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-[#1C2B3A]" style={{ fontFamily: "Georgia, serif" }}>
-            Trade<span className="text-[#E8640A]">Stone</span>
+          <div className="text-2xl font-bold text-[#1a2744]" style={{ fontFamily: "Georgia, serif" }}>
+            Trade<span className="text-[#f07820]">Stone</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">Contractor setup — step {step} of 4</p>
         </div>
@@ -190,7 +190,7 @@ const ContractorOnboarding = () => {
         {/* Progress */}
         <div className="h-1.5 bg-[#E5E0D8] rounded-full mb-8 overflow-hidden">
           <div
-            className="h-full bg-[#E8640A] rounded-full transition-all duration-300"
+            className="h-full bg-[#f07820] rounded-full transition-all duration-300"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
@@ -201,7 +201,7 @@ const ContractorOnboarding = () => {
           {/* Step 1 — Account type */}
           {step === 1 && (
             <div>
-              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">How do you work?</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1a2744] mb-2">How do you work?</h2>
               <p className="text-sm text-muted-foreground mb-6">This helps us set up your account correctly.</p>
               {[
                 { value: "sole_trader", label: "Sole trader", desc: "I work on my own or with occasional help" },
@@ -212,11 +212,11 @@ const ContractorOnboarding = () => {
                   onClick={() => update("account_type", opt.value)}
                   className={`border-2 rounded-xl p-4 mb-3 cursor-pointer transition-all ${
                     form.account_type === opt.value
-                      ? "border-[#E8640A] bg-orange-50"
+                      ? "border-[#f07820] bg-orange-50"
                       : "border-[#E5E0D8] hover:border-gray-300"
                   }`}
                 >
-                  <div className="font-bold text-sm text-[#1C2B3A]">{opt.label}</div>
+                  <div className="font-bold text-sm text-[#1a2744]">{opt.label}</div>
                   <div className="text-xs text-muted-foreground mt-1">{opt.desc}</div>
                 </div>
               ))}
@@ -226,7 +226,7 @@ const ContractorOnboarding = () => {
           {/* Step 2 — Details */}
           {step === 2 && (
             <div>
-              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Your details</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1a2744] mb-2">Your details</h2>
               <p className="text-sm text-muted-foreground mb-6">This appears on your profile and quotes.</p>
               <div className="space-y-4">
                 {[
@@ -237,8 +237,8 @@ const ContractorOnboarding = () => {
                   { label: "Business address", field: "address", placeholder: "14 Maple Street, Manchester" },
                 ].map((f) => (
                   <div key={f.field}>
-                    <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase">
-                      {f.label}{f.required && <span className="text-[#E8640A] ml-0.5">*</span>}
+                    <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase">
+                      {f.label}{f.required && <span className="text-[#f07820] ml-0.5">*</span>}
                     </Label>
                     <Input
                       className="mt-1.5"
@@ -255,11 +255,11 @@ const ContractorOnboarding = () => {
           {/* Step 3 — Trades & location */}
           {step === 3 && (
             <div>
-              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Your trades & area</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1a2744] mb-2">Your trades & area</h2>
               <p className="text-sm text-muted-foreground mb-5">Select everything you offer — homeowners search by trade.</p>
 
-              <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-3 block">
-                Trades <span className="text-[#E8640A]">*</span>
+              <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-3 block">
+                Trades <span className="text-[#f07820]">*</span>
               </Label>
               <Input
                 placeholder="Search trades..."
@@ -278,7 +278,7 @@ const ContractorOnboarding = () => {
                     onClick={() => toggleTrade(t)}
                     className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition-all ${
                       form.trades.includes(t)
-                        ? "border-[#E8640A] bg-orange-50 text-[#E8640A]"
+                        ? "border-[#f07820] bg-orange-50 text-[#f07820]"
                         : "border-[#E5E0D8] text-gray-500 hover:border-gray-300"
                     }`}
                   >
@@ -288,8 +288,8 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="mb-4">
-                <Label htmlFor="contractor-base-location" className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
-                  Your base location (town or city) <span className="text-[#E8640A]">*</span>
+                <Label htmlFor="contractor-base-location" className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">
+                  Your base location (town or city) <span className="text-[#f07820]">*</span>
                 </Label>
                 <Input
                   id="contractor-base-location"
@@ -315,8 +315,8 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="mb-4">
-                <Label htmlFor="contractor-postcode" className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
-                  Your postcode <span className="text-[#E8640A]">*</span>
+                <Label htmlFor="contractor-postcode" className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">
+                  Your postcode <span className="text-[#f07820]">*</span>
                 </Label>
                 <Input
                   id="contractor-postcode"
@@ -353,7 +353,7 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="mb-4">
-                <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-2 block">
+                <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-2 block">
                   How far will you travel?
                 </Label>
                 <div className="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ const ContractorOnboarding = () => {
                       onClick={() => update("service_area_radius_miles", r)}
                       className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition-all ${
                         form.service_area_radius_miles === r
-                          ? "border-[#1C2B3A] bg-[#1C2B3A] text-white"
+                          ? "border-[#1a2744] bg-[#1a2744] text-white"
                           : "border-[#E5E0D8] text-gray-500 hover:border-gray-300"
                       }`}
                     >
@@ -376,11 +376,11 @@ const ContractorOnboarding = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">Hourly rate (£)</Label>
+                  <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">Hourly rate (£)</Label>
                   <Input value={form.hourly_rate} onChange={(e) => update("hourly_rate", e.target.value)} placeholder="65" type="number" />
                 </div>
                 <div>
-                  <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">Years experience</Label>
+                  <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">Years experience</Label>
                   <Input value={form.years_experience} onChange={(e) => update("years_experience", e.target.value)} placeholder="8" type="number" />
                 </div>
               </div>
@@ -390,12 +390,12 @@ const ContractorOnboarding = () => {
           {/* Step 4 — Bio */}
           {step === 4 && (
             <div>
-              <h2 className="font-heading text-xl font-bold text-[#1C2B3A] mb-2">Tell homeowners about yourself</h2>
+              <h2 className="font-heading text-xl font-bold text-[#1a2744] mb-2">Tell homeowners about yourself</h2>
               <p className="text-sm text-muted-foreground mb-6">A good bio gets more enquiries. Be specific about what you do best.</p>
 
               <div className="mb-5">
-                <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-1.5 block">
-                  Your bio <span className="text-[#E8640A]">*</span>
+                <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">
+                  Your bio <span className="text-[#f07820]">*</span>
                 </Label>
                 <textarea
                   value={form.bio}
@@ -410,16 +410,16 @@ const ContractorOnboarding = () => {
               </div>
 
               <div className="bg-[#F7F4EF] rounded-xl p-4 mb-5">
-                <Label className="text-xs font-bold tracking-wide text-[#1C2B3A] uppercase mb-3 block">Availability</Label>
+                <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-3 block">Availability</Label>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-[#1C2B3A]">Available for new work</p>
+                    <p className="text-sm font-semibold text-[#1a2744]">Available for new work</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Shows a green badge on your profile</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => update("is_available", !form.is_available)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${form.is_available ? "bg-[#E8640A]" : "bg-gray-300"}`}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${form.is_available ? "bg-[#f07820]" : "bg-gray-300"}`}
                   >
                     <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow ${form.is_available ? "left-5" : "left-0.5"}`} />
                   </button>
@@ -446,7 +446,7 @@ const ContractorOnboarding = () => {
           <Button
             onClick={handlePrimaryAction}
             disabled={!canProceed() || saving}
-            className="flex-[2] bg-[#1C2B3A] hover:bg-[#E8640A] text-white transition-colors"
+            className="flex-[2] bg-[#1a2744] hover:bg-[#243354] text-white transition-colors"
           >
             {saving ? "Saving..." : step < 4 ? "Continue →" : "Complete setup →"}
           </Button>

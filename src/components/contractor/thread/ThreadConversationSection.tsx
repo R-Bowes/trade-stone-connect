@@ -51,7 +51,7 @@ export function ThreadConversationSection({ enquiryId, quoteId, jobId }: ThreadC
                 <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
                   <div
                     className={`max-w-[80%] px-3 py-1.5 rounded-2xl text-sm leading-relaxed ${
-                      isMine ? "rounded-br-sm bg-[#1e2d4a] text-white" : "rounded-bl-sm bg-muted"
+                      isMine ? "rounded-br-sm bg-[#1a2744] text-white" : "rounded-bl-sm bg-muted"
                     }`}
                   >
                     {msg.content}

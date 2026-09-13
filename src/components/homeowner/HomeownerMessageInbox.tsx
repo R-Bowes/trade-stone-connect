@@ -76,7 +76,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
       {/* Sidebar */}
       <div className={`${selectedId ? "hidden md:flex" : "flex"} flex-col border-r bg-muted/20 shrink-0 overflow-y-auto w-full md:w-[260px]`}>
         <div className="px-4 py-3 border-b" style={{ fontFamily: "Lexend, sans-serif" }}>
-          <h3 className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>Messages</h3>
+          <h3 className="text-sm font-semibold" style={{ color: "#1a2744" }}>Messages</h3>
         </div>
 
         {convsLoading && (
@@ -100,11 +100,11 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
               type="button"
               onClick={() => setSelectedId(conv.id)}
               className={`w-full text-left px-4 py-3 border-b transition-colors flex flex-col gap-0.5 ${
-                isSelected ? "bg-[#1e2d4a]/5 border-l-2 border-l-[#1e2d4a]" : "hover:bg-muted/40"
+                isSelected ? "bg-[#1a2744]/5 border-l-2 border-l-[#1a2744]" : "hover:bg-muted/40"
               }`}
             >
               <div className="flex items-center justify-between gap-1">
-                <span className="text-xs font-semibold truncate" style={{ color: "#1e2d4a" }}>
+                <span className="text-xs font-semibold truncate" style={{ color: "#1a2744" }}>
                   {contractorName}
                 </span>
                 {conv.unread_count > 0 && (
@@ -155,7 +155,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold" style={{ color: "#1e2d4a" }}>
+                <span className="text-sm font-semibold" style={{ color: "#1a2744" }}>
                   {contractorNames[selectedConv.contractor_id] ?? "Your contractor"}
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -203,7 +203,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                     <div
                       className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${isMine ? "rounded-br-sm" : "rounded-bl-sm"}`}
                       style={isMine
-                        ? { backgroundColor: "#1e2d4a", color: "#fff" }
+                        ? { backgroundColor: "#1a2744", color: "#fff" }
                         : { backgroundColor: "#f1f1f1", color: "#1a1a1a" }}
                     >
                       {msg.content}

@@ -395,7 +395,7 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
                   <div className="flex items-center gap-3 min-w-0">
                     <div
                       className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold"
-                      style={{ background: "#1e3a5f", color: "#fff" }}
+                      style={{ background: "#1a2744", color: "#fff" }}
                     >
                       {initials(c.contractor_name)}
                     </div>

@@ -253,7 +253,7 @@ export function ReceivedQuotes() {
       >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
+            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1a2744" }}>
               Accept quote
             </DialogTitle>
           </DialogHeader>
@@ -275,7 +275,7 @@ export function ReceivedQuotes() {
       >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1e2d4a" }}>
+            <DialogTitle style={{ fontFamily: "Lexend, sans-serif", color: "#1a2744" }}>
               Agree a schedule
             </DialogTitle>
           </DialogHeader>

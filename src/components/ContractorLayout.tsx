@@ -391,7 +391,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 height: 36,
                 borderRadius: "50%",
                 border: "2px solid #f07820",
-                background: "#1e3a5f",
+                background: "#1a2744",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

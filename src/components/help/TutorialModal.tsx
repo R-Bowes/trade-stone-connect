@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useHelpSystem, type UserRole } from "./HelpSystemProvider";
+import { Wordmark } from "@/components/Wordmark";
 
 interface TutorialStep {
   title: string;
@@ -156,18 +157,7 @@ export default function TutorialModal() {
             flexShrink: 0,
           }}
         >
-          <span
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 700,
-              fontSize: 18,
-              letterSpacing: "0.03em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span style={{ color: "#1e3a5f" }}>TRADE</span>
-            <span style={{ color: "#f07820" }}>STONE</span>
-          </span>
+          <Wordmark theme="light" size={18} />
           <span style={{ fontSize: 12, color: "#9ca3af", fontFamily: "inherit" }}>
             Step {step + 1} of {steps.length}
           </span>
