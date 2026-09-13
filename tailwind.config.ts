@@ -97,6 +97,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
+  				'Lexend',
   				'Roboto',
   				'ui-sans-serif',
   				'system-ui',
