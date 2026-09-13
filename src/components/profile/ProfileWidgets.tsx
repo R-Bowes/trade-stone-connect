@@ -21,6 +21,7 @@ export interface PublicProfile {
   years_experience: number | null;
   hourly_rate: number | null;
   social_links?: Record<string, string> | null;
+  created_at?: string | null;
 }
 
 export interface ProfilePhoto {
@@ -162,19 +163,32 @@ export function SocialLinksBar({ socialLinks }: { socialLinks?: Record<string, s
 
 // ─── Hero block ───────────────────────────────────────────────────────────────
 
+// Month and year only -- never a precise date. "Joined March 2026".
+function formatJoined(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `Joined ${d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`;
+}
+
+const ACTIVITY_BAND_LABEL: Record<"week" | "month", string> = {
+  week: "Active this week",
+  month: "Active this month",
+};
+
 export function HeroBlock({
   profile,
   availability,
   isPreview = false,
   coverUrl,
+  activityBand,
 }: {
   profile: PublicProfile | null;
   availability: AvailabilityInfo;
   isPreview?: boolean;
   coverUrl?: string | null;
+  activityBand?: "week" | "month" | null;
 }) {
   if (!profile) return null;
-  const { full_name, company_name, ts_profile_code, logo_url, avatar_url, is_verified, location } = profile;
+  const { full_name, company_name, ts_profile_code, logo_url, avatar_url, is_verified, location, created_at } = profile;
   const imgSrc = logo_url || avatar_url;
 
   return (
@@ -260,6 +274,20 @@ export function HeroBlock({
                 padding: "2px 8px", borderRadius: 4,
               }}>
                 {availability.label}
+              </span>
+            )}
+            {created_at && (
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                {formatJoined(created_at)}
+              </span>
+            )}
+            {activityBand && (
+              <span style={{
+                fontSize: 11, color: "#86efac",
+                background: "rgba(34,197,94,0.1)",
+                padding: "2px 8px", borderRadius: 4,
+              }}>
+                {ACTIVITY_BAND_LABEL[activityBand]}
               </span>
             )}
           </div>

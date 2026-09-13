@@ -53,6 +53,7 @@ interface PageProfile {
   service_area_center_lat: number | null;
   service_area_center_lng: number | null;
   service_area_radius_miles: number | null;
+  created_at: string | null;
 }
 
 interface ProfileVideoRow {
@@ -946,6 +947,7 @@ const ContractorProfile = () => {
   const viewSource: ViewSource = (location.state as { source?: ViewSource } | null)?.source ?? "direct";
 
   const [profile, setProfile] = useState<PageProfile | null>(null);
+  const [activityBand, setActivityBand] = useState<"week" | "month" | null>(null);
   const [sections, setSections] = useState<CanvasSection[]>([]);
   const [photosByGallery, setPhotosByGallery] = useState<Map<string, GalleryPhoto[]>>(new Map());
   const [allPhotos, setAllPhotos] = useState<GalleryPhoto[]>([]);
@@ -998,7 +1000,8 @@ const ContractorProfile = () => {
         avatar_url, logo_url, is_verified,
         rating, review_count, completed_jobs, years_experience, hourly_rate,
         profile_is_published, cover_url, cta_label,
-        social_links, service_area_center_lat, service_area_center_lng, service_area_radius_miles
+        social_links, service_area_center_lat, service_area_center_lng, service_area_radius_miles,
+        created_at
       `;
 
       if (code) {
@@ -1041,6 +1044,13 @@ const ContractorProfile = () => {
         cta_label: (pub as any).cta_label ?? null,
       };
       setProfile(assembled);
+
+      supabase
+        .rpc("get_contractor_activity_band", { p_contractor_id: assembled.id })
+        .then(({ data, error }) => {
+          if (error) { console.error("Failed to load activity band:", error); return; }
+          setActivityBand((data as "week" | "month" | null) ?? null);
+        });
 
       const { data: { user } } = await supabase.auth.getUser();
       const owner = user?.id === assembled.user_id;
@@ -1454,7 +1464,7 @@ const ContractorProfile = () => {
 
         <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
           {/* Hero — always first */}
-          <HeroBlock profile={profile} availability={availability} coverUrl={profile.cover_url} />
+          <HeroBlock profile={profile} availability={availability} coverUrl={profile.cover_url} activityBand={activityBand} />
 
           {/* Compact tier badge + explainer, right under the name/TS code */}
           <HeroVerificationBadge tier={verificationTier} />
