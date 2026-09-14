@@ -21,7 +21,6 @@ import { BusinessMessageInbox } from "@/components/business/BusinessMessageInbox
 import ContractorLayout from "@/components/ContractorLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ProfileManagement } from "@/components/management/ProfileManagement";
-import { ProfileEditor } from "@/components/management/ProfileEditor";
 import { CanvasEditor } from "@/components/profile/CanvasEditor";
 import { PhotoGallery } from "@/components/management/PhotoGallery";
 import { TeamManagement } from "@/components/management/TeamManagement";
@@ -791,7 +790,6 @@ const ContractorDashboard = () => {
           <TabsContent value="business-card-editor">
             <BusinessCardEditor tsCode="" fullName="" trade="" location="" logoUrl="" />
           </TabsContent>
-          <TabsContent value="profile-editor" style={{ height: "100%", padding: 0 }}><ProfileEditor /></TabsContent>
         </Tabs>
 
         {activeEnquiry && (

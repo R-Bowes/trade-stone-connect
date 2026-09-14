@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 // contractor_projects is created by migration 20260618120000.
 // Not yet in generated types.ts — cast as needed until regenerated.
 
+const BUCKET = "contractor-photos";
+
 export interface ContractorProject {
   id: string;
   contractor_id: string;
@@ -13,6 +15,14 @@ export interface ContractorProject {
   location: string | null;
   completion_date: string | null;
   photo_urls: string[];
+  // group_id -> contractor_project_groups(id). Added by migration
+  // 20260913130000 — NOT YET PUSHED. Scopes a project to the one project
+  // section (SectionInstance.sectionRefId) it belongs to, mirroring
+  // contractor_photos.gallery_id. Nullable: existing projects predating
+  // this column are NULL (ungrouped) and, per the same-shape-as-galleries
+  // convention, won't appear in any project section until reassigned —
+  // see CanvasEditor.tsx's ProjectPanelContent "not linked" handling.
+  group_id: string | null;
   display_order: number;
   created_at: string;
   updated_at: string;
@@ -20,7 +30,7 @@ export interface ContractorProject {
 
 export type ProjectData = Pick<
   ContractorProject,
-  "title" | "description" | "trade" | "location" | "completion_date" | "photo_urls"
+  "title" | "description" | "trade" | "location" | "completion_date" | "photo_urls" | "group_id"
 >;
 
 // For the authenticated contractor managing their own projects.
@@ -30,6 +40,7 @@ export function useContractorProjects() {
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ContractorProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -69,6 +80,7 @@ export function useContractorProjects() {
         location: data.location ?? null,
         completion_date: data.completion_date ?? null,
         photo_urls: data.photo_urls ?? [],
+        group_id: data.group_id ?? null,
         display_order: projects.length,
       })
       .select()
@@ -86,6 +98,31 @@ export function useContractorProjects() {
       .single();
     if (error) throw error;
     if (updated) setProjects(prev => prev.map(p => p.id === id ? updated as ContractorProject : p));
+  }, []);
+
+  // Path convention `${user.id}/projects/{uuid}.{ext}` mirrors
+  // usePhotoGalleries.ts's uploadPhoto / useBeforeAfter.ts's
+  // uploadBeforeAfterPhoto — same bucket, same top-level auth.uid()-scoped
+  // folder the bucket's RLS is keyed on. Unlike those two, there's no
+  // per-photo table row here: the caller appends the returned URL onto
+  // the project's own photo_urls array via updateProject.
+  const uploadProjectPhoto = useCallback(async (file: File): Promise<string> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const filePath = `${user.id}/projects/${crypto.randomUUID()}.${ext}`;
+
+      const { error } = await supabase.storage.from(BUCKET).upload(filePath, file);
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+      return publicUrl;
+    } finally {
+      setUploading(false);
+    }
   }, []);
 
   const deleteProject = useCallback(async (id: string) => {
@@ -113,7 +150,7 @@ export function useContractorProjects() {
     );
   }, [projects]);
 
-  return { projects, loading, addProject, updateProject, deleteProject, reorderProjects };
+  return { projects, loading, uploading, addProject, updateProject, deleteProject, reorderProjects, uploadProjectPhoto };
 }
 
 // For reading another contractor's projects on the public profile page.

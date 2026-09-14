@@ -104,7 +104,6 @@ const VIEW_LABELS: Record<string, string> = {
   documents: "Documents",
   profile: "Profile",
   "canvas-editor": "Profile Editor",
-  "profile-editor": "Profile Editor",
   "share-profile": "Share profile",
   "business-card-editor": "Business card editor",
   "kpi-insights": "KPI & Insights",

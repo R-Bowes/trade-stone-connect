@@ -1116,6 +1116,48 @@ export type Database = {
           },
         ]
       }
+      contractor_project_groups: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          display_order: number
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_project_groups_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_project_groups_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contractor_projects: {
         Row: {
           completed_date: string | null
@@ -1123,6 +1165,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           display_order: number
+          group_id: string | null
           id: string
           photos: string[] | null
           title: string
@@ -1135,6 +1178,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           display_order?: number
+          group_id?: string | null
           id?: string
           photos?: string[] | null
           title: string
@@ -1147,6 +1191,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           display_order?: number
+          group_id?: string | null
           id?: string
           photos?: string[] | null
           title?: string
@@ -1166,6 +1211,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_projects_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_project_groups"
             referencedColumns: ["id"]
           },
         ]

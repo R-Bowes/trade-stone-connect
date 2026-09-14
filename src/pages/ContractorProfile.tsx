@@ -100,6 +100,10 @@ interface Project {
   location: string | null;
   completion_date: string | null;
   photo_urls: string[];
+  // group_id -> contractor_project_groups(id), added by migration
+  // 20260913130000 (A2). Null for projects created before it — see
+  // ProjectBlock below.
+  group_id: string | null;
   display_order: number;
 }
 
@@ -348,15 +352,28 @@ function PhotosBlock({ section, allPhotos }: { section: CanvasSection; allPhotos
 }
 
 function ProjectBlock({ section, projects }: { section: CanvasSection; projects: Project[] }) {
-  if (!projects.length) return null;
+  // A2: scope to this section's own group, same as GalleryBlock scopes to
+  // section.section_ref_id via photosByGallery. A project with no group
+  // (group_id IS NULL — every project created before this migration)
+  // won't render here until reassigned; see CanvasEditor.tsx's
+  // ProjectPanelContent for the matching editor-side state.
+  const groupProjects = section.section_ref_id ? projects.filter(p => p.group_id === section.section_ref_id) : [];
+  if (!groupProjects.length) return null;
   return (
     <SectionCard heading={getSectionLabel(section)}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {projects.map(p => (
+        {groupProjects.map(p => (
           <div key={p.id} style={{ border: "1px solid #f0f0f0", borderRadius: 10, overflow: "hidden" }}>
             {p.photo_urls.length > 0 && (
-              <div style={{ height: 160, overflow: "hidden" }}>
-                <img src={p.photo_urls[0]} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              // Same grid pattern as GalleryBlock above — one visual/interaction
+              // model for photos across the whole profile, no lightbox either
+              // place, so nothing new for a visitor to learn here.
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4 }}>
+                {p.photo_urls.slice(0, 9).map((url, i) => (
+                  <div key={i} style={{ aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
+                    <img src={url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                ))}
               </div>
             )}
             <div style={{ padding: "12px 16px" }}>
@@ -1247,7 +1264,7 @@ const ContractorProfile = () => {
         fetches.push(
           (supabase as any)
             .from("contractor_projects")
-            .select("id, title, description, trade, location, completion_date, photo_urls, display_order")
+            .select("id, title, description, trade, location, completion_date, photo_urls, group_id, display_order")
             .eq("contractor_id", profileId)
             .order("display_order", { ascending: true })
             .then(({ data }: { data: Project[] | null }) => setProjects(data ?? []))

@@ -18,6 +18,17 @@ export interface SectionInstance {
   meta: Record<string, unknown>;  // visibleStats[], pinnedReviewIds[], etc.
 }
 
+// bio_heading/services_heading/reviews_heading/credentials_heading/
+// availability_heading/team_heading (profiles columns) are deliberately NOT
+// modelled here any more. They used to be loaded/saved alongside this draft
+// but had no input anywhere that edited them — every section's actual,
+// editable heading is section.label (per-SectionInstance, below), which is
+// also the only heading the public profile ever reads
+// (ContractorProfile.tsx's getSectionLabel()). Rendering both left the
+// editor preview showing a permanently-stuck, uneditable string that could
+// (and did, by default) disagree with what the public page actually showed.
+// The DB columns are left in place — vestigial, not read anywhere in the
+// app — pending a decision on dropping them.
 export interface ProfileDraft {
   sections: SectionInstance[];
   vanitySlug: string;
@@ -25,13 +36,7 @@ export interface ProfileDraft {
   seoDescription: string;
   visibilityPublic: boolean;
   ctaLabel: string;
-  bioHeading: string;
   bioText: string;
-  servicesHeading: string;
-  reviewsHeading: string;
-  credentialsHeading: string;
-  availabilityHeading: string;
-  teamHeading: string;
   coverUrl: string;
   displayName: string;
   companyName: string;
@@ -102,13 +107,7 @@ const BLANK_DRAFT: ProfileDraft = {
   seoDescription: "",
   visibilityPublic: true,
   ctaLabel: "Get in touch",
-  bioHeading: "About me",
   bioText: "",
-  servicesHeading: "Services",
-  reviewsHeading: "What clients say",
-  credentialsHeading: "Credentials",
-  availabilityHeading: "Availability",
-  teamHeading: "Our team",
   coverUrl: "",
   displayName: "",
   companyName: "",
@@ -174,13 +173,7 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
     seoDescription: p.seo_description ?? "",
     visibilityPublic: p.visibility_public ?? true,
     ctaLabel: p.cta_label ?? "Get in touch",
-    bioHeading: p.bio_heading ?? "About me",
     bioText: p.bio ?? "",
-    servicesHeading: p.services_heading ?? "Services",
-    reviewsHeading: p.reviews_heading ?? "What clients say",
-    credentialsHeading: p.credentials_heading ?? "Credentials",
-    availabilityHeading: p.availability_heading ?? "Availability",
-    teamHeading: p.team_heading ?? "Our team",
     coverUrl: p.cover_url ?? "",
     displayName: p.full_name ?? "",
     companyName: p.company_name ?? "",
@@ -272,12 +265,6 @@ export function useProfileEditor() {
         seo_description: d.seoDescription || null,
         visibility_public: d.visibilityPublic,
         cta_label: d.ctaLabel || null,
-        bio_heading: d.bioHeading || null,
-        services_heading: d.servicesHeading || null,
-        reviews_heading: d.reviewsHeading || null,
-        credentials_heading: d.credentialsHeading || null,
-        availability_heading: d.availabilityHeading || null,
-        team_heading: d.teamHeading || null,
         profile_is_published: d.isPublished,
         profile_published_at: d.publishedAt,
         social_links: d.socialLinks,

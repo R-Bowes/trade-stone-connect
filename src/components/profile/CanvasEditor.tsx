@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useProfileEditor";
 import { usePhotoGalleries, useGalleryPhotos, type ContractorPhoto } from "@/hooks/usePhotoGalleries";
 import { useContractorProjects, type ContractorProject, type ProjectData } from "@/hooks/useContractorProjects";
+import { useProjectGroups } from "@/hooks/useProjectGroups";
 import { useContractorTeam, type TeamMemberInsert } from "@/hooks/useContractorTeam";
 import { useContractorCredentials, type NewCredential } from "@/hooks/useContractorCredentials";
 import { useProfileVideos, extractVideoId, type ProfileVideo } from "@/hooks/useProfileVideos";
@@ -215,10 +216,10 @@ function HeroContent({ draft, profile }: { draft: ProfileDraft; profile: Supplem
   );
 }
 
-function BioContent({ draft }: { draft: ProfileDraft }) {
+function BioContent({ draft, section }: { draft: ProfileDraft; section: SectionInstance }) {
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>{draft.bioHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>{section.label}</div>
       <p style={{ color: "#4b5563", fontSize: 14, lineHeight: 1.6, margin: 0 }}>
         {draft.bioText || <span style={{ color: "#9ca3af" }}>No bio added yet</span>}
       </p>
@@ -249,11 +250,11 @@ function StatsContent({ draft, profile, section }: { draft: ProfileDraft; profil
   );
 }
 
-function ServicesContent({ draft, profile }: { draft: ProfileDraft; profile: SupplementaryProfile | null }) {
+function ServicesContent({ profile, section }: { profile: SupplementaryProfile | null; section: SectionInstance }) {
   const trades = profile?.trades ?? [];
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.servicesHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
       {trades.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13 }}>No trades added to your profile yet</div>
         : (
@@ -290,14 +291,20 @@ function GalleryContent({ section, galleryPhotoMap }: { section: SectionInstance
 }
 
 function ProjectContent({ section, projects }: { section: SectionInstance; projects: ContractorProject[] }) {
+  // A2: scope to this section's own group — see ProjectPanelContent for the
+  // "not linked" case (no sectionRefId). An unlinked section's projects
+  // list is empty here too, which already falls through to the ordinary
+  // empty state below — correct, since the remedy (remove/re-add) lives in
+  // the panel, not the preview.
+  const groupProjects = section.sectionRefId ? projects.filter(p => p.group_id === section.sectionRefId) : [];
   return (
     <div style={{ padding: "20px 24px" }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
-      {projects.length === 0
+      {groupProjects.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No projects yet — add your first in the panel</div>
         : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {projects.map(p => (
+            {groupProjects.map(p => (
               <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px" }}>
                 <div style={{ fontWeight: 600, color: NAVY, fontSize: 14 }}>{p.title}</div>
                 {p.trade && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{p.trade}{p.location ? ` · ${p.location}` : ""}</div>}
@@ -310,12 +317,12 @@ function ProjectContent({ section, projects }: { section: SectionInstance; proje
   );
 }
 
-function ReviewsContent({ draft, reviews, section }: { draft: ProfileDraft; reviews: ReviewRow[]; section: SectionInstance }) {
+function ReviewsContent({ reviews, section }: { reviews: ReviewRow[]; section: SectionInstance }) {
   const pinned = (section.meta.pinnedReviewIds as string[] | undefined) ?? [];
   const shown = pinned.length > 0 ? reviews.filter(r => pinned.includes(r.id)) : reviews.slice(0, 2);
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.reviewsHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
       {shown.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13 }}>Reviews from completed jobs appear here</div>
         : shown.map(r => (
@@ -329,11 +336,11 @@ function ReviewsContent({ draft, reviews, section }: { draft: ProfileDraft; revi
   );
 }
 
-function TeamContent({ draft, members }: { draft: ProfileDraft; members: TeamMemberRow[] }) {
+function TeamContent({ members, section }: { members: TeamMemberRow[]; section: SectionInstance }) {
   const active = members.filter(m => m.status === "active");
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.teamHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
       {active.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13 }}>No team members yet</div>
         : (
@@ -356,10 +363,10 @@ function TeamContent({ draft, members }: { draft: ProfileDraft; members: TeamMem
   );
 }
 
-function CredentialsContent({ draft, credentials }: { draft: ProfileDraft; credentials: CredentialRow[] }) {
+function CredentialsContent({ credentials, section }: { credentials: CredentialRow[]; section: SectionInstance }) {
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.credentialsHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
       {credentials.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13 }}>No credentials added yet</div>
         : (
@@ -377,10 +384,10 @@ function CredentialsContent({ draft, credentials }: { draft: ProfileDraft; crede
   );
 }
 
-function AvailabilityContent({ draft }: { draft: ProfileDraft }) {
+function AvailabilityContent({ section }: { section: SectionInstance }) {
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{draft.availabilityHeading}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
       <div style={{ color: "#6b7280", fontSize: 13 }}>Live availability calendar — managed from your Availability tab</div>
     </div>
   );
@@ -563,15 +570,15 @@ function CanvasBlock(props: CanvasBlockProps) {
 
       {/* Block content */}
       {section.type === "hero" && <HeroContent draft={draft} profile={profile} />}
-      {section.type === "bio" && <BioContent draft={draft} />}
+      {section.type === "bio" && <BioContent draft={draft} section={section} />}
       {section.type === "stats" && <StatsContent draft={draft} profile={profile} section={section} />}
-      {section.type === "services" && <ServicesContent draft={draft} profile={profile} />}
+      {section.type === "services" && <ServicesContent profile={profile} section={section} />}
       {section.type === "gallery" && <GalleryContent section={section} galleryPhotoMap={galleryPhotoMap} />}
       {section.type === "project" && <ProjectContent section={section} projects={projects} />}
-      {section.type === "reviews" && <ReviewsContent draft={draft} reviews={reviews} section={section} />}
-      {section.type === "team" && <TeamContent draft={draft} members={members} />}
-      {section.type === "credentials" && <CredentialsContent draft={draft} credentials={credentials} />}
-      {section.type === "availability" && <AvailabilityContent draft={draft} />}
+      {section.type === "reviews" && <ReviewsContent reviews={reviews} section={section} />}
+      {section.type === "team" && <TeamContent members={members} section={section} />}
+      {section.type === "credentials" && <CredentialsContent credentials={credentials} section={section} />}
+      {section.type === "availability" && <AvailabilityContent section={section} />}
       {section.type === "video" && <VideoContent section={section} videos={videos} />}
       {section.type === "before_after" && <BeforeAfterContent section={section} pairs={beforeAfterPairs} />}
       {section.type === "service_area" && <ServiceAreaContent draft={draft} profile={profile} />}
@@ -744,41 +751,186 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
   );
 }
 
-function ProjectPanelContent({ section, updateSection, projects, addProject, updateProject, deleteProject }: {
+function ProjectPanelContent({ section, updateSection, projects, addProject, updateProject, deleteProject, uploadProjectPhoto, uploading, updateGroup }: {
   section: SectionInstance;
   updateSection: (id: string, p: Partial<SectionInstance>) => void;
   projects: ContractorProject[];
   addProject: (data: ProjectData) => Promise<void>;
   updateProject: (id: string, data: Partial<ProjectData>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  uploadProjectPhoto: (file: File) => Promise<string>;
+  uploading: boolean;
+  updateGroup: (id: string, title: string) => Promise<void>;
 }) {
+  const groupId = section.sectionRefId ?? null;
+
+  // A2: mirrors GalleryPanelContent's "not linked" fallback exactly — a
+  // project section with no group to scope its content to shows this
+  // instead of the add/edit form, rather than falling back to showing
+  // every project the contractor has ever created (the bug this fixes).
+  // A project created before this migration (group_id IS NULL) is in the
+  // same state as this section until one of them is reassigned — neither
+  // this panel nor the gallery one offers a reassignment control today.
+  if (!groupId) {
+    return <div style={{ color: "#9ca3af", fontSize: 13 }}>Project group not linked. Try removing and re-adding this section.</div>;
+  }
+
+  return (
+    <ProjectPanelBody
+      section={section} updateSection={updateSection} groupId={groupId} updateGroup={updateGroup}
+      projects={projects} addProject={addProject} updateProject={updateProject} deleteProject={deleteProject}
+      uploadProjectPhoto={uploadProjectPhoto} uploading={uploading}
+    />
+  );
+}
+
+function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projects, addProject, updateProject, deleteProject, uploadProjectPhoto, uploading }: {
+  section: SectionInstance;
+  updateSection: (id: string, p: Partial<SectionInstance>) => void;
+  groupId: string;
+  updateGroup: (id: string, title: string) => Promise<void>;
+  projects: ContractorProject[];
+  addProject: (data: ProjectData) => Promise<void>;
+  updateProject: (id: string, data: Partial<ProjectData>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  uploadProjectPhoto: (file: File) => Promise<string>;
+  uploading: boolean;
+}) {
+  const groupProjects = projects.filter(p => p.group_id === groupId);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newTrade, setNewTrade] = useState("");
   const [newLocation, setNewLocation] = useState("");
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editTrade, setEditTrade] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
   const handleAdd = async () => {
     if (!newTitle.trim()) return;
-    await addProject({ title: newTitle.trim(), description: newDesc || null, trade: newTrade || null, location: newLocation || null, completion_date: null, photo_urls: [] });
+    await addProject({ title: newTitle.trim(), description: newDesc || null, trade: newTrade || null, location: newLocation || null, completion_date: null, photo_urls: [], group_id: groupId });
     setAdding(false);
     setNewTitle(""); setNewDesc(""); setNewTrade(""); setNewLocation("");
+  };
+
+  // Mirrors GalleryPanelContent's handleTitleChange — keep the underlying
+  // group's own title column in sync with the section's editable heading.
+  const handleHeadingChange = (title: string) => {
+    updateSection(section.id, { label: title });
+    updateGroup(groupId, title).catch(() => { /* non-fatal, matches gallery */ });
+  };
+
+  const startEdit = (p: ContractorProject) => {
+    setEditingId(p.id);
+    setEditTitle(p.title);
+    setEditDesc(p.description ?? "");
+    setEditTrade(p.trade ?? "");
+    setEditLocation(p.location ?? "");
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!editTitle.trim()) return;
+    await updateProject(id, {
+      title: editTitle.trim(),
+      description: editDesc || null,
+      trade: editTrade || null,
+      location: editLocation || null,
+    });
+    setEditingId(null);
+  };
+
+  const triggerPhotoUpload = (id: string) => {
+    setUploadTargetId(id);
+    fileRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const targetId = uploadTargetId;
+    e.target.value = "";
+    if (!file || !targetId) return;
+    const project = projects.find(p => p.id === targetId);
+    if (!project) return;
+    try {
+      const url = await uploadProjectPhoto(file);
+      await updateProject(targetId, { photo_urls: [...project.photo_urls, url] });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: String(err?.message ?? err), variant: "destructive" });
+    }
+  };
+
+  const removePhoto = async (p: ContractorProject, url: string) => {
+    await updateProject(p.id, { photo_urls: p.photo_urls.filter(u => u !== url) });
   };
 
   return (
     <div>
       <FieldLabel>Section heading</FieldLabel>
-      <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Project showcase" />
+      <PanelInput value={section.label} onChange={handleHeadingChange} placeholder="Project showcase" />
       <FieldLabel>Projects ({projects.length}/3)</FieldLabel>
-      {projects.map(p => (
+      <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={handleFileChange} />
+      {groupProjects.map(p => (
         <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: NAVY }}>{p.title}</div>
-            <button onClick={() => deleteProject(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 0 }}>
-              <i className="ti ti-trash" style={{ fontSize: 14 }} />
+          {editingId === p.id ? (
+            <div>
+              <FieldLabel>Title</FieldLabel>
+              <PanelInput value={editTitle} onChange={setEditTitle} placeholder="Project name" />
+              <FieldLabel>Trade</FieldLabel>
+              <PanelInput value={editTrade} onChange={setEditTrade} placeholder="e.g. Plumbing" />
+              <FieldLabel>Location</FieldLabel>
+              <PanelInput value={editLocation} onChange={setEditLocation} placeholder="e.g. Manchester" />
+              <FieldLabel>Description</FieldLabel>
+              <PanelTextarea value={editDesc} onChange={setEditDesc} placeholder="Brief overview…" rows={3} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <PanelBtn onClick={() => saveEdit(p.id)}>Save</PanelBtn>
+                <PanelBtn variant="ghost" onClick={() => setEditingId(null)}>Cancel</PanelBtn>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: NAVY }}>{p.title}</div>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => startEdit(p)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 0 }}>
+                    <i className="ti ti-pencil" style={{ fontSize: 14 }} />
+                  </button>
+                  <button onClick={() => deleteProject(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 0 }}>
+                    <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                  </button>
+                </div>
+              </div>
+              {p.trade && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{p.trade}{p.location ? ` · ${p.location}` : ""}</div>}
+              {p.description && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{p.description}</div>}
+            </>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 8 }}>
+            {p.photo_urls.map(url => (
+              <div key={url} style={{ position: "relative", aspectRatio: "1", background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}>
+                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <button
+                  onClick={() => removePhoto(p, url)}
+                  style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", width: 18, height: 18, color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <i className="ti ti-x" style={{ fontSize: 10 }} />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => triggerPhotoUpload(p.id)}
+              disabled={uploading}
+              style={{ aspectRatio: "1", background: "#f9fafb", border: "2px dashed #d1d5db", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 18 }}
+            >
+              <i className={`ti ${uploading && uploadTargetId === p.id ? "ti-loader" : "ti-plus"}`} />
             </button>
           </div>
-          {p.trade && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{p.trade}{p.location ? ` · ${p.location}` : ""}</div>}
         </div>
       ))}
       {projects.length < 3 && !adding && (
@@ -1220,6 +1372,9 @@ interface EditPanelProps {
   addProject: (data: ProjectData) => Promise<void>;
   updateProject: (id: string, data: Partial<ProjectData>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  uploadProjectPhoto: (file: File) => Promise<string>;
+  projectPhotoUploading: boolean;
+  updateProjectGroup: (id: string, title: string) => Promise<void>;
   members: TeamMemberRow[];
   addMember: (data: TeamMemberInsert) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
@@ -1241,7 +1396,7 @@ interface EditPanelProps {
 function EditPanel(props: EditPanelProps) {
   const {
     section, onClose, draft, updateDraft, updateSection, onDeleteSection, saving, onSave,
-    reviews, projects, addProject, updateProject, deleteProject, members, addMember, deleteMember,
+    reviews, projects, addProject, updateProject, deleteProject, uploadProjectPhoto, projectPhotoUploading, updateProjectGroup, members, addMember, deleteMember,
     credentials, addCredential, deleteCredential, galleries, updateGallery,
     videos, addVideo, removeVideo, beforeAfterPairs, addBeforeAfterPair, removeBeforeAfterPair,
     uploadBeforeAfterPhoto, beforeAfterUploading,
@@ -1277,7 +1432,12 @@ function EditPanel(props: EditPanelProps) {
           <GalleryPanelContent section={section} updateSection={updateSection} galleries={galleries} updateGallery={updateGallery} />
         )}
         {section?.type === "project" && (
-          <ProjectPanelContent section={section} updateSection={updateSection} projects={projects} addProject={addProject} updateProject={updateProject} deleteProject={deleteProject} />
+          <ProjectPanelContent
+            section={section} updateSection={updateSection} projects={projects}
+            addProject={addProject} updateProject={updateProject} deleteProject={deleteProject}
+            uploadProjectPhoto={uploadProjectPhoto} uploading={projectPhotoUploading}
+            updateGroup={updateProjectGroup}
+          />
         )}
         {section?.type === "reviews" && <ReviewsPanelContent section={section} updateSection={updateSection} reviews={reviews} />}
         {section?.type === "team" && (
@@ -1524,7 +1684,8 @@ export function CanvasEditor() {
   const projectSections = draft.sections.filter(s => s.type === "project");
 
   const { galleries, addGallery, updateGallery, deleteGallery } = usePhotoGalleries();
-  const { projects, addProject, updateProject, deleteProject } = useContractorProjects();
+  const { projects, addProject, updateProject, deleteProject, uploadProjectPhoto, uploading: projectPhotoUploading } = useContractorProjects();
+  const { addGroup: addProjectGroup, updateGroup: updateProjectGroup } = useProjectGroups();
   const { members, addMember, deleteMember } = useContractorTeam();
   const { credentials, addCredential, deleteCredential } = useContractorCredentials();
   const { videos, addVideo, removeVideo } = useProfileVideos();
@@ -1535,6 +1696,7 @@ export function CanvasEditor() {
   const [galleryPhotoMap, setGalleryPhotoMap] = useState<Map<string, ContractorPhoto[]>>(new Map());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addingGallery, setAddingGallery] = useState(false);
+  const [addingProject, setAddingProject] = useState(false);
 
   // Load supplementary profile data
   useEffect(() => {
@@ -1644,11 +1806,23 @@ export function CanvasEditor() {
     }
   }, [addGallery, addSection, addingGallery, gallerySections.length]);
 
-  const handleAddProject = useCallback(() => {
-    if (projectSections.length >= 3) return;
-    const newSectionId = addSection("project", undefined, "Project showcase");
-    focusSection(newSectionId);
-  }, [addSection, projectSections.length]);
+  const handleAddProject = useCallback(async () => {
+    if (addingProject || projectSections.length >= 3) return;
+    setAddingProject(true);
+    try {
+      // Mirrors handleAddGallery exactly (A2): create the durable group row
+      // first, then a section pointing at it — never an unlinked section.
+      const groupId = await addProjectGroup("Project showcase");
+      if (groupId) {
+        const newSectionId = addSection("project", groupId, "Project showcase");
+        focusSection(newSectionId);
+      }
+    } catch (err) {
+      console.error("Failed to add project group:", err);
+    } finally {
+      setAddingProject(false);
+    }
+  }, [addProjectGroup, addSection, addingProject, projectSections.length]);
 
   if (loading) {
     return (
@@ -1739,6 +1913,9 @@ export function CanvasEditor() {
           addProject={addProject}
           updateProject={updateProject}
           deleteProject={deleteProject}
+          uploadProjectPhoto={uploadProjectPhoto}
+          projectPhotoUploading={projectPhotoUploading}
+          updateProjectGroup={updateProjectGroup}
           members={members}
           addMember={addMember}
           deleteMember={deleteMember}
