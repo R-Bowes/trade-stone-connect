@@ -86,6 +86,14 @@ type Job = Database["public"]["Tables"]["jobs"]["Row"];
 // (pending migration 20260629130000_sla_clock.sql + a types regen) — extend locally.
 type JobWithSla = Job & { sla_status?: string | null; sla_completion_due?: string | null };
 
+// Mirrors ContractorLayout.tsx's BOUNDED_VIEWS/isBoundedView exactly — same
+// `?view=` value, same reason: these two views are a fixed-viewport,
+// internally-scrolling app rather than an ordinary page, so the wrapping
+// div/Tabs here need a real bounded height instead of the default
+// container/space-y layout. Add a view to both files together, not one.
+const BOUNDED_VIEWS = new Set(["messages", "canvas-editor"]);
+const isBoundedView = (view: string) => BOUNDED_VIEWS.has(view);
+
 const ContractorDashboard = () => {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [activeEnquiry, setActiveEnquiry] = useState<EnquiryForDialog | null>(null);
@@ -470,11 +478,11 @@ const ContractorDashboard = () => {
   return (
     <HelpSystemProvider profileId={profileId} role="contractor">
     <ContractorLayout>
-      <div className={activeTab === "messages" ? "h-full min-h-0 flex flex-col" : "container mx-auto px-4 py-8 max-w-7xl"}>
+      <div className={isBoundedView(activeTab) ? "h-full min-h-0 flex flex-col" : "container mx-auto px-4 py-8 max-w-7xl"}>
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className={activeTab === "messages" ? "h-full min-h-0 flex flex-col flex-1" : "space-y-8"}
+          className={isBoundedView(activeTab) ? "h-full min-h-0 flex flex-col flex-1" : "space-y-8"}
         >
 
           {/* Dashboard Tab */}

@@ -78,6 +78,18 @@ const STANDALONE_ROUTES: Record<string, string> = {
   "kpi-insights": "/kpi-insights",
 };
 
+// Views built as a fixed-viewport, internally-scrolling app (their own
+// panes declare overflow: hidden / overflow: auto and need a real,
+// bounded ancestor height to make that mean anything) rather than an
+// ordinary page the document scrolls. Every other view is unaffected.
+// BusinessLayout/HomeownerLayout are unconditionally bounded for every
+// view — that inconsistency with this file predates this list and is
+// deliberately not being closed here; this file still special-cases by
+// view. Add a view here, not as a fifth bare `=== "messages"`-style
+// comparison, when it needs the same treatment.
+const BOUNDED_VIEWS = new Set(["messages", "canvas-editor"]);
+const isBoundedView = (view: string) => BOUNDED_VIEWS.has(view);
+
 const VIEW_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   enquiries: "Enquiries",
@@ -247,8 +259,8 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
       style={{
         display: "flex",
         minHeight: "100vh",
-        height: activeView === "messages" ? "100vh" : undefined,
-        overflow: activeView === "messages" ? "hidden" : "visible",
+        height: isBoundedView(activeView) ? "100vh" : undefined,
+        overflow: isBoundedView(activeView) ? "hidden" : "visible",
       }}
     >
       {/* Mobile backdrop */}
@@ -657,7 +669,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             flex: 1,
             minWidth: 0,
             overflowX: "hidden",
-            overflowY: activeView === "messages" ? "auto" : undefined,
+            overflowY: isBoundedView(activeView) ? "auto" : undefined,
             paddingBottom: isMobile ? 72 : undefined,
           }}
         >
