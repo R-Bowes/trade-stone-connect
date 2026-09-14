@@ -9,9 +9,9 @@ import type { Database } from "@/integrations/supabase/types";
 // documents the change; see CLAUDE.md's schema-change-discipline section
 // for the two prior incidents of this same pattern). Live columns:
 // id, contractor_id, title, description, value_label, completed_date
-// (text, not date, and not modelled here — see ProjectData below),
-// photos (text[]), display_order, created_at, updated_at, group_id.
-// There is no trade or location column. ContractorProject is derived
+// (text, not date — see the "YYYY-MM" convention note on ProjectData
+// below), photos (text[]), display_order, created_at, updated_at,
+// group_id. There is no trade or location column. ContractorProject is derived
 // from the generated Database type (not hand-written) specifically so a
 // future drift like this one is a compile error, not a silent PGRST204.
 // value_label exists live and is untouched here — nothing in the app
@@ -21,14 +21,15 @@ const BUCKET = "contractor-photos";
 
 export type ContractorProject = Database["public"]["Tables"]["contractor_projects"]["Row"];
 
-// completed_date is deliberately excluded: nothing in the panel ever
-// collects it, so through the app it can only ever be null — not worth
-// carrying in the write payload. The column itself is untouched; a value
-// set some other way still round-trips fine via ContractorProject/Row
-// above, just never written here.
+// completed_date: text column, no DB-level format constraint. The app is
+// the only thing enforcing a shape — always "YYYY-MM" (month + year, no
+// day) or null, never free text. Native <input type="month"> in
+// CanvasEditor.tsx's ProjectPanelBody only ever produces that shape or
+// "", so the write side here just maps "" to null rather than
+// re-validating a format the input can't violate.
 export type ProjectData = Pick<
   ContractorProject,
-  "title" | "description" | "photos" | "group_id"
+  "title" | "description" | "photos" | "group_id" | "completed_date"
 >;
 
 // For the authenticated contractor managing their own projects.
@@ -76,6 +77,7 @@ export function useContractorProjects() {
         description: data.description ?? null,
         photos: data.photos ?? [],
         group_id: data.group_id ?? null,
+        completed_date: data.completed_date ?? null,
         display_order: projects.length,
       })
       .select()

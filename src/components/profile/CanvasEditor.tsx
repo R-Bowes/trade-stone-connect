@@ -290,6 +290,30 @@ function GalleryContent({ section, galleryPhotoMap }: { section: SectionInstance
   );
 }
 
+// contractor_projects.completed_date is a free-text column with no DB-level
+// format constraint — the app is the only thing enforcing a shape.
+// Convention: "YYYY-MM" (month + year, no day) or null, never free text.
+// Native <input type="month"> in ProjectPanelBody only ever produces that
+// shape or "", so normalizeMonth is a defensive backstop, not the primary
+// guarantee. formatCompletedMonth is the read-side mirror: a value written
+// outside the app (the same way this table's schema drifted outside
+// migrations — see useContractorProjects.ts) might not match, so render
+// nothing rather than risk "Invalid Date".
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+function normalizeMonth(value: string): string | null {
+  return MONTH_RE.test(value) ? value : null;
+}
+
+function formatCompletedMonth(value: string | null): string | null {
+  if (!value || !MONTH_RE.test(value)) return null;
+  const [year, month] = value.split("-").map(Number);
+  if (month < 1 || month > 12) return null;
+  const date = new Date(year, month - 1, 1);
+  if (Number.isNaN(date.getTime())) return null;
+  return `Completed ${date.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`;
+}
+
 function ProjectContent({ section, projects }: { section: SectionInstance; projects: ContractorProject[] }) {
   // A2: scope to this section's own group — see ProjectPanelContent for the
   // "not linked" case (no sectionRefId). An unlinked section's projects
@@ -304,11 +328,15 @@ function ProjectContent({ section, projects }: { section: SectionInstance; proje
         ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No projects yet — add your first in the panel</div>
         : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {groupProjects.map(p => (
-              <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px" }}>
-                <div style={{ fontWeight: 600, color: NAVY, fontSize: 14 }}>{p.title}</div>
-              </div>
-            ))}
+            {groupProjects.map(p => {
+              const completed = formatCompletedMonth(p.completed_date);
+              return (
+                <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontWeight: 600, color: NAVY, fontSize: 14 }}>{p.title}</div>
+                  {completed && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{completed}</div>}
+                </div>
+              );
+            })}
           </div>
         )
       }
@@ -799,10 +827,12 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newCompleted, setNewCompleted] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editCompleted, setEditCompleted] = useState("");
 
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -810,9 +840,15 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
 
   const handleAdd = async () => {
     if (!newTitle.trim()) return;
-    await addProject({ title: newTitle.trim(), description: newDesc || null, photos: [], group_id: groupId });
+    await addProject({
+      title: newTitle.trim(),
+      description: newDesc || null,
+      completed_date: normalizeMonth(newCompleted),
+      photos: [],
+      group_id: groupId,
+    });
     setAdding(false);
-    setNewTitle(""); setNewDesc("");
+    setNewTitle(""); setNewDesc(""); setNewCompleted("");
   };
 
   // Mirrors GalleryPanelContent's handleTitleChange — keep the underlying
@@ -826,6 +862,7 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     setEditingId(p.id);
     setEditTitle(p.title);
     setEditDesc(p.description ?? "");
+    setEditCompleted(p.completed_date ?? "");
   };
 
   const saveEdit = async (id: string) => {
@@ -833,6 +870,7 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     await updateProject(id, {
       title: editTitle.trim(),
       description: editDesc || null,
+      completed_date: normalizeMonth(editCompleted),
     });
     setEditingId(null);
   };
@@ -873,6 +911,8 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
             <div>
               <FieldLabel>Title</FieldLabel>
               <PanelInput value={editTitle} onChange={setEditTitle} placeholder="Project name" />
+              <FieldLabel>Completed</FieldLabel>
+              <PanelInput value={editCompleted} onChange={setEditCompleted} type="month" />
               <FieldLabel>Description</FieldLabel>
               <PanelTextarea value={editDesc} onChange={setEditDesc} placeholder="Brief overview…" rows={3} />
               <div style={{ display: "flex", gap: 8 }}>
@@ -928,6 +968,8 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px" }}>
           <FieldLabel>Title</FieldLabel>
           <PanelInput value={newTitle} onChange={setNewTitle} placeholder="Project name" />
+          <FieldLabel>Completed</FieldLabel>
+          <PanelInput value={newCompleted} onChange={setNewCompleted} type="month" />
           <FieldLabel>Description</FieldLabel>
           <PanelTextarea value={newDesc} onChange={setNewDesc} placeholder="Brief overview…" rows={3} />
           <div style={{ display: "flex", gap: 8 }}>

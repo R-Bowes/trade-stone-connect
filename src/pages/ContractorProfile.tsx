@@ -99,7 +99,7 @@ interface GalleryPhoto {
 // fix: the old hand-written interface didn't match the live table at all).
 type Project = Pick<
   Database["public"]["Tables"]["contractor_projects"]["Row"],
-  "id" | "title" | "description" | "photos" | "group_id" | "display_order"
+  "id" | "title" | "description" | "photos" | "group_id" | "display_order" | "completed_date"
 >;
 
 interface Review {
@@ -346,6 +346,22 @@ function PhotosBlock({ section, allPhotos }: { section: CanvasSection; allPhotos
   );
 }
 
+// contractor_projects.completed_date is a free-text column, "YYYY-MM" by
+// app convention (see useContractorProjects.ts) but not DB-enforced — a
+// value written outside the app (the same way this table's schema
+// drifted outside migrations) might not match. Render nothing rather
+// than risk "Invalid Date" on a public page.
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+function formatCompletedMonth(value: string | null): string | null {
+  if (!value || !MONTH_RE.test(value)) return null;
+  const [year, month] = value.split("-").map(Number);
+  if (month < 1 || month > 12) return null;
+  const date = new Date(year, month - 1, 1);
+  if (Number.isNaN(date.getTime())) return null;
+  return `Completed ${date.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`;
+}
+
 function ProjectBlock({ section, projects }: { section: CanvasSection; projects: Project[] }) {
   // A2: scope to this section's own group, same as GalleryBlock scopes to
   // section.section_ref_id via photosByGallery. A project with no group
@@ -357,26 +373,30 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
   return (
     <SectionCard heading={getSectionLabel(section)}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {groupProjects.map(p => (
-          <div key={p.id} style={{ border: "1px solid #f0f0f0", borderRadius: 10, overflow: "hidden" }}>
-            {p.photos.length > 0 && (
-              // Same grid pattern as GalleryBlock above — one visual/interaction
-              // model for photos across the whole profile, no lightbox either
-              // place, so nothing new for a visitor to learn here.
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4 }}>
-                {p.photos.slice(0, 9).map((url, i) => (
-                  <div key={i} style={{ aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
-                    <img src={url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  </div>
-                ))}
+        {groupProjects.map(p => {
+          const completed = formatCompletedMonth(p.completed_date);
+          return (
+            <div key={p.id} style={{ border: "1px solid #f0f0f0", borderRadius: 10, overflow: "hidden" }}>
+              {p.photos.length > 0 && (
+                // Same grid pattern as GalleryBlock above — one visual/interaction
+                // model for photos across the whole profile, no lightbox either
+                // place, so nothing new for a visitor to learn here.
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4 }}>
+                  {p.photos.slice(0, 9).map((url, i) => (
+                    <div key={i} style={{ aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
+                      <img src={url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ padding: "12px 16px" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{p.title}</div>
+                {completed && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{completed}</div>}
+                {p.description && <p style={{ fontSize: 13, color: "#555", marginTop: 8, marginBottom: 0, lineHeight: 1.55 }}>{p.description}</p>}
               </div>
-            )}
-            <div style={{ padding: "12px 16px" }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{p.title}</div>
-              {p.description && <p style={{ fontSize: 13, color: "#555", marginTop: 8, marginBottom: 0, lineHeight: 1.55 }}>{p.description}</p>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </SectionCard>
   );
@@ -1253,7 +1273,7 @@ const ContractorProfile = () => {
         fetches.push(
           supabase
             .from("contractor_projects")
-            .select("id, title, description, photos, group_id, display_order")
+            .select("id, title, description, photos, group_id, display_order, completed_date")
             .eq("contractor_id", profileId)
             .order("display_order", { ascending: true })
             .then(({ data }) => setProjects(data ?? []))
