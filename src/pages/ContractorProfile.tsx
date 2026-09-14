@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import QuoteRequestDialog from "@/components/QuoteRequestDialog";
 import { ContractorMessageDialog } from "@/components/ContractorMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useAvailability } from "@/hooks/useAvailability";
 import { HeroBlock, type AvailabilityInfo } from "@/components/profile/ProfileWidgets";
 import { isToday, isTomorrow, format, formatDistanceToNow } from "date-fns";
@@ -92,20 +93,14 @@ interface GalleryPhoto {
   title: string | null;
 }
 
-interface Project {
-  id: string;
-  title: string;
-  description: string | null;
-  trade: string | null;
-  location: string | null;
-  completion_date: string | null;
-  photo_urls: string[];
-  // group_id -> contractor_project_groups(id), added by migration
-  // 20260913130000 (A2). Null for projects created before it — see
-  // ProjectBlock below.
-  group_id: string | null;
-  display_order: number;
-}
+// Pick, not a hand-written shape, and tied to the exact columns the query
+// below selects — a renamed/removed column becomes a compile error here
+// instead of a silent PGRST204 (see the contractor_projects schema-drift
+// fix: the old hand-written interface didn't match the live table at all).
+type Project = Pick<
+  Database["public"]["Tables"]["contractor_projects"]["Row"],
+  "id" | "title" | "description" | "photos" | "group_id" | "display_order"
+>;
 
 interface Review {
   id: string;
@@ -364,12 +359,12 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {groupProjects.map(p => (
           <div key={p.id} style={{ border: "1px solid #f0f0f0", borderRadius: 10, overflow: "hidden" }}>
-            {p.photo_urls.length > 0 && (
+            {p.photos.length > 0 && (
               // Same grid pattern as GalleryBlock above — one visual/interaction
               // model for photos across the whole profile, no lightbox either
               // place, so nothing new for a visitor to learn here.
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4 }}>
-                {p.photo_urls.slice(0, 9).map((url, i) => (
+                {p.photos.slice(0, 9).map((url, i) => (
                   <div key={i} style={{ aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
                     <img src={url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
@@ -378,12 +373,6 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
             )}
             <div style={{ padding: "12px 16px" }}>
               <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{p.title}</div>
-              {(p.trade || p.location || p.completion_date) && (
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  {[p.trade, p.location].filter(Boolean).join(" · ")}
-                  {p.completion_date && ` · ${format(new Date(p.completion_date), "MMM yyyy")}`}
-                </div>
-              )}
               {p.description && <p style={{ fontSize: 13, color: "#555", marginTop: 8, marginBottom: 0, lineHeight: 1.55 }}>{p.description}</p>}
             </div>
           </div>
@@ -1262,12 +1251,12 @@ const ContractorProfile = () => {
 
       if (needsProjects) {
         fetches.push(
-          (supabase as any)
+          supabase
             .from("contractor_projects")
-            .select("id, title, description, trade, location, completion_date, photo_urls, group_id, display_order")
+            .select("id, title, description, photos, group_id, display_order")
             .eq("contractor_id", profileId)
             .order("display_order", { ascending: true })
-            .then(({ data }: { data: Project[] | null }) => setProjects(data ?? []))
+            .then(({ data }) => setProjects(data ?? []))
         );
       }
 

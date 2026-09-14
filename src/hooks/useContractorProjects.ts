@@ -1,36 +1,34 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
-// contractor_projects is created by migration 20260618120000.
-// Not yet in generated types.ts — cast as needed until regenerated.
-
+// contractor_projects: the live table (confirmed via information_schema
+// and the regenerated types.ts, 2026-09-14) does NOT match
+// 20260618120000_canvas_editor_tables.sql's CREATE TABLE — it was altered
+// outside the migration system at some point (no migration anywhere
+// documents the change; see CLAUDE.md's schema-change-discipline section
+// for the two prior incidents of this same pattern). Live columns:
+// id, contractor_id, title, description, value_label, completed_date
+// (text, not date, and not modelled here — see ProjectData below),
+// photos (text[]), display_order, created_at, updated_at, group_id.
+// There is no trade or location column. ContractorProject is derived
+// from the generated Database type (not hand-written) specifically so a
+// future drift like this one is a compile error, not a silent PGRST204.
+// value_label exists live and is untouched here — nothing in the app
+// reads or writes it; its purpose isn't established by any code or
+// migration.
 const BUCKET = "contractor-photos";
 
-export interface ContractorProject {
-  id: string;
-  contractor_id: string;
-  title: string;
-  description: string | null;
-  trade: string | null;
-  location: string | null;
-  completion_date: string | null;
-  photo_urls: string[];
-  // group_id -> contractor_project_groups(id). Added by migration
-  // 20260913130000 — NOT YET PUSHED. Scopes a project to the one project
-  // section (SectionInstance.sectionRefId) it belongs to, mirroring
-  // contractor_photos.gallery_id. Nullable: existing projects predating
-  // this column are NULL (ungrouped) and, per the same-shape-as-galleries
-  // convention, won't appear in any project section until reassigned —
-  // see CanvasEditor.tsx's ProjectPanelContent "not linked" handling.
-  group_id: string | null;
-  display_order: number;
-  created_at: string;
-  updated_at: string;
-}
+export type ContractorProject = Database["public"]["Tables"]["contractor_projects"]["Row"];
 
+// completed_date is deliberately excluded: nothing in the panel ever
+// collects it, so through the app it can only ever be null — not worth
+// carrying in the write payload. The column itself is untouched; a value
+// set some other way still round-trips fine via ContractorProject/Row
+// above, just never written here.
 export type ProjectData = Pick<
   ContractorProject,
-  "title" | "description" | "trade" | "location" | "completion_date" | "photo_urls" | "group_id"
+  "title" | "description" | "photos" | "group_id"
 >;
 
 // For the authenticated contractor managing their own projects.
@@ -54,13 +52,13 @@ export function useContractorProjects() {
     if (!profile) { setLoading(false); return; }
     setContractorId(profile.id);
 
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("contractor_projects")
       .select("*")
       .eq("contractor_id", profile.id)
       .order("display_order", { ascending: true });
 
-    setProjects((data ?? []) as ContractorProject[]);
+    setProjects(data ?? []);
     setLoading(false);
   }, []);
 
@@ -70,34 +68,31 @@ export function useContractorProjects() {
     if (!contractorId) return;
     if (projects.length >= 3) throw new Error("Maximum 3 projects allowed");
 
-    const { data: inserted, error } = await (supabase as any)
+    const { data: inserted, error } = await supabase
       .from("contractor_projects")
       .insert({
         contractor_id: contractorId,
         title: data.title,
         description: data.description ?? null,
-        trade: data.trade ?? null,
-        location: data.location ?? null,
-        completion_date: data.completion_date ?? null,
-        photo_urls: data.photo_urls ?? [],
+        photos: data.photos ?? [],
         group_id: data.group_id ?? null,
         display_order: projects.length,
       })
       .select()
       .single();
     if (error) throw error;
-    if (inserted) setProjects(prev => [...prev, inserted as ContractorProject]);
+    if (inserted) setProjects(prev => [...prev, inserted]);
   }, [contractorId, projects.length]);
 
   const updateProject = useCallback(async (id: string, data: Partial<ProjectData>) => {
-    const { data: updated, error } = await (supabase as any)
+    const { data: updated, error } = await supabase
       .from("contractor_projects")
       .update(data)
       .eq("id", id)
       .select()
       .single();
     if (error) throw error;
-    if (updated) setProjects(prev => prev.map(p => p.id === id ? updated as ContractorProject : p));
+    if (updated) setProjects(prev => prev.map(p => p.id === id ? updated : p));
   }, []);
 
   // Path convention `${user.id}/projects/{uuid}.{ext}` mirrors
@@ -105,7 +100,7 @@ export function useContractorProjects() {
   // uploadBeforeAfterPhoto — same bucket, same top-level auth.uid()-scoped
   // folder the bucket's RLS is keyed on. Unlike those two, there's no
   // per-photo table row here: the caller appends the returned URL onto
-  // the project's own photo_urls array via updateProject.
+  // the project's own photos array via updateProject.
   const uploadProjectPhoto = useCallback(async (file: File): Promise<string> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -126,7 +121,7 @@ export function useContractorProjects() {
   }, []);
 
   const deleteProject = useCallback(async (id: string) => {
-    const { error } = await (supabase as any).from("contractor_projects").delete().eq("id", id);
+    const { error } = await supabase.from("contractor_projects").delete().eq("id", id);
     if (error) throw error;
     setProjects(prev => {
       const remaining = prev.filter(p => p.id !== id);
@@ -142,7 +137,7 @@ export function useContractorProjects() {
     setProjects(updated);
     await Promise.all(
       updated.map(p =>
-        (supabase as any)
+        supabase
           .from("contractor_projects")
           .update({ display_order: p.display_order })
           .eq("id", p.id)
@@ -161,12 +156,12 @@ export function usePublicContractorProjects(contractorProfileId: string) {
   useEffect(() => {
     if (!contractorProfileId) return;
     const load = async () => {
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("contractor_projects")
         .select("*")
         .eq("contractor_id", contractorProfileId)
         .order("display_order", { ascending: true });
-      setProjects((data ?? []) as ContractorProject[]);
+      setProjects(data ?? []);
       setLoading(false);
     };
     load();

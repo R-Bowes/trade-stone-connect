@@ -307,7 +307,6 @@ function ProjectContent({ section, projects }: { section: SectionInstance; proje
             {groupProjects.map(p => (
               <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px" }}>
                 <div style={{ fontWeight: 600, color: NAVY, fontSize: 14 }}>{p.title}</div>
-                {p.trade && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{p.trade}{p.location ? ` · ${p.location}` : ""}</div>}
               </div>
             ))}
           </div>
@@ -800,14 +799,10 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [newTrade, setNewTrade] = useState("");
-  const [newLocation, setNewLocation] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
-  const [editTrade, setEditTrade] = useState("");
-  const [editLocation, setEditLocation] = useState("");
 
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -815,9 +810,9 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
 
   const handleAdd = async () => {
     if (!newTitle.trim()) return;
-    await addProject({ title: newTitle.trim(), description: newDesc || null, trade: newTrade || null, location: newLocation || null, completion_date: null, photo_urls: [], group_id: groupId });
+    await addProject({ title: newTitle.trim(), description: newDesc || null, photos: [], group_id: groupId });
     setAdding(false);
-    setNewTitle(""); setNewDesc(""); setNewTrade(""); setNewLocation("");
+    setNewTitle(""); setNewDesc("");
   };
 
   // Mirrors GalleryPanelContent's handleTitleChange — keep the underlying
@@ -831,8 +826,6 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     setEditingId(p.id);
     setEditTitle(p.title);
     setEditDesc(p.description ?? "");
-    setEditTrade(p.trade ?? "");
-    setEditLocation(p.location ?? "");
   };
 
   const saveEdit = async (id: string) => {
@@ -840,8 +833,6 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     await updateProject(id, {
       title: editTitle.trim(),
       description: editDesc || null,
-      trade: editTrade || null,
-      location: editLocation || null,
     });
     setEditingId(null);
   };
@@ -860,14 +851,14 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     if (!project) return;
     try {
       const url = await uploadProjectPhoto(file);
-      await updateProject(targetId, { photo_urls: [...project.photo_urls, url] });
+      await updateProject(targetId, { photos: [...project.photos, url] });
     } catch (err: any) {
       toast({ title: "Upload failed", description: String(err?.message ?? err), variant: "destructive" });
     }
   };
 
   const removePhoto = async (p: ContractorProject, url: string) => {
-    await updateProject(p.id, { photo_urls: p.photo_urls.filter(u => u !== url) });
+    await updateProject(p.id, { photos: p.photos.filter(u => u !== url) });
   };
 
   return (
@@ -882,10 +873,6 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
             <div>
               <FieldLabel>Title</FieldLabel>
               <PanelInput value={editTitle} onChange={setEditTitle} placeholder="Project name" />
-              <FieldLabel>Trade</FieldLabel>
-              <PanelInput value={editTrade} onChange={setEditTrade} placeholder="e.g. Plumbing" />
-              <FieldLabel>Location</FieldLabel>
-              <PanelInput value={editLocation} onChange={setEditLocation} placeholder="e.g. Manchester" />
               <FieldLabel>Description</FieldLabel>
               <PanelTextarea value={editDesc} onChange={setEditDesc} placeholder="Brief overview…" rows={3} />
               <div style={{ display: "flex", gap: 8 }}>
@@ -906,13 +893,12 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
                   </button>
                 </div>
               </div>
-              {p.trade && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{p.trade}{p.location ? ` · ${p.location}` : ""}</div>}
               {p.description && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{p.description}</div>}
             </>
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 8 }}>
-            {p.photo_urls.map(url => (
+            {p.photos.map(url => (
               <div key={url} style={{ position: "relative", aspectRatio: "1", background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}>
                 <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 <button
@@ -942,10 +928,6 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px" }}>
           <FieldLabel>Title</FieldLabel>
           <PanelInput value={newTitle} onChange={setNewTitle} placeholder="Project name" />
-          <FieldLabel>Trade</FieldLabel>
-          <PanelInput value={newTrade} onChange={setNewTrade} placeholder="e.g. Plumbing" />
-          <FieldLabel>Location</FieldLabel>
-          <PanelInput value={newLocation} onChange={setNewLocation} placeholder="e.g. Manchester" />
           <FieldLabel>Description</FieldLabel>
           <PanelTextarea value={newDesc} onChange={setNewDesc} placeholder="Brief overview…" rows={3} />
           <div style={{ display: "flex", gap: 8 }}>
@@ -1685,7 +1667,7 @@ export function CanvasEditor() {
 
   const { galleries, addGallery, updateGallery, deleteGallery } = usePhotoGalleries();
   const { projects, addProject, updateProject, deleteProject, uploadProjectPhoto, uploading: projectPhotoUploading } = useContractorProjects();
-  const { addGroup: addProjectGroup, updateGroup: updateProjectGroup } = useProjectGroups();
+  const { addGroup: addProjectGroup, updateGroup: updateProjectGroup, deleteGroup: deleteProjectGroup } = useProjectGroups();
   const { members, addMember, deleteMember } = useContractorTeam();
   const { credentials, addCredential, deleteCredential } = useContractorCredentials();
   const { videos, addVideo, removeVideo } = useProfileVideos();
@@ -1779,9 +1761,15 @@ export function CanvasEditor() {
     if (section.type === "gallery" && section.sectionRefId) {
       try { await deleteGallery(section.sectionRefId); } catch (_) { /* non-fatal */ }
     }
+    // Mirrors the gallery cleanup above exactly — without this, every
+    // project section removed leaves its contractor_project_groups row
+    // behind (an orphan), same as the ones already found in the database.
+    if (section.type === "project" && section.sectionRefId) {
+      try { await deleteProjectGroup(section.sectionRefId); } catch (_) { /* non-fatal */ }
+    }
     removeSection(id);
     if (activeId === id) setActiveId(null);
-  }, [draft.sections, removeSection, deleteGallery, activeId]);
+  }, [draft.sections, removeSection, deleteGallery, deleteProjectGroup, activeId]);
 
   const focusSection = (sectionId: string) => {
     setActiveId(sectionId);
