@@ -16,6 +16,8 @@ import { useProfileVideos, extractVideoId, type ProfileVideo } from "@/hooks/use
 import { useBeforeAfter, type BeforeAfterPair } from "@/hooks/useBeforeAfter";
 import { getEmbedUrl } from "@/lib/videoEmbed";
 import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { Database } from "@/integrations/supabase/types";
 
 type TeamMemberRow = Database["public"]["Tables"]["team_members"]["Row"];
@@ -1417,9 +1419,9 @@ interface EditPanelProps {
   beforeAfterUploading: boolean;
 }
 
-function EditPanel(props: EditPanelProps) {
+function EditPanel(props: EditPanelProps & { isMobile: boolean }) {
   const {
-    section, onClose, draft, updateDraft, updateSection, onDeleteSection, saving, onSave,
+    isMobile, section, onClose, draft, updateDraft, updateSection, onDeleteSection, saving, onSave,
     reviews, projects, addProject, updateProject, deleteProject, uploadProjectPhoto, projectPhotoUploading, updateProjectGroup, members, addMember, deleteMember,
     credentials, addCredential, deleteCredential, galleries, updateGallery,
     videos, addVideo, removeVideo, beforeAfterPairs, addBeforeAfterPair, removeBeforeAfterPair,
@@ -1427,23 +1429,18 @@ function EditPanel(props: EditPanelProps) {
   } = props;
   const def = section ? (SECTION_DEFS[section.type] ?? SECTION_DEFS.bio) : null;
 
-  return (
-    <div style={{
-      position: "absolute", top: 0, right: 0, bottom: 0, width: 280,
-      background: "white", borderLeft: "1px solid #e5e7eb",
-      transform: section ? "translateX(0)" : "translateX(100%)",
-      transition: "transform 0.2s ease",
-      display: "flex", flexDirection: "column",
-      zIndex: 20,
-      boxShadow: section ? "-4px 0 12px rgba(0,0,0,0.06)" : "none",
-    }}>
+  const content = (
+    <>
       {/* Header */}
       <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, background: "#fafafa" }}>
         {def && <i className={`ti ${def.icon}`} style={{ color: ORANGE, fontSize: 16 }} />}
         <span style={{ fontWeight: 700, fontSize: 14, color: NAVY, flex: 1 }}>{def?.label ?? ""}</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 2 }}>
-          <i className="ti ti-x" style={{ fontSize: 16 }} />
-        </button>
+        {/* On mobile the Sheet already supplies its own close control */}
+        {!isMobile && (
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 2 }}>
+            <i className="ti ti-x" style={{ fontSize: 16 }} />
+          </button>
+        )}
       </div>
 
       {/* Body */}
@@ -1510,6 +1507,30 @@ function EditPanel(props: EditPanelProps) {
           </button>
         )}
       </div>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open={!!section} onOpenChange={open => { if (!open) onClose(); }}>
+        <SheetContent side="bottom" className="p-0 gap-0 flex flex-col h-[85vh] max-h-[85vh]">
+          {content}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <div style={{
+      position: "absolute", top: 0, right: 0, bottom: 0, width: 280,
+      background: "white", borderLeft: "1px solid #e5e7eb",
+      transform: section ? "translateX(0)" : "translateX(100%)",
+      transition: "transform 0.2s ease",
+      display: "flex", flexDirection: "column",
+      zIndex: 20,
+      boxShadow: section ? "-4px 0 12px rgba(0,0,0,0.06)" : "none",
+    }}>
+      {content}
     </div>
   );
 }
@@ -1524,9 +1545,10 @@ interface LeftSidebarProps {
   onAddGallery: () => void;
   onAddProject: () => void;
   profile: SupplementaryProfile | null;
+  isMobile: boolean;
 }
 
-function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGallery, onAddProject, profile }: LeftSidebarProps) {
+function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGallery, onAddProject, profile, isMobile }: LeftSidebarProps) {
   const [tab, setTab] = useState<"sections" | "page">("sections");
   const [slugError, setSlugError] = useState("");
 
@@ -1545,7 +1567,7 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
   };
 
   return (
-    <div style={{ width: 220, background: "white", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+    <div style={{ width: isMobile ? "100%" : 220, background: "white", borderRight: isMobile ? "none" : "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0 }}>
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
         {(["sections", "page"] as const).map(t => (
@@ -1595,7 +1617,11 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
                   key={s.id}
                   onClick={() => {
                     onSelectSection(s.id);
-                    document.getElementById(`canvas-block-${s.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    // On mobile the canvas may not be the visible pane (segmented
+                    // control), so scrolling it into view is pointless/confusing.
+                    if (!isMobile) {
+                      document.getElementById(`canvas-block-${s.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    }
                   }}
                   style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: isActive ? "#fff7ed" : "transparent", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, color: isActive ? ORANGE : "#374151", textAlign: "left", fontFamily: "inherit", opacity: s.is_enabled ? 1 : 0.5, marginBottom: 2 }}
                 >
@@ -1653,8 +1679,8 @@ function TopBar({ draft, isDirty, saving, publishing, onSave, onPublish, profile
 
   return (
     <div style={{ height: 48, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 8, flexShrink: 0, zIndex: 30, overflow: "hidden" }}>
-      <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: ORANGE, flexShrink: 0 }}>TradeStone</span>
-      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+      <span className="hidden md:inline" style={{ fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: ORANGE, flexShrink: 0 }}>TradeStone</span>
+      <span className="hidden md:inline" style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
         {draft.displayName || "Profile"}
       </span>
       <span style={{ background: pillBg, color: "white", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, flexShrink: 0 }}>{pillLabel}</span>
@@ -1662,27 +1688,24 @@ function TopBar({ draft, isDirty, saving, publishing, onSave, onPublish, profile
       <div style={{ flex: 1 }} />
 
       {profile?.ts_profile_code && (
-        <span className="hidden md:inline-flex">
-          <a
-            href={`/contractor/${profile.ts_profile_code}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none", padding: "5px 10px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6 }}
-          >
-            <i className="ti ti-external-link" style={{ fontSize: 13 }} />Preview
-          </a>
-        </span>
+        <a
+          href={`/contractor/${profile.ts_profile_code}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Preview"
+          style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none", padding: "5px 10px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, flexShrink: 0 }}
+        >
+          <i className="ti ti-external-link" style={{ fontSize: 13 }} /><span className="hidden md:inline">Preview</span>
+        </a>
       )}
 
-      <span className="hidden md:inline-flex">
-        <button
-          onClick={handleSave}
-          disabled={saving || !isDirty}
-          style={{ background: isDirty ? "rgba(255,255,255,0.12)" : "transparent", border: "1px solid rgba(255,255,255,0.2)", color: isDirty ? "white" : "rgba(255,255,255,0.35)", fontWeight: 600, fontSize: 13, padding: "6px 14px", borderRadius: 6, cursor: isDirty ? "pointer" : "default", fontFamily: "inherit" }}
-        >
-          {saving ? "Saving…" : savedFlash ? "Saved" : "Save"}
-        </button>
-      </span>
+      <button
+        onClick={handleSave}
+        disabled={saving || !isDirty}
+        style={{ flexShrink: 0, background: isDirty ? "rgba(255,255,255,0.12)" : "transparent", border: "1px solid rgba(255,255,255,0.2)", color: isDirty ? "white" : "rgba(255,255,255,0.35)", fontWeight: 600, fontSize: 13, padding: "6px 14px", borderRadius: 6, cursor: isDirty ? "pointer" : "default", fontFamily: "inherit" }}
+      >
+        {saving ? "Saving…" : savedFlash ? "Saved" : "Save"}
+      </button>
 
       <button
         onClick={onPublish}
@@ -1715,6 +1738,8 @@ export function CanvasEditor() {
   const { videos, addVideo, removeVideo } = useProfileVideos();
   const { pairs: beforeAfterPairs, addPair: addBeforeAfterPair, removePair: removeBeforeAfterPair, uploadBeforeAfterPhoto, uploading: beforeAfterUploading } = useBeforeAfter();
 
+  const isMobile = useIsMobile();
+  const [mobilePane, setMobilePane] = useState<"sections" | "preview">("sections");
   const [profile, setProfile] = useState<SupplementaryProfile | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [galleryPhotoMap, setGalleryPhotoMap] = useState<Map<string, ContractorPhoto[]>>(new Map());
@@ -1815,6 +1840,9 @@ export function CanvasEditor() {
 
   const focusSection = (sectionId: string) => {
     setActiveId(sectionId);
+    // On mobile the canvas may not be the visible pane (segmented control),
+    // so scrolling it into view is pointless/confusing.
+    if (isMobile) return;
     requestAnimationFrame(() => {
       document.getElementById(`canvas-block-${sectionId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -1877,19 +1905,38 @@ export function CanvasEditor() {
         profile={profile}
       />
 
+      {/* Mobile pane switcher — sections editor or live preview, one at a time */}
+      {isMobile && (
+        <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", flexShrink: 0 }}>
+          {(["sections", "preview"] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setMobilePane(p)}
+              style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", border: "none", borderBottom: mobilePane === p ? `2px solid ${ORANGE}` : "2px solid transparent", background: "none", cursor: "pointer", color: mobilePane === p ? NAVY : "#9ca3af", fontFamily: "inherit" }}
+            >
+              {p === "sections" ? "Sections" : "Preview"}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Body: sidebar + canvas + edit panel */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        <LeftSidebar
-          draft={draft}
-          updateDraft={updateDraft}
-          activeId={activeId}
-          onSelectSection={setActiveId}
-          onAddGallery={handleAddGallery}
-          onAddProject={handleAddProject}
-          profile={profile}
-        />
+        {(!isMobile || mobilePane === "sections") && (
+          <LeftSidebar
+            draft={draft}
+            updateDraft={updateDraft}
+            activeId={activeId}
+            onSelectSection={setActiveId}
+            onAddGallery={handleAddGallery}
+            onAddProject={handleAddProject}
+            profile={profile}
+            isMobile={isMobile}
+          />
+        )}
 
         {/* Canvas */}
+        {(!isMobile || mobilePane === "preview") && (
         <div
           style={{ flex: 1, background: CANVAS_BG, overflowY: "auto", padding: "40px 0" }}
           onClick={e => { if (e.target === e.currentTarget) setActiveId(null); }}
@@ -1927,9 +1974,11 @@ export function CanvasEditor() {
             })}
           </div>
         </div>
+        )}
 
-        {/* Edit panel (slide-in right) */}
+        {/* Edit panel — slide-in right on desktop, bottom sheet on mobile */}
         <EditPanel
+          isMobile={isMobile}
           section={activeSection}
           onClose={() => setActiveId(null)}
           draft={draft}
