@@ -65,8 +65,8 @@ const SECTION_DEFS: Record<string, SectionDef> = {
   bio:          { icon: "ti-align-left",  label: "About",            hideable: true,  deletable: false, reorderable: true  },
   stats:        { icon: "ti-chart-bar",   label: "Stats",            hideable: true,  deletable: false, reorderable: true  },
   services:     { icon: "ti-tools",       label: "Services",         hideable: true,  deletable: false, reorderable: true  },
-  gallery:      { icon: "ti-photo",       label: "Photo gallery",    hideable: true,  deletable: true,  reorderable: true,  repeatable: true, max: 3 },
-  project:      { icon: "ti-briefcase",   label: "Project showcase", hideable: true,  deletable: true,  reorderable: true,  repeatable: true, max: 3 },
+  gallery:      { icon: "ti-photo",       label: "Photo gallery",    hideable: true,  deletable: true,  reorderable: true,  repeatable: true, max: 6 },
+  project:      { icon: "ti-briefcase",   label: "Project showcase", hideable: true,  deletable: true,  reorderable: true,  repeatable: true, max: 6 },
   reviews:      { icon: "ti-star",        label: "Reviews",          hideable: true,  deletable: false, reorderable: true  },
   team:         { icon: "ti-users",       label: "Team",             hideable: true,  deletable: false, reorderable: true  },
   credentials:  { icon: "ti-certificate", label: "Credentials",      hideable: true,  deletable: false, reorderable: true  },
@@ -77,6 +77,13 @@ const SECTION_DEFS: Record<string, SectionDef> = {
   social:       { icon: "ti-brand-instagram", label: "Social links", hideable: true,  deletable: false, reorderable: true  },
   cta:          { icon: "ti-send",        label: "Call to action",   fixed: true,  hideable: false, deletable: false, reorderable: false },
 };
+
+// Caps not modelled by SECTION_DEFS.max (which caps how many *section
+// instances* of a repeatable type can exist — see gallery/project above).
+// These cap counts of *items within/across* sections instead.
+const MAX_PHOTOS_PER_GALLERY = 40;
+const MAX_PROJECTS_TOTAL = 12; // contractor-wide, across every project section
+const MAX_SECTIONS_TOTAL = 20;
 
 const SOCIAL_PLATFORMS: { key: string; label: string; icon: string }[] = [
   { key: "instagram", label: "Instagram",   icon: "ti-brand-instagram" },
@@ -273,9 +280,11 @@ function ServicesContent({ profile, section }: { profile: SupplementaryProfile |
 
 function GalleryContent({ section, galleryPhotoMap }: { section: SectionInstance; galleryPhotoMap: Map<string, ContractorPhoto[]> }) {
   const photos = section.sectionRefId ? (galleryPhotoMap.get(section.sectionRefId) ?? []) : [];
+  const intro = section.meta.intro as string | undefined;
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: intro ? 8 : 12 }}>{section.label}</div>
+      {intro && <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, margin: "0 0 12px" }}>{intro}</p>}
       {photos.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "24px 0", textAlign: "center" }}><i className="ti ti-photo" style={{ fontSize: 24, display: "block", marginBottom: 8 }} />No photos yet — click to add</div>
         : (
@@ -423,9 +432,11 @@ function AvailabilityContent({ section }: { section: SectionInstance }) {
 }
 
 function VideoContent({ section, videos }: { section: SectionInstance; videos: ProfileVideo[] }) {
+  const intro = section.meta.intro as string | undefined;
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: intro ? 8 : 12 }}>{section.label}</div>
+      {intro && <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, margin: "0 0 12px" }}>{intro}</p>}
       {videos.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No videos yet — add your first in the panel</div>
         : (
@@ -453,9 +464,11 @@ function VideoContent({ section, videos }: { section: SectionInstance; videos: P
 }
 
 function BeforeAfterContent({ section, pairs }: { section: SectionInstance; pairs: BeforeAfterPair[] }) {
+  const intro = section.meta.intro as string | undefined;
   return (
     <div style={{ padding: "20px 24px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>{section.label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: intro ? 8 : 12 }}>{section.label}</div>
+      {intro && <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, margin: "0 0 12px" }}>{intro}</p>}
       {pairs.length === 0
         ? <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No before/after pairs yet — add your first in the panel</div>
         : (
@@ -741,10 +754,19 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
     return <div style={{ color: "#9ca3af", fontSize: 13 }}>Gallery not linked. Try removing and re-adding this section.</div>;
   }
 
+  const intro = (section.meta.intro as string | undefined) ?? "";
+
   return (
     <div>
       <FieldLabel>Gallery title</FieldLabel>
       <PanelInput value={section.label} onChange={handleTitleChange} placeholder="Our work" />
+      <FieldLabel>Intro (optional)</FieldLabel>
+      <PanelTextarea
+        value={intro}
+        onChange={v => updateSection(section.id, { meta: { ...section.meta, intro: v } })}
+        placeholder="A short line shown above the photos on your public profile"
+        rows={2}
+      />
       <FieldLabel>Photos</FieldLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
         {photos.map(p => (
@@ -758,7 +780,7 @@ function GalleryPanelContent({ section, updateSection, galleries, updateGallery 
             </button>
           </div>
         ))}
-        {photos.length < 20 && (
+        {photos.length < MAX_PHOTOS_PER_GALLERY && (
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
@@ -905,7 +927,11 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
     <div>
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={handleHeadingChange} placeholder="Project showcase" />
-      <FieldLabel>Projects ({projects.length}/3)</FieldLabel>
+      <FieldLabel>Projects ({projects.length}/{MAX_PROJECTS_TOTAL} total)</FieldLabel>
+      <div style={{ padding: "10px 12px", background: "#f9fafb", borderRadius: 6, fontSize: 11, color: "#6b7280", marginBottom: 12 }}>
+        <i className="ti ti-info-circle" style={{ marginRight: 6 }} />
+        This total counts every project across all your project showcase sections — it's separate from the {SECTION_DEFS.project.max} showcase sections you can add.
+      </div>
       <input ref={fileRef} type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} onChange={handleFileChange} />
       {groupProjects.map(p => (
         <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
@@ -961,7 +987,7 @@ function ProjectPanelBody({ section, updateSection, groupId, updateGroup, projec
           </div>
         </div>
       ))}
-      {projects.length < 3 && !adding && (
+      {projects.length < MAX_PROJECTS_TOTAL && !adding && (
         <PanelBtn variant="ghost" onClick={() => setAdding(true)}>
           <i className="ti ti-plus" style={{ marginRight: 4 }} />Add project
         </PanelBtn>
@@ -1172,10 +1198,19 @@ function VideoPanelContent({ section, updateSection, videos, addVideo, removeVid
     setAdding(false); setUrl(""); setTitle("");
   };
 
+  const intro = (section.meta.intro as string | undefined) ?? "";
+
   return (
     <div>
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Video showcase" />
+      <FieldLabel>Intro (optional)</FieldLabel>
+      <PanelTextarea
+        value={intro}
+        onChange={v => updateSection(section.id, { meta: { ...section.meta, intro: v } })}
+        placeholder="A short line shown above the videos on your public profile"
+        rows={2}
+      />
       <FieldLabel>Videos</FieldLabel>
       {videos.map(v => (
         <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
@@ -1242,10 +1277,19 @@ function BeforeAfterPanelContent({ section, updateSection, pairs, addPair, remov
     setAdding(false); setBeforeUrl(null); setAfterUrl(null); setTitle("");
   };
 
+  const intro = (section.meta.intro as string | undefined) ?? "";
+
   return (
     <div>
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Before & after" />
+      <FieldLabel>Intro (optional)</FieldLabel>
+      <PanelTextarea
+        value={intro}
+        onChange={v => updateSection(section.id, { meta: { ...section.meta, intro: v } })}
+        placeholder="A short line shown above the pairs on your public profile"
+        rows={2}
+      />
       <FieldLabel>Pairs</FieldLabel>
       {pairs.map(p => (
         <div key={p.id} style={{ marginBottom: 10, border: "1px solid #e5e7eb", borderRadius: 8, padding: 10 }}>
@@ -1560,6 +1604,12 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
   const renderableSections = orderedSections.filter(s => !!SECTION_DEFS[s.type]);
   const gallerySections = draft.sections.filter(s => s.type === "gallery");
   const projectSections = draft.sections.filter(s => s.type === "project");
+  const galleryMax = SECTION_DEFS.gallery.max!;
+  const projectMax = SECTION_DEFS.project.max!;
+  // Counts renderableSections, not draft.sections: an unknown-type legacy
+  // row never renders, so it isn't part of the "page becoming a wall"
+  // problem this cap exists to prevent.
+  const atTotalSectionsCap = renderableSections.length >= MAX_SECTIONS_TOTAL;
 
   const validateSlug = (v: string) => {
     if (!v) { setSlugError(""); return; }
@@ -1594,22 +1644,27 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
               <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Add section</div>
               <button
                 onClick={onAddGallery}
-                disabled={gallerySections.length >= 3}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "7px 10px", background: gallerySections.length >= 3 ? "#f9fafb" : "#fff7ed", border: `1px solid ${gallerySections.length >= 3 ? "#e5e7eb" : "#fed7aa"}`, borderRadius: 20, fontSize: 12, fontWeight: 600, color: gallerySections.length >= 3 ? "#9ca3af" : ORANGE, cursor: gallerySections.length >= 3 ? "not-allowed" : "pointer", marginBottom: 6, fontFamily: "inherit" }}
+                disabled={gallerySections.length >= galleryMax || atTotalSectionsCap}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "7px 10px", background: (gallerySections.length >= galleryMax || atTotalSectionsCap) ? "#f9fafb" : "#fff7ed", border: `1px solid ${(gallerySections.length >= galleryMax || atTotalSectionsCap) ? "#e5e7eb" : "#fed7aa"}`, borderRadius: 20, fontSize: 12, fontWeight: 600, color: (gallerySections.length >= galleryMax || atTotalSectionsCap) ? "#9ca3af" : ORANGE, cursor: (gallerySections.length >= galleryMax || atTotalSectionsCap) ? "not-allowed" : "pointer", marginBottom: 6, fontFamily: "inherit" }}
               >
                 <i className="ti ti-photo" style={{ fontSize: 14 }} />
                 Photo gallery
-                <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 11 }}>{gallerySections.length}/3</span>
+                <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 11 }}>{gallerySections.length}/{galleryMax}</span>
               </button>
               <button
                 onClick={onAddProject}
-                disabled={projectSections.length >= 3}
-                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "7px 10px", background: projectSections.length >= 3 ? "#f9fafb" : "#fff7ed", border: `1px solid ${projectSections.length >= 3 ? "#e5e7eb" : "#fed7aa"}`, borderRadius: 20, fontSize: 12, fontWeight: 600, color: projectSections.length >= 3 ? "#9ca3af" : ORANGE, cursor: projectSections.length >= 3 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                disabled={projectSections.length >= projectMax || atTotalSectionsCap}
+                style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "7px 10px", background: (projectSections.length >= projectMax || atTotalSectionsCap) ? "#f9fafb" : "#fff7ed", border: `1px solid ${(projectSections.length >= projectMax || atTotalSectionsCap) ? "#e5e7eb" : "#fed7aa"}`, borderRadius: 20, fontSize: 12, fontWeight: 600, color: (projectSections.length >= projectMax || atTotalSectionsCap) ? "#9ca3af" : ORANGE, cursor: (projectSections.length >= projectMax || atTotalSectionsCap) ? "not-allowed" : "pointer", fontFamily: "inherit" }}
               >
                 <i className="ti ti-briefcase" style={{ fontSize: 14 }} />
                 Project showcase
-                <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 11 }}>{projectSections.length}/3</span>
+                <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 11 }}>{projectSections.length}/{projectMax}</span>
               </button>
+              {atTotalSectionsCap && (
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>
+                  You've reached the {MAX_SECTIONS_TOTAL}-section limit for a profile page.
+                </div>
+              )}
             </div>
 
             {/* On canvas list */}
@@ -1859,7 +1914,7 @@ export function CanvasEditor() {
   };
 
   const handleAddGallery = useCallback(async () => {
-    if (addingGallery || gallerySections.length >= 3) return;
+    if (addingGallery || gallerySections.length >= (SECTION_DEFS.gallery.max!) || renderableSections.length >= MAX_SECTIONS_TOTAL) return;
     setAddingGallery(true);
     try {
       const galleryId = await addGallery("New gallery");
@@ -1872,10 +1927,10 @@ export function CanvasEditor() {
     } finally {
       setAddingGallery(false);
     }
-  }, [addGallery, addSection, addingGallery, gallerySections.length]);
+  }, [addGallery, addSection, addingGallery, gallerySections.length, renderableSections.length]);
 
   const handleAddProject = useCallback(async () => {
-    if (addingProject || projectSections.length >= 3) return;
+    if (addingProject || projectSections.length >= (SECTION_DEFS.project.max!) || renderableSections.length >= MAX_SECTIONS_TOTAL) return;
     setAddingProject(true);
     try {
       // Mirrors handleAddGallery exactly (A2): create the durable group row
@@ -1890,7 +1945,7 @@ export function CanvasEditor() {
     } finally {
       setAddingProject(false);
     }
-  }, [addProjectGroup, addSection, addingProject, projectSections.length]);
+  }, [addProjectGroup, addSection, addingProject, projectSections.length, renderableSections.length]);
 
   if (loading) {
     return (

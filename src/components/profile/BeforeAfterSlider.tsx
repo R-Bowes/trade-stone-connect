@@ -63,6 +63,7 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, height = 240 }: BeforeA
         src={afterUrl}
         alt="After"
         draggable={false}
+        loading="lazy"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
       />
       {/* Before — clipped to the left sliderPosition% */}
@@ -71,6 +72,7 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, height = 240 }: BeforeA
           src={beforeUrl}
           alt="Before"
           draggable={false}
+          loading="lazy"
           style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
         />
       </div>

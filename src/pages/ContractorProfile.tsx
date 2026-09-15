@@ -189,6 +189,12 @@ const NAVY = "#1a2744";
 const ORANGE = "#f07820";
 const PAGE_BG = "#f4f4f0";
 
+// Generous storage, disciplined display — a visitor should never land on
+// every photo/project a contractor has uploaded. Expansion is client-side
+// only (all rows are already fetched); no pagination, no extra queries.
+const INITIAL_PHOTOS_SHOWN = 9;
+const INITIAL_PROJECTS_SHOWN = 3;
+
 const DEFAULT_SECTION_LABELS: Record<string, string> = {
   bio: "About",
   stats: "Stats",
@@ -238,16 +244,41 @@ function Stars({ rating }: { rating: number }) {
 
 // ── Section card wrapper ──────────────────────────────────────────────────────
 
-function SectionCard({ heading, children }: { heading: string; children: ReactNode }) {
+function SectionCard({ heading, intro, children }: { heading: string; intro?: string | null; children: ReactNode }) {
   return (
     <div style={{ background: "white", borderRadius: 12, marginBottom: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.07)", overflow: "hidden" }}>
       <div style={{ padding: "16px 20px 0" }}>
-        <div style={{ borderLeft: `3px solid ${ORANGE}`, paddingLeft: 10, marginBottom: 14, color: NAVY, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        <div style={{ borderLeft: `3px solid ${ORANGE}`, paddingLeft: 10, marginBottom: intro ? 8 : 14, color: NAVY, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
           {heading}
         </div>
+        {intro && (
+          <p style={{ fontSize: 13, color: "#666", lineHeight: 1.6, margin: "0 0 14px" }}>{intro}</p>
+        )}
       </div>
       <div style={{ padding: "0 20px 18px" }}>{children}</div>
     </div>
+  );
+}
+
+// Shared expand control for a grid/list that's capped for initial display.
+// No comparable "show N more" component exists elsewhere in the codebase —
+// styled to match this file's own established orange-tint chip language
+// (see ServicesBlock's trade pills) rather than introducing a new idiom.
+function ShowMoreButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        width: "100%", marginTop: 10, padding: "9px 0",
+        background: "rgba(240,120,32,0.06)", border: "1px solid rgba(240,120,32,0.25)",
+        borderRadius: 8, color: "#c85e10", fontSize: 13, fontWeight: 600,
+        cursor: "pointer", fontFamily: "inherit",
+      }}
+    >
+      {label}
+      <i className="ti ti-chevron-down" style={{ fontSize: 14 }} />
+    </button>
   );
 }
 
@@ -316,32 +347,42 @@ function ServicesBlock({ section, profile }: { section: CanvasSection; profile: 
 }
 
 function GalleryBlock({ section, photosByGallery }: { section: CanvasSection; photosByGallery: Map<string, GalleryPhoto[]> }) {
+  const [showAll, setShowAll] = useState(false);
   const photos = section.section_ref_id ? (photosByGallery.get(section.section_ref_id) ?? []) : [];
   if (!photos.length) return null;
+  const shown = showAll ? photos : photos.slice(0, INITIAL_PHOTOS_SHOWN);
   return (
-    <SectionCard heading={getSectionLabel(section)}>
+    <SectionCard heading={getSectionLabel(section)} intro={section.meta?.intro as string | undefined}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        {photos.slice(0, 9).map(p => (
+        {shown.map(p => (
           <div key={p.id} style={{ aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "#eee" }}>
-            <img src={p.photo_url} alt={p.title ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <img src={p.photo_url} alt={p.title ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
         ))}
       </div>
+      {!showAll && photos.length > INITIAL_PHOTOS_SHOWN && (
+        <ShowMoreButton label={`Show all ${photos.length}`} onClick={() => setShowAll(true)} />
+      )}
     </SectionCard>
   );
 }
 
 function PhotosBlock({ section, allPhotos }: { section: CanvasSection; allPhotos: GalleryPhoto[] }) {
+  const [showAll, setShowAll] = useState(false);
   if (!allPhotos.length) return null;
+  const shown = showAll ? allPhotos : allPhotos.slice(0, INITIAL_PHOTOS_SHOWN);
   return (
     <SectionCard heading={getSectionLabel(section)}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        {allPhotos.slice(0, 9).map(p => (
+        {shown.map(p => (
           <div key={p.id} style={{ aspectRatio: "1", borderRadius: 6, overflow: "hidden", background: "#eee" }}>
-            <img src={p.photo_url} alt={p.title ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <img src={p.photo_url} alt={p.title ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
         ))}
       </div>
+      {!showAll && allPhotos.length > INITIAL_PHOTOS_SHOWN && (
+        <ShowMoreButton label={`Show all ${allPhotos.length}`} onClick={() => setShowAll(true)} />
+      )}
     </SectionCard>
   );
 }
@@ -363,6 +404,7 @@ function formatCompletedMonth(value: string | null): string | null {
 }
 
 function ProjectBlock({ section, projects }: { section: CanvasSection; projects: Project[] }) {
+  const [showAll, setShowAll] = useState(false);
   // A2: scope to this section's own group, same as GalleryBlock scopes to
   // section.section_ref_id via photosByGallery. A project with no group
   // (group_id IS NULL — every project created before this migration)
@@ -370,10 +412,11 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
   // ProjectPanelContent for the matching editor-side state.
   const groupProjects = section.section_ref_id ? projects.filter(p => p.group_id === section.section_ref_id) : [];
   if (!groupProjects.length) return null;
+  const shown = showAll ? groupProjects : groupProjects.slice(0, INITIAL_PROJECTS_SHOWN);
   return (
     <SectionCard heading={getSectionLabel(section)}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {groupProjects.map(p => {
+        {shown.map(p => {
           const completed = formatCompletedMonth(p.completed_date);
           return (
             <div key={p.id} style={{ border: "1px solid #f0f0f0", borderRadius: 10, overflow: "hidden" }}>
@@ -384,7 +427,7 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4 }}>
                   {p.photos.slice(0, 9).map((url, i) => (
                     <div key={i} style={{ aspectRatio: "1", borderRadius: 4, overflow: "hidden", background: "#eee" }}>
-                      <img src={url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={url} alt={p.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                   ))}
                 </div>
@@ -398,6 +441,9 @@ function ProjectBlock({ section, projects }: { section: CanvasSection; projects:
           );
         })}
       </div>
+      {!showAll && groupProjects.length > INITIAL_PROJECTS_SHOWN && (
+        <ShowMoreButton label="Show more" onClick={() => setShowAll(true)} />
+      )}
     </SectionCard>
   );
 }
@@ -833,7 +879,7 @@ function TeamBlock({ section, teamMembers }: { section: CanvasSection; teamMembe
 function VideoBlock({ section, videos }: { section: CanvasSection; videos: ProfileVideoRow[] }) {
   if (!videos.length) return null;
   return (
-    <SectionCard heading={getSectionLabel(section)}>
+    <SectionCard heading={getSectionLabel(section)} intro={section.meta?.intro as string | undefined}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         {videos.map(v => {
           const { videoId } = extractVideoId(v.url);
@@ -845,6 +891,7 @@ function VideoBlock({ section, videos }: { section: CanvasSection; videos: Profi
                   <iframe
                     src={embedUrl}
                     title={v.title ?? "Video"}
+                    loading="lazy"
                     style={{ width: "100%", height: "100%", border: "none" }}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -877,7 +924,7 @@ function VideoBlock({ section, videos }: { section: CanvasSection; videos: Profi
 function BeforeAfterBlock({ section, pairs }: { section: CanvasSection; pairs: BeforeAfterRow[] }) {
   if (!pairs.length) return null;
   return (
-    <SectionCard heading={getSectionLabel(section)}>
+    <SectionCard heading={getSectionLabel(section)} intro={section.meta?.intro as string | undefined}>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {pairs.map(p => (
           <div key={p.id}>
