@@ -1553,6 +1553,11 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
   const [slugError, setSlugError] = useState("");
 
   const orderedSections = [...draft.sections].sort((a, b) => a.display_order - b.display_order);
+  // Render-only: a widget_key with no SECTION_DEFS entry (legacy pre-CanvasEditor
+  // rows, e.g. "trades"/"photos") must still round-trip through draft.sections
+  // untouched — filtering here only affects what's drawn in this list, never
+  // what saveToDb persists.
+  const renderableSections = orderedSections.filter(s => !!SECTION_DEFS[s.type]);
   const gallerySections = draft.sections.filter(s => s.type === "gallery");
   const projectSections = draft.sections.filter(s => s.type === "project");
 
@@ -1609,8 +1614,8 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
 
             {/* On canvas list */}
             <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>On canvas</div>
-            {orderedSections.map(s => {
-              const def = SECTION_DEFS[s.type] ?? SECTION_DEFS.bio;
+            {renderableSections.map(s => {
+              const def = SECTION_DEFS[s.type];
               const isActive = s.id === activeId;
               return (
                 <button
@@ -1794,6 +1799,11 @@ export function CanvasEditor() {
   }, [galleries]);
 
   const orderedSections = [...draft.sections].sort((a, b) => a.display_order - b.display_order);
+  // Render-only view of orderedSections, excluding any widget_key with no
+  // SECTION_DEFS entry. orderedSections itself (and draft.sections) stay
+  // untouched — handleMoveUp/handleMoveDown below index into the full,
+  // unfiltered orderedSections since they reorder real underlying rows.
+  const renderableSections = orderedSections.filter(s => !!SECTION_DEFS[s.type]);
 
   const updateSection = useCallback((id: string, partial: Partial<SectionInstance>) => {
     updateDraft({
@@ -1890,7 +1900,10 @@ export function CanvasEditor() {
     );
   }
 
-  const activeSection = draft.sections.find(s => s.id === activeId) ?? null;
+  // Guards EditPanel the same way: an unknown-type section is never
+  // selectable through the UI now (filtered out of both lists above), but
+  // this keeps the panel from ever opening for one regardless.
+  const activeSection = draft.sections.find(s => s.id === activeId && !!SECTION_DEFS[s.type]) ?? null;
   const galleryListForPanel = galleries.map(g => ({ id: g.id, title: g.title }));
 
   return (
@@ -1914,7 +1927,7 @@ export function CanvasEditor() {
               onClick={() => setMobilePane(p)}
               style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", border: "none", borderBottom: mobilePane === p ? `2px solid ${ORANGE}` : "2px solid transparent", background: "none", cursor: "pointer", color: mobilePane === p ? NAVY : "#9ca3af", fontFamily: "inherit" }}
             >
-              {p === "sections" ? "Sections" : "Preview"}
+              {p === "sections" ? "Edit" : "Preview"}
             </button>
           ))}
         </div>
@@ -1942,9 +1955,15 @@ export function CanvasEditor() {
           onClick={e => { if (e.target === e.currentTarget) setActiveId(null); }}
         >
           <div style={{ maxWidth: 600, margin: "0 auto", padding: "0 16px" }}>
-            {orderedSections.map((section, idx) => {
-              // Count only reorderable sections for up/down limits
-              const reorderable = orderedSections.filter(s => !SECTION_DEFS[s.type]?.fixed);
+            {/* Render-only: a widget_key with no SECTION_DEFS entry (legacy
+                pre-CanvasEditor rows) must never be drawn — CanvasBlock has no
+                content case for it and would show an empty, undeletable block.
+                orderedSections (used by handleMoveUp/handleMoveDown for the
+                real underlying order) is left untouched; this filtered copy
+                only controls what's drawn below. */}
+            {renderableSections.map((section) => {
+              // Count only reorderable, renderable sections for up/down limits
+              const reorderable = renderableSections.filter(s => !SECTION_DEFS[s.type]?.fixed);
               const reorderIdx = reorderable.findIndex(s => s.id === section.id);
 
               return (

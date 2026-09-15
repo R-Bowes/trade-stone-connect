@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Header from "@/components/Header";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -174,6 +174,18 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
   const location = useLocation();
   const standaloneEntry = Object.entries(STANDALONE_ROUTES).find(([, path]) => path === location.pathname);
   const activeView = standaloneEntry ? standaloneEntry[0] : (searchParams.get("view") ?? "dashboard");
+  const mainRef = useRef<HTMLElement>(null);
+
+  // <main> persists across every ?view= change (only its children swap), so a
+  // scroll position left over from a previous bounded view (e.g. scrolled
+  // down in Messages) otherwise carries into the next one and gets clamped
+  // to that view's own max scroll offset — landing part-way or at the
+  // bottom instead of the top. Messages manages its own internal scroll
+  // region (a nested div, not <main>) so this doesn't fight its
+  // scroll-to-latest-message behaviour.
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [activeView]);
 
   // Unread message count for sidebar badge
   const { conversations } = useConversations();
@@ -665,6 +677,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           )}
         </div>
         <main
+          ref={mainRef}
           style={{
             flex: 1,
             minWidth: 0,
