@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { useJobVariations, type JobVariation, type VariationLineItem } from "@/hooks/useJobVariations";
 
 const REASON_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ interface VariationApprovalProps {
 
 export function VariationApproval({ variation, onResponded }: VariationApprovalProps) {
   const { respondToVariation } = useJobVariations();
+  const { toast } = useToast();
   const [note, setNote] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDecision, setPendingDecision] = useState<boolean | null>(null);
@@ -38,9 +40,18 @@ export function VariationApproval({ variation, onResponded }: VariationApprovalP
   const items = Array.isArray(variation.items) ? (variation.items as unknown as VariationLineItem[]) : [];
   const docs = Array.isArray(variation.supporting_documents) ? (variation.supporting_documents as unknown as string[]) : [];
 
+  // documents is a private bucket — getPublicUrl() 404s against it (same
+  // reason useJobCertificates.ts's getSignedDocumentUrl signs instead).
+  // variations_scoped_select already covers both job parties for this
+  // variations/{contractor_id}/{job_id}/... path.
   const openDoc = async (path: string) => {
-    const { data } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(path);
-    if (data?.publicUrl) window.open(data.publicUrl, "_blank");
+    try {
+      const { data, error } = await supabase.storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open document", variant: "destructive" });
+    }
   };
 
   const handleDecision = async () => {

@@ -746,6 +746,28 @@ const ProjectDelivery = () => {
     );
   }
 
+  // project_contracts.document_url is now a bare storage path
+  // (project-contracts is private — generate-project-contract stopped
+  // persisting a getPublicUrl() result, which 404s against it, in favour of
+  // signing on demand here). Rows created before that change may still hold
+  // a full https:// URL from the old getPublicUrl() call — open those
+  // directly rather than trying to sign an already-broken value again.
+  const handleViewContract = async (documentUrl: string) => {
+    if (/^https?:\/\//.test(documentUrl)) {
+      window.open(documentUrl, "_blank");
+      return;
+    }
+    try {
+      const { data, error } = await supabase.storage
+        .from("project-contracts")
+        .createSignedUrl(documentUrl, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open contract document", variant: "destructive" });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const TAB_LABELS: Record<Tab, string> = {
@@ -1334,16 +1356,14 @@ const ProjectDelivery = () => {
                           </div>
                         </div>
                         {c.document_url && (
-                          <a
-                            href={c.document_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => handleViewContract(c.document_url!)}
                             className="flex items-center gap-1.5 text-sm text-orange-600 hover:underline shrink-0"
                           >
                             <FileText className="h-4 w-4" />
                             Download
                             <ExternalLink className="h-3 w-3" />
-                          </a>
+                          </button>
                         )}
                       </div>
                     ))}

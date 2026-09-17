@@ -635,16 +635,27 @@ function CanvasBlock(props: CanvasBlockProps) {
 function HeroPanel({ draft, updateDraft }: { draft: ProfileDraft; updateDraft: (p: Partial<ProfileDraft>) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const { toast } = useToast();
 
   const handleCoverUpload = async (file: File) => {
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { error } = await supabase.storage.from("covers").upload(`${user.id}/cover.jpg`, file, { upsert: true, contentType: file.type });
+      // "covers" bucket never existed — every upload through it failed
+      // silently (uncaught rejection, no toast) and no cover_url could ever
+      // have been persisted this way. contractor-photos is public, same
+      // audience as gallery/project photos which already live here; `cover`
+      // is a literal category segment, matching useContractorProjects.ts's
+      // `{user.id}/projects/...` convention, distinct from a gallery's
+      // instance-id segment.
+      const path = `${user.id}/cover/cover.jpg`;
+      const { error } = await supabase.storage.from("contractor-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("covers").getPublicUrl(`${user.id}/cover.jpg`);
+      const { data: { publicUrl } } = supabase.storage.from("contractor-photos").getPublicUrl(path);
       updateDraft({ coverUrl: publicUrl });
+    } catch (err: any) {
+      toast({ title: "Cover upload failed", description: String(err?.message ?? err), variant: "destructive" });
     } finally {
       setUploading(false);
     }

@@ -444,10 +444,13 @@ serve(async (req) => {
       contractor: contractorProfile,
     });
 
-    // Ensure bucket exists (idempotent — silently ignores "already exists")
-    await supabase.storage.createBucket("project-contracts", { public: true }).catch(() => {});
-
-    // Upload PDF
+    // Upload PDF. project-contracts is a private bucket (made so by
+    // 20260807150000_security_audit_fixes.sql — signed contracts, party-scoped
+    // read via project_contracts_select) — getPublicUrl() 404s against it, and
+    // the createBucket(..., {public:true}) call that used to run here was
+    // stale even before that: the bucket already existed by the time this
+    // function ran, so it was always a silently-ignored no-op, never actually
+    // the thing making the bucket public.
     const filePath = `${project_id}/${contractRef}.pdf`;
     const { error: uploadErr } = await supabase.storage
       .from("project-contracts")
@@ -457,8 +460,25 @@ serve(async (req) => {
       return jsonResponse(500, { error: "Failed to upload contract document" }, cors);
     }
 
-    const { data: urlData } = supabase.storage.from("project-contracts").getPublicUrl(filePath);
-    const documentUrl = urlData.publicUrl;
+    // project_contracts.document_url is read twice, on two different
+    // timescales: immediately by ProposalReview.tsx/ContractSigning.tsx (the
+    // signing overlay, opened in the same interaction as generation) and much
+    // later by ProjectDelivery.tsx's persisted version-history list, across
+    // sessions, by either project party. A signed URL baked in at generation
+    // time would satisfy the first and go stale for the second — the exact
+    // shape of bug this fix is for, just deferred. So the DB row stores the
+    // bare PATH (ProjectDelivery.tsx signs it fresh on each view, same
+    // pattern as useJobCertificates.ts), while the JSON response below
+    // returns a short-lived signed URL for the immediate signing overlay,
+    // which never persists it.
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from("project-contracts")
+      .createSignedUrl(filePath, 3600);
+    if (signErr || !signedData?.signedUrl) {
+      console.error("[generate-project-contract] signing failed:", signErr);
+      return jsonResponse(500, { error: "Failed to sign contract document" }, cors);
+    }
+    const documentUrl = filePath;
 
     // Determine next version number
     const { data: maxRow } = await supabase
@@ -486,7 +506,7 @@ serve(async (req) => {
       return jsonResponse(500, { error: "Failed to save contract record" }, cors);
     }
 
-    return jsonResponse(200, { contract_id: contractRow.id, document_url: documentUrl }, cors);
+    return jsonResponse(200, { contract_id: contractRow.id, document_url: signedData.signedUrl }, cors);
   } catch (err) {
     console.error("[generate-project-contract] unexpected error:", err);
     return jsonResponse(500, { error: "Internal server error" }, cors);
