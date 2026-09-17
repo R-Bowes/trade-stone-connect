@@ -144,6 +144,43 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
   // reason), so they render in a sensible place without disturbing the
   // contractor's existing order/customisations for everything else.
   if (widgetRows.length > 0) {
+    let backfilled = false;
+
+    // Hero leads at position 0. The old 8-key editor (bio, stats, trades,
+    // photos, reviews, credentials, availability, team) never had a hero
+    // row, and this backfill previously covered only the four
+    // NEW_SECTION_DEFAULTS keys below — never hero. Any contractor who
+    // saved through the old editor and never revisited since has no hero
+    // row: no sidebar entry, no canvas block, no way to reach HeroPanel,
+    // and therefore no way to ever set a cover image (the only control
+    // that writes profiles.cover_url).
+    if (!sections.some(s => s.type === "hero")) {
+      sections = [
+        { id: crypto.randomUUID(), type: "hero", is_enabled: true, display_order: 0, label: defaultLabel("hero"), meta: {} },
+        ...sections,
+      ];
+      backfilled = true;
+    }
+
+    // Cta trails at the end — same reasoning as hero, mirrored. The old
+    // 8-key editor's WidgetKey list has no 'cta' either, so a contractor
+    // from that era has no way to reach CtaPanelContent — the only
+    // control that writes profiles.cta_label. Lower severity than hero:
+    // draftFromDB already applies `ctaLabel: p.cta_label ?? "Get in
+    // touch"` at read time, so the button still renders with a sensible
+    // default; only customising its wording is unreachable. Backfilled
+    // before the NEW_SECTION_DEFAULTS step below so that step's own
+    // "insert before cta" logic (a few lines down) has a real cta row to
+    // target, rather than falling through to its "insert at the end"
+    // fallback and landing after this one.
+    if (!sections.some(s => s.type === "cta")) {
+      sections = [
+        ...sections,
+        { id: crypto.randomUUID(), type: "cta", is_enabled: true, display_order: 0, label: defaultLabel("cta"), meta: {} },
+      ];
+      backfilled = true;
+    }
+
     const present = new Set(sections.map(s => s.type));
     const missing = (Object.keys(NEW_SECTION_DEFAULTS) as Array<keyof typeof NEW_SECTION_DEFAULTS>)
       .filter(key => !present.has(key));
@@ -162,7 +199,15 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
         ...sections.slice(0, insertAt),
         ...newSections,
         ...sections.slice(insertAt),
-      ].map((s, i) => ({ ...s, display_order: i }));
+      ];
+      backfilled = true;
+    }
+
+    // Renumber only if something was actually inserted above — a
+    // contractor needing no backfill at all keeps their exact stored
+    // display_order values untouched, same as before this change.
+    if (backfilled) {
+      sections = sections.map((s, i) => ({ ...s, display_order: i }));
     }
   }
 
