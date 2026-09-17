@@ -37,8 +37,16 @@ interface JobRamsSummary {
 
 // Self-declared by the contractor, not job-scoped — one row covers every
 // job. RLS (contractor_credentials' "Customers can read their contractor's
-// current insurance" policy) already resolves this to at most the single
-// current row, or none, for this customer/job — no filtering needed here.
+// current insurance" policy) is meant to resolve this to at most one row
+// for this customer/job — but the query below doesn't assert that with
+// .maybeSingle(). It was tried once: two insurance rows sharing the same
+// expires_at both matched the policy's old MAX(expires_at) condition,
+// maybeSingle() rejected the 2-row result as an error, and the component
+// treated that identically to "no insurance on file" — the whole card
+// silently disappeared. The policy is now id-based and deterministic, but
+// this ordering + limit(1) stays regardless: if the policy is ever wrong
+// again, an extra row should degrade to "show the most current one", not
+// to nothing.
 interface InsuranceSummary {
   id: string;
   expires_at: string | null;
@@ -99,20 +107,25 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
         setInsuranceLoading(false);
         return;
       }
-      // credential_type = 'insurance' filter plus RLS together resolve this
-      // to at most one row — the contractor's current policy, or none.
+      // Ordered + limited rather than .maybeSingle(): tolerates an
+      // unexpected extra row (see the comment on InsuranceSummary above)
+      // instead of erroring on one. Same tiebreak as the RLS policy —
+      // latest expires_at, then most recently uploaded — so which row
+      // wins here always matches which row the policy actually let through.
       const { data, error } = await supabase
         .from("contractor_credentials")
         .select("id, expires_at, document_path")
         .eq("contractor_id", job.contractor_id)
         .eq("credential_type", "insurance")
-        .maybeSingle();
+        .order("expires_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
       if (cancelled) return;
       if (error) {
         console.error("Error fetching contractor insurance for customer view:", error);
         setInsurance(null);
       } else {
-        setInsurance((data as InsuranceSummary | null) ?? null);
+        setInsurance((data?.[0] as InsuranceSummary | undefined) ?? null);
       }
       setInsuranceLoading(false);
     })();
