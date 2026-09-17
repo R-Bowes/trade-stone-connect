@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
@@ -91,6 +92,8 @@ export function VerificationManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [credName, setCredName] = useState("");
   const [credIssuer, setCredIssuer] = useState("");
+  const [credType, setCredType] = useState<string>("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +101,16 @@ export function VerificationManagement() {
 
   const documentPaths = credentials.map((c) => c.document_path).filter((p): p is string => !!p);
   const { urls: signedDocUrls } = useSignedPhotoUrls(BUCKET, documentPaths);
+
+  // "Current" = latest expires_at, matching the customer-facing RLS policy's
+  // own definition exactly — not upload order. At most two insurance rows
+  // ever exist (trigger-enforced), so this is cheap and needs no memoing.
+  const insuranceCreds = credentials
+    .filter((c) => c.credential_type === "insurance")
+    .sort((a, b) => (b.expires_at ?? "").localeCompare(a.expires_at ?? ""));
+  const currentInsurance = insuranceCreds[0] ?? null;
+  const previousInsurance = insuranceCreds[1] ?? null;
+  const otherCredentials = credentials.filter((c) => c.credential_type !== "insurance");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,12 +156,17 @@ export function VerificationManagement() {
   const resetForm = () => {
     setCredName("");
     setCredIssuer("");
+    setCredType("");
+    setExpiryDate("");
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const isInsurance = credType === "insurance";
+
   const handleUpload = async () => {
     if (!profileId || !credName.trim()) return;
+    if (isInsurance && !expiryDate) return;
     setUploading(true);
     try {
       let documentPath: string | null = null;
@@ -168,13 +186,19 @@ export function VerificationManagement() {
           contractor_id: profileId,
           name: credName.trim(),
           issuer: credIssuer.trim() || null,
+          credential_type: credType || null,
+          expires_at: isInsurance ? expiryDate : null,
           verified: false,
           display_order: credentials.length,
           document_path: documentPath,
         });
       if (insertError) throw insertError;
 
-      toast({ title: "Credential submitted", description: "It will show as pending until a TradeStone admin reviews it." });
+      toast(
+        isInsurance
+          ? { title: "Insurance shared", description: "Customers on your current and recent jobs can now view this." }
+          : { title: "Credential submitted", description: "It will show as pending until a TradeStone admin reviews it." },
+      );
       setDialogOpen(false);
       resetForm();
       load();
@@ -204,7 +228,11 @@ export function VerificationManagement() {
   }
 
   const currentTier = verification?.current_tier ?? 1;
-  const insuranceDays = daysUntil(verification?.insurance_expires_at ?? null);
+  // Self-declared insurance (contractor_credentials, credential_type =
+  // 'insurance') is the live source for this card now — contractor_verification's
+  // insurance_expires_at/insurance_verified have no write path anywhere in the
+  // product today (system-verified fields only; left untouched, not read here).
+  const insuranceDays = daysUntil(currentInsurance?.expires_at ?? null);
 
   return (
     <div className="space-y-6">
@@ -255,27 +283,63 @@ export function VerificationManagement() {
         </CardContent>
       </Card>
 
-      {/* Insurance */}
+      {/* Insurance — self-declared, shared with customers. Never a "verified"
+          claim: no badge, matching CustomerJobDocuments.tsx's own precedent
+          of omitting a verified/pending badge where there's no honest review
+          step behind it. */}
       <Card>
-        <CardHeader>
-          <CardTitle>Public liability insurance</CardTitle>
-          <CardDescription>Your public liability insurance details on file.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Public liability insurance</CardTitle>
+            <CardDescription>Shared with customers on your current and recent jobs — not reviewed by TradeStone.</CardDescription>
+          </div>
+          <Button size="sm" onClick={() => { resetForm(); setCredType("insurance"); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {currentInsurance ? "Renew" : "Add"}
+          </Button>
         </CardHeader>
-        <CardContent>
-          {!verification?.insurance_expires_at ? (
+        <CardContent className="space-y-3">
+          {!currentInsurance ? (
             <p className="text-sm text-muted-foreground">No insurance on file yet.</p>
           ) : (
-            <div className="flex items-center gap-3">
-              <StatusBadge status={verification.insurance_verified ? "verified" : "pending"} />
-              <span className="text-sm">
-                Expires {new Date(verification.insurance_expires_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-                {insuranceDays !== null && (
-                  <span className={insuranceDays < 14 ? "text-destructive font-medium" : "text-muted-foreground"}>
-                    {" "}({insuranceDays >= 0 ? `${insuranceDays} days remaining` : "expired"})
-                  </span>
+            <>
+              <div className="flex items-center gap-3">
+                <span className="text-sm">
+                  Expires {currentInsurance.expires_at && new Date(currentInsurance.expires_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                  {insuranceDays !== null && (
+                    <span className={insuranceDays < 14 ? "text-destructive font-medium" : "text-muted-foreground"}>
+                      {" "}({insuranceDays >= 0 ? `${insuranceDays} days remaining` : "expired"})
+                    </span>
+                  )}
+                </span>
+                {currentInsurance.document_path && signedDocUrls[currentInsurance.document_path] && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={signedDocUrls[currentInsurance.document_path]} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
                 )}
-              </span>
-            </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Provided by you — not checked by TradeStone.</p>
+            </>
+          )}
+          {previousInsurance && (
+            <p className="text-xs text-muted-foreground">
+              Previous certificate{previousInsurance.expires_at && ` (expired ${new Date(previousInsurance.expires_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })})`} kept on file for dispute reference — not shown to customers.
+              {previousInsurance.document_path && signedDocUrls[previousInsurance.document_path] && (
+                <>
+                  {" "}
+                  <a
+                    href={signedDocUrls[previousInsurance.document_path]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    View
+                  </a>
+                </>
+              )}
+            </p>
           )}
         </CardContent>
       </Card>
@@ -320,11 +384,11 @@ export function VerificationManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          {credentials.length === 0 ? (
+          {otherCredentials.length === 0 ? (
             <p className="text-sm text-muted-foreground">No credentials submitted yet.</p>
           ) : (
             <div className="space-y-3">
-              {credentials.map((c) => (
+              {otherCredentials.map((c) => (
                 <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg gap-3">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{c.name}</p>
@@ -353,10 +417,32 @@ export function VerificationManagement() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add credential</DialogTitle>
-            <DialogDescription>Submit a qualification or accreditation for a TradeStone admin to review.</DialogDescription>
+            <DialogTitle>{isInsurance ? "Public liability insurance" : "Add credential"}</DialogTitle>
+            <DialogDescription>
+              {isInsurance
+                ? "Upload your current certificate and its expiry date."
+                : "Submit a qualification or accreditation for a TradeStone admin to review."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cred-type">What is this?</Label>
+              <Select value={credType || "other"} onValueChange={(v) => setCredType(v === "other" ? "" : v)}>
+                <SelectTrigger id="cred-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="other">Qualification or accreditation</SelectItem>
+                  <SelectItem value="insurance">Public liability insurance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {isInsurance && (
+              <div className="space-y-2">
+                <Label htmlFor="cred-expiry">Expiry date *</Label>
+                <Input id="cred-expiry" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+              </div>
+            )}
             <div className="space-y-2 relative">
               <Label>Proof document</Label>
               {/* iOS Safari drops file inputs hidden via display:none — keep it
@@ -376,19 +462,34 @@ export function VerificationManagement() {
               <p className="text-xs text-muted-foreground">Max 10MB</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cred-name">Credential name *</Label>
-              <Input id="cred-name" value={credName} onChange={(e) => setCredName(e.target.value)} placeholder="e.g. NVQ Level 3 Plumbing" />
+              <Label htmlFor="cred-name">{isInsurance ? "Policy name *" : "Credential name *"}</Label>
+              <Input
+                id="cred-name"
+                value={credName}
+                onChange={(e) => setCredName(e.target.value)}
+                placeholder={isInsurance ? "e.g. Public liability insurance" : "e.g. NVQ Level 3 Plumbing"}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cred-issuer">Awarding body</Label>
-              <Input id="cred-issuer" value={credIssuer} onChange={(e) => setCredIssuer(e.target.value)} placeholder="e.g. City & Guilds" />
+              <Label htmlFor="cred-issuer">{isInsurance ? "Insurer" : "Awarding body"}</Label>
+              <Input
+                id="cred-issuer"
+                value={credIssuer}
+                onChange={(e) => setCredIssuer(e.target.value)}
+                placeholder={isInsurance ? "e.g. Aviva" : "e.g. City & Guilds"}
+              />
             </div>
+            {isInsurance && (
+              <p className="text-xs text-muted-foreground">
+                This will be visible to every customer of every job you take, including the expiry date.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={uploading}>Cancel</Button>
-            <Button onClick={handleUpload} disabled={uploading || !credName.trim()}>
+            <Button onClick={handleUpload} disabled={uploading || !credName.trim() || (isInsurance && !expiryDate)}>
               {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit for verification
+              {isInsurance ? "Share with my customers" : "Submit for verification"}
             </Button>
           </DialogFooter>
         </DialogContent>
