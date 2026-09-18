@@ -295,14 +295,14 @@ export function SubmitProposalForm({
 
         if (uploadError) continue;
 
-        const { data: urlData } = supabase.storage
-          .from("proposal-attachments")
-          .getPublicUrl(path);
-
+        // proposal-attachments is a private bucket — getPublicUrl() 404s
+        // against it. file_url stores the bare storage path; readers
+        // (ProposalReview.tsx, ProjectDelivery.tsx) sign it on demand
+        // rather than a signed URL being baked in here and going stale.
         await supabase.from("proposal_attachments").insert({
           proposal_id: proposal.id,
           file_name: file.name,
-          file_url: urlData.publicUrl,
+          file_url: path,
         });
       }
 

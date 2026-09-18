@@ -668,6 +668,25 @@ const VisitsTab = ({
     onRefresh();
   };
 
+  // documents is a private bucket — getPublicUrl() 404s against it.
+  // service_documents.document_url isn't always a bare storage path: the
+  // upload fallback in ContractorServiceVisits.tsx stores a base64 data:
+  // URL when the storage upload itself fails, so a data:/http(s): value is
+  // opened as-is and only a bare path gets signed.
+  const handleViewDocument = async (documentUrl: string) => {
+    if (/^(data:|https?:\/\/)/.test(documentUrl)) {
+      window.open(documentUrl, "_blank");
+      return;
+    }
+    try {
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(documentUrl, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open document", variant: "destructive" });
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
   return (
@@ -779,10 +798,8 @@ const VisitsTab = ({
                             <p className="text-sm font-medium">{doc.document_name}</p>
                             <p className="text-xs text-muted-foreground capitalize">{doc.document_type}</p>
                           </div>
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
-                              <Eye className="h-4 w-4" />
-                            </a>
+                          <Button variant="ghost" size="sm" onClick={() => handleViewDocument(doc.document_url)}>
+                            <Eye className="h-4 w-4" />
                           </Button>
                         </div>
                       ))}

@@ -317,14 +317,13 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
       return;
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-
+    // documents is a private bucket — getPublicUrl() 404s against it.
+    // Store the bare path; handleViewDocument signs it on demand.
     await supabase.from('service_documents').insert({
       visit_id: selected.id,
       uploaded_by: profileId,
       document_name: uploadName,
-      document_url: urlData.publicUrl,
+      document_url: filePath,
       document_type: uploadType,
     });
 
@@ -333,6 +332,25 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
     setUploadFile(null);
     setUploadName('');
     load();
+  };
+
+  // documents is a private bucket — getPublicUrl() 404s against it. But
+  // this column isn't always a bare storage path: handleUpload's fallback
+  // (storage upload failed) stores a base64 data: URL directly instead, and
+  // that fallback is live code, not legacy data — so a data:/http(s): value
+  // is opened as-is, and only a bare path gets signed.
+  const handleViewDocument = async (documentUrl: string) => {
+    if (/^(data:|https?:\/\/)/.test(documentUrl)) {
+      window.open(documentUrl, "_blank");
+      return;
+    }
+    try {
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(documentUrl, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open document", variant: "destructive" });
+    }
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -518,10 +536,8 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
                           <p className="text-sm font-medium">{doc.document_name}</p>
                           <p className="text-xs text-muted-foreground capitalize">{doc.document_type} · {fmtDate(doc.created_at)}</p>
                         </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
-                            <Eye className="h-4 w-4" />
-                          </a>
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDocument(doc.document_url)}>
+                          <Eye className="h-4 w-4" />
                         </Button>
                       </div>
                     ))}

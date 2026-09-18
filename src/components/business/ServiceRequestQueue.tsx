@@ -214,6 +214,21 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
     setLoadingCandidates(false);
   };
 
+  // documents is a private bucket — getPublicUrl() 404s against it (same
+  // reason useJobCertificates.ts's getSignedDocumentUrl signs instead).
+  // documents_general_select already covers this exact path via a
+  // jsonb_array_elements_text match against sr.photos, scoped by
+  // is_company_member(sr.company_id).
+  const handleViewPhoto = async (path: string) => {
+    try {
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(path, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open photo", variant: "destructive" });
+    }
+  };
+
   const handleDispatch = async (contractor: AvailableContractor) => {
     setDispatchingId(contractor.contractor_id);
     try {
@@ -260,7 +275,7 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
           {request.photos.length > 0 && (
             <div className="grid grid-cols-4 gap-2">
               {request.photos.map((p) => (
-                <a key={p} href={supabase.storage.from("documents").getPublicUrl(p).data.publicUrl} target="_blank" rel="noreferrer" className="text-xs underline text-blue-600">Photo</a>
+                <button key={p} onClick={() => handleViewPhoto(p)} className="text-xs underline text-blue-600 text-left">Photo</button>
               ))}
             </div>
           )}

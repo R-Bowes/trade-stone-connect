@@ -768,6 +768,25 @@ const ProjectDelivery = () => {
     }
   };
 
+  // proposal-attachments is a private bucket — getPublicUrl() 404s against
+  // it. file_url stores a bare storage path going forward
+  // (SubmitProposalForm.tsx no longer bakes a URL in at upload time).
+  const handleViewAttachment = async (fileUrl: string) => {
+    if (/^https?:\/\//.test(fileUrl)) {
+      window.open(fileUrl, "_blank");
+      return;
+    }
+    try {
+      const { data, error } = await supabase.storage
+        .from("proposal-attachments")
+        .createSignedUrl(fileUrl, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error("No signed URL returned");
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Could not open attachment", variant: "destructive" });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const TAB_LABELS: Record<Tab, string> = {
@@ -1378,17 +1397,15 @@ const ProjectDelivery = () => {
                   </p>
                   <div className="flex flex-col gap-2">
                     {attachments.map(att => (
-                      <a
+                      <button
                         key={att.id}
-                        href={att.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 border rounded-md px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                        onClick={() => handleViewAttachment(att.file_url)}
+                        className="flex items-center gap-2.5 border rounded-md px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
                       >
                         <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <span className="text-sm flex-1 min-w-0 truncate">{att.file_name}</span>
                         <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
