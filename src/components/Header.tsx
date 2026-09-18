@@ -96,17 +96,16 @@ const Header = () => {
 
   const settingsPath = dashboardPath ? `${dashboardPath}?view=settings` : null;
 
-  // "Edit profile" only for contractors, whose profilePath is the canvas
-  // editor (?view=canvas-editor) — a genuinely different destination from
-  // Account settings. For business/homeowner, profilePath and settingsPath
-  // are both ?view=settings (the same URL) — renaming this one to "Edit
-  // profile" for those roles would just relabel a duplicate of "Account
-  // settings" rather than fix the mismatch, so it stays "My profile" there.
-  const profileLabel = profile?.user_type === "contractor" ? "Edit profile" : "My profile";
+  // Profile entry is contractor-only. For business/homeowner, profilePath
+  // and settingsPath are both ?view=settings (the same URL) — showing both
+  // was two dropdown entries pointing at one destination. Contractors keep
+  // it: their profilePath is the canvas editor (?view=canvas-editor), a
+  // genuinely different place from Account settings.
+  const isContractor = profile?.user_type === "contractor";
 
   const dropdownNavItems = [
     dashboardPath ? { icon: "ti-layout-dashboard", label: "My dashboard", href: dashboardPath } : null,
-    profilePath ? { icon: "ti-user", label: profileLabel, href: profilePath } : null,
+    isContractor && profilePath ? { icon: "ti-user", label: "Edit profile", href: profilePath } : null,
     settingsPath ? { icon: "ti-settings", label: "Account settings", href: settingsPath } : null,
   ].filter((item): item is { icon: string; label: string; href: string } => item !== null);
 
