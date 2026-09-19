@@ -180,13 +180,39 @@ export function useWorkOrders() {
     return inserted as WorkOrder;
   };
 
+  // Throws on a genuine RPC failure rather than swallowing it — a failed
+  // lookup and "no rate is agreed yet" must not look identical to the
+  // caller, since only one of them should block dispatch.
   const snapshotRates = async (engagementId: string) => {
-    const { data } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: engagementId });
+    const { data, error } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: engagementId });
+    if (error) throw error;
     return data ?? null;
   };
 
   const dispatchWorkOrder = async (workOrderId: string, contractorProfileId: string, engagementId: string) => {
-    const rateSnapshot = await snapshotRates(engagementId);
+    let rateSnapshot;
+    try {
+      rateSnapshot = await snapshotRates(engagementId);
+    } catch (err) {
+      toast({ title: "Error", description: "Could not check agreed rates. Please try again.", variant: "destructive" });
+      throw err;
+    }
+
+    // effective_engagement_rates returns nothing until both parties have
+    // agreed a rate version (see accept_engagement_rate_version) — a real,
+    // ongoing state for a direct-origin engagement between creation and
+    // acceptance, not just a transient/error condition. Dispatching anyway
+    // used to silently write a null rate_snapshot and proceed; both
+    // WorkOrderInbox.tsx and WorkOrderDashboard.tsx would then just omit
+    // the rate info box with no indication anything was wrong.
+    if (!rateSnapshot) {
+      toast({
+        title: "Cannot dispatch",
+        description: "Rates must be agreed with the contractor before a work order can be dispatched.",
+        variant: "destructive",
+      });
+      throw new Error("Rates must be agreed with the contractor before a work order can be dispatched.");
+    }
 
     const { data: wo, error } = await (supabase as any)
       .from("work_orders")

@@ -9774,8 +9774,10 @@ export type Database = {
       }
       term_engagements: {
         Row: {
-          agreement_id: string
+          agreement_id: string | null
           auto_suspend_on_lapse: boolean
+          billing_anchor_day: number | null
+          billing_period: string
           company_id: string
           contractor_id: string
           created_at: string
@@ -9786,18 +9788,21 @@ export type Database = {
           id: string
           notice_effective_date: string | null
           notice_period_days: number
+          origin: string
           retender_notice_months: number
           retendered_as: string | null
           sla_rule_set_id: string | null
           start_date: string
           status: string
           suspended_reason: string | null
-          tender_id: string
+          tender_id: string | null
           updated_at: string
         }
         Insert: {
-          agreement_id: string
+          agreement_id?: string | null
           auto_suspend_on_lapse?: boolean
+          billing_anchor_day?: number | null
+          billing_period: string
           company_id: string
           contractor_id: string
           created_at?: string
@@ -9808,18 +9813,21 @@ export type Database = {
           id?: string
           notice_effective_date?: string | null
           notice_period_days?: number
+          origin: string
           retender_notice_months?: number
           retendered_as?: string | null
           sla_rule_set_id?: string | null
           start_date: string
           status?: string
           suspended_reason?: string | null
-          tender_id: string
+          tender_id?: string | null
           updated_at?: string
         }
         Update: {
-          agreement_id?: string
+          agreement_id?: string | null
           auto_suspend_on_lapse?: boolean
+          billing_anchor_day?: number | null
+          billing_period?: string
           company_id?: string
           contractor_id?: string
           created_at?: string
@@ -9830,13 +9838,14 @@ export type Database = {
           id?: string
           notice_effective_date?: string | null
           notice_period_days?: number
+          origin?: string
           retender_notice_months?: number
           retendered_as?: string | null
           sla_rule_set_id?: string | null
           start_date?: string
           status?: string
           suspended_reason?: string | null
-          tender_id?: string
+          tender_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -10605,8 +10614,23 @@ export type Database = {
         }
         Returns: string
       }
+      create_direct_engagement: {
+        Args: {
+          p_billing_anchor_day?: number
+          p_billing_period: string
+          p_company_id: string
+          p_contractor_id: string
+          p_expiry_date: string
+          p_start_date: string
+        }
+        Returns: string
+      }
       create_tender_application_draft: {
         Args: { p_tender_id: string }
+        Returns: string
+      }
+      current_insurance_credential_id: {
+        Args: { p_contractor_id: string }
         Returns: string
       }
       decline_tender_agreement: {

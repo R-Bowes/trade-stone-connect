@@ -32,6 +32,7 @@ import {
   Award,
   FileCheck2,
   History,
+  CalendarClock,
 } from "lucide-react";
 
 // --- Types ---
@@ -48,6 +49,7 @@ interface PanelMember {
   notes: string | null;
   approved_at: string | null;
   created_at: string | null;
+  can_receive_jobs: boolean;
   contractor_name: string | null;
   contractor_ts_code: string | null;
   contractor_trades: string[] | null;
@@ -56,6 +58,22 @@ interface PanelMember {
   contractor_avatar: string | null;
   contractor_company: string | null;
 }
+
+// --- term_engagements (direct-origin creation from this view) ---
+// Only the three not-yet-terminated statuses are fetched — 'ended'/'expired'
+// engagements don't block setting up a new one (create_direct_engagement's
+// own duplicate guard uses the same three-status set).
+interface ExistingEngagementRow {
+  id: string;
+  contractor_id: string;
+  status: string;
+  expiry_date: string;
+}
+
+const BILLING_PERIOD_OPTIONS = [
+  { value: "calendar_month", label: "Calendar month" },
+  { value: "custom", label: "Custom (a fixed day of the month)" },
+] as const;
 
 interface PanelManagementProps {
   profileId: string;
@@ -235,6 +253,22 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
   const [prequalMap, setPrequalMap] = useState<Record<string, PrequalExpiryRow>>({});
   const [lastWorkedMap, setLastWorkedMap] = useState<Record<string, string>>({});
   const [slaRules, setSlaRules] = useState<SlaRule[]>([]);
+  const [engagementMap, setEngagementMap] = useState<Record<string, ExistingEngagementRow>>({});
+
+  // --- Direct term engagement creation dialog ---
+  const [engagementOpen, setEngagementOpen] = useState(false);
+  const [engagementStep, setEngagementStep] = useState<"form" | "retry-rates">("form");
+  const [engagementSubmitting, setEngagementSubmitting] = useState(false);
+  const [pendingEngagementId, setPendingEngagementId] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<"calendar_month" | "custom">("calendar_month");
+  const [billingAnchorDay, setBillingAnchorDay] = useState("");
+  const [calloutStandard, setCalloutStandard] = useState("");
+  const [calloutOoh, setCalloutOoh] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
+  const [materialsMarkupPct, setMaterialsMarkupPct] = useState("");
+  const [minimumCharge, setMinimumCharge] = useState("");
 
   // --- Ensure company row exists ---
   const ensureCompany = useCallback(async (): Promise<string | null> => {
@@ -279,10 +313,11 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       setScoresMap({});
       setPrequalMap({});
       setLastWorkedMap({});
+      setEngagementMap({});
       return;
     }
 
-    const [scoresRes, prequalRes, jobsRes] = await Promise.all([
+    const [scoresRes, prequalRes, jobsRes, engagementsRes] = await Promise.all([
       supabase
         .from("contractor_scores")
         .select("contractor_id, craft_score, craft_confidence, craft_signal_count, service_score, service_confidence, service_review_count, value_score, value_confidence, value_signal_count" as const)
@@ -299,6 +334,15 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
         .eq("status", "complete")
         .in("contractor_id", contractorIds)
         .order("completed_at", { ascending: false }),
+      // Not-yet-terminated engagements only — matches
+      // create_direct_engagement's own duplicate guard exactly, so what the
+      // form offers/blocks always agrees with what the RPC will accept.
+      supabase
+        .from("term_engagements")
+        .select("id, contractor_id, status, expiry_date")
+        .eq("company_id", cId)
+        .in("contractor_id", contractorIds)
+        .in("status", ["active", "suspended", "notice_given"]),
     ]);
 
     const sMap: Record<string, ContractorScoreRow> = {};
@@ -315,6 +359,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       if (row.completed_at && !jMap[row.contractor_id]) jMap[row.contractor_id] = row.completed_at;
     }
     setLastWorkedMap(jMap);
+
+    const eMap: Record<string, ExistingEngagementRow> = {};
+    for (const row of engagementsRes.data ?? []) eMap[row.contractor_id] = row as ExistingEngagementRow;
+    setEngagementMap(eMap);
   }, []);
 
   // --- Load panel ---
@@ -330,7 +378,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
     const { data, error } = await supabase
       .from("contractor_panel")
-      .select("id, contractor_id, company_id, status, tier, notes, approved_at, created_at")
+      .select("id, contractor_id, company_id, status, tier, notes, approved_at, created_at, can_receive_jobs")
       .eq("company_id", cId)
       .order("created_at", { ascending: false });
 
@@ -521,6 +569,127 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     toast({ title: "Removed", description: "Contractor removed from panel." });
     setDetailOpen(false);
     loadPanel();
+  };
+
+  // --- Direct term engagement creation ---
+
+  const resetEngagementForm = () => {
+    setStartDate("");
+    setExpiryDate("");
+    setBillingPeriod("calendar_month");
+    setBillingAnchorDay("");
+    setCalloutStandard("");
+    setCalloutOoh("");
+    setHourlyRate("");
+    setMaterialsMarkupPct("");
+    setMinimumCharge("");
+    setPendingEngagementId(null);
+    setEngagementStep("form");
+  };
+
+  const openEngagementDialog = () => {
+    resetEngagementForm();
+    setEngagementOpen(true);
+  };
+
+  // Proposes the rate version against an already-created engagement.
+  // Split out from handleCreateEngagement so a failed proposal can be
+  // retried on its own — create_direct_engagement would refuse a second
+  // call for the same contractor+company once the first succeeded (its own
+  // duplicate guard treats the just-created row as blocking), so re-running
+  // the whole form is not an option once the engagement exists.
+  const proposeRates = async (engagementId: string) => {
+    // propose_engagement_rate_version rejects an effective_from before
+    // today. An engagement can legitimately start in the past (formalising
+    // a relationship that was already running informally), so the rate's
+    // effective_from is clamped to today when the engagement's own start
+    // date has already passed, rather than sending a start_date the RPC
+    // would reject outright.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const effectiveFrom = startDate < todayStr ? todayStr : startDate;
+
+    const { error: rateError } = await supabase.rpc("propose_engagement_rate_version", {
+      p_engagement_id: engagementId,
+      p_callout_standard: Number(calloutStandard),
+      p_callout_ooh: Number(calloutOoh),
+      p_hourly_rate: Number(hourlyRate),
+      p_materials_markup_pct: Number(materialsMarkupPct),
+      p_minimum_charge: minimumCharge ? Number(minimumCharge) : null,
+      p_effective_from: effectiveFrom,
+    });
+
+    if (rateError) {
+      setPendingEngagementId(engagementId);
+      setEngagementStep("retry-rates");
+      toast({
+        title: "Engagement created, but rates were not proposed",
+        description: "The engagement exists on file, but the contractor has nothing to accept yet. Try proposing rates again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    toast({
+      title: "Engagement created",
+      description: "Rates have been proposed. The contractor must accept them before this engagement is usable.",
+    });
+    setEngagementOpen(false);
+    resetEngagementForm();
+    setDetailOpen(false);
+    loadPanel();
+    return true;
+  };
+
+  const handleCreateEngagement = async () => {
+    if (!selectedMember?.contractor_id || !companyId) return;
+
+    if (!startDate || !expiryDate) {
+      toast({ title: "Missing dates", description: "Start and expiry dates are required.", variant: "destructive" });
+      return;
+    }
+    if (billingPeriod === "custom" && !billingAnchorDay) {
+      toast({ title: "Missing anchor day", description: "Enter a day of the month (1–28) for a custom billing period.", variant: "destructive" });
+      return;
+    }
+    if (!calloutStandard || !calloutOoh || !hourlyRate || !materialsMarkupPct) {
+      toast({ title: "Missing rates", description: "Every rate is required except minimum charge.", variant: "destructive" });
+      return;
+    }
+
+    setEngagementSubmitting(true);
+    try {
+      const { data: engagementId, error: engagementError } = await supabase.rpc("create_direct_engagement", {
+        p_company_id: companyId,
+        p_contractor_id: selectedMember.contractor_id,
+        p_start_date: startDate,
+        p_expiry_date: expiryDate,
+        p_billing_period: billingPeriod,
+        p_billing_anchor_day: billingPeriod === "custom" ? Number(billingAnchorDay) : null,
+      });
+
+      if (engagementError || !engagementId) {
+        toast({
+          title: "Could not create engagement",
+          description: engagementError?.message ?? "Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await proposeRates(engagementId as string);
+    } finally {
+      setEngagementSubmitting(false);
+    }
+  };
+
+  const handleRetryRates = async () => {
+    if (!pendingEngagementId) return;
+    setEngagementSubmitting(true);
+    try {
+      await proposeRates(pendingEngagementId);
+    } finally {
+      setEngagementSubmitting(false);
+    }
   };
 
   // --- Filtered panel ---
@@ -911,6 +1080,35 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                   </div>
 
                   <div>
+                    <p className="text-xs text-muted-foreground mb-1">Term engagement</p>
+                    {cid && engagementMap[cid] ? (
+                      <div className="p-3 rounded-lg border bg-muted/30 text-sm space-y-1">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Active — expires {new Date(engagementMap[cid].expiry_date).toLocaleDateString("en-GB")}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          This contractor already has an ongoing term engagement with your company. A second one cannot be created until it ends.
+                        </p>
+                      </div>
+                    ) : selectedMember.status === "approved" && selectedMember.can_receive_jobs ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={openEngagementDialog}
+                      >
+                        <CalendarClock className="h-3 w-3 mr-1" />
+                        Set up term engagement
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Approve this contractor (and clear any suspension) before setting up a term engagement.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
                     <p className="text-xs text-muted-foreground">Last worked</p>
                     <p className="text-sm">
                       {lastWorked
@@ -982,6 +1180,124 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       <Dialog open={prequalOpen} onOpenChange={setPrequalOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
           {companyId && <BusinessPrequalView companyId={companyId} profileId={profileId} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Term Engagement Dialog --- */}
+      <Dialog open={engagementOpen} onOpenChange={(o) => {
+        setEngagementOpen(o);
+        if (!o) resetEngagementForm();
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {engagementStep === "retry-rates"
+                ? "Propose rates again"
+                : `Set up term engagement — ${selectedMember?.contractor_name ?? "Contractor"}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm">
+            This engagement is not usable until {selectedMember?.contractor_name ?? "the contractor"} accepts these
+            rates from their side. Nothing is dispatched to them, and no work can be raised against this engagement,
+            until then.
+          </div>
+
+          <div className="space-y-5 py-2">
+            {engagementStep === "form" && (
+              <>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Engagement</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Start date</label>
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Expiry date</label>
+                      <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Billing period</p>
+                  <Select value={billingPeriod} onValueChange={(v) => setBillingPeriod(v as "calendar_month" | "custom")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BILLING_PERIOD_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {billingPeriod === "custom" && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Day of the month billing starts (1–28)</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={28}
+                        value={billingAnchorDay}
+                        onChange={(e) => setBillingAnchorDay(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">This cannot be changed once the engagement starts.</p>
+                </div>
+              </>
+            )}
+
+            {engagementStep === "retry-rates" && (
+              <p className="text-sm text-muted-foreground">
+                The engagement itself was already created — it does not need to be entered again. Only the rate
+                proposal failed. Review the rates below and try again.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Rates</p>
+              <p className="text-xs text-muted-foreground">
+                What you'll pay for work under this engagement. Every field is required except minimum charge.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Standard call-out fee (£)</label>
+                  <Input type="number" min={0} step="0.01" value={calloutStandard} onChange={(e) => setCalloutStandard(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Out-of-hours call-out fee (£)</label>
+                  <Input type="number" min={0} step="0.01" value={calloutOoh} onChange={(e) => setCalloutOoh(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Hourly rate (£)</label>
+                  <Input type="number" min={0} step="0.01" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Materials markup (%)</label>
+                  <Input type="number" min={0} step="0.1" value={materialsMarkupPct} onChange={(e) => setMaterialsMarkupPct(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Minimum charge (£) — optional</label>
+                <Input type="number" min={0} step="0.01" value={minimumCharge} onChange={(e) => setMinimumCharge(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEngagementOpen(false)}>Cancel</Button>
+            {engagementStep === "form" ? (
+              <Button onClick={handleCreateEngagement} disabled={engagementSubmitting}>
+                {engagementSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Create engagement &amp; propose rates
+              </Button>
+            ) : (
+              <Button onClick={handleRetryRates} disabled={engagementSubmitting}>
+                {engagementSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Retry proposing rates
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
