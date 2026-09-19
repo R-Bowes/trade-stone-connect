@@ -48,6 +48,7 @@ import { RespondDialog } from "@/components/management/RespondDialog";
 import { ProposeSiteVisitDialog } from "@/components/management/ProposeSiteVisitDialog";
 import { PanelInvites } from "@/components/business/PanelInvites";
 import { ContractorPrequalStatus } from "@/components/contractor/ContractorPrequalStatus";
+import { ContractorEngagementsView } from "@/components/contractor/ContractorEngagementsView";
 import { ContractorTendersView } from "@/components/contractor/tenders/ContractorTendersView";
 import { ContractorServiceVisits } from "@/components/business/ContractorServiceVisits";
 import ShareProfileView from "@/components/contractor/ShareProfileView";
@@ -766,6 +767,7 @@ const ContractorDashboard = () => {
           <TabsContent value="rams-templates"><RamsTemplateManagement /></TabsContent>
           <TabsContent value="checklist-templates"><ChecklistTemplates /></TabsContent>
           <TabsContent value="work-orders"><WorkOrderInbox /></TabsContent>
+          <TabsContent value="engagements"><ContractorEngagementsView /></TabsContent>
           <TabsContent value="ppm-visits" className="space-y-6">
             {profileId ? <PpmVisits profileId={profileId} /> : (
               <Card><CardContent className="p-8 text-center"><p className="text-muted-foreground">Unable to load PPM visits — profile not found.</p></CardContent></Card>

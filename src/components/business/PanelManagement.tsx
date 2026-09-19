@@ -608,7 +608,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     const todayStr = new Date().toISOString().slice(0, 10);
     const effectiveFrom = startDate < todayStr ? todayStr : startDate;
 
-    const { error: rateError } = await supabase.rpc("propose_engagement_rate_version", {
+    const { data: rateId, error: rateError } = await supabase.rpc("propose_engagement_rate_version", {
       p_engagement_id: engagementId,
       p_callout_standard: Number(calloutStandard),
       p_callout_ooh: Number(calloutOoh),
@@ -627,6 +627,33 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
         variant: "destructive",
       });
       return false;
+    }
+
+    // Best-effort — a failed notification must not undo an already-agreed
+    // rate proposal. The contractor can still find this from their
+    // Engagements view with nothing waiting in their notification bell.
+    if (selectedMember?.contractor_id && rateId) {
+      try {
+        const { error: notifyError } = await supabase.from("notifications").insert({
+          user_id: selectedMember.contractor_id,
+          title: "New rates proposed",
+          message: "A business has proposed rates for a term engagement with you. Review and accept or decline them from your Engagements view.",
+          type: "engagement_rate_proposed",
+          reference_type: "engagement_rates",
+          reference_id: rateId as string,
+        });
+        if (notifyError) {
+          console.error(
+            `Failed to notify contractor ${selectedMember.contractor_id} of proposed rate version ${rateId} on engagement ${engagementId}:`,
+            notifyError,
+          );
+        }
+      } catch (notifyException) {
+        console.error(
+          `Notification insert threw while notifying contractor ${selectedMember.contractor_id} of proposed rate version ${rateId} on engagement ${engagementId}:`,
+          notifyException,
+        );
+      }
     }
 
     toast({
