@@ -10621,6 +10621,7 @@ export type Database = {
           p_company_id: string
           p_contractor_id: string
           p_expiry_date: string
+          p_site_ids: string[]
           p_start_date: string
         }
         Returns: string

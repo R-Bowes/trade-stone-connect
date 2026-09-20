@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -269,6 +270,9 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
   const [hourlyRate, setHourlyRate] = useState("");
   const [materialsMarkupPct, setMaterialsMarkupPct] = useState("");
   const [minimumCharge, setMinimumCharge] = useState("");
+  const [companySites, setCompanySites] = useState<{ id: string; name: string }[]>([]);
+  const [sitesLoading, setSitesLoading] = useState(false);
+  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
 
   // --- Ensure company row exists ---
   const ensureCompany = useCallback(async (): Promise<string | null> => {
@@ -583,13 +587,47 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     setHourlyRate("");
     setMaterialsMarkupPct("");
     setMinimumCharge("");
+    setSelectedSiteIds([]);
     setPendingEngagementId(null);
     setEngagementStep("form");
   };
 
-  const openEngagementDialog = () => {
+  // Sites are fetched fresh on every open (not cached from panel load) so a
+  // site added in another tab since this page loaded still appears. Filtered
+  // to status = 'active' to match the work-order dispatch site picker
+  // (WorkOrderDashboard.tsx), since the only thing engagement coverage is
+  // used for is deciding who dispatch offers for a given site.
+  const openEngagementDialog = async () => {
     resetEngagementForm();
     setEngagementOpen(true);
+    if (!companyId) return;
+
+    setSitesLoading(true);
+    const { data, error } = await supabase
+      .from("sites")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .order("name");
+    setSitesLoading(false);
+
+    if (error) {
+      console.error("Failed to load sites for engagement dialog:", error);
+      toast({ title: "Could not load sites", description: "Close this dialog and try again.", variant: "destructive" });
+      setCompanySites([]);
+      return;
+    }
+
+    const rows = data ?? [];
+    setCompanySites(rows);
+    // Every site preselected: the common case is an engagement covering the
+    // whole portfolio, and nobody should accidentally create one covering
+    // nothing.
+    setSelectedSiteIds(rows.map((s) => s.id));
+  };
+
+  const toggleSite = (siteId: string) => {
+    setSelectedSiteIds((prev) => (prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]));
   };
 
   // Proposes the rate version against an already-created engagement.
@@ -674,6 +712,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       toast({ title: "Missing dates", description: "Start and expiry dates are required.", variant: "destructive" });
       return;
     }
+    if (selectedSiteIds.length === 0) {
+      toast({ title: "No sites selected", description: "Select at least one site this engagement covers.", variant: "destructive" });
+      return;
+    }
     if (billingPeriod === "custom" && !billingAnchorDay) {
       toast({ title: "Missing anchor day", description: "Enter a day of the month (1–28) for a custom billing period.", variant: "destructive" });
       return;
@@ -691,6 +733,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
         p_start_date: startDate,
         p_expiry_date: expiryDate,
         p_billing_period: billingPeriod,
+        p_site_ids: selectedSiteIds,
         p_billing_anchor_day: billingPeriod === "custom" ? Number(billingAnchorDay) : null,
       });
 
@@ -718,6 +761,11 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       setEngagementSubmitting(false);
     }
   };
+
+  // The creation form cannot work with no sites to cover (the RPC rejects an
+  // empty array). Shown as an explanation in place of the whole form rather
+  // than an empty picker.
+  const engagementBlockedNoSites = engagementStep === "form" && !sitesLoading && companySites.length === 0;
 
   // --- Filtered panel ---
   const filtered = panel.filter((m) => {
@@ -1231,7 +1279,22 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
           </div>
 
           <div className="space-y-5 py-2">
-            {engagementStep === "form" && (
+            {engagementStep === "form" && sitesLoading && (
+              <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            )}
+
+            {engagementBlockedNoSites && (
+              <div className="p-3 rounded-lg border bg-muted/30 text-sm space-y-1">
+                <p className="font-medium">You need at least one site first</p>
+                <p className="text-muted-foreground">
+                  A term engagement covers specific sites, and work can only be dispatched to a contractor for sites
+                  their engagement covers. Your company has no active sites yet. Add one under Sites, then set up
+                  the engagement.
+                </p>
+              </div>
+            )}
+
+            {engagementStep === "form" && !sitesLoading && !engagementBlockedNoSites && (
               <>
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Engagement</p>
@@ -1244,6 +1307,29 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
                       <label className="text-xs text-muted-foreground">Expiry date</label>
                       <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Sites covered</p>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedSiteIds.length} of {companySites.length} selected
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Work can only be dispatched to this contractor for the sites ticked here.
+                  </p>
+                  <div className="max-h-40 overflow-y-auto rounded-lg border divide-y">
+                    {companySites.map((site) => (
+                      <label key={site.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={selectedSiteIds.includes(site.id)}
+                          onCheckedChange={() => toggleSite(site.id)}
+                        />
+                        {site.name}
+                      </label>
+                    ))}
                   </div>
                 </div>
 
@@ -1281,7 +1367,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               </p>
             )}
 
-            <div className="space-y-3">
+            <div className={`space-y-3 ${engagementStep === "form" && (sitesLoading || engagementBlockedNoSites) ? "hidden" : ""}`}>
               <p className="text-sm font-medium">Rates</p>
               <p className="text-xs text-muted-foreground">
                 What you'll pay for work under this engagement. Every field is required except minimum charge.
@@ -1314,7 +1400,10 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEngagementOpen(false)}>Cancel</Button>
             {engagementStep === "form" ? (
-              <Button onClick={handleCreateEngagement} disabled={engagementSubmitting}>
+              <Button
+                onClick={handleCreateEngagement}
+                disabled={engagementSubmitting || sitesLoading || engagementBlockedNoSites}
+              >
                 {engagementSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Create engagement &amp; propose rates
               </Button>
