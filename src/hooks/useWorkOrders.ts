@@ -56,12 +56,7 @@ export interface AvailableContractor {
   trades: string[] | null;
 }
 
-const WORK_ORDER_SELECT = `
-  *,
-  site:sites(id, name),
-  asset:assets(id, name),
-  contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)
-`;
+const WORK_ORDER_SELECT = "*, site:sites(id, name), asset:assets(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
 
 export function formatWoNumber(companyCode: string | null | undefined, woNumber: number): string {
   const num = String(woNumber).padStart(4, "0");
@@ -76,7 +71,7 @@ export function useWorkOrders() {
 
   const fetchWorkOrders = useCallback(async (companyId: string, filters?: WorkOrderFilters) => {
     setLoading(true);
-    let query = (supabase as any)
+    let query = supabase
       .from("work_orders")
       .select(WORK_ORDER_SELECT)
       .eq("company_id", companyId)
@@ -100,7 +95,7 @@ export function useWorkOrders() {
   }, []);
 
   const fetchWorkOrder = useCallback(async (id: string): Promise<WorkOrder | null> => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("work_orders")
       .select(WORK_ORDER_SELECT)
       .eq("id", id)
@@ -117,7 +112,7 @@ export function useWorkOrders() {
   const fetchAvailableContractors = useCallback(async (
     companyId: string, siteId: string, trade?: string,
   ): Promise<AvailableContractor[]> => {
-    const { data: engagementRows, error } = await (supabase as any)
+    const { data: engagementRows, error } = await supabase
       .from("term_engagements")
       .select("id, contractor_id, engagement_sites!inner(site_id)")
       .eq("company_id", companyId)
@@ -155,6 +150,9 @@ export function useWorkOrders() {
   }, []);
 
   const createWorkOrder = async (data: {
+    // Supplied by the caller when photos were uploaded ahead of the insert,
+    // since their storage path embeds the work order id.
+    id?: string;
     company_id: string;
     raised_by: string;
     raised_by_name?: string | null;
@@ -166,7 +164,7 @@ export function useWorkOrders() {
     priority: WorkOrderPriority;
     photos?: string[];
   }): Promise<WorkOrder | null> => {
-    const { data: inserted, error } = await (supabase as any)
+    const { data: inserted, error } = await supabase
       .from("work_orders")
       .insert({ ...data, status: "draft" })
       .select(WORK_ORDER_SELECT)
@@ -214,7 +212,7 @@ export function useWorkOrders() {
       throw new Error("Rates must be agreed with the contractor before a work order can be dispatched.");
     }
 
-    const { data: wo, error } = await (supabase as any)
+    const { data: wo, error } = await supabase
       .from("work_orders")
       .update({
         dispatched_to: contractorProfileId,
@@ -233,7 +231,7 @@ export function useWorkOrders() {
       throw error;
     }
 
-    const siteName = (wo as any)?.site?.name ?? "site";
+    const siteName = wo?.site?.name ?? "site";
     await supabase.from("notifications").insert({
       user_id: contractorProfileId,
       title: "New work order",
@@ -247,7 +245,7 @@ export function useWorkOrders() {
   };
 
   const respondToWorkOrder = async (workOrderId: string, accept: boolean, declineReason?: string) => {
-    const { data: wo, error: fetchErr } = await (supabase as any)
+    const { data: wo, error: fetchErr } = await supabase
       .from("work_orders")
       .select("id, title, description, site_id, engagement_id, company_id, raised_by")
       .eq("id", workOrderId)
@@ -275,7 +273,7 @@ export function useWorkOrders() {
         throw calloutErr;
       }
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("work_orders")
         .update({ response: "accepted", status: "accepted", responded_at: new Date().toISOString(), job_id: jobId })
         .eq("id", workOrderId);
@@ -297,7 +295,7 @@ export function useWorkOrders() {
       return jobId as string;
     }
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("work_orders")
       .update({ response: "declined", status: "declined", responded_at: new Date().toISOString(), decline_reason: declineReason ?? null })
       .eq("id", workOrderId);
@@ -322,7 +320,7 @@ export function useWorkOrders() {
   const reassignWorkOrder = async (workOrderId: string, newContractorId: string, newEngagementId: string) => {
     // status = 'reassigned' then 'dispatched', per the brief — two explicit
     // transitions rather than jumping straight to 'dispatched'.
-    await (supabase as any)
+    await supabase
       .from("work_orders")
       .update({ status: "reassigned", response: null })
       .eq("id", workOrderId);
@@ -334,7 +332,7 @@ export function useWorkOrders() {
     // No dedicated cancel-reason column on work_orders — decline_reason is
     // reused as the general "why this stopped" field since it's the only
     // free-text status-reason column the schema provides.
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("work_orders")
       .update({ status: "cancelled", decline_reason: reason ?? null })
       .eq("id", workOrderId);

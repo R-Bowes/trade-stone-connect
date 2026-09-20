@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,25 +11,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, ArrowLeft, ArrowRight } from "lucide-react";
+import { Loader2, Plus, ArrowLeft, ArrowRight, Camera, X } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
+import { useToast } from "@/hooks/use-toast";
+import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
+import { WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET } from "@/components/shared/WorkOrderCard";
 import {
   useWorkOrders, formatWoNumber,
   type WorkOrder, type WorkOrderPriority, type WorkOrderStatus, type AvailableContractor,
 } from "@/hooks/useWorkOrders";
 
-const PRIORITY_LABEL: Record<WorkOrderPriority, string> = {
-  emergency: "Emergency", urgent: "Urgent", routine: "Routine", planned: "Planned",
-};
-const PRIORITY_COLOR: Record<WorkOrderPriority, string> = {
-  emergency: "bg-red-100 text-red-800 border-red-300",
-  urgent: "bg-amber-100 text-amber-800 border-amber-300",
-  routine: "bg-blue-100 text-blue-800 border-blue-300",
-  planned: "bg-slate-100 text-slate-700 border-slate-300",
-};
 const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   draft: "Draft", dispatched: "Dispatched", accepted: "Accepted", declined: "Declined",
   reassigned: "Reassigned", cancelled: "Cancelled", completed: "Completed",
@@ -43,6 +37,9 @@ const STATUS_COLOR: Record<WorkOrderStatus, string> = {
   cancelled: "bg-slate-200 text-slate-500",
   completed: "bg-green-100 text-green-800",
 };
+
+const MAX_PHOTOS = 6;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 type SiteOption = { id: string; name: string };
 type AssetOption = { id: string; name: string };
@@ -87,7 +84,7 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
 
   useEffect(() => {
     supabase.from("companies").select("company_code").eq("id", companyId).maybeSingle()
-      .then(({ data }) => setCompanyCode((data as any)?.company_code ?? null));
+      .then(({ data }) => setCompanyCode(data?.company_code ?? null));
     supabase.from("sites").select("id, name").eq("company_id", companyId).eq("status", "active").order("name")
       .then(({ data }) => setSites((data ?? []) as SiteOption[]));
   }, [companyId]);
@@ -240,7 +237,7 @@ function ContractorDispatchCard({ contractor, engagementId, onDispatch, dispatch
     supabase.from("contractor_verification_public").select("current_tier").eq("contractor_id", contractor.contractor_id).maybeSingle()
       .then(({ data }) => setTier(data?.current_tier ?? 1));
     supabase.rpc("effective_engagement_rates", { p_engagement_id: engagementId })
-      .then(({ data }) => setRates(data ? { callout_standard: (data as any).callout_standard, hourly_rate: (data as any).hourly_rate } : null));
+      .then(({ data }) => setRates(data ? { callout_standard: data.callout_standard, hourly_rate: data.hourly_rate } : null));
   }, [contractor.contractor_id, engagementId]);
 
   return (
@@ -290,6 +287,9 @@ function CreateWorkOrderDialog({
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!open) {
@@ -297,22 +297,68 @@ function CreateWorkOrderDialog({
       setForm(BLANK_CREATE_FORM);
       setCreatedWo(null);
       setCandidates([]);
+      setPhotoFiles([]);
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!form.site_id) { setAssets([]); return; }
-    (supabase as any).from("assets").select("id, name").eq("site_id", form.site_id)
-      .then(({ data }: { data: AssetOption[] | null }) => setAssets(data ?? []));
-  }, [form.site_id]);
+  const handlePhotosPicked = (picked: FileList | null) => {
+    if (!picked) return;
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of Array.from(picked)) {
+      if (!isHeic(file) && !file.type.startsWith("image/")) { rejected.push(`${file.name} (not an image)`); continue; }
+      if (file.size > MAX_PHOTO_BYTES) { rejected.push(`${file.name} (over 10 MB)`); continue; }
+      accepted.push(file);
+    }
+    const combined = [...photoFiles, ...accepted];
+    if (combined.length > MAX_PHOTOS) rejected.push(`only the first ${MAX_PHOTOS} photos were kept`);
+    setPhotoFiles(combined.slice(0, MAX_PHOTOS));
+    if (rejected.length > 0) {
+      toast({ title: "Some photos were skipped", description: rejected.join(", "), variant: "destructive" });
+    }
+  };
 
-  const handleSaveDraft = async () => {
-    if (!form.title.trim() || !form.site_id) return;
-    setSaving(true);
+  // Path shape {uploaderUserId}/{workOrderId}/{file} — the first segment must
+  // be the uploader's own auth.uid() for the bucket's upload policy. The work
+  // order id is generated client-side so photos can be uploaded before the row
+  // exists; any upload failure removes what was already uploaded.
+  const uploadPhotos = async (workOrderId: string, userId: string): Promise<string[]> => {
+    const paths: string[] = [];
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", profileId).maybeSingle();
-      await createWorkOrder({
+      for (let i = 0; i < photoFiles.length; i++) {
+        const prepared = await prepareImageForUpload(photoFiles[i]);
+        const ext = prepared.name.split(".").pop() ?? "jpg";
+        const path = `${userId}/${workOrderId}/${Date.now()}-${i}.${ext}`;
+        const { error } = await supabase.storage.from(WORK_ORDER_PHOTO_BUCKET).upload(path, prepared);
+        if (error) throw error;
+        paths.push(path);
+      }
+      return paths;
+    } catch (err) {
+      if (paths.length > 0) await supabase.storage.from(WORK_ORDER_PHOTO_BUCKET).remove(paths);
+      throw err;
+    }
+  };
+
+  const createFromForm = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", profileId).maybeSingle();
+    const workOrderId = crypto.randomUUID();
+
+    let photos: string[] = [];
+    if (photoFiles.length > 0) {
+      try {
+        photos = await uploadPhotos(workOrderId, user!.id);
+      } catch (err) {
+        console.error("Work order photo upload failed:", err);
+        toast({ title: "Photos didn't upload", description: "Nothing was saved. Check your connection and try again.", variant: "destructive" });
+        return null;
+      }
+    }
+
+    try {
+      return await createWorkOrder({
+        id: workOrderId,
         company_id: companyId,
         raised_by: user!.id,
         raised_by_name: profile?.full_name ?? null,
@@ -322,7 +368,26 @@ function CreateWorkOrderDialog({
         description: form.description || null,
         trade_required: form.trade_required || null,
         priority: form.priority,
+        photos,
       });
+    } catch (err) {
+      if (photos.length > 0) await supabase.storage.from(WORK_ORDER_PHOTO_BUCKET).remove(photos);
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    if (!form.site_id) { setAssets([]); return; }
+    supabase.from("assets").select("id, name").eq("site_id", form.site_id)
+      .then(({ data }) => setAssets(data ?? []));
+  }, [form.site_id]);
+
+  const handleSaveDraft = async () => {
+    if (!form.title.trim() || !form.site_id) return;
+    setSaving(true);
+    try {
+      const wo = await createFromForm();
+      if (!wo) return;
       onDone();
     } finally {
       setSaving(false);
@@ -333,19 +398,7 @@ function CreateWorkOrderDialog({
     if (!form.title.trim() || !form.site_id) return;
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", profileId).maybeSingle();
-      const wo = await createWorkOrder({
-        company_id: companyId,
-        raised_by: user!.id,
-        raised_by_name: profile?.full_name ?? null,
-        site_id: form.site_id,
-        asset_id: form.asset_id || null,
-        title: form.title.trim(),
-        description: form.description || null,
-        trade_required: form.trade_required || null,
-        priority: form.priority,
-      });
+      const wo = await createFromForm();
       if (!wo) return;
       setCreatedWo({ id: wo.id, site_id: form.site_id });
       setStep(2);
@@ -427,6 +480,37 @@ function CreateWorkOrderDialog({
               </RadioGroup>
             </div>
 
+            <div className="space-y-1">
+              <Label>Photos (optional)</Label>
+              <div className="flex flex-wrap gap-2">
+                {photoFiles.map((file, i) => (
+                  <div key={`${file.name}-${i}`} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs">
+                    <span className="max-w-[120px] truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${file.name}`}
+                      onClick={() => setPhotoFiles((cur) => cur.filter((_, idx) => idx !== i))}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {photoFiles.length < MAX_PHOTOS && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => photoInputRef.current?.click()}>
+                    <Camera className="h-4 w-4 mr-1" />Add photos
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*,.heic,.heif"
+                multiple
+                className="hidden"
+                onChange={(e) => { handlePhotosPicked(e.target.files); e.target.value = ""; }}
+              />
+            </div>
+
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={handleSaveDraft} disabled={saving || !form.title.trim() || !form.site_id}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -504,55 +588,38 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
     }
   };
 
+  const canCancel = wo.status === "draft" || wo.status === "dispatched";
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
+        <DialogHeader className="sr-only">
           <DialogTitle>{formatWoNumber(companyCode, wo.wo_number)} — {wo.title}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 text-sm">
-          <div className="flex gap-2">
-            <Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge>
-            <Badge className={STATUS_COLOR[wo.status]}>{STATUS_LABEL[wo.status]}</Badge>
-          </div>
-          {wo.site?.name && <div><span className="text-muted-foreground">Site:</span> {wo.site.name}</div>}
-          {wo.asset?.name && <div><span className="text-muted-foreground">Asset:</span> {wo.asset.name}</div>}
-          {wo.description && <p className="text-muted-foreground">{wo.description}</p>}
-          {wo.contractor && <div><span className="text-muted-foreground">Dispatched to:</span> {wo.contractor.full_name}</div>}
-          <div className="text-xs text-muted-foreground">Created {format(new Date(wo.created_at), "d MMM yyyy 'at' HH:mm")}</div>
+        <WorkOrderCard
+          workOrder={wo}
+          site={wo.site ?? null}
+          counterparty={wo.contractor?.full_name ?? null}
+          companyCode={companyCode}
+          viewer="business"
+          actions={
+            <>
+              {canCancel && (
+                <Button size="sm" variant="outline" onClick={() => onCancel(wo.id)}>Cancel work order</Button>
+              )}
+              {wo.status === "declined" && <Button size="sm" onClick={openReassign}>Reassign</Button>}
+              {wo.status === "accepted" && wo.job_id && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`/dashboard/business?view=jobs&jobId=${wo.job_id}`}>View linked job</a>
+                </Button>
+              )}
+            </>
+          }
+        />
 
-          {wo.rate_snapshot && (
-            <div className="rounded-md border p-3 text-xs space-y-1">
-              <div className="font-medium">Rate snapshot</div>
-              {"callout_standard" in wo.rate_snapshot && <div>Call-out: £{Number((wo.rate_snapshot as any).callout_standard).toFixed(2)}</div>}
-              {"hourly_rate" in wo.rate_snapshot && <div>Hourly: £{Number((wo.rate_snapshot as any).hourly_rate).toFixed(2)}</div>}
-            </div>
-          )}
-
-          {wo.status === "declined" && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 space-y-2">
-              {wo.decline_reason && <p className="text-red-800">Declined: {wo.decline_reason}</p>}
-              <Button size="sm" onClick={openReassign}>Reassign</Button>
-            </div>
-          )}
-
-          {wo.status === "accepted" && wo.job_id && (
-            <div className="rounded-md border border-green-200 bg-green-50 p-3">
-              <a href={`/dashboard/business?view=jobs&jobId=${wo.job_id}`} className="text-green-800 underline text-sm">
-                View linked job
-              </a>
-            </div>
-          )}
-
-          {wo.status === "dispatched" && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 flex items-center justify-between">
-              <span className="text-blue-800 text-sm">Awaiting contractor response</span>
-              <Button size="sm" variant="outline" onClick={() => onCancel(wo.id)}>Cancel</Button>
-            </div>
-          )}
-
-          {reassignOpen && (
-            <div className="space-y-2 pt-2 border-t">
+        {reassignOpen && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
               <div className="text-xs font-semibold uppercase text-muted-foreground">Reassign to</div>
               {loadingCandidates ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -560,7 +627,7 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
                 <p className="text-sm text-muted-foreground">No other panel contractors cover this site.</p>
               ) : (
                 candidates.map((c) => (
-                  <div key={c.contractor_id} className="flex items-center justify-between rounded-md border p-2">
+                  <div key={c.contractor_id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span>{c.full_name}</span>
                     <Button size="sm" disabled={reassigningId === c.contractor_id} onClick={() => handleReassign(c)}>
                       {reassigningId === c.contractor_id && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
@@ -569,9 +636,9 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
                   </div>
                 ))
               )}
-            </div>
-          )}
-        </div>
+            </CardContent>
+          </Card>
+        )}
       </DialogContent>
     </Dialog>
   );

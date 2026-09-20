@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -14,7 +13,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Building2, CalendarClock, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, CalendarClock } from "lucide-react";
+import { EngagementCard, type EngagementCardSite } from "@/components/shared/EngagementCard";
+import { formatGBP } from "@/lib/formatGBP";
 
 interface EngagementRow {
   id: string;
@@ -48,19 +49,6 @@ interface CompanyInfo {
   owner_id: string;
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function fmtGBP(n: number) {
-  return n.toLocaleString("en-GB", { style: "currency", currency: "GBP" });
-}
-
-const BILLING_PERIOD_LABELS: Record<string, string> = {
-  calendar_month: "Calendar month",
-  custom: "Custom",
-};
-
 export function ContractorEngagementsView() {
   const [loading, setLoading] = useState(true);
   const [engagements, setEngagements] = useState<EngagementRow[]>([]);
@@ -70,6 +58,7 @@ export function ContractorEngagementsView() {
   // so a plain "latest version" read (below) is what's needed to show a
   // pending proposal, which effective_engagement_rates would hide entirely.
   const [latestRateMap, setLatestRateMap] = useState<Record<string, RateRow>>({});
+  const [sitesByEngagement, setSitesByEngagement] = useState<Record<string, EngagementCardSite[]>>({});
   const [actioningRateId, setActioningRateId] = useState<string | null>(null);
   const [confirmAcceptRate, setConfirmAcceptRate] = useState<RateRow | null>(null);
   const [declineTarget, setDeclineTarget] = useState<RateRow | null>(null);
@@ -111,6 +100,7 @@ export function ContractorEngagementsView() {
     if (rows.length === 0) {
       setCompanyMap({});
       setLatestRateMap({});
+      setSitesByEngagement({});
       setLoading(false);
       return;
     }
@@ -118,13 +108,17 @@ export function ContractorEngagementsView() {
     const companyIds = [...new Set(rows.map((r) => r.company_id))];
     const engagementIds = rows.map((r) => r.id);
 
-    const [companiesRes, ratesRes] = await Promise.all([
+    const [companiesRes, ratesRes, sitesRes] = await Promise.all([
       supabase.from("companies").select("id, name, logo_url, owner_id").in("id", companyIds),
       supabase
         .from("engagement_rates")
         .select("id, engagement_id, version, callout_standard, callout_ooh, hourly_rate, materials_markup_pct, minimum_charge, effective_from, agreed_by_business_at, agreed_by_contractor_at")
         .in("engagement_id", engagementIds)
         .order("version", { ascending: false }),
+      supabase
+        .from("engagement_sites")
+        .select("engagement_id, site_id, site:sites(id, name)")
+        .in("engagement_id", engagementIds),
     ]);
 
     const cMap: Record<string, CompanyInfo> = {};
@@ -138,6 +132,19 @@ export function ContractorEngagementsView() {
       if (!rMap[r.engagement_id]) rMap[r.engagement_id] = r;
     }
     setLatestRateMap(rMap);
+
+    // A coverage row can exist while the joined site row is unreadable under
+    // RLS (site is null) — that must not read as "no sites covered", so it
+    // still counts, with a placeholder name.
+    const sMap: Record<string, EngagementCardSite[]> = {};
+    for (const row of sitesRes.data ?? []) {
+      (sMap[row.engagement_id] ??= []).push({
+        id: row.site_id,
+        name: row.site?.name ?? "Site (name not available)",
+      });
+    }
+    for (const list of Object.values(sMap)) list.sort((a, b) => a.name.localeCompare(b.name));
+    setSitesByEngagement(sMap);
 
     setLoading(false);
   }, [toast]);
@@ -261,125 +268,43 @@ export function ContractorEngagementsView() {
 
       {engagements.map((eng) => {
         const company = companyMap[eng.company_id];
-        const rate = latestRateMap[eng.id];
+        const rate = latestRateMap[eng.id] ?? null;
         // Pending on the contractor's side: a rate exists, the business has
         // agreed it, and the contractor has not — the exact case
         // accept_engagement_rate_version's own authorisation branch covers.
         const pendingForContractor = !!rate && !!rate.agreed_by_business_at && !rate.agreed_by_contractor_at;
-        const fullyAgreed = !!rate && !!rate.agreed_by_business_at && !!rate.agreed_by_contractor_at;
 
         return (
-          <Card key={eng.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <CardTitle className="text-base">{company?.name ?? "Business"}</CardTitle>
-                    <p className="text-xs text-muted-foreground font-mono">{eng.engagement_number}</p>
-                  </div>
-                </div>
-                {fullyAgreed ? (
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    <CheckCircle2 className="h-3 w-3 mr-1" /> Rates agreed
-                  </Badge>
-                ) : pendingForContractor ? (
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                    <Clock className="h-3 w-3 mr-1" /> Awaiting your acceptance
-                  </Badge>
-                ) : rate ? (
-                  <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-                    <Clock className="h-3 w-3 mr-1" /> Awaiting business acceptance
-                  </Badge>
-                ) : (
-                  <Badge className="bg-gray-100 text-gray-700 border-gray-200">No rates proposed</Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Start date</p>
-                  <p>{fmtDate(eng.start_date)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Expiry date</p>
-                  <p>{fmtDate(eng.expiry_date)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Billing period</p>
-                  <p>
-                    {BILLING_PERIOD_LABELS[eng.billing_period] ?? eng.billing_period}
-                    {eng.billing_period === "custom" && eng.billing_anchor_day ? ` (day ${eng.billing_anchor_day})` : ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Status</p>
-                  <p className="capitalize">{eng.status.replace(/_/g, " ")}</p>
-                </div>
-              </div>
-
-              {!fullyAgreed && !rate && (
-                <p className="text-sm text-muted-foreground border-t pt-3">
-                  This engagement is not usable yet — no rates have been proposed. Nothing can be dispatched to you
-                  under it until the business proposes rates and you accept them.
-                </p>
-              )}
-
-              {rate && (
-                <div className="border-t pt-3 space-y-3">
-                  <p className="text-sm font-medium">Proposed rates (version {rate.version})</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Standard call-out fee</p>
-                      <p>{fmtGBP(rate.callout_standard)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Out-of-hours call-out fee</p>
-                      <p>{fmtGBP(rate.callout_ooh)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Hourly rate</p>
-                      <p>{fmtGBP(rate.hourly_rate)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Materials markup</p>
-                      <p>{rate.materials_markup_pct}%</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Minimum charge</p>
-                      <p>{rate.minimum_charge != null ? fmtGBP(rate.minimum_charge) : "None"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Effective from</p>
-                      <p>{fmtDate(rate.effective_from)}</p>
-                    </div>
-                  </div>
-
-                  {pendingForContractor && (
-                    <div className="flex gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        onClick={() => setConfirmAcceptRate(rate)}
-                        disabled={actioningRateId === rate.id}
-                      >
-                        {actioningRateId === rate.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Accept rates
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDeclineTarget(rate)}
-                        disabled={actioningRateId === rate.id}
-                      >
-                        Decline
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EngagementCard
+            key={eng.id}
+            engagement={eng}
+            rate={rate}
+            counterparty={{ name: company?.name ?? "Business", logoUrl: company?.logo_url ?? null }}
+            sites={sitesByEngagement[eng.id] ?? []}
+            viewer="contractor"
+            actions={
+              pendingForContractor && rate ? (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => setConfirmAcceptRate(rate)}
+                    disabled={actioningRateId === rate.id}
+                  >
+                    {actioningRateId === rate.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Accept rates
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDeclineTarget(rate)}
+                    disabled={actioningRateId === rate.id}
+                  >
+                    Decline
+                  </Button>
+                </>
+              ) : undefined
+            }
+          />
         );
       })}
 
@@ -400,13 +325,13 @@ export function ContractorEngagementsView() {
                 </p>
                 {confirmAcceptRate && (
                   <ul className="text-xs bg-muted/50 rounded-md p-3 space-y-1">
-                    <li>Standard call-out fee: {fmtGBP(confirmAcceptRate.callout_standard)}</li>
-                    <li>Out-of-hours call-out fee: {fmtGBP(confirmAcceptRate.callout_ooh)}</li>
-                    <li>Hourly rate: {fmtGBP(confirmAcceptRate.hourly_rate)}</li>
+                    <li>Standard call-out fee: {formatGBP(confirmAcceptRate.callout_standard)}</li>
+                    <li>Out-of-hours call-out fee: {formatGBP(confirmAcceptRate.callout_ooh)}</li>
+                    <li>Hourly rate: {formatGBP(confirmAcceptRate.hourly_rate)}</li>
                     <li>Materials markup: {confirmAcceptRate.materials_markup_pct}%</li>
                     <li>
                       Minimum charge:{" "}
-                      {confirmAcceptRate.minimum_charge != null ? fmtGBP(confirmAcceptRate.minimum_charge) : "None"}
+                      {confirmAcceptRate.minimum_charge != null ? formatGBP(confirmAcceptRate.minimum_charge) : "None"}
                     </li>
                   </ul>
                 )}

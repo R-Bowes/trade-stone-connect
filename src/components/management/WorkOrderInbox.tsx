@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -10,19 +9,12 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useWorkOrders, formatWoNumber, type WorkOrder, type WorkOrderPriority } from "@/hooks/useWorkOrders";
-
-const PRIORITY_LABEL: Record<WorkOrderPriority, string> = {
-  emergency: "Emergency", urgent: "Urgent", routine: "Routine", planned: "Planned",
-};
-const PRIORITY_COLOR: Record<WorkOrderPriority, string> = {
-  emergency: "bg-red-100 text-red-800 border-red-300",
-  urgent: "bg-amber-100 text-amber-800 border-amber-300",
-  routine: "bg-blue-100 text-blue-800 border-blue-300",
-  planned: "bg-slate-100 text-slate-700 border-slate-300",
-};
+import { useWorkOrders, type WorkOrder } from "@/hooks/useWorkOrders";
+import { WorkOrderCard } from "@/components/shared/WorkOrderCard";
 
 const DECLINE_REASONS = ["Unavailable", "Too far", "Outside expertise", "Capacity full", "Other"];
+
+const INBOX_SELECT = "*, company:companies(name, company_code), site:sites(id, name), asset:assets(id, name)" as const;
 
 type InboxWorkOrder = WorkOrder & { company?: { name: string | null; company_code: string | null } | null };
 
@@ -42,9 +34,9 @@ export function WorkOrderInbox() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("work_orders")
-      .select("*, company:companies(name, company_code), site:sites(id, name)")
+      .select(INBOX_SELECT)
       .eq("dispatched_to", user.id)
       .eq("status", "dispatched")
       .eq("response", "pending")
@@ -55,7 +47,7 @@ export function WorkOrderInbox() {
       setLoading(false);
       return;
     }
-    setPending((data ?? []) as InboxWorkOrder[]);
+    setPending((data ?? []) as unknown as InboxWorkOrder[]);
     setLoading(false);
   };
 
@@ -109,26 +101,15 @@ export function WorkOrderInbox() {
       <h2 className="font-heading text-2xl font-bold">Work Orders</h2>
       <div className="grid gap-3">
         {pending.map((wo) => (
-          <Card key={wo.id} className="border-amber-300 bg-amber-50/40">
-            <CardContent className="p-4 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-xs font-mono text-muted-foreground">{formatWoNumber(wo.company?.company_code, wo.wo_number)}</div>
-                  <div className="font-semibold">{wo.title}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {wo.company?.name} · {wo.site?.name}
-                  </div>
-                </div>
-                <Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge>
-              </div>
-              {wo.description && <p className="text-sm">{wo.description}</p>}
-              {wo.rate_snapshot && (
-                <div className="text-xs text-muted-foreground rounded bg-muted/50 p-2">
-                  {"callout_standard" in wo.rate_snapshot && <>Call-out: £{Number((wo.rate_snapshot as any).callout_standard).toFixed(2)} · </>}
-                  {"hourly_rate" in wo.rate_snapshot && <>Hourly: £{Number((wo.rate_snapshot as any).hourly_rate).toFixed(2)}</>}
-                </div>
-              )}
-              <div className="flex gap-2 pt-1">
+          <WorkOrderCard
+            key={wo.id}
+            workOrder={wo}
+            site={wo.site ?? null}
+            counterparty={wo.company?.name ?? null}
+            companyCode={wo.company?.company_code ?? null}
+            viewer="contractor"
+            actions={
+              <>
                 <Button
                   size="sm"
                   disabled={acceptingId === wo.id}
@@ -141,9 +122,9 @@ export function WorkOrderInbox() {
                 <Button size="sm" variant="destructive" onClick={() => openDecline(wo)}>
                   <X className="h-4 w-4 mr-1" />Decline
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </>
+            }
+          />
         ))}
       </div>
 
