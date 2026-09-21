@@ -244,75 +244,31 @@ export function useWorkOrders() {
     toast({ title: "Work order dispatched" });
   };
 
+  // Accept and decline are single SECURITY DEFINER calls. The server locks the
+  // work order, checks it is still awaiting this contractor's response, and does
+  // the job creation / status change / business notification in one transaction,
+  // so a failure leaves nothing half-done and a second call raises instead of
+  // minting a second job. (Contractors cannot write work_orders.status directly;
+  // work_orders_update only lets them update a row that stays 'dispatched'.)
   const respondToWorkOrder = async (workOrderId: string, accept: boolean, declineReason?: string) => {
-    const { data: wo, error: fetchErr } = await supabase
-      .from("work_orders")
-      .select("id, title, description, site_id, engagement_id, company_id, raised_by")
-      .eq("id", workOrderId)
-      .single();
-    if (fetchErr || !wo) {
-      toast({ title: "Error", description: "Work order not found", variant: "destructive" });
-      throw fetchErr;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: contractorProfile } = user
-      ? await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle()
-      : { data: null };
-    const contractorName = contractorProfile?.full_name ?? "The contractor";
-
     if (accept) {
-      const { data: jobId, error: calloutErr } = await supabase.rpc("raise_callout", {
-        p_engagement_id: wo.engagement_id,
-        p_title: wo.title,
-        p_description: wo.description,
-        p_site_id: wo.site_id,
-      });
-      if (calloutErr) {
-        toast({ title: "Error", description: calloutErr.message || "Failed to create job", variant: "destructive" });
-        throw calloutErr;
+      const { data: jobId, error } = await supabase.rpc("accept_work_order", { p_work_order_id: workOrderId });
+      if (error || !jobId) {
+        toast({ title: "Could not accept work order", description: error?.message ?? "Please try again.", variant: "destructive" });
+        throw error ?? new Error("accept_work_order returned no job id");
       }
-
-      const { error } = await supabase
-        .from("work_orders")
-        .update({ response: "accepted", status: "accepted", responded_at: new Date().toISOString(), job_id: jobId })
-        .eq("id", workOrderId);
-      if (error) {
-        toast({ title: "Error", description: "Failed to record acceptance", variant: "destructive" });
-        throw error;
-      }
-
-      await supabase.from("notifications").insert({
-        user_id: wo.raised_by,
-        title: "Work order accepted",
-        message: `Work order accepted by ${contractorName}`,
-        type: "work_order_accepted",
-        reference_type: "work_order",
-        reference_id: workOrderId,
-      });
-
       toast({ title: "Work order accepted", description: "Job created." });
-      return jobId as string;
+      return jobId;
     }
 
-    const { error } = await supabase
-      .from("work_orders")
-      .update({ response: "declined", status: "declined", responded_at: new Date().toISOString(), decline_reason: declineReason ?? null })
-      .eq("id", workOrderId);
+    const { error } = await supabase.rpc("decline_work_order", {
+      p_work_order_id: workOrderId,
+      p_reason: declineReason?.trim() || "Not specified",
+    });
     if (error) {
-      toast({ title: "Error", description: "Failed to record decline", variant: "destructive" });
+      toast({ title: "Could not decline work order", description: error.message, variant: "destructive" });
       throw error;
     }
-
-    await supabase.from("notifications").insert({
-      user_id: wo.raised_by,
-      title: "Work order declined",
-      message: `${contractorName} declined — reason: ${declineReason || "not specified"}`,
-      type: "work_order_declined",
-      reference_type: "work_order",
-      reference_id: workOrderId,
-    });
-
     toast({ title: "Work order declined" });
     return null;
   };

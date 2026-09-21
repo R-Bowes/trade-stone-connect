@@ -1467,3 +1467,40 @@ no US or Canadian equivalent behind the same interface. Any non-UK
 geocoding needs either a per-country provider switch or a
 multi-country service. Decision deferred until non-UK addresses
 actually exist.
+
+## Work order accept: contractor gets a "New call-out" notification for their own accept
+
+accept_work_order (20260921100000) calls create_callout_job unchanged, and
+that function writes a "New call-out" notification to the contractor
+(type callout_raised). On the work order path the contractor has just
+clicked Accept, so this is noise. Suppress it on this path without
+redefining create_callout_job (its EXECUTE grants and the PPM cron runner
+depend on it) — e.g. delete the just-inserted notification inside
+accept_work_order, or add an internal variant that takes a
+"notify" flag and have both callers use it.
+
+
+## Schema drift: timesheet-seeding trigger on jobs is in migrations but not live
+
+`trigger_seed_timesheets_on_job_in_progress` is defined on `public.jobs`
+(AFTER UPDATE OF status) in `20260328170000_job_timesheet_flow.sql:219-223`,
+calling `on_job_moved_to_in_progress_seed_timesheets()` ->
+`seed_job_timesheets_for_week()`. Live triggers on jobs do not include it,
+so a fresh rebuild from migrations would seed timesheets on
+scheduled -> in_progress while production does not. Note also that the
+seeding function joins `job_team_members`, which CLAUDE.md records as a
+legacy, permanently unwritten table — so even if it were live it would seed
+nothing. Decide whether to drop the definition from the migration history's
+intent (a new migration dropping the function) or to rebuild seeding on
+`job_assignments`. Not fixed here.
+
+## AdminDashboard "mark job complete" writes a status the constraint rejects
+
+`AdminDashboard.tsx:519` (`handleMarkJobComplete`) does
+`update({ status: 'completed' })`. The live `jobs_status_check` has no
+`'completed'` (the value is `'complete'`), so the update violates the
+constraint. The call is wrapped in `(supabase as any)` and the returned
+error is never read, so the admin sees the dialog close and the list reload
+with nothing changed — a silent failure. Probable fix: write `'complete'`
+(and go through the normal transition, which also needs `completed_at`), and
+check the error. Not fixed here.

@@ -2272,6 +2272,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "engagement_ppm_schedules_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
+          },
+          {
             foreignKeyName: "engagement_ppm_schedules_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -2368,6 +2375,13 @@ export type Database = {
             referencedRelation: "term_engagements"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "engagement_rates_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
+          },
         ]
       }
       engagement_sites: {
@@ -2393,6 +2407,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "term_engagements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_sites_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
           },
           {
             foreignKeyName: "engagement_sites_site_id_fkey"
@@ -3026,6 +3047,7 @@ export type Database = {
           client_email: string
           client_name: string
           client_phone: string | null
+          company_id: string | null
           contractor_id: string
           country_code: string
           created_at: string
@@ -3035,6 +3057,7 @@ export type Database = {
           deposit_paid: boolean | null
           deposit_paid_at: string | null
           due_date: string
+          engagement_id: string | null
           id: string
           invoice_number: number
           issued_date: string
@@ -3042,6 +3065,8 @@ export type Database = {
           job_id: string | null
           notes: string | null
           paid_date: string | null
+          period_end: string | null
+          period_start: string | null
           project_id: string | null
           quote_id: string | null
           recipient_id: string | null
@@ -3072,6 +3097,7 @@ export type Database = {
           client_email: string
           client_name: string
           client_phone?: string | null
+          company_id?: string | null
           contractor_id: string
           country_code?: string
           created_at?: string
@@ -3081,6 +3107,7 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_at?: string | null
           due_date: string
+          engagement_id?: string | null
           id?: string
           invoice_number: number
           issued_date?: string
@@ -3088,6 +3115,8 @@ export type Database = {
           job_id?: string | null
           notes?: string | null
           paid_date?: string | null
+          period_end?: string | null
+          period_start?: string | null
           project_id?: string | null
           quote_id?: string | null
           recipient_id?: string | null
@@ -3118,6 +3147,7 @@ export type Database = {
           client_email?: string
           client_name?: string
           client_phone?: string | null
+          company_id?: string | null
           contractor_id?: string
           country_code?: string
           created_at?: string
@@ -3127,6 +3157,7 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_at?: string | null
           due_date?: string
+          engagement_id?: string | null
           id?: string
           invoice_number?: number
           issued_date?: string
@@ -3134,6 +3165,8 @@ export type Database = {
           job_id?: string | null
           notes?: string | null
           paid_date?: string | null
+          period_end?: string | null
+          period_start?: string | null
           project_id?: string | null
           quote_id?: string | null
           recipient_id?: string | null
@@ -3150,6 +3183,27 @@ export type Database = {
           viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
+          },
           {
             foreignKeyName: "invoices_job_id_fkey"
             columns: ["job_id", "country_code"]
@@ -4746,6 +4800,7 @@ export type Database = {
           tender_agreement_id: string | null
           title: string
           updated_at: string
+          work_order_id: string | null
         }
         Insert: {
           actual_end?: string | null
@@ -4800,6 +4855,7 @@ export type Database = {
           tender_agreement_id?: string | null
           title: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Update: {
           actual_end?: string | null
@@ -4854,6 +4910,7 @@ export type Database = {
           tender_agreement_id?: string | null
           title?: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -4904,6 +4961,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "term_engagements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
           },
           {
             foreignKeyName: "jobs_issued_quote_id_fkey"
@@ -4966,6 +5030,13 @@ export type Database = {
             columns: ["tender_agreement_id"]
             isOneToOne: false
             referencedRelation: "tender_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: true
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -10110,6 +10181,137 @@ export type Database = {
           },
         ]
       }
+      work_order_costs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          auto_approved: boolean
+          company_id: string
+          contractor_id: string
+          created_at: string
+          description: string | null
+          engagement_id: string
+          id: string
+          invoice_id: string | null
+          kind: string
+          line_total: number
+          markup_pct: number | null
+          quantity: number
+          queried_at: string | null
+          queried_by: string | null
+          queried_reason: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
+          status: string
+          unit_rate: number
+          updated_at: string
+          work_order_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_approved?: boolean
+          company_id: string
+          contractor_id: string
+          created_at?: string
+          description?: string | null
+          engagement_id: string
+          id?: string
+          invoice_id?: string | null
+          kind: string
+          line_total: number
+          markup_pct?: number | null
+          quantity: number
+          queried_at?: string | null
+          queried_by?: string | null
+          queried_reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          status?: string
+          unit_rate: number
+          updated_at?: string
+          work_order_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_approved?: boolean
+          company_id?: string
+          contractor_id?: string
+          created_at?: string
+          description?: string | null
+          engagement_id?: string
+          id?: string
+          invoice_id?: string | null
+          kind?: string
+          line_total?: number
+          markup_pct?: number | null
+          quantity?: number
+          queried_at?: string | null
+          queried_by?: string | null
+          queried_reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          status?: string
+          unit_rate?: number
+          updated_at?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "term_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_orders: {
         Row: {
           approved_at: string | null
@@ -10236,6 +10438,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "term_engagements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_cost_period_statement"
+            referencedColumns: ["engagement_id"]
           },
           {
             foreignKeyName: "work_orders_job_id_fkey"
@@ -10500,8 +10709,64 @@ export type Database = {
           },
         ]
       }
+      work_order_cost_period_statement: {
+        Row: {
+          approved_count: number | null
+          approved_due: number | null
+          awaiting_approval: number | null
+          company_id: string | null
+          contractor_id: string | null
+          engagement_id: string | null
+          pending_count: number | null
+          period_end: string | null
+          period_start: string | null
+          queried: number | null
+          queried_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "term_engagements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      _can_review_work_order_costs: {
+        Args: { p_company_id: string; p_site_id: string }
+        Returns: boolean
+      }
+      _price_cost_line: {
+        Args: {
+          p_kind: string
+          p_quantity: number
+          p_snapshot: Json
+          p_unit_cost: number
+        }
+        Returns: Record<string, unknown>
+      }
+      _work_order_approval_threshold: {
+        Args: { p_company_id: string; p_site_id: string }
+        Returns: number
+      }
+      _work_order_ref: { Args: { p_work_order_id: string }; Returns: string }
       accept_business_invite: {
         Args: { p_invite_id?: string; p_token?: string }
         Returns: string
@@ -10519,6 +10784,7 @@ export type Database = {
         Args: { p_agreement_id: string }
         Returns: undefined
       }
+      accept_work_order: { Args: { p_work_order_id: string }; Returns: string }
       acting_contractor_ids: { Args: never; Returns: string[] }
       admin_update_verification: {
         Args: {
@@ -10543,12 +10809,25 @@ export type Database = {
         }
         Returns: Json
       }
+      amend_work_order_cost: {
+        Args: {
+          p_cost_id: string
+          p_description?: string
+          p_quantity?: number
+          p_unit_cost?: number
+        }
+        Returns: undefined
+      }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       application_is_draft: {
         Args: { p_application_id: string }
         Returns: boolean
       }
       approve_refund: { Args: { p_refund_id: string }; Returns: string }
+      approve_work_order_cost: {
+        Args: { p_cost_id: string }
+        Returns: undefined
+      }
       auth_user_company_ids: { Args: never; Returns: string[] }
       award_tender_agreement: {
         Args: { p_application_id: string; p_standstill_ends_at?: string }
@@ -10589,6 +10868,7 @@ export type Database = {
         Args: { p_engagement_id: string }
         Returns: string
       }
+      company_billing_email: { Args: { p_company_id: string }; Returns: string }
       compliance_doc_contractor_id: {
         Args: { p_name: string }
         Returns: string
@@ -10597,6 +10877,7 @@ export type Database = {
         Args: { p_tender_id: string }
         Returns: boolean
       }
+      contractor_covers_site: { Args: { p_site_id: string }; Returns: boolean }
       convert_awarded_agreement_to_job: {
         Args: { p_agreement_id: string }
         Returns: string
@@ -10638,6 +10919,10 @@ export type Database = {
         Args: { p_agreement_id: string; p_reason?: string }
         Returns: undefined
       }
+      decline_work_order: {
+        Args: { p_reason: string; p_work_order_id: string }
+        Returns: undefined
+      }
       effective_engagement_rates: {
         Args: { p_engagement_id: string; p_on_date?: string }
         Returns: {
@@ -10668,8 +10953,24 @@ export type Database = {
         Args: { p_engagement_id: string; p_reason?: string }
         Returns: undefined
       }
+      engagement_billing_period: {
+        Args: { p_anchor: number; p_billing_period: string; p_on: string }
+        Returns: {
+          period_end: string
+          period_start: string
+        }[]
+      }
       engagement_company_id: {
         Args: { p_engagement_id: string }
+        Returns: string
+      }
+      generate_b2b_invoice: {
+        Args: {
+          p_company_id: string
+          p_contractor_id: string
+          p_period_end: string
+          p_period_start: string
+        }
         Returns: string
       }
       generate_site_ts_code: { Args: { p_company_id: string }; Returns: string }
@@ -10756,6 +11057,10 @@ export type Database = {
         Returns: string
       }
       publish_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      query_work_order_cost: {
+        Args: { p_cost_id: string; p_reason: string }
+        Returns: undefined
+      }
       raise_callout: {
         Args: {
           p_description?: string
@@ -10774,6 +11079,10 @@ export type Database = {
       reject_refund: {
         Args: { p_reason: string; p_refund_id: string }
         Returns: string
+      }
+      reject_work_order_cost: {
+        Args: { p_cost_id: string; p_reason: string }
+        Returns: undefined
       }
       release_schedule_block: {
         Args: { p_event_id: string }
@@ -10799,6 +11108,16 @@ export type Database = {
       submit_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
+      }
+      submit_work_order_cost: {
+        Args: {
+          p_description?: string
+          p_kind: string
+          p_quantity?: number
+          p_unit_cost?: number
+          p_work_order_id: string
+        }
+        Returns: string
       }
       supabase_project_url: { Args: never; Returns: string }
       suspend_term_engagement: {
