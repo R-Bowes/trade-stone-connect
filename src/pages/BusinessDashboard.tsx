@@ -7,6 +7,7 @@ import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
 import { WorkOrderDashboard } from "@/components/business/WorkOrderDashboard";
+import { BusinessBillingView } from "@/components/business/BusinessBillingView";
 import { ServiceRequestQueue } from "@/components/business/ServiceRequestQueue";
 import { SiteAutonomySettings } from "@/components/business/SiteAutonomySettings";
 import { ServiceCategoryManager } from "@/components/business/ServiceCategoryManager";
@@ -275,6 +276,9 @@ const BusinessDashboard = () => {
 
       case "work-orders":
         return <WorkOrderDashboard companyId={companyId!} profileId={profileId} />;
+
+      case "billing":
+        return <BusinessBillingView companyId={companyId!} />;
 
       case "service-requests":
         return (

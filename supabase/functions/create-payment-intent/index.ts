@@ -18,6 +18,39 @@ const jsonResponse = (status: number, payload: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// Owner or active member of the company, via the service client (auth.uid() is
+// not set for it, so is_company_member() cannot be used here).
+async function isCompanyMember(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  companyId: string,
+): Promise<boolean> {
+  const { data: owned, error: ownerError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("id", companyId)
+    .eq("owner_id", userId)
+    .limit(1);
+  if (ownerError) {
+    console.error("isCompanyMember: owner lookup failed", ownerError);
+    return false;
+  }
+  if ((owned ?? []).length > 0) return true;
+
+  const { data: member, error: memberError } = await supabase
+    .from("business_members")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("profile_id", userId)
+    .eq("status", "active")
+    .limit(1);
+  if (memberError) {
+    console.error("isCompanyMember: member lookup failed", memberError);
+    return false;
+  }
+  return (member ?? []).length > 0;
+}
+
 type RequestBody = {
   action?: "send_invoice" | "create_client_secret";
   invoiceId: string;
@@ -47,6 +80,7 @@ serve(async (req) => {
         invoice_number,
         contractor_id,
         recipient_id,
+        company_id,
         client_email,
         client_name,
         due_date,
@@ -123,7 +157,16 @@ serve(async (req) => {
       if (token) {
         const { data: authData } = await supabase.auth.getUser(token);
         if (authData?.user && authData.user.id !== invoice.recipient_id) {
-          return jsonResponse(401, { success: false, error: "Unauthorized" });
+          // A B2B invoice is addressed to the company (recipient_id is its
+          // owner), but any member of that company may pay it — otherwise the
+          // person who approved the costs all month could not pay the invoice.
+          // Fails closed: a lookup error is treated as "not a member".
+          const isMember = invoice.company_id
+            ? await isCompanyMember(supabase, authData.user.id, invoice.company_id)
+            : false;
+          if (!isMember) {
+            return jsonResponse(401, { success: false, error: "Unauthorized" });
+          }
         }
       }
     }

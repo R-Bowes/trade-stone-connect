@@ -18,6 +18,9 @@ import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { useToast } from "@/hooks/use-toast";
 import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
+import { WorkOrderCostLines } from "@/components/shared/WorkOrderCostLines";
+import { CostReviewActions } from "@/components/business/CostReviewActions";
+import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
 import { WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET } from "@/components/shared/WorkOrderCard";
 import {
   useWorkOrders, formatWoNumber,
@@ -569,6 +572,9 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const { costsByWorkOrder, loadCosts, approveCost, queryCost, rejectCost } = useWorkOrderCosts();
+
+  useEffect(() => { void loadCosts([wo.id]); }, [wo.id, loadCosts]);
 
   const openReassign = async () => {
     setReassignOpen(true);
@@ -602,6 +608,20 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
           counterparty={wo.contractor?.full_name ?? null}
           companyCode={companyCode}
           viewer="business"
+          costs={
+            <WorkOrderCostLines
+              lines={costsByWorkOrder[wo.id] ?? []}
+              renderLineActions={(line) => (
+                <CostReviewActions
+                  line={line}
+                  approve={approveCost}
+                  query={queryCost}
+                  reject={rejectCost}
+                  onChanged={() => void loadCosts([wo.id])}
+                />
+              )}
+            />
+          }
           actions={
             <>
               {canCancel && (

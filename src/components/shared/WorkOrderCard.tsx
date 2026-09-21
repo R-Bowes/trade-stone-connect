@@ -49,7 +49,7 @@ export function deriveWorkOrderStatus(wo: Pick<WorkOrder, "status" | "response" 
   }
 }
 
-interface RateSnapshotValues {
+export interface RateSnapshotValues {
   calloutStandard: number | null;
   calloutOoh: number | null;
   hourlyRate: number | null;
@@ -59,7 +59,7 @@ interface RateSnapshotValues {
 
 // rate_snapshot is the effective_engagement_rates row captured at dispatch —
 // what the work will be billed against — not a live rate lookup.
-function readRateSnapshot(snapshot: Record<string, unknown> | null): RateSnapshotValues | null {
+export function readRateSnapshot(snapshot: Record<string, unknown> | null): RateSnapshotValues | null {
   if (!snapshot) return null;
   const num = (key: string): number | null => {
     const value = snapshot[key];
@@ -86,6 +86,8 @@ interface WorkOrderCardProps {
   viewer: "business" | "contractor";
   density?: "full" | "compact";
   actions?: ReactNode;
+  /** Cost lines block, rendered between the rates and the photos. */
+  costs?: ReactNode;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -105,6 +107,7 @@ export function WorkOrderCard({
   viewer,
   density = "full",
   actions,
+  costs,
 }: WorkOrderCardProps) {
   const compact = density === "compact";
   const status = deriveWorkOrderStatus(workOrder);
@@ -176,6 +179,8 @@ export function WorkOrderCard({
             )}
           </div>
         )}
+
+        {!compact && costs}
 
         {!compact && photoPaths.length > 0 && (
           <div className="border-t pt-3 space-y-2">

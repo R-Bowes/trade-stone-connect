@@ -96,7 +96,7 @@ export function useInvoices() {
 
     if (sendNow) {
       await sendInvoice(data.id);
-      toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
+      toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
     } else {
       toast({ title: "Invoice Created", description: "Your invoice has been created successfully." });
       await fetchInvoices();
@@ -121,7 +121,7 @@ export function useInvoices() {
 
     if (sendNow) {
       await sendInvoice(id);
-      toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
+      toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
     } else {
       toast({ title: "Invoice Updated", description: "Invoice has been updated." });
       await fetchInvoices();
@@ -218,7 +218,7 @@ export function useInvoices() {
 
   const markAsSent = async (id: string) => {
     await sendInvoice(id);
-    toast({ title: "Invoice Sent", description: "Invoice sent and payment link emailed to client." });
+    toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
   };
 
   const { outstanding, outstandingCount, overdue, overdueCount, paid } = summariseInvoices(invoices);

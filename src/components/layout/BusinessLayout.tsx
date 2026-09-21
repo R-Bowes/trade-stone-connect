@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Money",
     items: [
       { value: "invoices", label: "Invoices", icon: "ti-receipt" },
+      { value: "billing",  label: "Billing",  icon: "ti-file-invoice" },
       { value: "spend",    label: "Spend",    icon: "ti-chart-bar" },
     ],
   },
@@ -90,6 +91,7 @@ const VIEW_LABELS: Record<string, string> = {
   "site-contacts": "Site Contacts",
   panel:      "Contractor Panel",
   invoices:   "Invoices",
+  billing:    "Billing",
   spend:      "Spend",
   messages:   "Messages",
   team:       "Team",

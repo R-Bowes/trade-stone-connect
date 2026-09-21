@@ -172,13 +172,23 @@ export default function SitePortal() {
 
   const checkSpendLimits = async (): Promise<string | null> => {
     if (level < 4 || !autonomy) return null;
+    if (!autonomy.max_wo_value && !autonomy.max_monthly_spend) return null;
     // No estimated-cost input exists in this simple form — the site's
     // standard call-out rate for the selected contractor's engagement is
     // used as the spend estimate, since that's the only figure available
     // at request time.
     if (!selectedContractor) return null;
-    const { data: rate } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: selectedContractor.engagement_id });
-    const estimatedCost = rate ? Number((rate as any).callout_standard) : 0;
+    // A limit is configured, so a cost that cannot be established must block,
+    // never fall back to £0 and let the request through.
+    const { data: rate, error: rateError } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: selectedContractor.engagement_id });
+    if (rateError) {
+      console.error("Spend check: could not read agreed rates", rateError);
+      return "We couldn't check this request against your spending limit. Please try again, or contact your facilities manager.";
+    }
+    if (!rate) {
+      return "Rates haven't been agreed with this contractor yet, so this request can't be checked against your spending limit. Please contact your facilities manager.";
+    }
+    const estimatedCost = Number(rate.callout_standard);
 
     if (autonomy.max_wo_value && estimatedCost > autonomy.max_wo_value) {
       return `This exceeds your spending limit of £${autonomy.max_wo_value.toFixed(2)}. Please contact your facilities manager.`;
@@ -187,12 +197,16 @@ export default function SitePortal() {
       const monthStart = new Date();
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
-      const { data: monthWos } = await (supabase as any)
+      const { data: monthWos, error: monthError } = await supabase
         .from("work_orders")
         .select("estimated_cost")
         .eq("site_id", activeContact!.site_id)
         .gte("created_at", monthStart.toISOString());
-      const spent = (monthWos ?? []).reduce((sum: number, w: { estimated_cost: number | null }) => sum + Number(w.estimated_cost ?? 0), 0);
+      if (monthError) {
+        console.error("Spend check: could not read this month's work orders", monthError);
+        return "We couldn't check this request against your monthly spending limit. Please try again, or contact your facilities manager.";
+      }
+      const spent = (monthWos ?? []).reduce((sum, w) => sum + Number(w.estimated_cost ?? 0), 0);
       if (spent + estimatedCost > autonomy.max_monthly_spend) {
         return `This exceeds your monthly spending limit of £${autonomy.max_monthly_spend.toFixed(2)}. Please contact your facilities manager.`;
       }
