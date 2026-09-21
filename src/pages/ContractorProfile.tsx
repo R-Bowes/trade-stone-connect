@@ -24,7 +24,8 @@ import { computeTrend, SCORE_EXPLANATIONS, type ScoreConfidence } from "@/lib/sc
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { extractVideoId } from "@/hooks/useProfileVideos";
-import { getEmbedUrl } from "@/lib/videoEmbed";
+import { isEmbeddable } from "@/lib/videoEmbed";
+import { ConsentGatedEmbed } from "@/components/shared/ConsentGatedEmbed";
 import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -883,20 +884,12 @@ function VideoBlock({ section, videos }: { section: CanvasSection; videos: Profi
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         {videos.map(v => {
           const { videoId } = extractVideoId(v.url);
-          const embedUrl = getEmbedUrl(v.platform, videoId);
           return (
             <div key={v.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f0f0f0" }}>
-              <div style={{ aspectRatio: "16/9", background: "#111" }}>
-                {embedUrl ? (
-                  <iframe
-                    src={embedUrl}
-                    title={v.title ?? "Video"}
-                    loading="lazy"
-                    style={{ width: "100%", height: "100%", border: "none" }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
+              {isEmbeddable(v.platform) && videoId ? (
+                <ConsentGatedEmbed provider={v.platform} videoId={videoId} title={v.title ?? "Video"} sourceUrl={v.url} />
+              ) : (
+                <div style={{ aspectRatio: "16/9", background: "#111" }}>
                   <a
                     href={v.url}
                     target="_blank"
@@ -905,8 +898,8 @@ function VideoBlock({ section, videos }: { section: CanvasSection; videos: Profi
                   >
                     <i className="ti ti-external-link" style={{ fontSize: 24 }} />
                   </a>
-                )}
-              </div>
+                </div>
+              )}
               {(v.title || v.description) && (
                 <div style={{ padding: "10px 12px" }}>
                   {v.title && <div style={{ fontWeight: 600, fontSize: 13, color: NAVY }}>{v.title}</div>}

@@ -20,6 +20,14 @@ interface Window {
 interface Window {
   Cookiebot?: {
     renew: () => void;
+    // Populated by Cookiebot's uc.js; absent or all-false until a choice is made.
+    consent?: {
+      necessary?: boolean;
+      preferences?: boolean;
+      statistics?: boolean;
+      marketing?: boolean;
+    };
+    hasResponse?: boolean;
   };
 }
 

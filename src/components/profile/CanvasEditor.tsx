@@ -14,7 +14,8 @@ import { useContractorTeam, type TeamMemberInsert } from "@/hooks/useContractorT
 import { useContractorCredentials, type NewCredential } from "@/hooks/useContractorCredentials";
 import { useProfileVideos, extractVideoId, type ProfileVideo } from "@/hooks/useProfileVideos";
 import { useBeforeAfter, type BeforeAfterPair } from "@/hooks/useBeforeAfter";
-import { getEmbedUrl } from "@/lib/videoEmbed";
+import { isEmbeddable } from "@/lib/videoEmbed";
+import { ConsentGatedEmbed } from "@/components/shared/ConsentGatedEmbed";
 import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -443,15 +444,16 @@ function VideoContent({ section, videos }: { section: SectionInstance; videos: P
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
             {videos.map(v => {
               const { videoId } = extractVideoId(v.url);
-              const embedUrl = getEmbedUrl(v.platform, videoId);
               return (
                 <div key={v.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                  <div style={{ aspectRatio: "16/9", background: "#111" }}>
-                    {embedUrl
-                      ? <iframe src={embedUrl} title={v.title ?? "Video"} style={{ width: "100%", height: "100%", border: "none" }} allowFullScreen />
-                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}><i className="ti ti-video" style={{ fontSize: 24 }} /></div>
-                    }
-                  </div>
+                  {isEmbeddable(v.platform) && videoId
+                    ? <ConsentGatedEmbed provider={v.platform} videoId={videoId} title={v.title ?? "Video"} sourceUrl={v.url} />
+                    : (
+                      <div style={{ aspectRatio: "16/9", background: "#111" }}>
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}><i className="ti ti-video" style={{ fontSize: 24 }} /></div>
+                      </div>
+                    )
+                  }
                   {v.title && <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 600, color: NAVY }}>{v.title}</div>}
                 </div>
               );
