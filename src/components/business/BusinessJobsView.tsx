@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,10 @@ import { SlaStatusPill } from "@/components/SlaStatusPill";
 import { PriorityBadge } from "@/components/PriorityBadge";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
+import { JobCard } from "@/components/shared/JobCard";
+import { useJobCardContext, resolveJobAsset, resolveJobSite } from "@/hooks/useJobCardContext";
+import { formatJobValue, type JobCostSummary } from "@/lib/jobValue";
+import { formatQuoteRef } from "@/lib/documentRefs";
 
 // Confirmed jobs.status values from migration 20260328170000
 const ALL_STATUSES = ["scheduled", "in_progress", "snagging", "complete", "cancelled"] as const;
@@ -47,8 +51,15 @@ interface JobRow {
   created_at: string;
   issued_quote_id: string | null;
   engagement_id: string | null;
+  job_number: number | null;
+  work_order_id: string | null;
+  asset_id: string | null;
+  start_date: string | null;
   site_name?: string | null;
   contractor_name?: string | null;
+  contractor_code?: string | null;
+  quote_number?: number | null;
+  quote_version?: number | null;
 }
 
 interface Props {
@@ -70,7 +81,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
+function JobDetail({ job, valueText, onBack }: { job: JobRow; valueText: string; onBack: () => void }) {
   const [originOpen, setOriginOpen] = useState(false);
   const [origin, setOrigin] = useState<JobOrigin | null>(null);
   const [originLoading, setOriginLoading] = useState(false);
@@ -118,12 +129,10 @@ function JobDetail({ job, onBack }: { job: JobRow; onBack: () => void }) {
             <p className="font-medium">{job.contractor_name}</p>
           </div>
         )}
-        {job.contract_value != null && (
+        {(job.engagement_id || job.contract_value != null) && (
           <div>
-            <p className="text-muted-foreground text-xs mb-0.5">Contract value</p>
-            <p className="font-medium font-mono">
-              {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(job.contract_value)}
-            </p>
+            <p className="text-muted-foreground text-xs mb-0.5">{job.engagement_id ? "Value" : "Contract value"}</p>
+            <p className="font-medium font-mono">{valueText}</p>
           </div>
         )}
         <div>
@@ -175,6 +184,8 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
   const [filterContractor, setFilterContractor] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selected, setSelected] = useState<JobRow | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { ctx: jobCtx } = useJobCardContext(jobs);
 
   useEffect(() => { load(); }, [companyId]);
 
@@ -190,39 +201,88 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
   const load = async () => {
     setLoading(true);
 
-    const { data: jobRows } = await supabase
+    const { data: jobRows, error: jobsError } = await supabase
       .from("jobs")
-      .select("id, title, status, priority, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, sla_completion_due, sla_status, responded_at, created_at, issued_quote_id, engagement_id")
+      .select("id, title, status, priority, site_id, contractor_id, contract_value, sla_response_due, sla_resolution_due, sla_completion_due, sla_status, responded_at, created_at, issued_quote_id, engagement_id, job_number, work_order_id, asset_id, start_date")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
+    if (jobsError) {
+      console.error("Business jobs: failed to load jobs", jobsError);
+      setLoadError("Jobs could not be loaded. Please try again.");
+      setLoading(false);
+      return;
+    }
+    setLoadError(null);
+
     if (!jobRows?.length) { setJobs([]); setLoading(false); return; }
 
-    const siteIds = [...new Set(jobRows.map((j: any) => j.site_id).filter(Boolean))] as string[];
-    const contractorIds = [...new Set(jobRows.map((j: any) => j.contractor_id).filter(Boolean))] as string[];
+    const siteIds = [...new Set(jobRows.map((j) => j.site_id).filter((id): id is string => !!id))];
+    const contractorIds = [...new Set(jobRows.map((j) => j.contractor_id).filter((id): id is string => !!id))];
+    const quoteIds = [...new Set(jobRows.map((j) => j.issued_quote_id).filter((id): id is string => !!id))];
 
-    const [{ data: siteRows }, { data: profileRows }] = await Promise.all([
-      siteIds.length ? supabase.from("sites").select("id, name").in("id", siteIds) : Promise.resolve({ data: [] }),
-      contractorIds.length ? supabase.from("profiles").select("id, full_name").in("id", contractorIds) : Promise.resolve({ data: [] }),
-    ]);
+    const fetchSites = async () => {
+      if (siteIds.length === 0) return [];
+      const { data, error } = await supabase.from("sites").select("id, name").in("id", siteIds);
+      if (error) console.error("Business jobs: failed to load sites", error);
+      return data ?? [];
+    };
+    const fetchProfiles = async () => {
+      if (contractorIds.length === 0) return [];
+      const { data, error } = await supabase.from("profiles").select("id, full_name, ts_profile_code").in("id", contractorIds);
+      if (error) console.error("Business jobs: failed to load contractors", error);
+      return data ?? [];
+    };
+    const fetchQuotes = async () => {
+      if (quoteIds.length === 0) return [];
+      const { data, error } = await supabase.from("issued_quotes").select("id, quote_number, version").in("id", quoteIds);
+      if (error) console.error("Business jobs: failed to load quotes", error);
+      return data ?? [];
+    };
 
-    const siteMap = Object.fromEntries((siteRows ?? []).map((s: any) => [s.id, s.name]));
-    const profileMap = Object.fromEntries((profileRows ?? []).map((p: any) => [p.id, p.full_name]));
+    const [siteRows, profileRows, quoteRows] = await Promise.all([fetchSites(), fetchProfiles(), fetchQuotes()]);
+    const siteMap = new Map(siteRows.map((s) => [s.id, s.name]));
+    const profileMap = new Map(profileRows.map((p) => [p.id, p]));
+    const quoteMap = new Map(quoteRows.map((q) => [q.id, q]));
 
-    const hydrated: JobRow[] = jobRows.map((j: any) => ({
+    const hydrated: JobRow[] = jobRows.map((j) => ({
       ...j,
-      site_name: j.site_id ? (siteMap[j.site_id] ?? null) : null,
-      contractor_name: j.contractor_id ? (profileMap[j.contractor_id] ?? null) : null,
+      site_name: j.site_id ? (siteMap.get(j.site_id) ?? null) : null,
+      contractor_name: j.contractor_id ? (profileMap.get(j.contractor_id)?.full_name ?? null) : null,
+      contractor_code: j.contractor_id ? (profileMap.get(j.contractor_id)?.ts_profile_code ?? null) : null,
+      quote_number: j.issued_quote_id ? (quoteMap.get(j.issued_quote_id)?.quote_number ?? null) : null,
+      quote_version: j.issued_quote_id ? (quoteMap.get(j.issued_quote_id)?.version ?? null) : null,
     }));
 
-    setSites((siteRows ?? []).map((s: any) => ({ id: s.id, name: s.name })));
-    setContractors((profileRows ?? []).map((p: any) => ({ id: p.id, name: p.full_name })));
+    setSites(siteRows.map((s) => ({ id: s.id, name: s.name })));
+    setContractors(profileRows.map((p) => ({ id: p.id, name: p.full_name ?? "Contractor" })));
     setJobs(hydrated);
     setLoading(false);
   };
 
+  const costFor = (job: JobRow): JobCostSummary | null => (job.work_order_id ? jobCtx.costs[job.work_order_id] ?? null : null);
+
+  const originLabel = (job: JobRow): string | null => {
+    if (job.quote_number != null) {
+      return formatQuoteRef(job.quote_number, { version: job.quote_version ?? undefined, contractorCode: job.contractor_code ?? undefined });
+    }
+    if (job.engagement_id) {
+      const engagementNumber = jobCtx.engagements[job.engagement_id];
+      const workOrder = job.work_order_id ? jobCtx.workOrders[job.work_order_id] : null;
+      if (workOrder && engagementNumber) return `${workOrder.ref} · ${engagementNumber}`;
+      return engagementNumber ?? workOrder?.ref ?? "Call-out";
+    }
+    return null;
+  };
+
   if (selected) {
-    return <JobDetail job={selected} onBack={() => setSelected(null)} />;
+    return (
+      <JobDetail
+        job={selected}
+        valueText={formatJobValue(selected, costFor(selected))}
+        onBack={() => setSelected(null)}
+      />
+    );
   }
 
   const filtered = jobs.filter((j) => {
@@ -315,6 +375,8 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : loadError ? (
+        <Card><CardContent className="p-10 text-center text-sm text-destructive">{loadError}</CardContent></Card>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="p-10 text-center">
@@ -323,39 +385,29 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              {filtered.length} job{filtered.length !== 1 ? "s" : ""}
-              {filterSite !== "all" || filterContractor !== "all" || filterStatus !== "all" ? " (filtered)" : ""}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div>
-              {sortedFiltered.map((job) => (
-                <button
-                  key={job.id}
-                  onClick={() => setSelected(job)}
-                  className="w-full text-left flex items-center justify-between px-6 py-3 border-b last:border-0 hover:bg-muted/40 transition-colors gap-4"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <PriorityBadge priority={job.priority} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{job.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {[job.site_name, job.contractor_name].filter(Boolean).join(" · ") || "No site assigned"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
-                    <StatusBadge status={job.status} />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} job{filtered.length !== 1 ? "s" : ""}
+            {filterSite !== "all" || filterContractor !== "all" || filterStatus !== "all" ? " (filtered)" : ""}
+          </p>
+          <div className="grid gap-3">
+            {sortedFiltered.map((job) => (
+              <div key={job.id} className={job.status === "cancelled" ? "opacity-60" : undefined}>
+                <JobCard
+                  job={job}
+                  viewer="business"
+                  counterparty={job.contractor_name ?? null}
+                  contractorCode={job.contractor_code ?? null}
+                  site={resolveJobSite(jobCtx, job) ?? (job.site_id && job.site_name ? { id: job.site_id, name: job.site_name } : null)}
+                  asset={resolveJobAsset(jobCtx, job)}
+                  origin={originLabel(job)}
+                  costSummary={costFor(job)}
+                  actions={<Button size="sm" variant="outline" onClick={() => setSelected(job)}>View</Button>}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

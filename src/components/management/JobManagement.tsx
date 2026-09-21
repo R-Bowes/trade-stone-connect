@@ -49,6 +49,12 @@ import { JobStageStrip } from "@/components/JobStageStrip";
 import { RamsEditor } from "@/components/management/rams/RamsEditor";
 import { JobCertificates } from "@/components/management/certificates/JobCertificates";
 import { HardHat, Award } from "lucide-react";
+import { JobCard, OriginRefs } from "@/components/shared/JobCard";
+import { EngagementJobBillingNotice } from "@/components/shared/EngagementJobBillingNotice";
+import { RecordCostsDialog } from "@/components/management/RecordCostsDialog";
+import { useJobCardContext, resolveJobAsset, resolveJobSite } from "@/hooks/useJobCardContext";
+import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
+import { formatJobValue } from "@/lib/jobValue";
 import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
 import { PaymentProgress } from "@/components/management/payments/PaymentProgress";
 import { VariationsSection } from "@/components/management/variations/VariationsSection";
@@ -91,8 +97,13 @@ type JobCardData = {
   quote_version: number | null;
   issued_quote_id: string | null;
   engagement_id: string | null;
+  work_order_id: string | null;
+  site_id: string | null;
+  asset_id: string | null;
   sla_status: string | null;
+  sla_response_due: string | null;
   sla_completion_due: string | null;
+  sla_resolution_due: string | null;
   contract_value: number;
   job_number: number | null;
   priority: string | null;
@@ -207,6 +218,9 @@ function JobTimer({ actualStart, actualEnd, estimatedCompletion, status }: {
 
 export function JobManagement() {
   const [jobs, setJobs] = useState<JobCardData[]>([]);
+  const { ctx: jobCtx, reload: reloadJobCtx } = useJobCardContext(jobs);
+  const { submitCost } = useWorkOrderCosts();
+  const [recordingJob, setRecordingJob] = useState<JobCardData | null>(null);
   const [snagItemsByJob, setSnagItemsByJob] = useState<Record<string, SnagItem[]>>({});
   const [newSnagByJob, setNewSnagByJob] = useState<Record<string, string>>({});
   const [timesheetsByJob, setTimesheetsByJob] = useState<Record<string, TimesheetEntry[]>>({});
@@ -333,8 +347,13 @@ export function JobManagement() {
         company_id,
         issued_quote_id,
         engagement_id,
+        work_order_id,
+        site_id,
+        asset_id,
         sla_status,
+        sla_response_due,
         sla_completion_due,
+        sla_resolution_due,
         contract_value,
         job_number,
         priority,
@@ -369,8 +388,13 @@ export function JobManagement() {
       quote_version: job.quote?.version ?? null,
       issued_quote_id: job.issued_quote_id ?? null,
       engagement_id: job.engagement_id ?? null,
+      work_order_id: job.work_order_id ?? null,
+      site_id: job.site_id ?? null,
+      asset_id: job.asset_id ?? null,
       sla_status: job.sla_status ?? null,
+      sla_response_due: job.sla_response_due ?? null,
       sla_completion_due: job.sla_completion_due ?? null,
+      sla_resolution_due: job.sla_resolution_due ?? null,
       contract_value: job.contract_value ?? 0,
       job_number: job.job_number ?? null,
       priority: job.priority ?? null,
@@ -829,52 +853,49 @@ export function JobManagement() {
     );
   }
 
-  const renderJobRow = (job: JobCardData) => (
-    <button
-      key={job.id}
-      type="button"
-      className={cn(
-        "w-full text-left flex items-center gap-3 px-4 py-3 bg-background hover:bg-muted/50 transition-colors",
-        job.status === "cancelled" && "opacity-60",
-      )}
-      onClick={() => setSelectedJobId(job.id)}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm">{job.title}</span>
-          {job.quote_number != null && (
-            <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              {formatQuoteRef(job.quote_number)}
-            </span>
-          )}
-          {job.sla_status && (
-            <SlaStatusPill status={job.sla_status} completionDue={job.sla_completion_due} />
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-xs text-muted-foreground">{job.client_name}</span>
-          {job.client_ts_code && (
-            <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{job.client_ts_code}</span>
-          )}
-          <Badge
-            variant={job.status === "cancelled" ? "destructive" : job.status === "complete" ? "secondary" : "outline"}
-            className="text-[10px] px-1.5 py-0"
-            style={
-              job.status === "in_progress"
-                ? { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" }
-                : job.status === "snagging"
-                ? { backgroundColor: "#f59e0b", color: "#fff", borderColor: "#f59e0b" }
-                : job.status === "scheduled"
-                ? { backgroundColor: "#1e3a5f", color: "#fff", borderColor: "#1e3a5f" }
-                : undefined
-            }
-          >
-            {statusLabel[job.status]}
-          </Badge>
-        </div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-    </button>
+  const originLabel = (job: JobCardData): string | null => {
+    if (job.quote_number != null) return formatQuoteRef(job.quote_number, { version: job.quote_version ?? undefined });
+    if (job.engagement_id) {
+      const engagementNumber = jobCtx.engagements[job.engagement_id];
+      const workOrder = job.work_order_id ? jobCtx.workOrders[job.work_order_id] : null;
+      if (workOrder && engagementNumber) return `${workOrder.ref} · ${engagementNumber}`;
+      return engagementNumber ?? workOrder?.ref ?? "Call-out";
+    }
+    return null;
+  };
+
+  const canRecordCosts = (job: JobCardData): boolean => {
+    if (!job.engagement_id || !job.work_order_id || job.status === "cancelled") return false;
+    const workOrder = jobCtx.workOrders[job.work_order_id];
+    return !!workOrder && (workOrder.status === "accepted" || workOrder.status === "dispatched");
+  };
+
+  const workerNames = (job: JobCardData): string[] =>
+    (assignmentsByJob[job.id] || [])
+      .map((a) => (a.is_contractor ? "You" : teamMembers.find((m) => m.id === a.team_member_id)?.full_name))
+      .filter((name): name is string => !!name);
+
+  const renderJobCard = (job: JobCardData) => (
+    <div key={job.id} className={cn(job.status === "cancelled" && "opacity-60")}>
+      <JobCard
+        job={job}
+        viewer="contractor"
+        counterparty={job.client_name}
+        site={resolveJobSite(jobCtx, job)}
+        asset={resolveJobAsset(jobCtx, job)}
+        workers={workerNames(job)}
+        origin={originLabel(job)}
+        costSummary={job.work_order_id ? jobCtx.costs[job.work_order_id] ?? null : null}
+        actions={
+          <>
+            <Button size="sm" variant="outline" onClick={() => setSelectedJobId(job.id)}>View</Button>
+            {canRecordCosts(job) && (
+              <Button size="sm" onClick={() => setRecordingJob(job)}>Record costs</Button>
+            )}
+          </>
+        }
+      />
+    </div>
   );
 
   const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
@@ -901,8 +922,8 @@ export function JobManagement() {
           {activeJobs.length === 0 ? (
             <p className="text-sm text-muted-foreground py-3">No active jobs.</p>
           ) : (
-            <div className="divide-y rounded-lg border overflow-hidden">
-              {activeJobs.map((job) => renderJobRow(job))}
+            <div className="grid gap-3">
+              {activeJobs.map((job) => renderJobCard(job))}
             </div>
           )}
         </section>
@@ -913,8 +934,8 @@ export function JobManagement() {
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Completed · last 90 days</span>
               <span className="text-xs text-muted-foreground">({completedJobs.length})</span>
             </div>
-            <div className="divide-y rounded-lg border overflow-hidden">
-              {completedJobs.map((job) => renderJobRow(job))}
+            <div className="grid gap-3">
+              {completedJobs.map((job) => renderJobCard(job))}
             </div>
           </section>
         )}
@@ -922,8 +943,8 @@ export function JobManagement() {
         {cancelledJobs.length > 0 && (
           <section>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Cancelled</div>
-            <div className="divide-y rounded-lg border overflow-hidden">
-              {cancelledJobs.map((job) => renderJobRow(job))}
+            <div className="grid gap-3">
+              {cancelledJobs.map((job) => renderJobCard(job))}
             </div>
           </section>
         )}
@@ -980,6 +1001,13 @@ export function JobManagement() {
               <div className="space-y-5">
                 <JobStageStrip status={selectedJob.status} signedOff={!!selectedJob.signed_off_by} />
 
+                {selectedJob.engagement_id && (
+                  <EngagementJobBillingNotice
+                    workOrderRef={selectedJob.work_order_id ? jobCtx.workOrders[selectedJob.work_order_id]?.ref ?? null : null}
+                    onRecordCosts={canRecordCosts(selectedJob) ? () => setRecordingJob(selectedJob) : undefined}
+                  />
+                )}
+
                 {/* Key facts grid: 3 cols × 2 rows */}
                 {(() => {
                   const entries = timesheetsByJob[selectedJob.id] || [];
@@ -1006,7 +1034,9 @@ export function JobManagement() {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Value</div>
-                        <div className="font-medium font-mono">£{selectedJob.contract_value.toFixed(2)}</div>
+                        <div className="font-medium font-mono">
+                          {formatJobValue(selectedJob, selectedJob.work_order_id ? jobCtx.costs[selectedJob.work_order_id] : null)}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Hours logged</div>
@@ -1027,9 +1057,7 @@ export function JobManagement() {
                             className="font-medium font-mono inline-flex items-center gap-1 hover:underline"
                             onClick={() => setOriginOpen((v) => !v)}
                           >
-                            {selectedJob.quote_number != null
-                              ? formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })
-                              : originByJob[selectedJob.id]?.engagementNumber ?? "Call-out"}
+                            <span><OriginRefs value={originLabel(selectedJob) ?? "Call-out"} /></span>
                             {originOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           </button>
                         ) : (
@@ -1384,7 +1412,7 @@ export function JobManagement() {
                           : "Mark complete"}
                       </Button>
                     )}
-                    {selectedJob.status === "complete" && (() => {
+                    {selectedJob.status === "complete" && !selectedJob.engagement_id && (() => {
                       const invoiceStatus = selectedJob.issued_quote_id
                         ? invoiceStatusByQuoteId[selectedJob.issued_quote_id]
                         : undefined;
@@ -1561,6 +1589,19 @@ export function JobManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      <RecordCostsDialog
+        open={!!recordingJob}
+        onOpenChange={(o) => {
+          if (!o) {
+            setRecordingJob(null);
+            void reloadJobCtx();
+          }
+        }}
+        workOrderTitle={recordingJob?.work_order_id ? jobCtx.workOrders[recordingJob.work_order_id]?.title ?? recordingJob.title : ""}
+        rateSnapshot={recordingJob?.work_order_id ? jobCtx.workOrders[recordingJob.work_order_id]?.rate_snapshot ?? null : null}
+        onSubmit={(input) => (recordingJob?.work_order_id ? submitCost(recordingJob.work_order_id, input) : Promise.resolve(false))}
+      />
 
       <InvoiceFormDialog
         open={invoiceDialogOpen}

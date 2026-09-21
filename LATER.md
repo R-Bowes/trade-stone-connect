@@ -1504,3 +1504,29 @@ error is never read, so the admin sees the dialog close and the list reload
 with nothing changed — a silent failure. Probable fix: write `'complete'`
 (and go through the normal transition, which also needs `completed_at`), and
 check the error. Not fixed here.
+
+
+## Two SLA engines write to jobs — retire one at the start of the SLA pass
+
+Two independent mechanisms populate the SLA due columns on jobs:
+
+- the `sla-clock` edge function writes `sla_response_due`,
+  `sla_attendance_due`, `sla_completion_due` and `sla_status`;
+- the live-only trigger `trigger_check_sla_breach` (not in any migration)
+  writes `sla_resolution_due` on INSERT, from the raw rule hours, and also
+  writes `sla_response_due`.
+
+Both write `sla_response_due`, so a job can have that column set by one
+engine and overwritten by the other, and `sla_completion_due` /
+`sla_resolution_due` describe the same deadline under two names. Decide which
+engine is canonical and retire the other at the start of the SLA pass;
+codify whichever survives in a migration (the trigger currently exists only
+live).
+
+Related: `check_sla_breaches` also filters on status `'completed'`, which is
+not a valid `jobs.status` (live `jobs_status_check` is scheduled, in_progress,
+snagging, complete, cancelled), so that filter can never match.
+
+The job cards' Overdue badge and "SLA resolution due" field read
+`sla_completion_due ?? sla_resolution_due` for now; leave that fallback in
+place until the pass.

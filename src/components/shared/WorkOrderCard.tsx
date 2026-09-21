@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecordCard, RecordSection, type RecordCardField } from "@/components/shared/RecordCard";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, MapPin, Wrench } from "lucide-react";
 import { formatDateTime } from "@/lib/formatDate";
@@ -120,96 +120,81 @@ export function WorkOrderCard({
   );
   const { urls: signedUrls } = useSignedPhotoUrls(WORK_ORDER_PHOTO_BUCKET, compact ? [] : photoPaths);
 
+  const fields: RecordCardField[] = [
+    { label: "Site", value: site?.name ?? "—", icon: site?.name ? <MapPin className="h-3 w-3" /> : undefined },
+    ...(!compact && workOrder.asset?.name
+      ? [{ label: "Asset", value: workOrder.asset.name, icon: <Wrench className="h-3 w-3" /> }]
+      : []),
+    { label: counterpartyLabel, value: counterparty ?? (viewer === "business" ? "Not yet dispatched" : "—") },
+    { label: "Created", value: formatDateTime(workOrder.created_at) },
+    ...(workOrder.dispatched_at ? [{ label: "Dispatched", value: formatDateTime(workOrder.dispatched_at) }] : []),
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <ClipboardList className="h-5 w-5 text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <CardTitle className="text-base">{workOrder.title}</CardTitle>
-              <p className="text-xs text-muted-foreground font-mono">{formatWoNumber(companyCode, workOrder.wo_number)}</p>
+    <RecordCard
+      icon={<ClipboardList className="h-5 w-5" />}
+      title={workOrder.title}
+      reference={formatWoNumber(companyCode, workOrder.wo_number)}
+      badges={
+        <>
+          <Badge variant="outline" className={PRIORITY_COLOR[workOrder.priority]}>{PRIORITY_LABEL[workOrder.priority]}</Badge>
+          <Badge className={status.className}>{status.label}</Badge>
+        </>
+      }
+      lead={workOrder.description ? <p className="text-sm">{workOrder.description}</p> : undefined}
+      fields={fields}
+      actions={actions}
+      density={density}
+    >
+      <RecordSection>
+        <p className="text-sm font-medium">Agreed rates</p>
+        {rate ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              <Field label="Standard call-out fee">{rate.calloutStandard != null ? formatGBP(rate.calloutStandard) : "—"}</Field>
+              <Field label="Out-of-hours call-out fee">{rate.calloutOoh != null ? formatGBP(rate.calloutOoh) : "—"}</Field>
+              <Field label="Hourly rate">{rate.hourlyRate != null ? formatGBP(rate.hourlyRate) : "—"}</Field>
+              <Field label="Materials markup">{rate.materialsMarkupPct != null ? `${rate.materialsMarkupPct}%` : "—"}</Field>
+              <Field label="Minimum charge">{rate.minimumCharge != null ? formatGBP(rate.minimumCharge) : "None"}</Field>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Captured when this work order was dispatched — this is what the work is billed against.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Rates are recorded when the work order is dispatched.
+          </p>
+        )}
+      </RecordSection>
+
+      {costs}
+
+      {photoPaths.length > 0 && (
+        <RecordSection className="space-y-2">
+          <p className="text-sm font-medium">Photos</p>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {photoPaths.map((path) => (
+              <a
+                key={path}
+                href={signedUrls[path]}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 rounded-lg overflow-hidden bg-muted border"
+                style={{ height: 84, width: 84 }}
+              >
+                {signedUrls[path] ? <img src={signedUrls[path]} alt="" className="h-full w-full object-cover" /> : null}
+              </a>
+            ))}
           </div>
-          <div className="flex gap-2">
-            <Badge variant="outline" className={PRIORITY_COLOR[workOrder.priority]}>{PRIORITY_LABEL[workOrder.priority]}</Badge>
-            <Badge className={status.className}>{status.label}</Badge>
-          </div>
+        </RecordSection>
+      )}
+
+      {workOrder.status === "declined" && workOrder.decline_reason && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Declined: {workOrder.decline_reason}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!compact && workOrder.description && <p className="text-sm">{workOrder.description}</p>}
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <Field label="Site">
-            {site?.name ? (
-              <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{site.name}</span>
-            ) : "—"}
-          </Field>
-          {!compact && workOrder.asset?.name && (
-            <Field label="Asset">
-              <span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />{workOrder.asset.name}</span>
-            </Field>
-          )}
-          <Field label={counterpartyLabel}>{counterparty ?? (viewer === "business" ? "Not yet dispatched" : "—")}</Field>
-          <Field label="Created">{formatDateTime(workOrder.created_at)}</Field>
-          {workOrder.dispatched_at && <Field label="Dispatched">{formatDateTime(workOrder.dispatched_at)}</Field>}
-        </div>
-
-        {!compact && (
-          <div className="border-t pt-3 space-y-3">
-            <p className="text-sm font-medium">Agreed rates</p>
-            {rate ? (
-              <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                  <Field label="Standard call-out fee">{rate.calloutStandard != null ? formatGBP(rate.calloutStandard) : "—"}</Field>
-                  <Field label="Out-of-hours call-out fee">{rate.calloutOoh != null ? formatGBP(rate.calloutOoh) : "—"}</Field>
-                  <Field label="Hourly rate">{rate.hourlyRate != null ? formatGBP(rate.hourlyRate) : "—"}</Field>
-                  <Field label="Materials markup">{rate.materialsMarkupPct != null ? `${rate.materialsMarkupPct}%` : "—"}</Field>
-                  <Field label="Minimum charge">{rate.minimumCharge != null ? formatGBP(rate.minimumCharge) : "None"}</Field>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Captured when this work order was dispatched — this is what the work is billed against.
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Rates are recorded when the work order is dispatched.
-              </p>
-            )}
-          </div>
-        )}
-
-        {!compact && costs}
-
-        {!compact && photoPaths.length > 0 && (
-          <div className="border-t pt-3 space-y-2">
-            <p className="text-sm font-medium">Photos</p>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {photoPaths.map((path) => (
-                <a
-                  key={path}
-                  href={signedUrls[path]}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 rounded-lg overflow-hidden bg-muted border"
-                  style={{ height: 84, width: 84 }}
-                >
-                  {signedUrls[path] ? <img src={signedUrls[path]} alt="" className="h-full w-full object-cover" /> : null}
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!compact && workOrder.status === "declined" && workOrder.decline_reason && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            Declined: {workOrder.decline_reason}
-          </div>
-        )}
-
-        {!compact && actions && <div className="flex flex-wrap gap-2 pt-1">{actions}</div>}
-      </CardContent>
-    </Card>
+      )}
+    </RecordCard>
   );
 }
