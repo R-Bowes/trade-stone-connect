@@ -11056,6 +11056,7 @@ export type Database = {
         }
         Returns: string
       }
+      publish_profile_sections: { Args: never; Returns: undefined }
       publish_tender: { Args: { p_tender_id: string }; Returns: undefined }
       query_work_order_cost: {
         Args: { p_cost_id: string; p_reason: string }
@@ -11101,6 +11102,7 @@ export type Database = {
       run_expiry_radar: { Args: never; Returns: undefined }
       run_ppm_generator: { Args: never; Returns: undefined }
       run_tendering_scheduled_tasks: { Args: never; Returns: undefined }
+      save_profile_sections: { Args: { p_sections: Json }; Returns: undefined }
       shortlist_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined

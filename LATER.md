@@ -1530,3 +1530,30 @@ snagging, complete, cancelled), so that filter can never match.
 The job cards' Overdue badge and "SLA resolution due" field read
 `sla_completion_due ?? sla_resolution_due` for now; leave that fallback in
 place until the pass.
+
+
+## Profile editor: profiles-column edits bypass the publish snapshot
+
+Section visibility and order now publish through a snapshot
+(`profile_widgets` snapshot rows, `20260921110000`), but the profile editor's
+edits to `profiles` columns (bio, social links, cover, location, service-area
+radius, CTA label, display and company name) still go live at Save.
+
+- Add a published copy of those columns (a profiles snapshot) so they follow
+  the same draft/publish rule as sections.
+- The public page requests only the profile columns its enabled sections need,
+  but direct API reads of `public_pro_profiles` still return every column
+  (bio, social_links, service-area centre, hourly rate, ...) for a hidden
+  section. Close that with the profiles snapshot too.
+- The editor's Save is two steps — `save_profile_sections`, then the direct
+  `profiles` update — because drafts aren't public, so a failure between them
+  never leaves a live half-state. Fold both into one transaction when the
+  profiles snapshot lands.
+
+## useProfileWidgets.ts is dead code
+
+`src/hooks/useProfileWidgets.ts` has no callers outside its own file, and its
+`upsert(..., { onConflict: "contractor_id,widget_key" })` targets a unique
+constraint dropped in `20260618100300`, so it would fail if called. It also
+reads every `profile_widgets` row for the owner, which now includes snapshot
+rows. Delete it.

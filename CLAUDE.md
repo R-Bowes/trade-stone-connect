@@ -206,8 +206,16 @@ Found during the baseline-migration audit (see
 - **`contractor_credentials`** — "Anyone can read credentials" is
   `USING (true)`, no role restriction (includes anon). Intentional: these are
   the displayed credential badges on public contractor profile pages.
-- **`profile_widgets`** — "Anyone can read profile widgets" is `USING (true)`,
-  no role restriction. Intentional: public profile canvas content.
+- **`profile_widgets`** — NO LONGER broad (`20260921110000`). It used to be
+  "Anyone can read profile widgets" `USING (true)`, which returned hidden
+  sections' rows to every visitor. Now: public SELECT only where
+  `is_published = true AND is_enabled = true`; owners read all their own rows
+  but write DRAFT rows (`is_published = false`) only. Two row sets per
+  contractor: draft rows (what the editor loads/saves, via
+  `save_profile_sections`) and snapshot rows (what visitors read, written only
+  by `publish_profile_sections`). Sections publish through the snapshot;
+  edits to `profiles` columns (bio, social links, cover, ...) are NOT
+  snapshotted and still go live at Save.
 - **`contractor_availability_overrides`** — "Authenticated users read
   overrides" is `USING (auth.role() = 'authenticated')`, so any logged-in user
   can read every contractor's override rows, including the free-text `reason`
