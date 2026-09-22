@@ -877,6 +877,25 @@ function TeamBlock({ section, teamMembers }: { section: CanvasSection; teamMembe
   );
 }
 
+// Profile columns that only one section (or a few) displays. The public page
+// requests them only when such a section is visible, so hiding a section keeps
+// its data out of this page's own network responses. (Direct reads of
+// public_pro_profiles still return them — see LATER.md.) Always requested and
+// not listed here: identity, hero, trades and the CTA label.
+const SECTION_COLUMNS: Record<string, string[]> = {
+  bio: ["bio", "service_area_radius_miles"],
+  stats: ["rating", "review_count", "completed_jobs", "years_experience", "hourly_rate"],
+  social: ["social_links"],
+  service_area: ["service_area_center_lat", "service_area_center_lng", "service_area_radius_miles", "working_radius"],
+  availability: ["service_area_radius_miles", "working_radius"],
+};
+
+function profileColumnsForSections(widgetKeys: string[]): string[] {
+  const columns = new Set<string>();
+  for (const key of widgetKeys) for (const column of SECTION_COLUMNS[key] ?? []) columns.add(column);
+  return [...columns];
+}
+
 function VideoBlock({ section, videos }: { section: CanvasSection; videos: ProfileVideoRow[] }) {
   if (!videos.length) return null;
   return (
@@ -1060,13 +1079,15 @@ const ContractorProfile = () => {
       let profileId: string | null = null;
       let pub: Record<string, unknown> | null = null;
 
+      // Only what every visitor needs whatever sections are visible. Columns
+      // that belong to a specific section (bio, social links, service-area
+      // centre, stats figures, ...) are requested afterwards, and only when
+      // that section is actually shown — see SECTION_COLUMNS.
       const publicSelect = `
         id, user_id, full_name, company_name, ts_profile_code,
-        bio, trades, location, working_radius,
+        trades, location,
         avatar_url, logo_url, is_verified,
-        rating, review_count, completed_jobs, years_experience, hourly_rate,
         profile_is_published, cover_url, cta_label,
-        social_links, service_area_center_lat, service_area_center_lng, service_area_radius_miles,
         created_at
       `;
 
@@ -1152,26 +1173,28 @@ const ContractorProfile = () => {
         }
       }
 
-      // profile_widgets: prefer the published snapshot, fall back to the live draft.
+      // profile_widgets: visitors read the published snapshot, and only its
+      // enabled rows — a hidden section is absent from the response, not
+      // fetched and filtered here. The owner sees their draft rows instead, so
+      // this page works as a true preview (a banner says so).
       const widgetSelect = "id, widget_key, label, is_enabled, display_order, published_order, section_ref_id, is_published, meta";
-      const { data: publishedRows } = await supabase
+      const widgetQuery = supabase
         .from("profile_widgets")
         .select(widgetSelect)
-        .eq("contractor_id", profileId)
-        .eq("is_published", true)
-        .order("published_order", { ascending: true, nullsFirst: false });
-
-      let widgetRows: Record<string, unknown>[];
-      if (publishedRows && publishedRows.length > 0) {
-        widgetRows = publishedRows as unknown as Record<string, unknown>[];
-      } else {
-        const { data: draftRows } = await supabase
-          .from("profile_widgets")
-          .select(widgetSelect)
-          .eq("contractor_id", profileId)
-          .order("display_order", { ascending: true });
-        widgetRows = (draftRows ?? []) as unknown as Record<string, unknown>[];
+        .eq("contractor_id", profileId);
+      const { data: fetchedWidgetRows, error: widgetRowsError } = owner
+        ? await widgetQuery
+            .eq("is_published", false)
+            .eq("is_enabled", true)
+            .order("display_order", { ascending: true })
+        : await widgetQuery
+            .eq("is_published", true)
+            .eq("is_enabled", true)
+            .order("published_order", { ascending: true, nullsFirst: false });
+      if (widgetRowsError) {
+        console.error("Failed to load profile sections:", widgetRowsError);
       }
+      const widgetRows = (fetchedWidgetRows ?? []) as unknown as Record<string, unknown>[];
 
       const parsedSections: CanvasSection[] = widgetRows.map(row => ({
         id: row.id as string,
@@ -1197,6 +1220,24 @@ const ContractorProfile = () => {
       const needsBeforeAfter = enabledSections.some(s => s.widget_key === "before_after");
 
       const fetches: PromiseLike<void>[] = [];
+
+      const extraColumns = profileColumnsForSections(enabledSections.map(sec => sec.widget_key));
+      if (extraColumns.length > 0) {
+        fetches.push(
+          supabase
+            .from("public_pro_profiles")
+            .select(extraColumns.join(", "))
+            .eq("id", profileId)
+            .maybeSingle()
+            .then(({ data, error }) => {
+              if (error) {
+                console.error("Failed to load section profile fields:", error);
+                return;
+              }
+              if (data) setProfile(prev => (prev ? { ...prev, ...(data as unknown as Partial<PageProfile>) } : prev));
+            })
+        );
+      }
 
       // Verification tier badge — always shown, not tied to widget enablement.
       // current_tier is read via the SECURITY DEFINER compliance-gate RPC
@@ -1437,10 +1478,11 @@ const ContractorProfile = () => {
     if (!profile) return;
     setPublishing(true);
     try {
-      await (supabase as any)
-        .from("profiles")
-        .update({ profile_is_published: true })
-        .eq("id", profile.id);
+      const { error } = await supabase.rpc("publish_profile_sections");
+      if (error) {
+        toast({ title: "Couldn't publish", description: error.message, variant: "destructive" });
+        return;
+      }
       setProfile(prev => prev ? { ...prev, profile_is_published: true } : prev);
     } finally {
       setPublishing(false);
@@ -1513,6 +1555,15 @@ const ContractorProfile = () => {
     <div className="min-h-screen" style={{ background: PAGE_BG }}>
       {isOwner && !profile.profile_is_published && (
         <PreviewBanner onPublish={handlePublish} publishing={publishing} />
+      )}
+      {isOwner && profile.profile_is_published && (
+        <div
+          role="status"
+          style={{ background: "#fff7ed", borderBottom: "1px solid #fed7aa", color: "#9a3412", fontSize: 13, padding: "8px 16px", textAlign: "center" }}
+        >
+          <i className="ti ti-eye" style={{ marginRight: 6 }} />
+          You&apos;re viewing your draft. Visitors see the version you last published.
+        </div>
       )}
 
       <Header />

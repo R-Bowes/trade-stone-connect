@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { useToast } from "@/hooks/use-toast";
 
 export type SectionKey =
   | "hero" | "bio" | "stats" | "services" | "availability"
@@ -230,13 +232,60 @@ function draftFromDB(profile: Record<string, unknown>, widgetRows: Record<string
   };
 }
 
+// Key-sorted JSON so two objects with the same content compare equal whatever
+// order their keys were built in.
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+interface SignatureSection {
+  widget_key: string;
+  label: string | null;
+  section_ref_id: string | null;
+  meta: unknown;
+}
+
+// What a visitor would see: enabled sections only, in order. Compared between
+// the draft and the published snapshot to tell whether there are unpublished
+// section changes (including a section that was hidden or shown).
+function sectionsSignature(sections: SignatureSection[]): string {
+  return stableStringify(
+    sections.map(s => ({
+      widget_key: s.widget_key,
+      label: s.label ?? "",
+      section_ref_id: s.section_ref_id ?? null,
+      meta: s.meta ?? {},
+    })),
+  );
+}
+
+function draftSignature(sections: SectionInstance[]): string {
+  return sectionsSignature(
+    [...sections]
+      .filter(s => s.is_enabled)
+      .sort((a, b) => a.display_order - b.display_order)
+      .map(s => ({ widget_key: s.type, label: s.label, section_ref_id: s.sectionRefId ?? null, meta: s.meta })),
+  );
+}
+
 export function useProfileEditor() {
+  const { toast } = useToast();
   const [contractorId, setContractorId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ProfileDraft>({ ...BLANK_DRAFT, sections: buildDefaultSections() });
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Signature of the published snapshot's sections; null until loaded or if
+  // the read failed (then the editor cannot claim to be in sync).
+  const [publishedSignature, setPublishedSignature] = useState<string | null>(null);
 
   // savedRef holds the last-persisted draft as a JSON string for dirty comparison.
   const savedRef = useRef<string>("");
@@ -255,11 +304,33 @@ export function useProfileEditor() {
       if (!profile) { setLoading(false); return; }
       setContractorId(profile.id);
 
-      const { data: widgetRows } = await supabase
+      // Draft rows only, filtered explicitly: the owner can also read the
+      // published snapshot rows (the public SELECT policy), and loading those
+      // as drafts would duplicate every section on the next Save.
+      const { data: widgetRows, error: widgetsError } = await supabase
         .from("profile_widgets")
         .select("id, widget_key, is_enabled, display_order, label, section_ref_id, meta")
         .eq("contractor_id", profile.id)
+        .eq("is_published", false)
         .order("display_order", { ascending: true });
+      if (widgetsError) {
+        console.error("Profile editor: failed to load sections", widgetsError);
+        toast({ title: "Could not load your sections", description: widgetsError.message, variant: "destructive" });
+      }
+
+      const { data: snapshotRows, error: snapshotError } = await supabase
+        .from("profile_widgets")
+        .select("widget_key, label, section_ref_id, meta")
+        .eq("contractor_id", profile.id)
+        .eq("is_published", true)
+        .eq("is_enabled", true)
+        .order("published_order", { ascending: true });
+      if (snapshotError) {
+        console.error("Profile editor: failed to read the published snapshot", snapshotError);
+        setPublishedSignature(null);
+      } else {
+        setPublishedSignature(sectionsSignature(snapshotRows ?? []));
+      }
 
       const loaded = draftFromDB(
         profile as unknown as Record<string, unknown>,
@@ -293,11 +364,31 @@ export function useProfileEditor() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // ── Core save implementation (accepts a specific draft value) ─────────────
-  const saveToDb = useCallback(async (d: ProfileDraft) => {
-    if (!contractorId) return;
+  // ── Saving ────────────────────────────────────────────────────────────────
+  // Two steps, sections first: save_profile_sections replaces the draft rows in
+  // one transaction, then the profiles columns are updated. Draft rows are not
+  // public, so a failure between the two never leaves a live half-state. Each
+  // step reports its own error; nothing fails silently.
 
-    const { error: profileError } = await supabase
+  const saveSections = useCallback(async (d: ProfileDraft) => {
+    const payload = d.sections.map(s => ({
+      widget_key: s.type,
+      is_enabled: s.is_enabled,
+      display_order: s.display_order,
+      label: s.label,
+      section_ref_id: s.sectionRefId ?? null,
+      meta: s.meta ?? {},
+    })) as unknown as Json;
+    const { error } = await supabase.rpc("save_profile_sections", { p_sections: payload });
+    if (error) throw new Error(`Your sections could not be saved: ${error.message}`);
+  }, []);
+
+  // Profile columns go live as soon as this runs (no snapshot for them yet).
+  // profile_is_published / profile_published_at are deliberately not written
+  // here: publish_profile_sections is their only writer.
+  const saveProfileColumns = useCallback(async (d: ProfileDraft) => {
+    if (!contractorId) return;
+    const { error } = await supabase
       .from("profiles")
       .update({
         bio: d.bioText,
@@ -310,38 +401,30 @@ export function useProfileEditor() {
         seo_description: d.seoDescription || null,
         visibility_public: d.visibilityPublic,
         cta_label: d.ctaLabel || null,
-        profile_is_published: d.isPublished,
-        profile_published_at: d.publishedAt,
         social_links: d.socialLinks,
         service_area_radius_miles: d.serviceAreaRadiusMiles,
-      } as any)
+      })
       .eq("id", contractorId);
-    if (profileError) throw profileError;
-
-    // Replace sections: delete all then reinsert.
-    // Using delete+insert rather than upsert because repeatable section types
-    // (gallery, project) can have multiple rows with the same widget_key.
-    await supabase.from("profile_widgets").delete().eq("contractor_id", contractorId);
-
-    if (d.sections.length > 0) {
-      const { error: widgetsError } = await supabase
-        .from("profile_widgets")
-        .insert(
-          d.sections.map(s => ({
-            contractor_id: contractorId,
-            widget_key: s.type,
-            is_enabled: s.is_enabled,
-            display_order: s.display_order,
-            label: s.label,
-            section_ref_id: s.sectionRefId ?? null,
-            meta: s.meta ?? {},
-          } as any))
-        );
-      if (widgetsError) throw widgetsError;
+    if (error) {
+      throw new Error(`Your sections were saved, but your profile details could not be: ${error.message}`);
     }
+  }, [contractorId]);
 
-    savedRef.current = JSON.stringify(d);
-    setIsDirty(false);
+  const refreshPublishedSignature = useCallback(async () => {
+    if (!contractorId) return;
+    const { data, error } = await supabase
+      .from("profile_widgets")
+      .select("widget_key, label, section_ref_id, meta")
+      .eq("contractor_id", contractorId)
+      .eq("is_published", true)
+      .eq("is_enabled", true)
+      .order("published_order", { ascending: true });
+    if (error) {
+      console.error("Profile editor: failed to refresh the published snapshot", error);
+      setPublishedSignature(null);
+      return;
+    }
+    setPublishedSignature(sectionsSignature(data ?? []));
   }, [contractorId]);
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -410,26 +493,56 @@ export function useProfileEditor() {
     }));
   }, []);
 
-  const saveDraft = useCallback(async () => {
+  // Both return whether they succeeded and toast the reason when they did not.
+  const saveDraft = useCallback(async (): Promise<boolean> => {
+    if (!contractorId) return false;
     setSaving(true);
     try {
-      await saveToDb(draft);
+      await saveSections(draft);
+      await saveProfileColumns(draft);
+      savedRef.current = JSON.stringify(draft);
+      setIsDirty(false);
+      return true;
+    } catch (err) {
+      toast({
+        title: "Save failed",
+        description: err instanceof Error ? err.message : "Something went wrong saving your profile.",
+        variant: "destructive",
+      });
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [draft, saveToDb]);
+  }, [contractorId, draft, saveSections, saveProfileColumns, toast]);
 
-  const publish = useCallback(async () => {
+  // Publish saves everything first, so unsaved editor changes are published
+  // too, then copies the enabled draft sections into the snapshot.
+  const publish = useCallback(async (): Promise<boolean> => {
+    if (!contractorId) return false;
     setPublishing(true);
     try {
-      const now = new Date().toISOString();
-      const publishedDraft: ProfileDraft = { ...draft, isPublished: true, publishedAt: now };
-      await saveToDb(publishedDraft);
+      await saveSections(draft);
+      await saveProfileColumns(draft);
+      const { error } = await supabase.rpc("publish_profile_sections");
+      if (error) throw new Error(`Your changes were saved but could not be published: ${error.message}`);
+
+      const publishedDraft: ProfileDraft = { ...draft, isPublished: true, publishedAt: new Date().toISOString() };
+      savedRef.current = JSON.stringify(publishedDraft);
       setDraft(publishedDraft);
+      setIsDirty(false);
+      await refreshPublishedSignature();
+      return true;
+    } catch (err) {
+      toast({
+        title: "Publish failed",
+        description: err instanceof Error ? err.message : "Something went wrong publishing your profile.",
+        variant: "destructive",
+      });
+      return false;
     } finally {
       setPublishing(false);
     }
-  }, [draft, saveToDb]);
+  }, [contractorId, draft, saveSections, saveProfileColumns, refreshPublishedSignature, toast]);
 
   const resetToDraft = useCallback(() => {
     if (!savedRef.current) return;
@@ -451,5 +564,7 @@ export function useProfileEditor() {
     saveDraft,
     publish,
     resetToDraft,
+    // True when the draft's enabled sections match what visitors currently see.
+    isPublishedInSync: publishedSignature !== null && publishedSignature === draftSignature(draft.sections),
   };
 }

@@ -179,6 +179,17 @@ function PanelToggle({ checked, onChange, label }: { checked: boolean; onChange:
   );
 }
 
+// Edits to profile columns are not part of the published snapshot: they reach
+// the public profile as soon as they are saved, without waiting for Publish.
+function LiveOnSaveNote() {
+  return (
+    <div style={{ display: "flex", gap: 8, padding: "8px 10px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, fontSize: 12, color: "#9a3412", marginBottom: 14, lineHeight: 1.4 }}>
+      <i className="ti ti-bolt" style={{ fontSize: 14, marginTop: 1, flexShrink: 0 }} />
+      <span>Changes here go live as soon as you save. They don&apos;t wait for Publish.</span>
+    </div>
+  );
+}
+
 function PanelBtn({ onClick, children, variant = "primary" }: {
   onClick: () => void;
   children: React.ReactNode;
@@ -665,6 +676,7 @@ function HeroPanel({ draft, updateDraft }: { draft: ProfileDraft; updateDraft: (
 
   return (
     <div>
+      <LiveOnSaveNote />
       <FieldLabel>Display name</FieldLabel>
       <PanelInput value={draft.displayName} onChange={v => updateDraft({ displayName: v })} placeholder="Your name" />
       <FieldLabel>Company name</FieldLabel>
@@ -695,6 +707,7 @@ function BioPanel({ draft, updateDraft, section, updateSection }: {
     <div>
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="About me" />
+      <LiveOnSaveNote />
       <FieldLabel>Bio text</FieldLabel>
       <PanelTextarea value={draft.bioText} onChange={v => updateDraft({ bioText: v })} placeholder="Tell clients about yourself…" rows={6} />
     </div>
@@ -1369,6 +1382,7 @@ function ServiceAreaPanelContent({ draft, updateDraft, section, updateSection }:
     <div>
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Service area" />
+      <LiveOnSaveNote />
       <FieldLabel>Location</FieldLabel>
       <PanelInput value={draft.locationDisplay} onChange={v => updateDraft({ locationDisplay: v })} placeholder="e.g. London" />
       <FieldLabel>Radius (miles)</FieldLabel>
@@ -1411,6 +1425,7 @@ function SocialPanelContent({ draft, updateDraft }: {
 
   return (
     <div>
+      <LiveOnSaveNote />
       {SOCIAL_PLATFORMS.map(p => (
         <div key={p.key}>
           <FieldLabel>{p.label}</FieldLabel>
@@ -1433,6 +1448,7 @@ function SocialPanelContent({ draft, updateDraft }: {
 function CtaPanelContent({ draft, updateDraft }: { draft: ProfileDraft; updateDraft: (p: Partial<ProfileDraft>) => void }) {
   return (
     <div>
+      <LiveOnSaveNote />
       <FieldLabel>Button label</FieldLabel>
       <PanelInput value={draft.ctaLabel} onChange={v => updateDraft({ ctaLabel: v })} placeholder="Get in touch" />
     </div>
@@ -1502,6 +1518,21 @@ function EditPanel(props: EditPanelProps & { isMobile: boolean }) {
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        {section && section.type !== "hero" && section.type !== "cta" && (
+          <div style={{ paddingBottom: 12, marginBottom: 14, borderBottom: "1px solid #e5e7eb" }}>
+            <PanelToggle
+              checked={section.is_enabled}
+              onChange={v => updateSection(section.id, { is_enabled: v })}
+              label="Show on profile"
+            />
+            {!section.is_enabled && (
+              <div style={{ display: "flex", gap: 8, fontSize: 12, color: "#6b7280", lineHeight: 1.4, marginTop: -4 }}>
+                <i className="ti ti-eye-off" style={{ fontSize: 14, marginTop: 1, flexShrink: 0 }} />
+                <span>Hidden. It stays in your editor, and comes off your public profile when you publish.</span>
+              </div>
+            )}
+          </div>
+        )}
         {section?.type === "hero" && <HeroPanel draft={draft} updateDraft={updateDraft} />}
         {section?.type === "bio" && <BioPanel draft={draft} updateDraft={updateDraft} section={section} updateSection={updateSection} />}
         {section?.type === "stats" && <StatsPanel section={section} updateSection={updateSection} />}
@@ -1729,24 +1760,28 @@ function LeftSidebar({ draft, updateDraft, activeId, onSelectSection, onAddGalle
 
 // ── Top bar ───────────────────────────────────────────────────────────────────
 
-function TopBar({ draft, isDirty, saving, publishing, onSave, onPublish, profile }: {
+function TopBar({ draft, isDirty, inSync, saving, publishing, onSave, onPublish, profile }: {
   draft: ProfileDraft;
   isDirty: boolean;
+  inSync: boolean;
   saving: boolean;
   publishing: boolean;
-  onSave: () => void;
-  onPublish: () => void;
+  onSave: () => Promise<boolean>;
+  onPublish: () => Promise<boolean>;
   profile: SupplementaryProfile | null;
 }) {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const handleSave = async () => {
-    await onSave();
+    const ok = await onSave();
+    if (!ok) return;
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
   };
 
-  const pillGreen = draft.isPublished && !isDirty;
+  // Published only when nothing is unsaved AND the draft's enabled sections
+  // match what visitors see — so an unpublished visibility change reads Draft.
+  const pillGreen = draft.isPublished && !isDirty && inSync;
   const pillLabel = pillGreen ? "Published" : "Draft";
   const pillBg = pillGreen ? "#16a34a" : ORANGE;
 
@@ -1797,7 +1832,7 @@ export function CanvasEditor() {
   const {
     draft, isDirty, loading, saving, publishing,
     updateDraft, reorderSections, toggleSection, addSection, removeSection,
-    saveDraft, publish,
+    saveDraft, publish, isPublishedInSync,
   } = useProfileEditor();
 
   const gallerySections = draft.sections.filter(s => s.type === "gallery");
@@ -1979,6 +2014,7 @@ export function CanvasEditor() {
       <TopBar
         draft={draft}
         isDirty={isDirty}
+        inSync={isPublishedInSync}
         saving={saving}
         publishing={publishing}
         onSave={saveDraft}
