@@ -117,12 +117,17 @@ interface TeamMember {
   role: string | null;
 }
 
+// The public-listing shape, from public_contractor_credentials — a
+// contractor-stated credential, never labelled verified/checked here. The
+// verified-badge strip (VerifiedCredential, below) is a separate, unrelated
+// read of the base table's own verified = true rows.
 interface Credential {
   id: string;
-  name: string;
+  // Both string | null: contractor_credentials.name is NOT NULL, but a
+  // Postgres view reports every column as nullable regardless of the base
+  // column's own constraint, and types.ts will reflect that once regenerated.
+  name: string | null;
   issuer: string | null;
-  reference_number: string | null;
-  verified: boolean | null;
 }
 
 interface VerifiedCredential {
@@ -503,6 +508,11 @@ function ReviewsBlock({ section, reviews }: { section: CanvasSection; reviews: R
 function CredentialsBlock({ section, credentials }: { section: CanvasSection; credentials: Credential[] }) {
   return (
     <SectionCard heading={getSectionLabel(section)}>
+      {!!credentials.length && (
+        <p style={{ fontSize: 12, color: "#888", margin: "0 0 12px" }}>
+          Listed by the contractor. TradeStone does not check credentials.
+        </p>
+      )}
       {!credentials.length ? (
         <p style={{ fontSize: 14, color: "#aaa", fontStyle: "italic", margin: 0 }}>No credentials added.</p>
       ) : (
@@ -510,13 +520,9 @@ function CredentialsBlock({ section, credentials }: { section: CanvasSection; cr
           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 12, marginBottom: idx < credentials.length - 1 ? 12 : 0, borderBottom: idx < credentials.length - 1 ? "1px solid #f0f0f0" : "none" }}>
             <i className="ti ti-certificate" style={{ fontSize: 22, color: ORANGE, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: NAVY }}>{c.name}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: NAVY }}>{c.name || "Credential"}</div>
               {c.issuer && <div style={{ fontSize: 12, color: "#888" }}>{c.issuer}</div>}
             </div>
-            {c.reference_number && (
-              <div style={{ fontSize: 11, color: "#aaa", fontFamily: "'Roboto Mono', monospace", flexShrink: 0 }}>{c.reference_number}</div>
-            )}
-            {c.verified && <i className="ti ti-circle-check" style={{ fontSize: 16, color: "#16a34a", flexShrink: 0 }} />}
           </div>
         ))
       )}
@@ -1392,11 +1398,14 @@ const ContractorProfile = () => {
       if (needsCredentials) {
         fetches.push(
           supabase
-            .from("contractor_credentials")
-            .select("id, name, issuer, reference_number, verified")
+            .from("public_contractor_credentials")
+            .select("id, name, issuer")
             .eq("contractor_id", profileId)
             .order("display_order", { ascending: true })
-            .then(({ data }) => setCredentials((data ?? []) as Credential[]))
+            .then(({ data, error }) => {
+              if (error) console.error("Failed to load public credentials:", error);
+              setCredentials((data ?? []) as Credential[]);
+            })
         );
       }
 

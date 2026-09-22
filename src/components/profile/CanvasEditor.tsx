@@ -1150,6 +1150,9 @@ function CredentialsPanelContent({ section, updateSection, credentials, addCrede
       <FieldLabel>Section heading</FieldLabel>
       <PanelInput value={section.label} onChange={v => updateSection(section.id, { label: v })} placeholder="Credentials" />
       <FieldLabel>Credentials</FieldLabel>
+      <p style={{ fontSize: 12, color: "#6b7280", margin: "-2px 0 10px", lineHeight: 1.4 }}>
+        These appear on your public profile as listed by you. TradeStone does not check them.
+      </p>
       {credentials.map(c => (
         <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
           <div style={{ flex: 1 }}>

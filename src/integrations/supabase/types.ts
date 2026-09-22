@@ -10549,6 +10549,45 @@ export type Database = {
           },
         ]
       }
+      public_contractor_credentials: {
+        Row: {
+          contractor_id: string | null
+          display_order: number | null
+          id: string | null
+          issuer: string | null
+          name: string | null
+        }
+        Insert: {
+          contractor_id?: string | null
+          display_order?: number | null
+          id?: string | null
+          issuer?: string | null
+          name?: string | null
+        }
+        Update: {
+          contractor_id?: string | null
+          display_order?: number | null
+          id?: string | null
+          issuer?: string | null
+          name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_credentials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_credentials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_pro_profiles: {
         Row: {
           avatar_url: string | null

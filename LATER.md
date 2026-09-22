@@ -1557,3 +1557,54 @@ radius, CTA label, display and company name) still go live at Save.
 constraint dropped in `20260618100300`, so it would fail if called. It also
 reads every `profile_widgets` row for the owner, which now includes snapshot
 rows. Delete it.
+
+
+## contractor_credentials: authenticated-role column grant still exposes document_path on a verified row
+
+anon/authenticated hold SELECT on every column of contractor_credentials
+(20260922100000 narrowed anon to id, contractor_id, name, issuer, verified —
+authenticated is untouched). Grants are role-level and evaluated before RLS:
+a policy decides which ROWS a role may see, the grant decides which COLUMNS
+that role may ever request, regardless of which policy matched the row.
+
+Residual after this change: any authenticated user — not just the row's
+owner, a customer with a job, or an admin — can request document_path and
+reference_number on a verified = true row belonging to ANY contractor, via
+the existing "Public can read verified credentials" policy (role: public,
+which includes authenticated). The badge-strip's own queries only ever ask
+for id/name/issuer, but a raw `select=*` from any logged-in session is not
+limited to that.
+
+Currently unreachable: nothing outside admin/service-role tooling ever sets
+verified = true, and there are zero such rows live. The trigger condition is
+the first verified credential — from that point this is live and reachable
+by any authenticated user, not a theoretical gap.
+
+Fix: move CustomerJobDocuments.tsx, AdminVerification.tsx and
+VerificationManagement.tsx off direct table selects and onto SECURITY
+DEFINER RPCs (each already reads through a real access-control condition —
+job-currency for the customer, is_platform_admin() for admin, ownership for
+the contractor — so the RPC's own auth check replaces the need for the
+column grant to be that wide). Only once all three are moved can
+authenticated's SELECT grant be narrowed to id, contractor_id, name, issuer,
+verified without breaking them. Not a workaround to bolt onto the
+contractor-stated-credentials brief — a separate pass.
+
+
+## Insurance certificate access is gated on a job, not on an accepted quote
+
+The customer-insurance RLS policy (20260917130000) only matches against
+`jobs` — status in (scheduled, in_progress, snagging), or
+(complete/completed with completed_at within 90 days). Accepting a quote
+never inserts a jobs row by itself (see the quote-to-job sequence
+documented above); a job is only minted at the separate Confirm Job /
+deposit-payment step. So a customer who has accepted a quote and even
+confirmed a schedule sees no insurance certificate at all until that
+later, distinct step happens.
+
+Intended rule: visible once a quote is approved and work is planned, not
+only once a job row exists. Fix is a quote-based arm on the policy
+(matching an accepted issued_quotes row for this contractor/customer,
+alongside the existing jobs arm) — needs its own decision on exactly which
+quote states qualify, so not done here. Sits alongside the profiles-snapshot
+entry above as outstanding access-model work on the profile/quote side.

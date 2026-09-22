@@ -76,9 +76,9 @@ function daysUntil(dateStr: string | null): number | null {
   return Math.ceil(diff / (24 * 60 * 60 * 1000));
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, label }: { status: string; label?: string }) {
   const variant = status === "verified" ? "default" : status === "expired" || status === "revoked" ? "destructive" : "secondary";
-  return <Badge variant={variant} className="capitalize">{status.replace(/_/g, " ")}</Badge>;
+  return <Badge variant={variant} className={label ? undefined : "capitalize"}>{label ?? status.replace(/_/g, " ")}</Badge>;
 }
 
 export function VerificationManagement() {
@@ -197,7 +197,7 @@ export function VerificationManagement() {
       toast(
         isInsurance
           ? { title: "Insurance shared", description: "Customers on your current and recent jobs can now view this." }
-          : { title: "Credential submitted", description: "It will show as pending until a TradeStone admin reviews it." },
+          : { title: "Credential added", description: "It's now listed on your public profile as stated by you. A TradeStone admin may separately mark it Verified here." },
       );
       setDialogOpen(false);
       resetForm();
@@ -375,7 +375,11 @@ export function VerificationManagement() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Credentials</CardTitle>
-              <CardDescription>NVQ, City & Guilds, manufacturer accreditations — reviewed by a TradeStone admin before they show as verified.</CardDescription>
+              <CardDescription>
+                NVQ, City &amp; Guilds, manufacturer accreditations. Listed on your public profile as stated by you as
+                soon as you add them — TradeStone does not check them. A TradeStone admin may separately review one and
+                mark it Verified here; that review does not affect whether it's shown publicly.
+              </CardDescription>
             </div>
             <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
@@ -395,7 +399,7 @@ export function VerificationManagement() {
                     {c.issuer && <p className="text-sm text-muted-foreground truncate">{c.issuer}</p>}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <StatusBadge status={c.verified ? "verified" : "pending"} />
+                    <StatusBadge status={c.verified ? "verified" : "pending"} label={c.verified ? undefined : "Awaiting review"} />
                     {c.document_path && signedDocUrls[c.document_path] && (
                       <Button variant="outline" size="sm" asChild>
                         <a href={signedDocUrls[c.document_path]} target="_blank" rel="noopener noreferrer">
