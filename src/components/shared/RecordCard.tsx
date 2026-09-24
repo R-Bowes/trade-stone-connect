@@ -21,7 +21,7 @@ interface RecordCardProps {
   children?: ReactNode;
   /** Rendered only when present, and only in full density. */
   actions?: ReactNode;
-  /** compact renders the header and fields only: no sections, no actions. */
+  /** compact renders the header, fields and actions, tighter-spaced: no lead, no sections. */
   density?: "full" | "compact";
 }
 
@@ -38,6 +38,42 @@ export function RecordSection({ children, className = "space-y-3" }: { children:
 export function RecordCard({ icon, title, reference, badges, lead, fields, children, actions, density = "full" }: RecordCardProps) {
   const compact = density === "compact";
 
+  if (compact) {
+    // A genuine row, not a shrunk full card: everything on one line
+    // (wrapping only when the viewport forces it), no header/content split.
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-4 py-2 px-4 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 shrink-0">
+            <span className="text-muted-foreground">{icon}</span>
+            <span className="text-sm font-medium truncate">{title}</span>
+            {reference != null && <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{reference}</span>}
+          </div>
+
+          {fields.length > 0 && (
+            <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-1 min-w-0 flex-wrap">
+              {fields.map((field) => (
+                <span key={field.label} className="whitespace-nowrap text-muted-foreground">
+                  {field.label}:{" "}
+                  <span className="text-foreground">
+                    {field.icon ? (
+                      <span className="inline-flex items-center gap-1">{field.icon}{field.value}</span>
+                    ) : (
+                      field.value
+                    )}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {badges != null && <div className="flex gap-1.5 flex-wrap shrink-0">{badges}</div>}
+          {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -53,7 +89,7 @@ export function RecordCard({ icon, title, reference, badges, lead, fields, child
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!compact && lead}
+        {lead}
 
         {fields.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -72,9 +108,9 @@ export function RecordCard({ icon, title, reference, badges, lead, fields, child
           </div>
         )}
 
-        {!compact && children}
+        {children}
 
-        {!compact && actions && <div className="flex flex-wrap gap-2 pt-1">{actions}</div>}
+        {actions && <div className="flex flex-wrap gap-2 pt-1">{actions}</div>}
       </CardContent>
     </Card>
   );

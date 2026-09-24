@@ -88,6 +88,8 @@ interface WorkOrderCardProps {
   actions?: ReactNode;
   /** Cost lines block, rendered between the rates and the photos. */
   costs?: ReactNode;
+  /** Compact only: replaces the third field (Dispatched) with a fact more relevant to the section showing this card. */
+  compactFact?: RecordCardField;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -108,6 +110,7 @@ export function WorkOrderCard({
   density = "full",
   actions,
   costs,
+  compactFact,
 }: WorkOrderCardProps) {
   const compact = density === "compact";
   const status = deriveWorkOrderStatus(workOrder);
@@ -120,15 +123,32 @@ export function WorkOrderCard({
   );
   const { urls: signedUrls } = useSignedPhotoUrls(WORK_ORDER_PHOTO_BUCKET, compact ? [] : photoPaths);
 
-  const fields: RecordCardField[] = [
-    { label: "Site", value: site?.name ?? "—", icon: site?.name ? <MapPin className="h-3 w-3" /> : undefined },
-    ...(!compact && workOrder.asset?.name
-      ? [{ label: "Asset", value: workOrder.asset.name, icon: <Wrench className="h-3 w-3" /> }]
-      : []),
-    { label: counterpartyLabel, value: counterparty ?? (viewer === "business" ? "Not yet dispatched" : "—") },
-    { label: "Created", value: formatDateTime(workOrder.created_at) },
-    ...(workOrder.dispatched_at ? [{ label: "Dispatched", value: formatDateTime(workOrder.dispatched_at) }] : []),
-  ];
+  const fields: RecordCardField[] = compact
+    ? [
+        { label: "Site", value: site?.name ?? "—", icon: site?.name ? <MapPin className="h-3 w-3" /> : undefined },
+        // Contractor viewer: the card's own counterparty label (in the
+        // dashboard section header / title) already names the business, so
+        // "Raised by" would just repeat it — trade tells them whether it's
+        // their job instead. Business viewer keeps "Dispatched to": that's
+        // who it went to, not a repeat of anything already shown.
+        viewer === "contractor"
+          ? { label: "Trade", value: workOrder.trade_required ?? "—", icon: <Wrench className="h-3 w-3" /> }
+          : { label: counterpartyLabel, value: counterparty ?? "Not yet dispatched" },
+        ...(compactFact
+          ? [compactFact]
+          : workOrder.dispatched_at
+            ? [{ label: "Dispatched", value: formatDateTime(workOrder.dispatched_at) }]
+            : []),
+      ]
+    : [
+        { label: "Site", value: site?.name ?? "—", icon: site?.name ? <MapPin className="h-3 w-3" /> : undefined },
+        ...(workOrder.asset?.name
+          ? [{ label: "Asset", value: workOrder.asset.name, icon: <Wrench className="h-3 w-3" /> }]
+          : []),
+        { label: counterpartyLabel, value: counterparty ?? (viewer === "business" ? "Not yet dispatched" : "—") },
+        { label: "Created", value: formatDateTime(workOrder.created_at) },
+        ...(workOrder.dispatched_at ? [{ label: "Dispatched", value: formatDateTime(workOrder.dispatched_at) }] : []),
+      ];
 
   return (
     <RecordCard

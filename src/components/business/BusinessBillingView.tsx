@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { addMonths, format, parseISO, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/formatDate";
 import { formatGBP } from "@/lib/formatGBP";
-import { formatInvoiceRef } from "@/lib/documentRefs";
 import { PayInvoiceButton } from "@/components/recipient/PayInvoiceButton";
+import { InvoiceCard, type InvoiceCardInvoice } from "@/components/shared/InvoiceCard";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 type StatementRow = Database["public"]["Views"]["work_order_cost_period_statement"]["Row"];
 
@@ -20,15 +20,9 @@ interface ApprovedLine {
   created_at: string;
 }
 
-interface InvoiceRow {
-  id: string;
-  invoice_number: number;
+interface InvoiceRow extends InvoiceCardInvoice {
   contractor_id: string;
-  period_start: string | null;
-  period_end: string | null;
-  total: number;
-  status: string;
-  due_date: string;
+  engagement_id: string | null;
 }
 
 interface ContractorInfo {
@@ -56,6 +50,7 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
   const [approvedLines, setApprovedLines] = useState<ApprovedLine[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [contractors, setContractors] = useState<Record<string, ContractorInfo>>({});
+  const [engagementRefs, setEngagementRefs] = useState<Record<string, string>>({});
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -70,7 +65,7 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
         .is("invoice_id", null),
       supabase
         .from("invoices")
-        .select("id, invoice_number, contractor_id, period_start, period_end, total, status, due_date")
+        .select("id, invoice_number, contractor_id, engagement_id, period_start, period_end, status, issued_date, due_date, paid_date, subtotal, tax_rate, tax_amount, total, deposit_amount, deposit_deducted, deposit_paid, company_id")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false }),
     ]);
@@ -105,6 +100,21 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
         const map: Record<string, ContractorInfo> = {};
         for (const p of data ?? []) map[p.id] = p;
         setContractors(map);
+      }
+    }
+
+    const engagementIds = [...new Set(invoiceRows.map((r) => r.engagement_id).filter((id): id is string => !!id))];
+    if (engagementIds.length > 0) {
+      const { data, error } = await supabase
+        .from("term_engagements")
+        .select("id, engagement_number")
+        .in("id", engagementIds);
+      if (error) {
+        console.error("Error loading engagement references:", error);
+      } else {
+        const map: Record<string, string> = {};
+        for (const e of data ?? []) map[e.id] = e.engagement_number;
+        setEngagementRefs(map);
       }
     }
     setLoading(false);
@@ -151,11 +161,7 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
       </div>
 
       {statements.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            No live engagements to bill against yet.
-          </CardContent>
-        </Card>
+        <EmptyState icon={<FileText className="h-10 w-10" />} message="No live engagements to bill against yet." />
       ) : (
         <div className="grid gap-4">
           {statements.map((row) => {
@@ -219,37 +225,22 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
       <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase text-muted-foreground">Invoices</h3>
         {invoices.length === 0 ? (
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">No invoices generated yet.</CardContent></Card>
+          <EmptyState icon={<FileText className="h-10 w-10" />} message="No invoices generated yet." />
         ) : (
           <div className="grid gap-3">
             {invoices.map((inv) => {
               const contractor = contractors[inv.contractor_id];
               return (
-                <Card key={inv.id}>
-                  <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="space-y-1">
-                      <p className="font-mono text-sm">
-                        {formatInvoiceRef(inv.invoice_number, { contractorCode: contractor?.ts_profile_code ?? undefined })}
-                      </p>
-                      <p className="text-sm">{contractor?.full_name ?? "Contractor"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {inv.period_start && inv.period_end
-                          ? `${formatDate(inv.period_start)} – ${formatDate(inv.period_end)} · `
-                          : ""}
-                        due {formatDate(inv.due_date)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="font-semibold">{formatGBP(inv.total)}</p>
-                        <Badge className={inv.status === "paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
-                          {inv.status === "paid" ? "Paid" : "Payment due"}
-                        </Badge>
-                      </div>
-                      {inv.status !== "void" && <PayInvoiceButton invoiceId={inv.id} status={inv.status} />}
-                    </div>
-                  </CardContent>
-                </Card>
+                <InvoiceCard
+                  key={inv.id}
+                  invoice={inv}
+                  viewer="business"
+                  counterparty={contractor?.full_name ?? "Contractor"}
+                  counterpartyCode={contractor?.ts_profile_code}
+                  contractorCode={contractor?.ts_profile_code}
+                  engagementRef={inv.engagement_id ? engagementRefs[inv.engagement_id] ?? null : null}
+                  actions={inv.status !== "void" ? <PayInvoiceButton invoiceId={inv.id} status={inv.status} /> : undefined}
+                />
               );
             })}
           </div>

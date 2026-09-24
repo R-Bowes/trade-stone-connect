@@ -1,18 +1,22 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Pause, HelpCircle, Loader2, Download } from "lucide-react";
 import { useReceivedInvoices, type ReceivedInvoice } from "@/hooks/useReceivedInvoices";
 import { MessageDialog } from "./MessageDialog";
 import { PayInvoiceButton } from "@/components/recipient/PayInvoiceButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
-import { generateInvoicePdf, type ContractorProfile } from "@/lib/generateInvoicePdf";
+import { generateInvoicePdf, fetchContractorProfileForPdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
+import { InvoiceCard } from "@/components/shared/InvoiceCard";
+import { EmptyState } from "@/components/shared/EmptyState";
+
+const RESPONSE_BADGE: Record<string, { label: string; className: string }> = {
+  paid: { label: "Paid", className: "bg-green-100 text-green-800 border-green-200" },
+  stalled: { label: "Stalled", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  queried: { label: "Queried", className: "bg-orange-100 text-orange-800 border-orange-200" },
+};
 
 export function ReceivedInvoices() {
   const { invoices, loading, respondToInvoice, refetch } = useReceivedInvoices();
@@ -20,17 +24,7 @@ export function ReceivedInvoices() {
     open: false, invoice: null,
   });
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState<boolean>(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
-  );
   const { toast } = useToast();
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 767px)");
-    const handleChange = () => setIsMobile(mql.matches);
-    mql.addEventListener("change", handleChange);
-    return () => mql.removeEventListener("change", handleChange);
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -52,51 +46,14 @@ export function ReceivedInvoices() {
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDownload = async (inv: ReceivedInvoice) => {
     setDownloading(inv.id);
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
-        .eq("id", inv.contractor_id)
-        .single();
-
-      let contractor: ContractorProfile & { _logoBase64?: string } = {
-        full_name: profile?.full_name ?? null,
-        company_name: profile?.company_name ?? null,
-        email: profile?.email ?? null,
-        phone: profile?.phone ?? null,
-        address: profile?.address ?? null,
-        ts_profile_code: profile?.ts_profile_code ?? null,
-        logo_url: profile?.logo_url ?? null,
-      };
-
-      if (profile?.logo_url) {
-        try {
-          const response = await fetch(profile.logo_url);
-          const blob = await response.blob();
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          (contractor as any)._logoBase64 = base64;
-        } catch {
-          // logo fetch failed — continue without it
-        }
-      }
-
-      const invoiceForPdf = {
-        ...inv,
-        issued_date: inv.issued_date ?? inv.created_at,
-        client_phone: null,
-        client_address: null,
-      } as any;
-
-      generateInvoicePdf(invoiceForPdf, contractor);
+      const contractor = await fetchContractorProfileForPdf();
+      generateInvoicePdf(inv, contractor, inv.contractor_code);
     } catch (err) {
       toast({
         title: "Download failed",
@@ -122,13 +79,6 @@ export function ReceivedInvoices() {
       body: { action_type: "query", context_type: "invoice", context_id: invoice.id },
     }).catch(console.error);
     setMessageDialog({ open: true, invoice });
-  };
-
-  const getResponseBadge = (invoice: ReceivedInvoice) => {
-    if (invoice.recipient_response === "paid") return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
-    if (invoice.recipient_response === "stalled") return <Badge className="bg-yellow-100 text-yellow-800">Stalled</Badge>;
-    if (invoice.recipient_response === "queried") return <Badge className="bg-orange-100 text-orange-800">Queried</Badge>;
-    return <Badge variant="outline">Pending</Badge>;
   };
 
   const renderActions = (inv: ReceivedInvoice) =>
@@ -163,83 +113,31 @@ export function ReceivedInvoices() {
     return <div className="flex justify-center items-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 
-  if (invoices.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No Invoices Received</h3>
-          <p className="text-muted-foreground">When contractors send you invoices, they'll appear here.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-2xl font-bold">Received Invoices</h2>
       <TransactionFeeNotice />
 
-      {isMobile ? (
-        <div className="space-y-3">
+      {invoices.length === 0 ? (
+        <EmptyState
+          icon={<FileText className="h-10 w-10" />}
+          message="When contractors send you invoices, they'll appear here."
+        />
+      ) : (
+        <div className="grid gap-3">
           {invoices.map((inv) => (
-            <Card key={inv.id}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium font-mono">
-                    {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
-                  </span>
-                  {getResponseBadge(inv)}
-                </div>
-                <div className="text-sm text-muted-foreground space-y-0.5">
-                  <p>From: {inv.contractor_name}</p>
-                  <p>Due: {format(new Date(inv.due_date), "dd MMM yyyy")}</p>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold">£{Number(inv.total).toFixed(2)}</span>
-                  <div className="flex flex-wrap justify-end gap-1">
-                    {renderActions(inv)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <InvoiceCard
+              key={inv.id}
+              invoice={inv}
+              viewer="customer"
+              counterparty={inv.contractor_name}
+              counterpartyCode={inv.contractor_code}
+              contractorCode={inv.contractor_code}
+              secondaryBadge={inv.recipient_response ? RESPONSE_BADGE[inv.recipient_response] ?? null : null}
+              actions={renderActions(inv)}
+            />
           ))}
         </div>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>From</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-medium font-mono">
-                      {inv.invoice_number != null ? formatInvoiceRef(inv.invoice_number) : "—"}
-                    </TableCell>
-                    <TableCell>{inv.contractor_name}</TableCell>
-                    <TableCell>{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
-                    <TableCell className="text-right font-bold">£{Number(inv.total).toFixed(2)}</TableCell>
-                    <TableCell>{getResponseBadge(inv)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {renderActions(inv)}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       )}
 
       {messageDialog.invoice && (
@@ -247,7 +145,7 @@ export function ReceivedInvoices() {
           open={messageDialog.open}
           onClose={() => setMessageDialog({ open: false, invoice: null })}
           contractorId={messageDialog.invoice.contractor_id}
-          subject={`${messageDialog.invoice.invoice_number != null ? formatInvoiceRef(messageDialog.invoice.invoice_number) : messageDialog.invoice.id} - ${messageDialog.invoice.recipient_response === "stalled" ? "Stalled" : "Query"}`}
+          subject={`${formatInvoiceRef(messageDialog.invoice.invoice_number, { contractorCode: messageDialog.invoice.contractor_code ?? undefined })} - ${messageDialog.invoice.recipient_response === "stalled" ? "Stalled" : "Query"}`}
           contextType="invoice"
           contextId={messageDialog.invoice.id}
         />

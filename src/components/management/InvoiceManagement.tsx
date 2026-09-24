@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // still used by the preview dialog's line-item table
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
@@ -13,6 +13,8 @@ import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
   Search, Send, CheckCircle, Loader2, Download, Banknote, Undo2
 } from "lucide-react";
+import { InvoiceCard } from "@/components/shared/InvoiceCard";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { generateInvoicePdf, fetchContractorProfileForPdf } from "@/lib/generateInvoicePdf";
 import { formatInvoiceRef } from "@/lib/documentRefs";
 import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices";
@@ -70,9 +72,7 @@ export function InvoiceManagement() {
   }, [invoices, search, statusFilter]);
 
   const getStatusBadge = (invoice: Invoice) => {
-    if (invoiceIsOverdue(invoice)) {
-      return <Badge variant="destructive">Overdue</Badge>;
-    }
+    if (invoiceIsOverdue(invoice)) return <Badge variant="destructive">Overdue</Badge>;
     switch (invoice.status) {
       case "paid": return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
       case "sent": return <Badge className="bg-amber-100 text-amber-800">Sent</Badge>;
@@ -188,100 +188,73 @@ export function InvoiceManagement() {
 
       {/* Invoice List */}
       {filteredInvoices.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Invoices Found</h3>
-            <p className="text-muted-foreground mb-4">Create your first invoice to start tracking payments.</p>
+        <EmptyState
+          icon={<FileText className="h-10 w-10" />}
+          message="Create your first invoice to start tracking payments."
+          action={
             <Button onClick={() => { setEditingInvoice(null); setDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />Create First Invoice
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Issued</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.map(inv => {
-                  const isPaid = inv.status === "paid" || inv.recipient_response === "paid";
-                  return (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-medium font-mono">{formatInvoiceRef(inv.invoice_number)}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{inv.client_name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {clientTsCodeMap[inv.client_email] ?? inv.client_email}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{format(new Date(inv.issued_date), "dd MMM yyyy")}</TableCell>
-                    <TableCell className="whitespace-nowrap">{format(new Date(inv.due_date), "dd MMM yyyy")}</TableCell>
-                    <TableCell>{getStatusBadge(inv)}</TableCell>
-                    <TableCell className="text-right font-bold">£{Number(inv.total).toLocaleString("en-GB", { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        
-                          <Button variant="ghost" size="sm" onClick={async () => {
-                            const contractor = await fetchContractorProfileForPdf();
-                            generateInvoicePdf(inv, contractor, clientTsCodeMap[inv.client_email] ?? null);
-                          }} title="Download PDF">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        {isPaid && (
-                          <Button variant="ghost" size="sm" onClick={() => setRefundRequestInvoice(inv)} title="Request refund">
-                            <Undo2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isPaid && inv.status === "draft" && (
-                          <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
-                            <Send className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isPaid && (
-                          <Button variant="ghost" size="sm" onClick={() => markAsPaid(inv.id)} title="Mark as Paid">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          </Button>
-                        )}
-                        {!isPaid && inv.status !== "draft" && (
-                          <Button variant="ghost" size="sm" onClick={() => setRecordPaymentInvoice(inv)} title="Record Payment">
-                            <Banknote className="h-4 w-4 text-blue-600" />
-                          </Button>
-                        )}
-                        {!isPaid && (
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isPaid && (
-                          <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv.id)} title="Delete">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="grid gap-3">
+          {filteredInvoices.map(inv => {
+            const isPaid = inv.status === "paid" || inv.recipient_response === "paid";
+            return (
+              <InvoiceCard
+                key={inv.id}
+                invoice={inv}
+                viewer="contractor"
+                counterparty={inv.client_name}
+                counterpartyCode={clientTsCodeMap[inv.client_email] ?? null}
+                actions={
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={async () => {
+                      const contractor = await fetchContractorProfileForPdf();
+                      generateInvoicePdf(inv, contractor, clientTsCodeMap[inv.client_email] ?? null);
+                    }} title="Download PDF">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    {isPaid && (
+                      <Button variant="ghost" size="sm" onClick={() => setRefundRequestInvoice(inv)} title="Request refund">
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {!isPaid && inv.status === "draft" && (
+                      <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {!isPaid && (
+                      <Button variant="ghost" size="sm" onClick={() => markAsPaid(inv.id)} title="Mark as Paid">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      </Button>
+                    )}
+                    {!isPaid && inv.status !== "draft" && (
+                      <Button variant="ghost" size="sm" onClick={() => setRecordPaymentInvoice(inv)} title="Record Payment">
+                        <Banknote className="h-4 w-4 text-blue-600" />
+                      </Button>
+                    )}
+                    {!isPaid && (
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {!isPaid && (
+                      <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv.id)} title="Delete">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            );
+          })}
+        </div>
       )}
 
       {/* Invoice Form Dialog */}

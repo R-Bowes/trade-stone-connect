@@ -1,29 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
 
-export interface ReceivedInvoice {
-  id: string;
-  invoice_number: number | null;
-  client_name: string;
-  client_email: string;
-  contractor_id: string;
+// The full Row, not a hand-picked subset — generateInvoicePdf expects the
+// real invoices shape (client_phone, client_address, etc.), and building a
+// narrower interface here is what forced the `as any` this replaces.
+export type ReceivedInvoice = Database["public"]["Tables"]["invoices"]["Row"] & {
   contractor_name: string;
-  recipient_id: string | null;
-  recipient_response: string | null;
-  responded_at: string | null;
-  items: any;
-  subtotal: number;
-  tax_rate: number;
-  tax_amount: number;
-  total: number;
-  status: string;
-  issued_date: string;
-  due_date: string;
-  paid_date: string | null;
-  notes: string | null;
-  created_at: string;
-}
+  contractor_code: string | null;
+};
 
 export function useReceivedInvoices() {
   const [invoices, setInvoices] = useState<ReceivedInvoice[]>([]);
@@ -47,20 +33,22 @@ export function useReceivedInvoices() {
         return;
       }
 
-      const rows = (data || []) as unknown as Omit<ReceivedInvoice, "contractor_name">[];
+      const rows = data ?? [];
 
       const contractorIds = [...new Set(rows.map((r) => r.contractor_id).filter((id): id is string => !!id))];
       const { data: contractorRows } = contractorIds.length > 0
-        ? await supabase.from("profiles").select("id, full_name, company_name").in("id", contractorIds)
-        : { data: [] as { id: string; full_name: string | null; company_name: string | null }[] };
-      const contractorNameMap = new Map(
-        (contractorRows ?? []).map((c) => [c.id, c.company_name || c.full_name || "Unknown"]),
-      );
+        ? await supabase.from("profiles").select("id, full_name, company_name, ts_profile_code").in("id", contractorIds)
+        : { data: [] as { id: string; full_name: string | null; company_name: string | null; ts_profile_code: string | null }[] };
+      const contractorMap = new Map((contractorRows ?? []).map((c) => [c.id, c]));
 
-      setInvoices(rows.map((r) => ({
-        ...r,
-        contractor_name: contractorNameMap.get(r.contractor_id) ?? "Unknown",
-      })));
+      setInvoices(rows.map((r) => {
+        const contractor = contractorMap.get(r.contractor_id);
+        return {
+          ...r,
+          contractor_name: contractor?.company_name || contractor?.full_name || "Unknown",
+          contractor_code: contractor?.ts_profile_code ?? null,
+        };
+      }));
     } finally {
       setLoading(false);
     }

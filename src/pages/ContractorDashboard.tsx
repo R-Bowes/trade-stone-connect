@@ -61,6 +61,33 @@ import { PipelineCard } from "@/components/contractor/work/PipelineCard";
 import { EngagementThread } from "@/components/contractor/thread/EngagementThread";
 import { EnquiryDetailSheet, type EnquiryDetail } from "@/components/contractor/EnquiryDetailSheet";
 import { Inbox, CheckCircle2 } from "lucide-react";
+import { WorkOrderCard } from "@/components/shared/WorkOrderCard";
+import type { WorkOrder } from "@/hooks/useWorkOrders";
+import { JobCard, type JobCardJob } from "@/components/shared/JobCard";
+import { InvoiceCard, type InvoiceCardInvoice } from "@/components/shared/InvoiceCard";
+import { EngagementCard, type EngagementCardEngagement, type EngagementCardRate, type EngagementCardSite } from "@/components/shared/EngagementCard";
+import { DashboardSectionHeader } from "@/components/shared/DashboardSectionHeader";
+import { EmptyState } from "@/components/shared/EmptyState";
+
+const PENDING_WORK_ORDERS_SELECT = "*, company:companies(name, company_code), site:sites(id, name), asset:assets(id, name)" as const;
+type PendingWorkOrder = WorkOrder & { company?: { name: string | null; company_code: string | null } | null };
+
+interface QueriedCostLineRow {
+  id: string;
+  reason: string | null;
+  workOrder: PendingWorkOrder;
+}
+
+interface TodaysJobRow extends JobCardJob {
+  site: { id: string; name: string } | null;
+}
+
+interface RatesAwaitingRow {
+  engagement: EngagementCardEngagement;
+  rate: EngagementCardRate;
+  counterparty: { name: string; logoUrl: string | null };
+  sites: EngagementCardSite[];
+}
 
 type EnquiryForDialog = {
   id: string;
@@ -135,6 +162,18 @@ const ContractorDashboard = () => {
     upcomingVisits: 0,
   });
   const [activeJobs, setActiveJobs] = useState<Partial<Job>[]>([]);
+  const [pendingWorkOrders, setPendingWorkOrders] = useState<PendingWorkOrder[]>([]);
+  const [pendingWorkOrdersCount, setPendingWorkOrdersCount] = useState(0);
+  const [queriedCostLines, setQueriedCostLines] = useState<QueriedCostLineRow[]>([]);
+  const [queriedCostLinesCount, setQueriedCostLinesCount] = useState(0);
+  const [todaysJobs, setTodaysJobs] = useState<TodaysJobRow[]>([]);
+  const [todaysJobsCount, setTodaysJobsCount] = useState(0);
+  const [activeWorkOrders, setActiveWorkOrders] = useState<PendingWorkOrder[]>([]);
+  const [activeWorkOrdersCount, setActiveWorkOrdersCount] = useState(0);
+  const [overdueInvoices, setOverdueInvoices] = useState<(InvoiceCardInvoice & { client_name: string })[]>([]);
+  const [overdueInvoicesSectionCount, setOverdueInvoicesSectionCount] = useState(0);
+  const [ratesAwaiting, setRatesAwaiting] = useState<RatesAwaitingRow[]>([]);
+  const [ratesAwaitingCount, setRatesAwaitingCount] = useState(0);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -174,6 +213,14 @@ const ContractorDashboard = () => {
     () => filteredEngagements.filter((e) => e.band === "waiting"),
     [filteredEngagements],
   );
+
+  const allNewSectionsEmpty =
+    pendingWorkOrders.length === 0 &&
+    queriedCostLines.length === 0 &&
+    todaysJobs.length === 0 &&
+    activeWorkOrders.length === 0 &&
+    overdueInvoices.length === 0 &&
+    ratesAwaiting.length === 0;
 
   // Deep-link from Issued Quotes' "Open thread" button (?thread=<quoteId>).
   // Resolved by quote_number, not the exact version id clicked — a card's
@@ -319,16 +366,26 @@ const ContractorDashboard = () => {
       const pid = profileRow?.id ?? null;
       setProfileId(pid);
 
-      const { data: profileData } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id, postcode, coverage_type').eq('user_id', currentUser.id).single();
-      setStripeAccountId((profileData as any)?.stripe_account_id ?? null);
-      const trades = (profileData as any)?.trades;
+      interface ProfileCompletenessRow {
+        trades: string[] | null;
+        location: string | null;
+        working_radius: string | null;
+        logo_url: string | null;
+        stripe_account_id: string | null;
+        postcode: string | null;
+        coverage_type: string | null;
+      }
+      const { data: profileDataRaw } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id, postcode, coverage_type').eq('user_id', currentUser.id).single();
+      const profileData = profileDataRaw as ProfileCompletenessRow | null;
+      setStripeAccountId(profileData?.stripe_account_id ?? null);
+      const trades = profileData?.trades;
       const hasNoTrades = !trades || !Array.isArray(trades) || trades.length === 0;
-      if (profileData && (hasNoTrades || !(profileData as any).location || !(profileData as any).working_radius || !(profileData as any).logo_url)) {
+      if (profileData && (hasNoTrades || !profileData.location || !profileData.working_radius || !profileData.logo_url)) {
         setProfileIncomplete(true);
         setActiveTab("profile");
       }
       setNeedsPostcode(
-        !!profileData && !(profileData as any).postcode && (profileData as any).coverage_type === 'radius',
+        !!profileData && !profileData.postcode && profileData.coverage_type === 'radius',
       );
 
       const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
@@ -365,6 +422,174 @@ const ContractorDashboard = () => {
           .eq('contractor_id', contractorId).in('status', ['scheduled', 'in_progress', 'snagging'])
           .order('created_at', { ascending: false }).limit(3),
       ]);
+
+      const pendingWorkOrdersRes = await supabase
+        .from('work_orders')
+        .select(PENDING_WORK_ORDERS_SELECT, { count: 'exact' })
+        .eq('dispatched_to', currentUser.id)
+        .eq('status', 'dispatched')
+        .eq('response', 'pending')
+        .order('dispatched_at', { ascending: true })
+        .limit(5);
+      if (pendingWorkOrdersRes.error) {
+        console.error('Error loading pending work orders:', pendingWorkOrdersRes.error);
+      } else {
+        setPendingWorkOrders((pendingWorkOrdersRes.data ?? []) as unknown as PendingWorkOrder[]);
+        setPendingWorkOrdersCount(pendingWorkOrdersRes.count ?? 0);
+      }
+
+      // ---- Queried cost lines ----
+      const queriedLinesRes = await supabase
+        .from('work_order_costs')
+        .select('id, work_order_id, queried_reason', { count: 'exact' })
+        .eq('contractor_id', contractorId)
+        .eq('status', 'queried')
+        .order('queried_at', { ascending: true })
+        .limit(5);
+      if (queriedLinesRes.error) {
+        console.error('Error loading queried cost lines:', queriedLinesRes.error);
+      } else {
+        const lines = queriedLinesRes.data ?? [];
+        setQueriedCostLinesCount(queriedLinesRes.count ?? 0);
+        const workOrderIds = [...new Set(lines.map((l) => l.work_order_id))];
+        if (workOrderIds.length === 0) {
+          setQueriedCostLines([]);
+        } else {
+          const woRes = await supabase.from('work_orders').select(PENDING_WORK_ORDERS_SELECT).in('id', workOrderIds);
+          if (woRes.error) {
+            console.error('Error loading work orders for queried cost lines:', woRes.error);
+            setQueriedCostLines([]);
+          } else {
+            const woMap = new Map(((woRes.data ?? []) as unknown as PendingWorkOrder[]).map((wo) => [wo.id, wo]));
+            setQueriedCostLines(
+              lines
+                .map((l) => {
+                  const wo = woMap.get(l.work_order_id);
+                  return wo ? { id: l.id, reason: l.queried_reason, workOrder: wo } : null;
+                })
+                .filter((r): r is QueriedCostLineRow => r !== null),
+            );
+          }
+        }
+      }
+
+      // ---- Today's jobs ----
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+      const todaysJobsRes = await supabase
+        .from('jobs')
+        .select('id, title, status, job_number, start_date, contract_value, engagement_id, work_order_id, sla_response_due, sla_completion_due, sla_resolution_due, site_id', { count: 'exact' })
+        .eq('contractor_id', contractorId)
+        .in('status', ['scheduled', 'in_progress', 'snagging'])
+        .gte('start_date', todayStart.toISOString())
+        .lt('start_date', tomorrowStart.toISOString())
+        .order('start_date', { ascending: true })
+        .limit(5);
+      if (todaysJobsRes.error) {
+        console.error("Error loading today's jobs:", todaysJobsRes.error);
+      } else {
+        const jobRows = todaysJobsRes.data ?? [];
+        setTodaysJobsCount(todaysJobsRes.count ?? 0);
+        const siteIds = [...new Set(jobRows.map((j) => j.site_id).filter((id): id is string => !!id))];
+        const siteMap = new Map<string, { id: string; name: string }>();
+        if (siteIds.length > 0) {
+          const sitesRes = await supabase.from('sites').select('id, name').in('id', siteIds);
+          if (sitesRes.error) console.error("Error loading sites for today's jobs:", sitesRes.error);
+          else for (const s of sitesRes.data ?? []) siteMap.set(s.id, s);
+        }
+        setTodaysJobs(jobRows.map((j) => ({ ...j, site: j.site_id ? siteMap.get(j.site_id) ?? null : null })));
+      }
+
+      // ---- Active work orders ----
+      const activeWorkOrdersRes = await supabase
+        .from('work_orders')
+        .select(PENDING_WORK_ORDERS_SELECT, { count: 'exact' })
+        .eq('dispatched_to', currentUser.id)
+        .eq('status', 'accepted')
+        .order('dispatched_at', { ascending: false })
+        .limit(5);
+      if (activeWorkOrdersRes.error) {
+        console.error('Error loading active work orders:', activeWorkOrdersRes.error);
+      } else {
+        setActiveWorkOrders((activeWorkOrdersRes.data ?? []) as unknown as PendingWorkOrder[]);
+        setActiveWorkOrdersCount(activeWorkOrdersRes.count ?? 0);
+      }
+
+      // ---- Overdue invoices ----
+      const todayIso = todayStart.toISOString().slice(0, 10);
+      const overdueInvoicesRes = await supabase
+        .from('invoices')
+        .select('id, invoice_number, status, total, due_date, issued_date, paid_date, subtotal, tax_rate, tax_amount, deposit_amount, deposit_deducted, deposit_paid, client_name', { count: 'exact' })
+        .eq('contractor_id', contractorId)
+        .in('status', ['sent', 'viewed'])
+        .lt('due_date', todayIso)
+        .order('due_date', { ascending: true })
+        .limit(5);
+      if (overdueInvoicesRes.error) {
+        console.error('Error loading overdue invoices:', overdueInvoicesRes.error);
+      } else {
+        setOverdueInvoices((overdueInvoicesRes.data ?? []) as (InvoiceCardInvoice & { client_name: string })[]);
+        setOverdueInvoicesSectionCount(overdueInvoicesRes.count ?? 0);
+      }
+
+      // ---- Rates awaiting your acceptance ----
+      const engagementsRes = await supabase
+        .from('term_engagements')
+        .select('id, engagement_number, company_id, start_date, expiry_date, status, billing_period, billing_anchor_day')
+        .eq('contractor_id', contractorId)
+        .in('status', ['active', 'suspended', 'notice_given']);
+      if (engagementsRes.error) {
+        console.error('Error loading engagements:', engagementsRes.error);
+      } else {
+        const engRows = engagementsRes.data ?? [];
+        if (engRows.length === 0) {
+          setRatesAwaiting([]);
+          setRatesAwaitingCount(0);
+        } else {
+          const engIds = engRows.map((e) => e.id);
+          const [ratesRes, companiesRes, sitesRes] = await Promise.all([
+            supabase
+              .from('engagement_rates')
+              .select('id, engagement_id, version, callout_standard, callout_ooh, hourly_rate, materials_markup_pct, minimum_charge, effective_from, agreed_by_business_at, agreed_by_contractor_at')
+              .in('engagement_id', engIds)
+              .order('version', { ascending: false }),
+            supabase.from('companies').select('id, name, logo_url').in('id', [...new Set(engRows.map((e) => e.company_id))]),
+            supabase.from('engagement_sites').select('engagement_id, site_id, site:sites(id, name)').in('engagement_id', engIds),
+          ]);
+          if (ratesRes.error || companiesRes.error || sitesRes.error) {
+            console.error('Error loading engagement rates/companies/sites:', ratesRes.error ?? companiesRes.error ?? sitesRes.error);
+          } else {
+            const latestRateByEngagement = new Map<string, EngagementCardRate>();
+            for (const r of ratesRes.data ?? []) if (!latestRateByEngagement.has(r.engagement_id)) latestRateByEngagement.set(r.engagement_id, r);
+            const companyMap = new Map((companiesRes.data ?? []).map((c) => [c.id, c]));
+            const sitesByEngagement = new Map<string, EngagementCardSite[]>();
+            for (const row of sitesRes.data ?? []) {
+              const list = sitesByEngagement.get(row.engagement_id) ?? [];
+              list.push({ id: row.site_id, name: row.site?.name ?? 'Site (name not available)' });
+              sitesByEngagement.set(row.engagement_id, list);
+            }
+
+            const rows: RatesAwaitingRow[] = [];
+            for (const eng of engRows) {
+              const rate = latestRateByEngagement.get(eng.id);
+              // Pending on the contractor's side: business has agreed, contractor hasn't
+              // — mirrors ContractorEngagementsView's pendingForContractor calc.
+              if (!rate || !rate.agreed_by_business_at || rate.agreed_by_contractor_at) continue;
+              const company = companyMap.get(eng.company_id);
+              rows.push({
+                engagement: eng,
+                rate,
+                counterparty: { name: company?.name ?? 'Business', logoUrl: company?.logo_url ?? null },
+                sites: sitesByEngagement.get(eng.id) ?? [],
+              });
+            }
+            setRatesAwaitingCount(rows.length);
+            setRatesAwaiting(rows.slice(0, 5));
+          }
+        }
+      }
 
       const openInvoicesSummary = summariseInvoices(openInvoicesRes.data ?? []);
 
@@ -518,6 +743,166 @@ const ContractorDashboard = () => {
                   </button>
                 </CardContent>
               </Card>
+            )}
+
+            {allNewSectionsEmpty ? (
+              <div className="order-1 md:order-2">
+                <EmptyState
+                  icon={<CheckCircle2 className="h-10 w-10 text-green-500" />}
+                  message="Nothing needs your attention right now."
+                />
+              </div>
+            ) : (
+              <div className="order-1 md:order-2 flex flex-col gap-6">
+                {pendingWorkOrders.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Work orders awaiting your response"
+                      totalCount={pendingWorkOrdersCount}
+                      shownCount={pendingWorkOrders.length}
+                      onViewAll={() => setActiveTab("work-orders")}
+                    />
+                    <div className="grid gap-3">
+                      {pendingWorkOrders.map((wo) => (
+                        <WorkOrderCard
+                          key={wo.id}
+                          workOrder={wo}
+                          site={wo.site ?? null}
+                          counterparty={wo.company?.name ?? null}
+                          companyCode={wo.company?.company_code ?? null}
+                          viewer="contractor"
+                          density="compact"
+                          actions={<Button size="sm" onClick={() => setActiveTab("work-orders")}>Respond</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {queriedCostLines.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Queried cost lines"
+                      totalCount={queriedCostLinesCount}
+                      shownCount={queriedCostLines.length}
+                      onViewAll={() => setActiveTab("work-orders")}
+                    />
+                    <div className="grid gap-3">
+                      {queriedCostLines.map((line) => (
+                        <WorkOrderCard
+                          key={line.id}
+                          workOrder={line.workOrder}
+                          site={line.workOrder.site ?? null}
+                          counterparty={line.workOrder.company?.name ?? null}
+                          companyCode={line.workOrder.company?.company_code ?? null}
+                          viewer="contractor"
+                          density="compact"
+                          compactFact={{ label: "Queried", value: line.reason ?? "No reason given" }}
+                          actions={<Button size="sm" onClick={() => setActiveTab("work-orders")}>Amend</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {todaysJobs.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Today's jobs"
+                      totalCount={todaysJobsCount}
+                      shownCount={todaysJobs.length}
+                      onViewAll={() => setActiveTab("jobs")}
+                    />
+                    <div className="grid gap-3">
+                      {todaysJobs.map((job) => (
+                        <JobCard
+                          key={job.id}
+                          job={job}
+                          viewer="contractor"
+                          counterparty={null}
+                          site={job.site}
+                          origin={null}
+                          density="compact"
+                          actions={<Button size="sm" onClick={() => setActiveTab("jobs")}>Open job</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeWorkOrders.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Active work orders"
+                      totalCount={activeWorkOrdersCount}
+                      shownCount={activeWorkOrders.length}
+                      onViewAll={() => setActiveTab("work-orders")}
+                    />
+                    <div className="grid gap-3">
+                      {activeWorkOrders.map((wo) => (
+                        <WorkOrderCard
+                          key={wo.id}
+                          workOrder={wo}
+                          site={wo.site ?? null}
+                          counterparty={wo.company?.name ?? null}
+                          companyCode={wo.company?.company_code ?? null}
+                          viewer="contractor"
+                          density="compact"
+                          actions={<Button size="sm" onClick={() => setActiveTab("work-orders")}>Record costs</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {overdueInvoices.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Overdue invoices"
+                      totalCount={overdueInvoicesSectionCount}
+                      shownCount={overdueInvoices.length}
+                      onViewAll={() => setActiveTab("invoices")}
+                    />
+                    <div className="grid gap-3">
+                      {overdueInvoices.map((inv) => (
+                        <InvoiceCard
+                          key={inv.id}
+                          invoice={inv}
+                          viewer="contractor"
+                          counterparty={inv.client_name}
+                          density="compact"
+                          actions={<Button size="sm" onClick={() => setActiveTab("invoices")}>View</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {ratesAwaiting.length > 0 && (
+                  <div className="space-y-3">
+                    <DashboardSectionHeader
+                      title="Rates awaiting your acceptance"
+                      totalCount={ratesAwaitingCount}
+                      shownCount={ratesAwaiting.length}
+                      onViewAll={() => setActiveTab("engagements")}
+                    />
+                    <div className="grid gap-3">
+                      {ratesAwaiting.map((row) => (
+                        <EngagementCard
+                          key={row.engagement.id}
+                          engagement={row.engagement}
+                          rate={row.rate}
+                          counterparty={row.counterparty}
+                          sites={row.sites}
+                          viewer="contractor"
+                          density="compact"
+                          actions={<Button size="sm" onClick={() => setActiveTab("engagements")}>Accept rates</Button>}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Needs you / Waiting on others — first on mobile, second on desktop */}
