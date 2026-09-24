@@ -667,13 +667,14 @@ export function useContractorPipeline() {
       }
       // else governing is undefined: every version is an unsent draft — no
       // engagement, same as before. This also silently covers governing
-      // being DEFINED with a status no branch above handles (e.g.
-      // 'lapsed', set by EngagementThread.tsx) — no lapsed branch is
-      // intentional: a lapsed quote produces no pipeline card. That's
-      // exclusion by absence of a branch, not a fetch filter — if this
-      // chain ever gains a case that should also exclude lapsed quotes
-      // from view, remember this fallthrough is silent and easy to break
-      // by accidentally adding a catch-all branch here.
+      // being DEFINED with a status no branch above handles — the full set
+      // excluded this way, not just the 'lapsed' case CLAUDE.md calls out:
+      // 'lapsed' (set by EngagementThread.tsx), 'stalled', 'expired', and
+      // 'superseded'. All four are intentional: none of them should produce
+      // a pipeline card. That's exclusion by absence of a branch, not a
+      // fetch filter — if this chain ever gains a case that should also
+      // exclude one of these from view, remember this fallthrough is silent
+      // and easy to break by accidentally adding a catch-all branch here.
 
       // An unsent draft revision beyond whatever's governing the engagement
       // gets its own card so it can't mask the governing stage above it.

@@ -17,6 +17,10 @@
  * looking — "the customer proposed a date" is tone:'action' waitingOn:'you'
  * for the contractor, but tone:'waiting' waitingOn:'them' for the customer
  * who just proposed it.
+ *
+ * For the B2B kinds added later (work_order, cost_line, engagement_rate),
+ * "recipient" means the business/company side, not a residential customer —
+ * same two-viewer shape, different counterparty.
  */
 
 export type PresenterTone = "action" | "waiting" | "neutral" | "done";
@@ -61,11 +65,48 @@ export type JobState =
 export type InvoiceState =
   | { kind: "invoice"; status: "draft" }
   | { kind: "invoice"; status: "sent" }
+  | { kind: "invoice"; status: "viewed" }
   | { kind: "invoice"; status: "overdue" }
   | { kind: "invoice"; status: "paid" }
   | { kind: "invoice"; status: "void" };
 
-export type EntityState = EnquiryState | QuoteState | SchedulingState | JobState | InvoiceState;
+// Keyed directly off work_orders' live status CHECK — mirrors JobState's
+// own pattern rather than inventing sub-states. 'dispatched' is read as
+// "response pending": once a response is recorded the status itself moves
+// off 'dispatched' (see respondToWorkOrder), so there is no reachable
+// dispatched+already-responded combination to model separately.
+export type WorkOrderState = {
+  kind: "work_order";
+  status: "draft" | "dispatched" | "accepted" | "declined" | "reassigned" | "cancelled" | "completed";
+};
+
+// work_order_costs.status. Rejected lines never invoice (see costLines.ts)
+// so there is nothing further for either side to do once rejected.
+export type CostLineState = {
+  kind: "cost_line";
+  status: "pending" | "approved" | "queried" | "rejected";
+};
+
+// engagement_rates has no single "status" column — agreement is two
+// independent timestamps, same shape as quote's depositRequired/depositPaid
+// pair. No rate proposed at all is not part of this domain (the caller
+// simply has no EngagementRateState to build) — mirrors EngagementCard's
+// own "No rates proposed" badge, which is a separate, non-presenter case.
+export type EngagementRateState = {
+  kind: "engagement_rate";
+  agreedByBusiness: boolean;
+  agreedByContractor: boolean;
+};
+
+export type EntityState =
+  | EnquiryState
+  | QuoteState
+  | SchedulingState
+  | JobState
+  | InvoiceState
+  | WorkOrderState
+  | CostLineState
+  | EngagementRateState;
 
 function assertNever(x: never): never {
   throw new Error(`statusPresenter: unhandled state ${JSON.stringify(x)}`);
@@ -187,6 +228,7 @@ export function toInvoiceState(status: string | null | undefined): InvoiceState 
   switch (status) {
     case "draft":
     case "sent":
+    case "viewed":
     case "overdue":
     case "paid":
     case "void":
@@ -194,6 +236,39 @@ export function toInvoiceState(status: string | null | undefined): InvoiceState 
     default:
       return null;
   }
+}
+
+export function toWorkOrderState(status: string | null | undefined): WorkOrderState | null {
+  switch (status) {
+    case "draft":
+    case "dispatched":
+    case "accepted":
+    case "declined":
+    case "reassigned":
+    case "cancelled":
+    case "completed":
+      return { kind: "work_order", status };
+    default:
+      return null;
+  }
+}
+
+export function toCostLineState(status: string | null | undefined): CostLineState | null {
+  switch (status) {
+    case "pending":
+    case "approved":
+    case "queried":
+    case "rejected":
+      return { kind: "cost_line", status };
+    default:
+      return null;
+  }
+}
+
+export function toEngagementRateState(agreedByBusiness: boolean, agreedByContractor: boolean): EngagementRateState {
+  // No DB string crosses into this one either (see toSchedulingState) —
+  // kept for the same reason: one canonical constructor per EntityState kind.
+  return { kind: "engagement_rate", agreedByBusiness, agreedByContractor };
 }
 
 /** For render sites that must show *something* even when a status falls outside the known domain. */
@@ -366,6 +441,15 @@ function presentInvoice(state: InvoiceState, viewer: Viewer): PresenterResult {
         chip("Sent — awaiting payment", "waiting", "them"),
         chip("Payment due", "action", "you"),
       );
+    case "viewed":
+      // Same recipient action as 'sent' — viewing it doesn't change what
+      // they owe or when. Contractor label differs slightly to reflect
+      // that it's actually been opened.
+      return perspective(
+        viewer,
+        chip("Viewed — awaiting payment", "waiting", "them"),
+        chip("Payment due", "action", "you"),
+      );
     case "overdue":
       return perspective(
         viewer,
@@ -381,6 +465,97 @@ function presentInvoice(state: InvoiceState, viewer: Viewer): PresenterResult {
   }
 }
 
+function presentWorkOrder(state: WorkOrderState, viewer: Viewer): PresenterResult {
+  switch (state.status) {
+    case "draft":
+      // Contractor never actually sees a draft (RLS scopes work_orders to
+      // dispatched_to) — the contractor branch is a harmless fallback, not
+      // a reachable case in practice.
+      return perspective(
+        viewer,
+        chip("Not yet dispatched", "neutral", null),
+        chip("Draft — dispatch when ready", "action", "you"),
+      );
+    case "dispatched":
+      return perspective(
+        viewer,
+        chip("Accept or decline", "action", "you"),
+        chip("Awaiting contractor response", "waiting", "them"),
+      );
+    case "accepted":
+      // Always actionable while live — recording costs is never "done" for
+      // an accepted work order until it's completed, mirrors the dashboard's
+      // own unconditional "Record costs" button on every active work order.
+      return perspective(
+        viewer,
+        chip("Record costs", "action", "you"),
+        chip("Accepted — work in progress", "waiting", "them"),
+      );
+    case "declined":
+      return perspective(
+        viewer,
+        chip("Declined", "neutral", null),
+        chip("Declined — reassign or find another contractor", "action", "you"),
+      );
+    case "reassigned":
+      return chip("Reassigned", "neutral", null);
+    case "cancelled":
+      return chip("Cancelled", "neutral", null);
+    case "completed":
+      return chip("Completed", "done", null);
+    default:
+      return assertNever(state.status);
+  }
+}
+
+function presentCostLine(state: CostLineState, viewer: Viewer): PresenterResult {
+  switch (state.status) {
+    case "pending":
+      return perspective(
+        viewer,
+        chip("Awaiting approval", "waiting", "them"),
+        chip("Review and approve", "action", "you"),
+      );
+    case "queried":
+      return perspective(
+        viewer,
+        chip("Amend the queried line", "action", "you"),
+        chip("Awaiting contractor's amendment", "waiting", "them"),
+      );
+    case "approved":
+      return chip("Approved", "done", null);
+    case "rejected":
+      // Never invoices (costLines.ts) — nothing further for either side.
+      return chip("Rejected", "neutral", null);
+    default:
+      return assertNever(state.status);
+  }
+}
+
+function presentEngagementRate(state: EngagementRateState, viewer: Viewer): PresenterResult {
+  if (state.agreedByBusiness && state.agreedByContractor) {
+    return chip("Rates agreed", "done", null);
+  }
+  if (state.agreedByBusiness && !state.agreedByContractor) {
+    return perspective(
+      viewer,
+      chip("Accept the proposed rates", "action", "you"),
+      chip("Awaiting contractor acceptance", "waiting", "them"),
+    );
+  }
+  if (!state.agreedByBusiness && state.agreedByContractor) {
+    // Defensive only — business sets a rate version and agrees to it in the
+    // same act today, so this combination isn't reachable from any current
+    // write path, but the shape allows it and this must not fall through.
+    return perspective(
+      viewer,
+      chip("Awaiting business confirmation", "waiting", "them"),
+      chip("Confirm the proposed rates", "action", "you"),
+    );
+  }
+  return chip("No rates proposed", "neutral", null);
+}
+
 export function presentState(state: EntityState, viewer: Viewer): PresenterResult {
   switch (state.kind) {
     case "enquiry":
@@ -393,6 +568,12 @@ export function presentState(state: EntityState, viewer: Viewer): PresenterResul
       return presentJob(state, viewer);
     case "invoice":
       return presentInvoice(state, viewer);
+    case "work_order":
+      return presentWorkOrder(state, viewer);
+    case "cost_line":
+      return presentCostLine(state, viewer);
+    case "engagement_rate":
+      return presentEngagementRate(state, viewer);
     default:
       return assertNever(state);
   }

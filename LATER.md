@@ -1081,6 +1081,20 @@ public client ratings; automatic service refusal based on payment history.
   `recipient_id`; the anonymous overdue-invoice email-link flow still allowed
   through, bounded by the invoice id being an unguessable UUID).
   Delete this entry at the next review if nothing has regressed.
+- **`useContractorPipeline.ts` hardcodes "Invoice draft" as the stageLabel
+  for a `viewed`, not-yet-overdue invoice** — live mislabel on the Work
+  view, found during the unified-work-list Step 0 audit (2026-09-24). The
+  stageLabel ternary (`liveInvoiceDisplayStatus === "overdue" ? "Invoice
+  overdue" : liveInvoice.status === "sent" ? "Invoice sent" : "Invoice
+  draft"`) has no `"viewed"` arm, so it falls to "Invoice draft" for an
+  invoice that's actually been sent and opened. This is separate from
+  `statusPresenter.ts`'s own `action`/`band` output for the same card,
+  which was fixed in the same pass (`toInvoiceState`/`presentInvoice` now
+  handle `"viewed"` correctly) — that fix reaches the Work view too, since
+  the pipeline calls into the presenter, but `stageLabel` is a hardcoded
+  string local to the pipeline, not presenter-derived, so it still shows
+  wrong. Fix: add a `"viewed"` arm to the ternary (or derive stageLabel
+  from the presenter's own state the way `action` already is).
 
 ---
 
