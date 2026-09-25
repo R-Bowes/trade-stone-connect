@@ -1095,6 +1095,33 @@ public client ratings; automatic service refusal based on payment history.
   string local to the pipeline, not presenter-derived, so it still shows
   wrong. Fix: add a `"viewed"` arm to the ternary (or derive stageLabel
   from the presenter's own state the way `action` already is).
+- **PPM/compliance visits falling due — deliberately out of the unified
+  business work list**, decided during the business unified-list Step 0
+  (2026-09-24). `service_visits` (`status='overdue'`, or upcoming within a
+  window) is a real actionable business item — currently visible only
+  inside `PpmComplianceDashboard.tsx`, nowhere on the main dashboard — but
+  it doesn't fit the six-stage job line (Quotes → Dispatch → Approval →
+  Work → Completion → Payment): a missed PPM visit isn't a single job or
+  work order moving through stages, it's a recurring schedule falling
+  behind. It was also considered as a second stage-less section (alongside
+  engagements needing attention) and rejected for that too — two stage-less
+  sections sitting above the filtered list would just recreate the old
+  five-sections layout the unified list replaced. Revisit only as part of
+  a deliberate decision to extend the stage model or add a second
+  always-shown category, not as a quick addition to the business adapter.
+- **Two stale `(supabase as any)` casts on `service_requests`** —
+  `useServiceRequests.ts` and `BusinessOverview.tsx` both cast
+  `(supabase as any).from("service_requests")`, with comments claiming the
+  table is absent from the generated `types.ts`. Checked during the
+  business unified-list Step 0 (2026-09-24): `service_requests` **is**
+  present in `types.ts` (`Database["public"]["Tables"]["service_requests"]`,
+  normal `Row`/`Insert`/`Update` shape) — the casts were written when the
+  table was genuinely missing and never removed after a regeneration
+  caught up. The business work-items adapter queries `service_requests`
+  with no cast, proving it's unnecessary. Not fixed in either existing file
+  as part of that pass (out of scope for a Step 0 audit) — safe, low-risk
+  cleanup whenever those two files are next touched: drop the cast, let
+  the real row type flow through.
 
 ---
 

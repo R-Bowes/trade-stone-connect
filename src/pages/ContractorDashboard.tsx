@@ -59,7 +59,8 @@ import { formatQuoteRef } from "@/lib/documentRefs";
 import { EngagementThread } from "@/components/contractor/thread/EngagementThread";
 import { EnquiryDetailSheet, type EnquiryDetail } from "@/components/contractor/EnquiryDetailSheet";
 import { useWorkItems } from "@/hooks/useWorkItems";
-import { WorkItemsList } from "@/components/contractor/work/WorkItemsList";
+import { WorkItemsList } from "@/components/shared/work/WorkItemsList";
+import { CONTRACTOR_WORK_ITEM_STAGES } from "@/lib/workItems";
 
 type EnquiryForDialog = {
   id: string;
@@ -527,6 +528,9 @@ const ContractorDashboard = () => {
                 error={workItemsError ?? pipelineError}
                 onRetry={() => { refetchPipeline(); refetchWorkItems(); }}
                 onNavigate={setActiveTab}
+                stages={CONTRACTOR_WORK_ITEM_STAGES}
+                dueTodayStage="work"
+                stagelessHeading="Rates awaiting your acceptance"
               />
             </div>
 

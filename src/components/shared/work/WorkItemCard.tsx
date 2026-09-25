@@ -14,6 +14,7 @@ const KIND_ICON: Record<WorkItem["kind"], string> = {
   invoice: "ti-file-invoice",
   cost_line: "ti-receipt",
   engagement_rate: "ti-building",
+  service_request: "ti-tool",
 };
 
 const BAND_BADGE: Record<WorkItem["band"], { label: string; className: string }> = {
@@ -46,14 +47,15 @@ interface WorkItemCardProps {
 }
 
 /**
- * The unified list's card — one generic compact RecordCard across every
- * item kind, not a reuse of EngagementCard/WorkOrderCard/JobCard/InvoiceCard
- * (each of those is tied to its own table's row shape; WorkItem is the
- * deliberately flattened shape unification exists to produce).
+ * The unified list's card — shared by both the contractor and business
+ * dashboards. One generic compact RecordCard across every item kind, not a
+ * reuse of EngagementCard/WorkOrderCard/JobCard/InvoiceCard (each of those
+ * is tied to its own table's row shape; WorkItem is the deliberately
+ * flattened shape unification exists to produce).
  */
 export function WorkItemCard({ item, showStage = true, onAction }: WorkItemCardProps) {
   const fields: RecordCardField[] = [
-    { label: "With", value: item.counterparty.name },
+    ...(item.counterparty ? [{ label: "With", value: item.counterparty.name }] : []),
     item.dueIso
       ? { label: "Due", value: `${formatDate(item.dueIso)}${item.overdue ? " — overdue" : ""}` }
       : { label: "Since", value: formatDate(item.sinceIso) },

@@ -6,8 +6,8 @@ import { Loader2, CheckCircle2, Inbox } from "lucide-react";
 import { ErrorState } from "@/components/AsyncState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDate } from "@/lib/formatDate";
-import { WORK_ITEM_STAGES, STAGE_LABEL, type WorkItem, type WorkItemStage } from "@/lib/workItems";
-import { WorkItemCard } from "@/components/contractor/work/WorkItemCard";
+import { STAGE_LABEL, type WorkItem, type WorkItemStage } from "@/lib/workItems";
+import { WorkItemCard } from "@/components/shared/work/WorkItemCard";
 
 const VISIBLE_CAP = 20;
 
@@ -17,9 +17,16 @@ interface WorkItemsListProps {
   error: string | null;
   onRetry: () => void;
   onNavigate: (tab: string) => void;
+  /** This viewer's stage list, in filter-row order — contractor and business each pass their own six. */
+  stages: WorkItemStage[];
+  /** Which stage shows the "due today" toggle — omit if this viewer has none. */
+  dueTodayStage?: WorkItemStage;
+  /** Heading for the stage-less section above the list. */
+  stagelessHeading: string;
 }
 
-export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: WorkItemsListProps) {
+/** Shared by both dashboards — see WorkItemCard.tsx's header note. */
+export function WorkItemsList({ items, loading, error, onRetry, onNavigate, stages, dueTodayStage, stagelessHeading }: WorkItemsListProps) {
   const [selectedStage, setSelectedStage] = useState<WorkItemStage | "all">("all");
   const [showWaiting, setShowWaiting] = useState(false);
   const [dueTodayOnly, setDueTodayOnly] = useState(false);
@@ -49,7 +56,7 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: Wo
   // re-sort. Stage narrows the list, it never reorders it.
   const bandFiltered = showWaiting ? stagedItems : stagedItems.filter((i) => i.band === "needs_you");
 
-  const stageCounts = WORK_ITEM_STAGES.reduce((counts, stage) => {
+  const stageCounts = stages.reduce((counts, stage) => {
     counts[stage] = bandFiltered.filter((i) => i.stage === stage).length;
     return counts;
   }, {} as Record<WorkItemStage, number>);
@@ -57,7 +64,7 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: Wo
   const stageFiltered = selectedStage === "all" ? bandFiltered : bandFiltered.filter((i) => i.stage === selectedStage);
 
   const todayStr = formatDate(new Date());
-  const visibleAfterFilters = selectedStage === "work" && dueTodayOnly
+  const visibleAfterFilters = dueTodayStage && selectedStage === dueTodayStage && dueTodayOnly
     ? stageFiltered.filter((i) => i.dueIso && formatDate(i.dueIso) === todayStr)
     : stageFiltered;
 
@@ -65,10 +72,10 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: Wo
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Rates awaiting acceptance — stage-less, unaffected by every filter below. */}
+      {/* Stage-less section — unaffected by every filter below. */}
       {stagelessItems.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Rates awaiting your acceptance</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{stagelessHeading}</h3>
           <div className="grid gap-3">
             {stagelessItems.map((item) => (
               <WorkItemCard key={item.key} item={item} showStage={false} onAction={(i) => onNavigate(i.actionTarget.tab)} />
@@ -84,9 +91,9 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: Wo
             size="sm"
             onClick={() => setSelectedStage("all")}
           >
-            All ({bandFiltered.length})
+            {showWaiting ? "All" : "Needs you"} ({bandFiltered.length})
           </Button>
-          {WORK_ITEM_STAGES.filter((stage) => stageCounts[stage] > 0).map((stage) => (
+          {stages.filter((stage) => stageCounts[stage] > 0).map((stage) => (
             <Button
               key={stage}
               variant={selectedStage === stage ? "default" : "outline"}
@@ -104,7 +111,7 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate }: Wo
         </label>
       </div>
 
-      {selectedStage === "work" && (
+      {dueTodayStage && selectedStage === dueTodayStage && (
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={dueTodayOnly} onCheckedChange={setDueTodayOnly} />
           Due today only

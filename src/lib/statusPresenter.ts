@@ -98,6 +98,15 @@ export type EngagementRateState = {
   agreedByContractor: boolean;
 };
 
+// service_requests.status. Raised by a site contact, triaged and dispatched
+// by the business — the contractor never sees this record at all (it
+// becomes a work_order once dispatched), so the contractor branch below is
+// a defensive fallback, same as work_order's 'draft' case.
+export type ServiceRequestState = {
+  kind: "service_request";
+  status: "open" | "triaged" | "dispatched" | "cancelled" | "completed";
+};
+
 export type EntityState =
   | EnquiryState
   | QuoteState
@@ -106,7 +115,8 @@ export type EntityState =
   | InvoiceState
   | WorkOrderState
   | CostLineState
-  | EngagementRateState;
+  | EngagementRateState
+  | ServiceRequestState;
 
 function assertNever(x: never): never {
   throw new Error(`statusPresenter: unhandled state ${JSON.stringify(x)}`);
@@ -260,6 +270,19 @@ export function toCostLineState(status: string | null | undefined): CostLineStat
     case "queried":
     case "rejected":
       return { kind: "cost_line", status };
+    default:
+      return null;
+  }
+}
+
+export function toServiceRequestState(status: string | null | undefined): ServiceRequestState | null {
+  switch (status) {
+    case "open":
+    case "triaged":
+    case "dispatched":
+    case "cancelled":
+    case "completed":
+      return { kind: "service_request", status };
     default:
       return null;
   }
@@ -556,6 +579,32 @@ function presentEngagementRate(state: EngagementRateState, viewer: Viewer): Pres
   return chip("No rates proposed", "neutral", null);
 }
 
+function presentServiceRequest(state: ServiceRequestState, viewer: Viewer): PresenterResult {
+  switch (state.status) {
+    case "open":
+      return perspective(
+        viewer,
+        chip("Not yet raised as work", "neutral", null),
+        chip("Triage this request", "action", "you"),
+      );
+    case "triaged":
+      return perspective(
+        viewer,
+        chip("Not yet raised as work", "neutral", null),
+        chip("Convert to a work order", "action", "you"),
+      );
+    case "dispatched":
+      // A work order now represents this — see it there, not here.
+      return chip("Dispatched", "done", null);
+    case "cancelled":
+      return chip("Cancelled", "neutral", null);
+    case "completed":
+      return chip("Completed", "done", null);
+    default:
+      return assertNever(state.status);
+  }
+}
+
 export function presentState(state: EntityState, viewer: Viewer): PresenterResult {
   switch (state.kind) {
     case "enquiry":
@@ -574,6 +623,8 @@ export function presentState(state: EntityState, viewer: Viewer): PresenterResul
       return presentCostLine(state, viewer);
     case "engagement_rate":
       return presentEngagementRate(state, viewer);
+    case "service_request":
+      return presentServiceRequest(state, viewer);
     default:
       return assertNever(state);
   }

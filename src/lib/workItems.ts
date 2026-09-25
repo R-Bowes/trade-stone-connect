@@ -1,3 +1,4 @@
+import { subMonths, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { PipelineEngagement, PipelineStage } from "@/hooks/useContractorPipeline";
 import {
@@ -7,6 +8,9 @@ import {
   toWorkOrderState,
   toCostLineState,
   toEngagementRateState,
+  toQuoteState,
+  toSchedulingState,
+  toServiceRequestState,
   type PresenterResult,
 } from "@/lib/statusPresenter";
 import { displayStatus, isOverdue, type InvoiceMoneyFields } from "@/lib/invoiceMoney";
@@ -26,9 +30,18 @@ import { formatWoNumber } from "@/hooks/useWorkOrders";
  * anywhere else.
  */
 
-export type WorkItemStage = "enquiry" | "offer" | "scheduling" | "work" | "completion" | "invoicing";
+// "work" and "completion" are shared between the two viewers deliberately —
+// both mean the same thing (live delivery / done) whichever side is
+// looking. Every other value is viewer-specific: enquiry/offer/scheduling/
+// invoicing only ever appear via the contractor's stage list, quotes/
+// dispatch/approval/payment only via the business's.
+export type WorkItemStage =
+  | "enquiry" | "offer" | "scheduling" | "work" | "completion" | "invoicing"
+  | "quotes" | "dispatch" | "approval" | "payment";
 
-export const WORK_ITEM_STAGES: WorkItemStage[] = ["enquiry", "offer", "scheduling", "work", "completion", "invoicing"];
+export const CONTRACTOR_WORK_ITEM_STAGES: WorkItemStage[] = ["enquiry", "offer", "scheduling", "work", "completion", "invoicing"];
+
+export const BUSINESS_WORK_ITEM_STAGES: WorkItemStage[] = ["quotes", "dispatch", "approval", "work", "completion", "payment"];
 
 export const STAGE_LABEL: Record<WorkItemStage, string> = {
   enquiry: "Enquiry",
@@ -37,16 +50,21 @@ export const STAGE_LABEL: Record<WorkItemStage, string> = {
   work: "Work",
   completion: "Completion",
   invoicing: "Invoicing",
+  quotes: "Quotes",
+  dispatch: "Dispatch",
+  approval: "Approval",
+  payment: "Payment",
 };
 
 export interface WorkItem {
   key: string;
-  kind: "enquiry" | "quote" | "work_order" | "job" | "invoice" | "cost_line" | "engagement_rate";
+  kind: "enquiry" | "quote" | "work_order" | "job" | "invoice" | "cost_line" | "engagement_rate" | "service_request";
   /** null only for engagement_rate — stage-less, shown outside the stage filter. */
   stage: WorkItemStage | null;
   reference: string | null;
   title: string;
-  counterparty: { name: string; code?: string | null };
+  /** null when no counterparty exists yet — e.g. a work order draft with nothing dispatched. */
+  counterparty: { name: string; code?: string | null } | null;
   site: string | null;
   amount: number | null;
   sinceIso: string;
@@ -121,7 +139,7 @@ export async function fetchDashboardWorkItems({ contractorId, userId }: Dashboar
   const items: WorkItem[] = [];
 
   // ---- Work orders: dispatched (Offer) / accepted (Work) ----
-  const WORK_ORDER_SELECT = "id, wo_number, title, status, dispatched_at, site:sites(id, name), company:companies(name, company_code)" as const;
+  const WORK_ORDER_SELECT = "id, wo_number, title, status, dispatched_at, created_at, site:sites(id, name), company:companies(name, company_code)" as const;
   const woRes = await supabase.from("work_orders").select(WORK_ORDER_SELECT).eq("dispatched_to", userId).in("status", WORK_ORDER_LIVE_STATUSES);
   if (woRes.error) {
     console.error("workItems: error loading work orders", woRes.error);
@@ -139,7 +157,11 @@ export async function fetchDashboardWorkItems({ contractorId, userId }: Dashboar
         counterparty: { name: wo.company?.name ?? "Business", code: wo.company?.company_code ?? null },
         site: wo.site?.name ?? null,
         amount: null,
-        sinceIso: wo.dispatched_at ?? new Date(0).toISOString(),
+        // dispatched_at is null for a draft — falls back to created_at so a
+        // null timestamp never formats as "1 Jan 1970" and never sorts as
+        // the oldest item in the list (see the business adapter's draft
+        // work orders for where this was actually reachable).
+        sinceIso: wo.dispatched_at ?? wo.created_at,
         dueIso: null,
         overdue: false,
         band: bandFrom(result),
@@ -356,6 +378,407 @@ export async function fetchDashboardWorkItems({ contractorId, userId }: Dashboar
   return items;
 }
 
+// ── Adapter 3: business dashboard queries ───────────────────────────────────
+//
+// No pipeline equivalent exists on the business side — useContractorPipeline
+// is contractor-only, so every business item comes from a direct query.
+// Reuses the same presenters as the contractor adapter with viewer:
+// "recipient" (which for the B2B kinds means "business" — see
+// statusPresenter.ts's header note), so the same underlying fact — a
+// dispatched work order, a pending cost line — is worded correctly for
+// whichever side is looking, from one set of presenter functions.
+
+interface BusinessWorkItemsParams {
+  companyId: string;
+  /** profiles.id — the business owner/member's own profile, used for recipient_id-scoped tables (issued_quotes, invoices). */
+  profileId: string;
+}
+
+export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessWorkItemsParams): Promise<WorkItem[]> {
+  const items: WorkItem[] = [];
+
+  const companyRes = await supabase.from("companies").select("company_code").eq("id", companyId).maybeSingle();
+  if (companyRes.error) console.error("workItems: error loading company code", companyRes.error);
+  const companyCode = companyRes.data?.company_code ?? null;
+
+  // ---- Quotes: one item per quote, governing state resolved rather than
+  // building quote status, deposit status and scheduling proposals as three
+  // independent sources — mirrors useContractorPipeline's own governing-
+  // version precedence (scheduling in motion > deposit pending > unanswered
+  // quote), so one quote never produces more than one card. ----
+  const QUOTE_SELECT = "id, title, client_name, contractor_id, status, recipient_response, deposit_required, deposit_paid, sent_at, created_at" as const;
+  const quotesRes = await supabase.from("issued_quotes").select(QUOTE_SELECT).eq("recipient_id", profileId);
+  if (quotesRes.error) {
+    console.error("workItems: error loading quotes", quotesRes.error);
+  } else {
+    const quotes = quotesRes.data ?? [];
+    const contractorIds = [...new Set(quotes.map((q) => q.contractor_id))];
+    const contractorMap = new Map<string, string>();
+    if (contractorIds.length > 0) {
+      const cRes = await supabase.from("profiles").select("id, full_name").in("id", contractorIds);
+      if (cRes.error) console.error("workItems: error loading quote contractors", cRes.error);
+      else for (const p of cRes.data ?? []) contractorMap.set(p.id, p.full_name ?? "Contractor");
+    }
+
+    // Pending scheduling proposals from the contractor, grouped by quote and
+    // collapsed to the oldest one per quote — several proposals for the same
+    // quote must still resolve to a single governing item, not one each.
+    const quoteIds = quotes.map((q) => q.id);
+    const oldestPendingEventByQuote = new Map<string, { id: string; created_at: string }>();
+    if (quoteIds.length > 0) {
+      const eventsRes = await supabase
+        .from("schedule_events")
+        .select("id, quote_id, created_at")
+        .in("quote_id", quoteIds)
+        .eq("event_type", "quote_proposal")
+        .eq("status", "proposed")
+        .eq("is_confirmed", false)
+        .neq("proposed_by", profileId);
+      if (eventsRes.error) {
+        console.error("workItems: error loading schedule proposals", eventsRes.error);
+      } else {
+        for (const e of eventsRes.data ?? []) {
+          const cur = oldestPendingEventByQuote.get(e.quote_id);
+          if (!cur || e.created_at < cur.created_at) oldestPendingEventByQuote.set(e.quote_id, e);
+        }
+      }
+    }
+
+    for (const q of quotes) {
+      const contractorName = contractorMap.get(q.contractor_id) ?? "Contractor";
+      const pendingEvent = oldestPendingEventByQuote.get(q.id);
+
+      let state: ReturnType<typeof toQuoteState> | ReturnType<typeof toSchedulingState> = null;
+      let sinceIso = q.sent_at ?? q.created_at;
+
+      if (pendingEvent) {
+        // A date is still being negotiated — that's the live bottleneck,
+        // even if a deposit is also outstanding (mirrors the pipeline's own
+        // "confirmed but unconfirmed proposal" precedence: only a CONFIRMED
+        // date makes a pending deposit the governing state).
+        state = toSchedulingState("pending", false);
+        sinceIso = pendingEvent.created_at;
+      } else if (q.recipient_response === "accepted" && q.deposit_required && !q.deposit_paid) {
+        state = toQuoteState("accepted", { depositRequired: true, depositPaid: false });
+        sinceIso = q.created_at;
+      } else if (q.status === "sent" && !q.recipient_response) {
+        state = toQuoteState("sent", { viewed: false });
+      }
+
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      items.push({
+        key: `quote:${q.id}`,
+        kind: "quote",
+        stage: "quotes",
+        reference: null,
+        title: q.title ?? contractorName,
+        counterparty: { name: contractorName },
+        site: null,
+        amount: null,
+        sinceIso,
+        dueIso: null,
+        overdue: false,
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "approvals", recordId: q.id },
+      });
+    }
+  }
+
+  // ---- Dispatch: service requests, work order drafts, dispatched (awaiting response), declined ----
+  const requestsRes = await supabase
+    .from("service_requests")
+    .select("id, title, status, priority, created_at, site:sites(id, name)")
+    .eq("company_id", companyId)
+    .in("status", ["open", "triaged"]);
+  if (requestsRes.error) {
+    console.error("workItems: error loading service requests", requestsRes.error);
+  } else {
+    for (const req of requestsRes.data ?? []) {
+      const state = toServiceRequestState(req.status);
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      items.push({
+        key: `service_request:${req.id}`,
+        kind: "service_request",
+        stage: "dispatch",
+        reference: null,
+        title: req.title,
+        counterparty: { name: req.site?.name ?? "Site" },
+        site: req.site?.name ?? null,
+        amount: null,
+        sinceIso: req.created_at,
+        dueIso: null,
+        overdue: false,
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "service-requests", recordId: req.id },
+      });
+    }
+  }
+
+  const BIZ_WO_SELECT = "id, wo_number, title, status, response, dispatched_at, created_at, site:sites(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
+  const woRes = await supabase.from("work_orders").select(BIZ_WO_SELECT).eq("company_id", companyId).in("status", ["draft", "dispatched", "declined", "accepted"]);
+  if (woRes.error) {
+    console.error("workItems: error loading business work orders", woRes.error);
+  } else {
+    for (const wo of woRes.data ?? []) {
+      const state = toWorkOrderState(wo.status);
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      const stage = wo.status === "accepted" ? "work" : "dispatch";
+      items.push({
+        key: `work_order:${wo.id}`,
+        kind: "work_order",
+        stage,
+        reference: formatWoNumber(companyCode, wo.wo_number),
+        title: wo.title,
+        // A draft has no dispatched_to yet, so no real counterparty exists
+        // — omit the field rather than filling it with a placeholder name.
+        counterparty: wo.contractor ? { name: wo.contractor.full_name ?? "Contractor", code: wo.contractor.ts_profile_code } : null,
+        site: wo.site?.name ?? null,
+        amount: null,
+        // dispatched_at is null for a draft — created_at instead, so it
+        // neither renders as "1 Jan 1970" nor sorts as the oldest item in
+        // the age tiebreak.
+        sinceIso: wo.dispatched_at ?? wo.created_at,
+        dueIso: null,
+        overdue: false,
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "work-orders", recordId: wo.id },
+      });
+    }
+  }
+
+  // ---- Approval: cost lines pending ----
+  const PENDING_COST_SELECT = "id, work_order_id, line_total, created_at, work_order:work_orders(id, wo_number, title, contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code))" as const;
+  const pendingCostsRes = await supabase.from("work_order_costs").select(PENDING_COST_SELECT).eq("company_id", companyId).eq("status", "pending");
+  if (pendingCostsRes.error) {
+    console.error("workItems: error loading pending cost lines", pendingCostsRes.error);
+  } else {
+    const state = toCostLineState("pending");
+    const result = state ? presentState(state, "recipient") : null;
+    if (result) {
+      for (const line of pendingCostsRes.data ?? []) {
+        items.push({
+          key: `cost_line:${line.id}`,
+          kind: "cost_line",
+          stage: "approval",
+          reference: line.work_order ? formatWoNumber(companyCode, line.work_order.wo_number) : null,
+          title: line.work_order?.title ?? "Cost line",
+          counterparty: { name: line.work_order?.contractor?.full_name ?? "Contractor", code: line.work_order?.contractor?.ts_profile_code ?? null },
+          site: null,
+          amount: line.line_total,
+          sinceIso: line.created_at,
+          dueIso: null,
+          overdue: false,
+          band: bandFrom(result),
+          actionLabel: result.label,
+          actionTarget: { tab: "work-orders", recordId: line.work_order_id },
+        });
+      }
+    }
+  }
+
+  // ---- Work / Completion: jobs, any origin ----
+  const BIZ_JOB_SELECT =
+    "id, title, status, job_number, start_date, contract_value, engagement_id, contractor_id, site_id, sla_completion_due, completed_at, contractor_signed_off_at, updated_at, created_at" as const;
+  const jobsRes = await supabase.from("jobs").select(BIZ_JOB_SELECT).eq("company_id", companyId).in("status", JOB_LIVE_STATUSES);
+  if (jobsRes.error) {
+    console.error("workItems: error loading business jobs", jobsRes.error);
+  } else {
+    const jobs = jobsRes.data ?? [];
+    const completeJobIds = jobs.filter((j) => j.status === "complete").map((j) => j.id);
+
+    let jobsWithLiveInvoice = new Set<string>();
+    if (completeJobIds.length > 0) {
+      const invRes = await supabase.from("invoices").select("job_id").in("job_id", completeJobIds).neq("status", "paid").neq("status", "void");
+      if (invRes.error) console.error("workItems: error loading business job invoices", invRes.error);
+      else jobsWithLiveInvoice = new Set((invRes.data ?? []).map((r) => r.job_id).filter((id): id is string => !!id));
+    }
+
+    const siteIds = [...new Set(jobs.map((j) => j.site_id).filter((id): id is string => !!id))];
+    const contractorIds = [...new Set(jobs.map((j) => j.contractor_id).filter((id): id is string => !!id))];
+    const [sitesRes, contractorsRes] = await Promise.all([
+      siteIds.length > 0 ? supabase.from("sites").select("id, name").in("id", siteIds) : Promise.resolve({ data: [], error: null }),
+      contractorIds.length > 0 ? supabase.from("profiles").select("id, full_name, ts_profile_code").in("id", contractorIds) : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (sitesRes.error) console.error("workItems: error loading business job sites", sitesRes.error);
+    if (contractorsRes.error) console.error("workItems: error loading business job contractors", contractorsRes.error);
+
+    const siteMap = new Map((sitesRes.data ?? []).map((s) => [s.id, s.name]));
+    const contractorMap = new Map((contractorsRes.data ?? []).map((p) => [p.id, p.full_name]));
+
+    for (const job of jobs) {
+      if (job.status === "complete" && jobsWithLiveInvoice.has(job.id)) continue;
+
+      const state = toJobState(job.status, !!job.contractor_signed_off_at);
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+
+      items.push({
+        key: `job:${job.id}`,
+        kind: "job",
+        stage: job.status === "complete" ? "completion" : "work",
+        reference: job.job_number != null ? formatJobRef(job.job_number) : null,
+        title: job.title,
+        counterparty: { name: job.contractor_id ? contractorMap.get(job.contractor_id) ?? "Contractor" : "Contractor" },
+        site: job.site_id ? siteMap.get(job.site_id) ?? null : null,
+        amount: job.engagement_id ? null : job.contract_value,
+        sinceIso: job.status === "complete" ? job.completed_at ?? job.updated_at : job.created_at,
+        dueIso: job.start_date,
+        overdue: job.status !== "complete" && !!job.sla_completion_due && new Date(job.sla_completion_due) < new Date(),
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "jobs", recordId: job.id },
+      });
+    }
+  }
+
+  // ---- Payment: invoices to pay, queried cost lines waiting on the contractor ----
+  const BIZ_INVOICE_SELECT = "id, invoice_number, status, total, due_date, sent_at, created_at, contractor_id, deposit_amount, deposit_deducted, deposit_paid" as const;
+  const invRes = await supabase.from("invoices").select(BIZ_INVOICE_SELECT).eq("recipient_id", profileId).neq("status", "paid").neq("status", "void");
+  if (invRes.error) {
+    console.error("workItems: error loading business invoices", invRes.error);
+  } else {
+    const invoices = invRes.data ?? [];
+    const contractorIds = [...new Set(invoices.map((i) => i.contractor_id))];
+    const contractorMap = new Map<string, string>();
+    if (contractorIds.length > 0) {
+      const cRes = await supabase.from("profiles").select("id, full_name").in("id", contractorIds);
+      if (cRes.error) console.error("workItems: error loading invoice contractors", cRes.error);
+      else for (const p of cRes.data ?? []) contractorMap.set(p.id, p.full_name ?? "Contractor");
+    }
+
+    for (const inv of invoices) {
+      const moneyFields: InvoiceMoneyFields = inv;
+      const state = toInvoiceState(displayStatus(moneyFields));
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      const contractorName = contractorMap.get(inv.contractor_id) ?? "Contractor";
+      items.push({
+        key: `invoice:${inv.id}`,
+        kind: "invoice",
+        stage: "payment",
+        reference: formatInvoiceRef(inv.invoice_number),
+        title: contractorName,
+        counterparty: { name: contractorName },
+        site: null,
+        amount: inv.total,
+        sinceIso: inv.sent_at ?? inv.created_at,
+        dueIso: inv.due_date,
+        overdue: isOverdue(moneyFields),
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "invoices", recordId: inv.id },
+      });
+    }
+  }
+
+  const queriedRes = await supabase
+    .from("work_order_costs")
+    .select("id, work_order_id, line_total, queried_at, created_at, work_order:work_orders(id, wo_number, title, contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code))")
+    .eq("company_id", companyId)
+    .eq("status", "queried");
+  if (queriedRes.error) {
+    console.error("workItems: error loading business queried cost lines", queriedRes.error);
+  } else {
+    const state = toCostLineState("queried");
+    const result = state ? presentState(state, "recipient") : null;
+    if (result) {
+      for (const line of queriedRes.data ?? []) {
+        items.push({
+          key: `cost_line:${line.id}`,
+          kind: "cost_line",
+          stage: "payment",
+          reference: line.work_order ? formatWoNumber(companyCode, line.work_order.wo_number) : null,
+          title: line.work_order?.title ?? "Cost line",
+          counterparty: { name: line.work_order?.contractor?.full_name ?? "Contractor", code: line.work_order?.contractor?.ts_profile_code ?? null },
+          site: null,
+          amount: line.line_total,
+          sinceIso: line.queried_at ?? line.created_at,
+          dueIso: null,
+          overdue: false,
+          band: bandFrom(result),
+          actionLabel: result.label,
+          actionTarget: { tab: "work-orders", recordId: line.work_order_id },
+        });
+      }
+    }
+  }
+
+  // ---- Engagements needing attention (stage-less) ----
+  const engRes = await supabase
+    .from("term_engagements")
+    .select("id, engagement_number, company_id, contractor_id, expiry_date, retender_notice_months, status")
+    .eq("company_id", companyId)
+    .in("status", ["active", "suspended", "notice_given"]);
+  if (engRes.error) {
+    console.error("workItems: error loading business engagements", engRes.error);
+  } else {
+    const engRows = engRes.data ?? [];
+    if (engRows.length > 0) {
+      const engIds = engRows.map((e) => e.id);
+      const [ratesRes, contractorsRes, radarRes] = await Promise.all([
+        supabase
+          .from("engagement_rates")
+          .select("id, engagement_id, effective_from, agreed_by_business_at, agreed_by_contractor_at")
+          .in("engagement_id", engIds)
+          .order("version", { ascending: false }),
+        supabase.from("profiles").select("id, full_name").in("id", [...new Set(engRows.map((e) => e.contractor_id))]),
+        supabase.from("contract_expiry_radar").select("id, expiry_date, retender_notice_months, retendered_as").eq("company_id", companyId).eq("source", "engagement"),
+      ]);
+      if (ratesRes.error) console.error("workItems: error loading business engagement rates", ratesRes.error);
+      if (contractorsRes.error) console.error("workItems: error loading business engagement contractors", contractorsRes.error);
+      if (radarRes.error) console.error("workItems: error loading business expiry radar", radarRes.error);
+
+      if (!ratesRes.error && !contractorsRes.error && !radarRes.error) {
+        const latestRateByEngagement = new Map<string, { effective_from: string; agreed_by_business_at: string | null; agreed_by_contractor_at: string | null }>();
+        for (const r of ratesRes.data ?? []) if (!latestRateByEngagement.has(r.engagement_id)) latestRateByEngagement.set(r.engagement_id, r);
+        const contractorMap = new Map((contractorsRes.data ?? []).map((p) => [p.id, p.full_name]));
+        const today = new Date();
+        const expiringSoonIds = new Set(
+          (radarRes.data ?? [])
+            .filter((r) => r.retendered_as == null && today >= subMonths(parseISO(r.expiry_date), r.retender_notice_months))
+            .map((r) => r.id),
+        );
+
+        for (const eng of engRows) {
+          const rate = latestRateByEngagement.get(eng.id);
+          const ratesPending = !!rate && !(rate.agreed_by_business_at && rate.agreed_by_contractor_at);
+          const expiringSoon = expiringSoonIds.has(eng.id);
+          if (!ratesPending && !expiringSoon) continue;
+
+          const contractorName = contractorMap.get(eng.contractor_id) ?? "Contractor";
+          const state = rate ? toEngagementRateState(!!rate.agreed_by_business_at, !!rate.agreed_by_contractor_at) : null;
+          const result = state ? presentState(state, "recipient") : { label: "Engagement expiring soon", tone: "action" as const, waitingOn: "you" as const };
+
+          items.push({
+            key: `engagement_rate:${eng.id}`,
+            kind: "engagement_rate",
+            stage: null,
+            reference: eng.engagement_number,
+            title: contractorName,
+            counterparty: { name: contractorName },
+            site: null,
+            amount: null,
+            sinceIso: rate?.effective_from ?? eng.expiry_date,
+            dueIso: expiringSoon ? eng.expiry_date : null,
+            overdue: false,
+            band: bandFrom(result),
+            actionLabel: result.label,
+            actionTarget: { tab: "panel", recordId: eng.id },
+          });
+        }
+      }
+    }
+  }
+
+  return items;
+}
+
 // ── Merge + sort ────────────────────────────────────────────────────────────
 
 function daysLate(item: WorkItem): number {
@@ -383,10 +806,10 @@ export function mergeWorkItems(pipelineItems: WorkItem[], dashboardItems: WorkIt
   return [...pipelineItems, ...dashboardItems].sort(compareWorkItems);
 }
 
-export function countByStage(items: WorkItem[]): Record<WorkItemStage, number> {
-  const counts: Record<WorkItemStage, number> = { enquiry: 0, offer: 0, scheduling: 0, work: 0, completion: 0, invoicing: 0 };
+export function countByStage(items: WorkItem[], stages: WorkItemStage[]): Record<WorkItemStage, number> {
+  const counts = Object.fromEntries(stages.map((s) => [s, 0])) as Record<WorkItemStage, number>;
   for (const item of items) {
-    if (item.stage) counts[item.stage] += 1;
+    if (item.stage && item.stage in counts) counts[item.stage] += 1;
   }
   return counts;
 }
