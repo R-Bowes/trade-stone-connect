@@ -1122,6 +1122,23 @@ public client ratings; automatic service refusal based on payment history.
   as part of that pass (out of scope for a Step 0 audit) — safe, low-risk
   cleanup whenever those two files are next touched: drop the cast, let
   the real row type flow through.
+- **`issued_quotes.status` has no CHECK constraint.** Confirmed during the
+  quote-cards Step 0 audit (2026-09-25) — `20260706120000_engagement_thread.sql`'s
+  own header comment states it directly: the draft/sent/accepted/declined/
+  expired CHECK lives on the legacy, unused `quotes` table, not
+  `issued_quotes`. `issued_quotes.status` is plain `text NOT NULL DEFAULT
+  'draft'`. The live set (`draft`, `sent`, `accepted`, `rejected`,
+  `superseded`, `lapsed`) is enforced by nothing but convention across six
+  values written from five files (`IssuedQuotes.tsx`, `SendQuoteDialog.tsx`,
+  `useReceivedQuotes.ts`, `EngagementThread.tsx`, and the
+  `accept_quote_with_slot` RPC). `stalled` and `expired` are never written
+  to this column at all — `stalled` lives only on `recipient_response`
+  (which does have a real CHECK: `IN ('accepted', 'rejected', 'stalled')`),
+  and `expired` is derived from `valid_until` at render time, never stored.
+  A typo'd or new status value here would fail silently — `toQuoteState`
+  returns `null` for anything outside its known domain and every caller
+  treats `null` as "no badge," not an error. Worth a CHECK constraint
+  covering the six real values the next time this table is migrated.
 
 ---
 

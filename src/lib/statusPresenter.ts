@@ -372,7 +372,7 @@ function presentQuote(state: QuoteState, viewer: Viewer): PresenterResult {
       if (state.depositRequired && !state.depositPaid) {
         return perspective(
           viewer,
-          chip("Awaiting deposit — waiting on client", "waiting", "them"),
+          chip("Awaiting deposit — client to pay", "waiting", "them"),
           chip("Awaiting deposit — waiting on you", "action", "you"),
         );
       }

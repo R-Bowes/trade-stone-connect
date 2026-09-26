@@ -29,12 +29,17 @@ export interface ReceivedQuote {
   valid_until: string;
   notes: string | null;
   terms: string | null;
+  enquiry_id: string | null;
   created_at: string;
   sent_at: string | null;
 }
 
 export function useReceivedQuotes() {
   const [quotes, setQuotes] = useState<ReceivedQuote[]>([]);
+  // quote_number -> the id of whichever sibling version a live job was
+  // actually minted from, when one exists — fed to resolveGoverningQuote,
+  // same precedence useContractorPipeline uses.
+  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -89,20 +94,35 @@ export function useReceivedQuotes() {
       contractor_ts_code: tsCodeMap[q.contractor_id] ?? null,
     }));
 
-    // Exclude unsent drafts — recipients only see quotes that have been sent
+    // Exclude unsent drafts — recipients never see a contractor's draft.
+    // Beyond that, every status (including lapsed/stalled/expired/
+    // superseded) is kept — grouping and governing-version resolution is
+    // the caller's job now (see resolveGoverningQuote), not a "highest
+    // version wins" filter here.
     const sentQuotes = enriched.filter(q => q.sent_at != null);
-    // Keep only the latest version per quote_number; superseded versions are hidden
-    const latestMap = new Map<string, typeof enriched[0]>();
-    for (const q of sentQuotes) {
-      const key = q.quote_number != null ? String(q.quote_number) : q.id;
-      const cur = latestMap.get(key);
-      if (!cur || (q.version ?? 1) > (cur.version ?? 1)) latestMap.set(key, q);
+    setQuotes(sentQuotes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+
+    if (sentQuotes.length > 0) {
+      const quoteIds = sentQuotes.map((q) => q.id);
+      const { data: jobRows, error: jobsError } = await supabase
+        .from("jobs")
+        .select("issued_quote_id")
+        .in("issued_quote_id", quoteIds);
+      if (jobsError) {
+        console.error("Error loading job links for quote versioning:", jobsError);
+      } else {
+        const quoteById = new Map(sentQuotes.map((q) => [q.id, q]));
+        const byNumber = new Map<number, string>();
+        for (const row of jobRows ?? []) {
+          if (!row.issued_quote_id) continue;
+          const q = quoteById.get(row.issued_quote_id);
+          if (q?.quote_number != null) byNumber.set(q.quote_number, row.issued_quote_id);
+        }
+        setJobIssuedQuoteIdByNumber(byNumber);
+      }
+    } else {
+      setJobIssuedQuoteIdByNumber(new Map());
     }
-      setQuotes(
-        Array.from(latestMap.values()).sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-      );
     } finally {
       setLoading(false);
     }
@@ -136,5 +156,5 @@ export function useReceivedQuotes() {
     return quoteId;
   };
 
-  return { quotes, loading, respondToQuote, refetch: fetchQuotes };
+  return { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, refetch: fetchQuotes };
 }

@@ -1,9 +1,6 @@
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, CheckCircle, XCircle, Pause, Loader2, Calendar } from "lucide-react";
 import { useReceivedQuotes, type ReceivedQuote } from "@/hooks/useReceivedQuotes";
 import { MessageDialog } from "./MessageDialog";
@@ -11,13 +8,13 @@ import { QuoteScheduleNegotiation } from "./QuoteScheduleNegotiation";
 import { QuoteAcceptScreen } from "./QuoteAcceptScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { formatQuoteRef } from "@/lib/documentRefs";
-import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
-import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
+import { groupByQuoteNumber, resolveGoverningQuote } from "@/lib/quoteVersions";
+import { QuoteCard } from "@/components/shared/QuoteCard";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 export function ReceivedQuotes() {
-  const { quotes, loading, respondToQuote, refetch } = useReceivedQuotes();
+  const { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, refetch } = useReceivedQuotes();
   const [messageDialog, setMessageDialog] = useState<{
     open: boolean;
     quote: ReceivedQuote | null;
@@ -27,6 +24,22 @@ export function ReceivedQuotes() {
   const [scheduleQuote, setScheduleQuote] = useState<ReceivedQuote | null>(null);
   const [acceptScreenQuote, setAcceptScreenQuote] = useState<ReceivedQuote | null>(null);
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
+
+  // Governing version per quote_number — same precedence useContractorPipeline
+  // uses, shared with IssuedQuotes.tsx via resolveGoverningQuote, not a
+  // "highest version wins" pick.
+  const governingQuotes = useMemo(() => {
+    const versioned = quotes
+      .filter((q): q is ReceivedQuote & { quote_number: number } => q.quote_number != null)
+      .map((q) => ({ ...q, version: q.version ?? 1 }));
+    const groups = groupByQuoteNumber(versioned);
+    return Array.from(groups.entries())
+      .map(([quoteNumber, versions]) => ({
+        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(quoteNumber) ?? null),
+        versions,
+      }))
+      .sort((a, b) => new Date(b.governing.created_at).getTime() - new Date(a.governing.created_at).getTime());
+  }, [quotes, jobIssuedQuoteIdByNumber]);
 
   // D4: "Accept" no longer writes recipient_response itself — it opens the
   // one-screen accept flow, which confirms a slot AND accepts the quote
@@ -83,32 +96,6 @@ export function ReceivedQuotes() {
     }
   };
 
-  const getResponseBadge = (quote: ReceivedQuote) => {
-    const response = quote.recipient_response ?? pendingIds[quote.id] ?? null;
-
-    // recipient_response takes precedence over the base issued_quotes.status
-    // when both exist (a rejected/stalled/accepted response can arrive before
-    // or alongside a status update) — resolve to one effective status string,
-    // then narrow it properly rather than building QuoteState branches ad hoc.
-    const effectiveStatus =
-      response === "rejected" || quote.status === "rejected"
-        ? "rejected"
-        : response === "stalled"
-        ? "stalled"
-        : response === "accepted" || quote.status === "accepted"
-        ? "accepted"
-        : quote.status;
-
-    const state = toQuoteState(effectiveStatus, {
-      withinFollowUpWindow: false,
-      depositRequired: !!quote.deposit_required,
-      depositPaid: !!quote.deposit_paid,
-      validUntil: quote.valid_until,
-    });
-    const result = presentOrNeutral(state, "recipient", quote.status);
-    return <Badge className={TONE_BADGE_CLASS[result.tone]}>{result.label}</Badge>;
-  };
-
   // Display-layer expiry (A1: nothing ever flips status to 'expired' in the
   // DB) — a quote past valid_until that's still sitting at 'sent' can no
   // longer be accepted, even though the accept_quote_with_slot RPC would
@@ -139,17 +126,12 @@ export function ReceivedQuotes() {
     );
   }
 
-  if (quotes.length === 0) {
+  if (governingQuotes.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No Quotes Received</h3>
-          <p className="text-muted-foreground">
-            When contractors send you quotes, they'll appear here.
-          </p>
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={<FileText className="h-10 w-10" />}
+        message="When contractors send you quotes, they'll appear here."
+      />
     );
   }
 
@@ -157,94 +139,48 @@ export function ReceivedQuotes() {
     <div className="space-y-4">
       <h2 className="font-heading text-2xl font-bold">Received Quotes</h2>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Quote #</TableHead>
-                <TableHead>Contractor</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Valid Until</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quotes.map((q) => (
-                <TableRow key={q.id}>
-                  <TableCell className="font-medium font-mono">
-                    {q.quote_number != null
-                      ? formatQuoteRef(q.quote_number, { contractorCode: q.contractor_ts_code ?? undefined, version: q.version ?? 1 })
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span>{q.contractor_name}</span>
-                      {q.contractor_ts_code && (
-                        <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
-                          {q.contractor_ts_code}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{q.title}</TableCell>
-                  <TableCell>{format(new Date(q.valid_until), "dd MMM yyyy")}</TableCell>
-                  <TableCell className="text-right font-bold">
-                    £{Number(q.total).toFixed(2)}
-                  </TableCell>
-                  <TableCell>{getResponseBadge(q)}</TableCell>
-                  <TableCell className="text-right">
-                    {isResponding(q) && (
-                      <div className="flex justify-end">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                    {canRespond(q) && !isResponding(q) && (
-                      <div className="flex justify-end gap-1">
-                        {canAccept(q) ? (
-                          <Button size="sm" onClick={() => handleAcceptClick(q)}>
-                            <CheckCircle className="h-4 w-4 mr-1" />Accept
-                          </Button>
-                        ) : (
-                          <Button size="sm" disabled title="This quote has expired — ask the contractor for a new one">
-                            <CheckCircle className="h-4 w-4 mr-1" />Expired
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleReject(q)}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleStall(q)}
-                        >
-                          <Pause className="h-4 w-4 mr-1" />Stall
-                        </Button>
-                      </div>
-                    )}
-                    {isAccepted(q) && !isResponding(q) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setScheduleQuote(q)}
-                      >
-                        <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                        Agree Schedule
+      <div className="grid gap-3">
+        {governingQuotes.map(({ governing: q, versions }) => (
+          <QuoteCard
+            key={q.quote_number}
+            quote={q}
+            versions={versions}
+            viewer="recipient"
+            counterparty={q.contractor_name}
+            contractorCode={q.contractor_ts_code}
+            actions={
+              <>
+                {isResponding(q) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                {canRespond(q) && !isResponding(q) && (
+                  <>
+                    {canAccept(q) ? (
+                      <Button size="sm" onClick={() => handleAcceptClick(q)}>
+                        <CheckCircle className="h-4 w-4 mr-1" />Accept
+                      </Button>
+                    ) : (
+                      <Button size="sm" disabled title="This quote has expired — ask the contractor for a new one">
+                        <CheckCircle className="h-4 w-4 mr-1" />Expired
                       </Button>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <Button size="sm" variant="destructive" onClick={() => handleReject(q)}>
+                      <XCircle className="h-4 w-4 mr-1" />Reject
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleStall(q)}>
+                      <Pause className="h-4 w-4 mr-1" />Stall
+                    </Button>
+                  </>
+                )}
+                {isAccepted(q) && !isResponding(q) && (
+                  <Button size="sm" variant="outline" onClick={() => setScheduleQuote(q)}>
+                    <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                    Agree Schedule
+                  </Button>
+                )}
+              </>
+            }
+          />
+        ))}
+      </div>
 
       {/* D4: one-screen accept flow — slot pick + summary + single CTA */}
       <Dialog

@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,9 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
 import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
+import { groupByQuoteNumber, resolveGoverningQuote } from "@/lib/quoteVersions";
+import { QuoteCard } from "@/components/shared/QuoteCard";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 interface LineItem {
   description: string;
@@ -93,16 +95,6 @@ function fmtMoney(n: number): string {
   return `£${Number(n).toFixed(2)}`;
 }
 
-function latestVersions(quotes: IssuedQuote[]): IssuedQuote[] {
-  const map = new Map<number, IssuedQuote>();
-  for (const q of quotes) {
-    const cur = map.get(q.quote_number);
-    if (!cur || q.version > cur.version) map.set(q.quote_number, q);
-  }
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-}
 
 function normaliseRow(q: Record<string, unknown>): IssuedQuote {
   return {
@@ -599,7 +591,20 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     }
   }, [toast]);
 
-  const displayQuotes = useMemo(() => latestVersions(allQuotes), [allQuotes]);
+  // quote_number -> the id of whichever sibling version a live job was
+  // actually minted from, when one exists — the top precedence signal
+  // resolveGoverningQuote uses.
+  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<number, string>>(new Map());
+
+  const displayQuotes = useMemo(() => {
+    const groups = groupByQuoteNumber(allQuotes);
+    return Array.from(groups.entries())
+      .map(([quoteNumber, versions]) => ({
+        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(quoteNumber) ?? null),
+        versions,
+      }))
+      .sort((a, b) => new Date(b.governing.created_at).getTime() - new Date(a.governing.created_at).getTime());
+  }, [allQuotes, jobIssuedQuoteIdByNumber]);
 
   const versionChain = useMemo(() => {
     if (!selectedQuote) return [];
@@ -618,6 +623,31 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       .order("created_at", { ascending: false });
     const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>)) : [];
     if (!error) setAllQuotes(quotes);
+    if (error) console.error("Error loading issued quotes:", error);
+
+    if (quotes.length > 0) {
+      const quoteIds = quotes.map((q) => q.id);
+      const { data: jobRows, error: jobsError } = await supabase
+        .from("jobs")
+        .select("issued_quote_id")
+        .eq("contractor_id", profileId)
+        .in("issued_quote_id", quoteIds);
+      if (jobsError) {
+        console.error("Error loading job links for quote versioning:", jobsError);
+      } else {
+        const quoteById = new Map(quotes.map((q) => [q.id, q]));
+        const byNumber = new Map<number, string>();
+        for (const row of jobRows ?? []) {
+          if (!row.issued_quote_id) continue;
+          const q = quoteById.get(row.issued_quote_id);
+          if (q) byNumber.set(q.quote_number, row.issued_quote_id);
+        }
+        setJobIssuedQuoteIdByNumber(byNumber);
+      }
+    } else {
+      setJobIssuedQuoteIdByNumber(new Map());
+    }
+
     setLoading(false);
     return quotes;
   }, [profileId]);
@@ -820,56 +850,23 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       </div>
 
       {displayQuotes.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Issued Quotes Yet</h3>
-            <p className="text-muted-foreground">Quotes you send to clients will appear here.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<FileText className="h-10 w-10" />}
+          message="Quotes you send to clients will appear here."
+        />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Ref</th>
-                    <th className="text-left p-3 font-medium">Title</th>
-                    <th className="text-left p-3 font-medium">Client</th>
-                    <th className="text-right p-3 font-medium">Total</th>
-                    <th className="text-left p-3 font-medium">Status</th>
-                    <th className="text-left p-3 font-medium">Sent</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayQuotes.map((q) => (
-                    <tr
-                      key={q.id}
-                      className="border-b hover:bg-muted/30 cursor-pointer"
-                      onClick={() => openQuote(q)}
-                    >
-                      <td className="p-3 font-mono text-xs whitespace-nowrap">
-                        {formatQuoteRef(q.quote_number, { version: q.version })}
-                      </td>
-                      <td className="p-3 max-w-[180px] truncate">{q.title}</td>
-                      <td className="p-3">{q.client_name}</td>
-                      <td className="p-3 text-right font-mono">{fmtMoney(q.total)}</td>
-                      <td className="p-3">
-                        <Badge className={quoteBadge(q).className}>
-                          {quoteBadge(q).label}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-muted-foreground text-xs">
-                        {fmtDate(q.sent_at ?? q.created_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-3">
+          {displayQuotes.map(({ governing, versions }) => (
+            <QuoteCard
+              key={governing.quote_number}
+              quote={governing}
+              versions={versions}
+              viewer="contractor"
+              counterparty={governing.client_name}
+              actions={<Button size="sm" variant="outline" onClick={() => openQuote(governing)}>View</Button>}
+            />
+          ))}
+        </div>
       )}
 
       <Dialog open={!!selectedQuote} onOpenChange={(open) => { if (!open) closeDialog(); }}>
