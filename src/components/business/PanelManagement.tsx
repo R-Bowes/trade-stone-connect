@@ -983,7 +983,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
           </Card>
         ) : (
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground text-xs">
@@ -1097,7 +1097,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
 
       {/* --- Member Detail Dialog --- */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           {selectedMember && (() => {
             const status = statusConfig[selectedMember.status ?? "pending"] ?? statusConfig.pending;
             const tier = selectedMember.tier ? tierConfig[selectedMember.tier] : null;

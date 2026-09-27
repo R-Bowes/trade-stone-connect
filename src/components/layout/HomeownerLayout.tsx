@@ -480,7 +480,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
               }}
             >
               <i className={`ti ${tab.icon}`} style={{ fontSize: 22 }} />
-              <span style={{ fontSize: 10, fontFamily: "Lexend, sans-serif", fontWeight: 500 }}>
+              <span style={{ fontSize: 12, fontFamily: "Lexend, sans-serif", fontWeight: 500 }}>
                 {tab.label}
               </span>
             </button>

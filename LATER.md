@@ -1139,6 +1139,29 @@ public client ratings; automatic service refusal based on payment history.
   returns `null` for anything outside its known domain and every caller
   treats `null` as "no badge," not an error. Worth a CHECK constraint
   covering the six real values the next time this table is migrated.
+- **Three `issued_quotes` rows hold `status = 'expired'` — a value the
+  product has never written.** Found investigating four accepted quotes
+  that shouldn't have gone stale (2026-09-26): Q-0001, Q-0003, Q-0007
+  (contractor `425b9477-5d1b-4a31-b7f0-a91a31f5a99b`) all carry
+  `recipient_response = 'accepted'` alongside `status = 'expired'`.
+  Searched every migration, every `.ts`/`.tsx` file, every edge function,
+  and the full git history (`git log --all -S`) for any write of the
+  literal value `'expired'` to `issued_quotes.status` — none exists.
+  `'expired'` is derived at render time from `valid_until`
+  (`statusPresenter.ts`) and never stored; the one place the string
+  appears near this table at all is a column *comment* on the founding
+  migration (`20260125175736`), never an actual write. These three rows
+  were set outside the application — the **fourth** confirmed instance of
+  an out-of-migration database edit, after: `accept_business_invite`
+  and `prevent_last_owner_removal` applied via the SQL editor (CLAUDE.md,
+  "Schema-change discipline"), and jobs 9/10 created directly by RPC/SQL
+  editor outside any real user flow (this file, "Business dashboard
+  follow-ups"). Q-0013 is a related but distinct case — `status =
+  'lapsed'` there *is* reachable through live code
+  (`EngagementThread.tsx`'s archive action doesn't check
+  `recipient_response`), addressed separately. Not fixed here — these
+  three rows are out of scope for the current cleanup pass; flagging so
+  the next person doesn't waste time re-deriving that no writer exists.
 
 ---
 

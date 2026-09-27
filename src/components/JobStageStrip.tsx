@@ -59,7 +59,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
               </div>
               <span
                 className={cn(
-                  "mt-1.5 text-[10px] text-center leading-tight w-16",
+                  "mt-1.5 text-xs text-center leading-tight w-16",
                   isCompleted && "font-medium text-[#1a2744]",
                   !isCompleted && !isActive && "text-muted-foreground/40",
                 )}
@@ -68,7 +68,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
                 {step.label}
               </span>
               {isCompleteStep && isActive && (
-                <span className={cn("text-[9px] mt-0.5", signedOff ? "text-green-600 font-medium" : "text-muted-foreground")}>
+                <span className={cn("text-xs mt-0.5", signedOff ? "text-green-600 font-medium" : "text-muted-foreground")}>
                   {signedOff ? "Signed off" : "Awaiting sign-off"}
                 </span>
               )}

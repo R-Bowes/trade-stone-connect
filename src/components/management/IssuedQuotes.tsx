@@ -185,32 +185,34 @@ function QuoteDetailPanel({
         </div>
 
         {/* Line items */}
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left pb-1.5 font-medium text-muted-foreground">Description</th>
-              <th className="text-right pb-1.5 font-medium text-muted-foreground w-10">Qty</th>
-              <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Unit</th>
-              <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quote.items.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="pt-2 text-sm text-muted-foreground">No line items</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left pb-1.5 font-medium text-muted-foreground">Description</th>
+                <th className="text-right pb-1.5 font-medium text-muted-foreground w-10">Qty</th>
+                <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Unit</th>
+                <th className="text-right pb-1.5 font-medium text-muted-foreground w-24">Total</th>
               </tr>
-            ) : (
-              quote.items.map((item, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-1.5">{item.description}</td>
-                  <td className="py-1.5 text-right font-mono">{item.quantity}</td>
-                  <td className="py-1.5 text-right font-mono">{fmtMoney(item.unit_price)}</td>
-                  <td className="py-1.5 text-right font-mono">{fmtMoney(item.total)}</td>
+            </thead>
+            <tbody>
+              {quote.items.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="pt-2 text-sm text-muted-foreground">No line items</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                quote.items.map((item, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5">{item.description}</td>
+                    <td className="py-1.5 text-right font-mono">{item.quantity}</td>
+                    <td className="py-1.5 text-right font-mono">{fmtMoney(item.unit_price)}</td>
+                    <td className="py-1.5 text-right font-mono">{fmtMoney(item.total)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Totals */}
         <div className="space-y-1 text-sm">
@@ -278,7 +280,7 @@ function QuoteDetailPanel({
                   className={`w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between transition-colors hover:bg-muted/50 ${v.id === quote.id ? "bg-muted font-medium" : ""}`}
                 >
                   <span className="font-mono">{formatQuoteRef(v.quote_number, { version: v.version })}</span>
-                  <Badge className={`text-[10px] py-0 px-1.5 ${quoteBadge(v).className}`}>
+                  <Badge className={`text-xs py-0 px-1.5 ${quoteBadge(v).className}`}>
                     {quoteBadge(v).label}
                   </Badge>
                 </button>
@@ -418,7 +420,8 @@ function QuoteEditPanel({
               <Plus className="h-3.5 w-3.5 mr-1" />Add row
             </Button>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[520px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left pb-1.5 font-medium text-muted-foreground">Description</th>
@@ -493,6 +496,7 @@ function QuoteEditPanel({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Totals preview */}

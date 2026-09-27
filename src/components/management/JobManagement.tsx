@@ -1013,7 +1013,7 @@ export function JobManagement() {
                   const entries = timesheetsByJob[selectedJob.id] || [];
                   const totalHours = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
                   return (
-                    <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-3 gap-3 text-sm">
+                    <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                       <div>
                         <div className="text-xs text-muted-foreground">Scheduled for</div>
                         <div className="font-medium">

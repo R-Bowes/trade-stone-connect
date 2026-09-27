@@ -168,36 +168,54 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
       ) : workOrders.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">No work orders yet.</CardContent></Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>WO #</TableHead>
-                  <TableHead>Site</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Dispatched To</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workOrders.map((wo) => (
-                  <TableRow key={wo.id} className="cursor-pointer" onClick={() => setDetailWo(wo)}>
-                    <TableCell className="font-mono text-xs">{formatWoNumber(companyCode, wo.wo_number)}</TableCell>
-                    <TableCell>{wo.site?.name ?? "—"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{wo.title}</TableCell>
-                    <TableCell><Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge></TableCell>
-                    <TableCell>{wo.contractor?.full_name ?? "—"}</TableCell>
-                    <TableCell><Badge className={STATUS_COLOR[wo.status]}>{STATUS_LABEL[wo.status]}</Badge></TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "d MMM yyyy")}</TableCell>
+        <>
+          {/* Below md: card list — a 7-column table has no room to reflow at phone width. */}
+          <div className="grid gap-3 md:hidden">
+            {workOrders.map((wo) => (
+              <WorkOrderCard
+                key={wo.id}
+                workOrder={wo}
+                site={wo.site ?? null}
+                counterparty={wo.contractor?.full_name ?? null}
+                companyCode={companyCode}
+                viewer="business"
+                density="compact"
+                actions={<Button size="sm" variant="outline" onClick={() => setDetailWo(wo)}>View</Button>}
+              />
+            ))}
+          </div>
+
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>WO #</TableHead>
+                    <TableHead>Site</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Dispatched To</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {workOrders.map((wo) => (
+                    <TableRow key={wo.id} className="cursor-pointer" onClick={() => setDetailWo(wo)}>
+                      <TableCell className="font-mono text-xs">{formatWoNumber(companyCode, wo.wo_number)}</TableCell>
+                      <TableCell>{wo.site?.name ?? "—"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{wo.title}</TableCell>
+                      <TableCell><Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge></TableCell>
+                      <TableCell>{wo.contractor?.full_name ?? "—"}</TableCell>
+                      <TableCell><Badge className={STATUS_COLOR[wo.status]}>{STATUS_LABEL[wo.status]}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "d MMM yyyy")}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <CreateWorkOrderDialog

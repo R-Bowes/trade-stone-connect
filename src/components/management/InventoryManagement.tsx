@@ -371,11 +371,11 @@ export function InventoryManagement() {
                           <td className="py-2 px-4">
                             <div className="flex items-center gap-2">
                               <StockRagDot material={material} />
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => adjustQuantity(material, -1)}>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 md:h-6 md:w-6" onClick={() => adjustQuantity(material, -1)}>
                                 <i className="ti ti-minus text-xs" />
                               </Button>
                               <span className="font-mono w-16 text-center">{material.quantity_on_hand} {material.unit}</span>
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => adjustQuantity(material, 1)}>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 md:h-6 md:w-6" onClick={() => adjustQuantity(material, 1)}>
                                 <i className="ti ti-plus text-xs" />
                               </Button>
                             </div>
@@ -387,10 +387,10 @@ export function InventoryManagement() {
                               <Button variant="ghost" size="sm" onClick={() => setUsageMaterial(material)}>
                                 Log usage
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingMaterial(material); setMaterialFormOpen(true); }}>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={() => { setEditingMaterial(material); setMaterialFormOpen(true); }}>
                                 <i className="ti ti-edit text-muted-foreground" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteMaterial(material)}>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={() => setDeleteMaterial(material)}>
                                 <i className="ti ti-trash text-muted-foreground" />
                               </Button>
                             </div>

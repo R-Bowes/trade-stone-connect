@@ -189,7 +189,7 @@ export function BusinessBillingView({ companyId }: { companyId: string }) {
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Figure label="Approved and due" value={Number(row.approved_due ?? 0)} count={Number(row.approved_count ?? 0)} />
                     <Figure label="Awaiting approval" value={Number(row.awaiting_approval ?? 0)} count={Number(row.pending_count ?? 0)} />
                     <Figure label="Queried" value={Number(row.queried ?? 0)} count={Number(row.queried_count ?? 0)} />

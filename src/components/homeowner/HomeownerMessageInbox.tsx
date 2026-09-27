@@ -21,7 +21,7 @@ function statusPill(status: string) {
   };
   const entry = map[status] ?? { label: status, classes: "bg-muted text-muted-foreground" };
   return (
-    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${entry.classes}`}>
+    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${entry.classes}`}>
       {entry.label}
     </span>
   );
@@ -114,7 +114,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
               <span className="text-xs text-muted-foreground truncate leading-tight">{conv.job_title}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
   {conv.job_status !== "enquiry" && statusPill(conv.job_status)}
-  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
     conv.context === "enquiry"
       ? "bg-blue-50 text-blue-700"
       : "bg-orange-50 text-orange-700"
@@ -123,10 +123,10 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
   </span>
 </div>
               {conv.latest_message && (
-                <span className="text-[11px] text-muted-foreground truncate mt-0.5">{conv.latest_message}</span>
+                <span className="text-xs text-muted-foreground truncate mt-0.5">{conv.latest_message}</span>
               )}
               {conv.latest_message_at && (
-                <span className="text-[10px] text-muted-foreground/60">
+                <span className="text-xs text-muted-foreground/60">
                   {format(new Date(conv.latest_message_at), "d MMM yyyy")}
                 </span>
               )}
@@ -161,7 +161,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">{selectedConv.job_title}</span>
                   {selectedConv.job_status !== "enquiry" && statusPill(selectedConv.job_status)}
-<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+<span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
   selectedConv.context === "enquiry"
     ? "bg-blue-50 text-blue-700"
     : "bg-orange-50 text-orange-700"
@@ -191,7 +191,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                   return (
                     <div key={msg.id} className="flex items-center gap-3 py-1">
                       <div className="flex-1 h-px bg-border" />
-                      <span className="text-[11px] font-medium px-3 py-1 rounded-full border text-muted-foreground shrink-0">
+                      <span className="text-xs font-medium px-3 py-1 rounded-full border text-muted-foreground shrink-0">
                         {msg.content}
                       </span>
                       <div className="flex-1 h-px bg-border" />
@@ -208,7 +208,7 @@ export function HomeownerMessageInbox({ profileId }: HomeownerMessageInboxProps)
                     >
                       {msg.content}
                     </div>
-                    <span className="text-[10px] text-muted-foreground px-1">
+                    <span className="text-xs text-muted-foreground px-1">
                       {format(new Date(msg.created_at), "d MMM yyyy, HH:mm")}
                     </span>
                   </div>

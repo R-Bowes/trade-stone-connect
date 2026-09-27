@@ -105,7 +105,7 @@ export function RamsTemplateManagement() {
                       <div className="font-medium text-sm">{t.name}</div>
                       {t.description && <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>}
                     </div>
-                    <Badge variant="outline" className="text-[10px] shrink-0">{t.hazards.length} hazards</Badge>
+                    <Badge variant="outline" className="text-xs shrink-0">{t.hazards.length} hazards</Badge>
                   </div>
                   <div className="flex gap-1">
                     <Button variant="outline" size="sm" onClick={() => setEditingId(t.id)}>
@@ -130,7 +130,7 @@ export function RamsTemplateManagement() {
               <CardContent className="p-3 space-y-2">
                 <div className="font-medium text-sm">{t.name}</div>
                 {t.description && <p className="text-xs text-muted-foreground">{t.description}</p>}
-                <Badge variant="outline" className="text-[10px]">{t.hazards.length} hazards</Badge>
+                <Badge variant="outline" className="text-xs">{t.hazards.length} hazards</Badge>
                 <div>
                   <Button
                     variant="outline"

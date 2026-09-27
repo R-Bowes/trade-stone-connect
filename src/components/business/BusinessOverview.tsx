@@ -346,11 +346,11 @@ export function BusinessOverview({ profileId, companyId }: Props) {
       {/* Jobs across sites */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-base font-semibold">Jobs across sites</CardTitle>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-base font-semibold min-w-0 truncate">Jobs across sites</CardTitle>
             {sites.length > 0 && (
               <Select value={siteFilter} onValueChange={setSiteFilter}>
-                <SelectTrigger className="w-44 h-8 text-sm">
+                <SelectTrigger className="w-44 h-8 text-sm shrink-0">
                   <SelectValue placeholder="All sites" />
                 </SelectTrigger>
                 <SelectContent>

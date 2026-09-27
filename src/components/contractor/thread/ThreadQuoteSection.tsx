@@ -20,6 +20,7 @@ export interface ThreadQuote {
   version: number;
   title: string;
   status: string;
+  recipient_response: string | null;
   total: number;
   subtotal: number;
   tax_amount: number;

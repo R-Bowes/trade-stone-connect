@@ -39,19 +39,25 @@ export function RecordCard({ icon, title, reference, badges, lead, fields, child
   const compact = density === "compact";
 
   if (compact) {
-    // A genuine row, not a shrunk full card: everything on one line
-    // (wrapping only when the viewport forces it), no header/content split.
+    // A genuine row at desktop width — unchanged from before. Below `md`
+    // (the app's own mobile/desktop line — see ContractorLayout's
+    // `max-width: 767px` check) it stacks instead: a flex-1 fields block
+    // sharing a row with shrink-0 badges/actions has no room to breathe at
+    // ~390px, so the un-shrinkable (whitespace-nowrap) field text
+    // overflowed its squeezed box and was drawn over the badge next to it.
+    // Stacking removes the competition for width entirely rather than
+    // trying to make the squeeze survive.
     return (
       <Card>
-        <CardContent className="flex items-center gap-4 py-2 px-4 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0 shrink-0">
+        <CardContent className="flex flex-col gap-2 py-2 px-4 md:flex-row md:items-center md:gap-4 md:flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 md:shrink-0">
             <span className="text-muted-foreground">{icon}</span>
             <span className="text-sm font-medium truncate">{title}</span>
             {reference != null && <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{reference}</span>}
           </div>
 
           {fields.length > 0 && (
-            <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-1 min-w-0 flex-wrap">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs md:flex-1 md:min-w-0">
               {fields.map((field) => (
                 <span key={field.label} className="whitespace-nowrap text-muted-foreground">
                   {field.label}:{" "}
@@ -67,8 +73,15 @@ export function RecordCard({ icon, title, reference, badges, lead, fields, child
             </div>
           )}
 
-          {badges != null && <div className="flex gap-1.5 flex-wrap shrink-0">{badges}</div>}
-          {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
+          {/* md:contents restores the original desktop layout exactly —
+              badges and actions become direct siblings of the blocks above
+              again, as before this fix. Below md it's one more stacked row. */}
+          {(badges != null || actions) && (
+            <div className="flex items-center justify-between gap-2 md:contents">
+              {badges != null && <div className="flex gap-1.5 flex-wrap md:shrink-0">{badges}</div>}
+              {actions && <div className="flex gap-2 md:shrink-0">{actions}</div>}
+            </div>
+          )}
         </CardContent>
       </Card>
     );

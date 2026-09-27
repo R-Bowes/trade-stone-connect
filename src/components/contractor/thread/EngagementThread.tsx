@@ -62,7 +62,7 @@ async function fetchEngagementDetail(engagement: PipelineEngagement): Promise<En
     const { data } = await supabase
       .from("issued_quotes")
       .select(
-        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, total, subtotal, tax_amount, tax_rate, items, sent_at, viewed_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, deposit_paid, enquiry_id, contractor_id",
+        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, recipient_response, total, subtotal, tax_amount, tax_rate, items, sent_at, viewed_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, deposit_paid, enquiry_id, contractor_id",
       )
       .eq("id", quoteId)
       .maybeSingle();
@@ -219,19 +219,40 @@ export function EngagementThread({
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Archive this engagement?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          The quote is marked lapsed and this engagement leaves your pipeline. This can't be undone
-                          from here.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep it</AlertDialogCancel>
-                        <AlertDialogAction disabled={archiving} onClick={handleArchive}>
-                          {archiving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Archive
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
+                      {detail?.quote?.recipient_response === "accepted" ? (
+                        <>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>The client accepted this quote</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {engagement.clientName} accepted this quote. Archiving it now will still mark it
+                              lapsed. Only do this if you know the job isn't going ahead — this can't be undone from
+                              here.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep it</AlertDialogCancel>
+                            <AlertDialogAction disabled={archiving} onClick={handleArchive}>
+                              {archiving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Archive anyway
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </>
+                      ) : (
+                        <>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Archive this engagement?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              The quote is marked lapsed and this engagement leaves your pipeline. This can't be
+                              undone from here.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep it</AlertDialogCancel>
+                            <AlertDialogAction disabled={archiving} onClick={handleArchive}>
+                              {archiving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Archive
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </>
+                      )}
                     </AlertDialogContent>
                   </AlertDialog>
                 )}

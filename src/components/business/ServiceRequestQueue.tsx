@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
+import { RecordCard } from "@/components/shared/RecordCard";
 import {
   useServiceRequests, type ServiceRequest, type ServiceRequestStatus,
 } from "@/hooks/useServiceRequests";
@@ -41,6 +42,35 @@ const STATUS_COLOR: Record<ServiceRequestStatus, string> = {
 
 type SiteOption = { id: string; name: string };
 type CategoryOption = { id: string; name: string };
+
+// Mobile card for the queue list — mirrors the table's own columns (Site,
+// Requested By, Raised; same priority/status/auto-dispatched badges), not
+// the full triage detail (description, location, photos, triage notes),
+// which stays behind "Review" in RequestTriageDialog.
+function ServiceRequestRowCard({ request, onReview }: { request: ServiceRequest; onReview: () => void }) {
+  return (
+    <RecordCard
+      icon={<Zap className="h-5 w-5" />}
+      title={request.title}
+      badges={
+        <>
+          <Badge variant="outline" className={PRIORITY_COLOR[request.priority]}>{PRIORITY_LABEL[request.priority]}</Badge>
+          <Badge className={STATUS_COLOR[request.status]}>{STATUS_LABEL[request.status]}</Badge>
+          {request.work_order_id && request.status === "dispatched" && request.triaged_by === null && (
+            <Badge variant="outline" className="text-xs gap-1"><Zap className="h-3 w-3" />Auto-dispatched</Badge>
+          )}
+        </>
+      }
+      fields={[
+        { label: "Site", value: request.site?.name ?? "—" },
+        { label: "Requested by", value: request.requested_by_name ?? "—" },
+        { label: "Raised", value: format(new Date(request.created_at), "d MMM yyyy") },
+      ]}
+      density="compact"
+      actions={<Button size="sm" variant="outline" onClick={onReview}>Review</Button>}
+    />
+  );
+}
 
 export function ServiceRequestQueue({ companyId }: { companyId: string }) {
   const { requests, loading, fetchRequests, triageRequest, cancelRequest } = useServiceRequests();
@@ -130,47 +160,56 @@ export function ServiceRequestQueue({ companyId }: { companyId: string }) {
       ) : sorted.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">No service requests match these filters.</CardContent></Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Site</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Requested By</TableHead>
-                  <TableHead>Raised</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.map((r) => (
-                  <TableRow
-                    key={r.id}
-                    className={`cursor-pointer ${r.priority === "emergency" ? "bg-red-50" : ""}`}
-                    onClick={() => setDetailRequest(r)}
-                  >
-                    <TableCell>{r.site?.name ?? "—"}</TableCell>
-                    <TableCell className="max-w-[220px] truncate">{r.title}</TableCell>
-                    <TableCell>{r.category?.name ?? "—"}</TableCell>
-                    <TableCell><Badge variant="outline" className={PRIORITY_COLOR[r.priority]}>{PRIORITY_LABEL[r.priority]}</Badge></TableCell>
-                    <TableCell>{r.requested_by_name ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{format(new Date(r.created_at), "d MMM yyyy")}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Badge className={STATUS_COLOR[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                        {r.work_order_id && r.status === "dispatched" && r.triaged_by === null && (
-                          <Badge variant="outline" className="text-[10px] gap-1"><Zap className="h-3 w-3" />Auto-dispatched</Badge>
-                        )}
-                      </div>
-                    </TableCell>
+        <>
+          {/* Below md: card list — a 7-column table has no room to reflow at phone width. */}
+          <div className="grid gap-3 md:hidden">
+            {sorted.map((r) => (
+              <ServiceRequestRowCard key={r.id} request={r} onReview={() => setDetailRequest(r)} />
+            ))}
+          </div>
+
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Site</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Requested By</TableHead>
+                    <TableHead>Raised</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((r) => (
+                    <TableRow
+                      key={r.id}
+                      className={`cursor-pointer ${r.priority === "emergency" ? "bg-red-50" : ""}`}
+                      onClick={() => setDetailRequest(r)}
+                    >
+                      <TableCell>{r.site?.name ?? "—"}</TableCell>
+                      <TableCell className="max-w-[220px] truncate">{r.title}</TableCell>
+                      <TableCell>{r.category?.name ?? "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className={PRIORITY_COLOR[r.priority]}>{PRIORITY_LABEL[r.priority]}</Badge></TableCell>
+                      <TableCell>{r.requested_by_name ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{format(new Date(r.created_at), "d MMM yyyy")}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Badge className={STATUS_COLOR[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                          {r.work_order_id && r.status === "dispatched" && r.triaged_by === null && (
+                            <Badge variant="outline" className="text-[10px] gap-1"><Zap className="h-3 w-3" />Auto-dispatched</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {detailRequest && (

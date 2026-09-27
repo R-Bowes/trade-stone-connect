@@ -213,6 +213,8 @@ export function ContractorCardGrid({ contractors }: { contractors: ContractorCar
 
 const styles: Record<string, React.CSSProperties> = {
   card: {
+    width: "100%",
+    boxSizing: "border-box",
     background: "#ffffff",
     borderRadius: 12,
     overflow: "hidden",
@@ -227,19 +229,24 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f07820",
     padding: "8px 10px 6px",
     display: "flex",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: 4,
   },
   headerLeft: {
     display: "flex",
     flexDirection: "column",
     gap: 2,
+    flex: "1 1 auto",
+    minWidth: 0,
   },
   headerRight: {
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-end",
     gap: 4,
+    flexShrink: 0,
   },
   ratingText: {
     fontSize: 12,
@@ -247,7 +254,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
   },
   headerSub: {
-    fontSize: 9,
+    fontSize: 12,
     color: "rgba(255,255,255,0.85)",
   },
   verifiedRow: {
