@@ -34,8 +34,8 @@ export function ReceivedQuotes() {
       .map((q) => ({ ...q, version: q.version ?? 1 }));
     const groups = groupByQuoteNumber(versioned);
     return Array.from(groups.entries())
-      .map(([quoteNumber, versions]) => ({
-        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(quoteNumber) ?? null),
+      .map(([key, versions]) => ({
+        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(key) ?? null),
         versions,
       }))
       .sort((a, b) => new Date(b.governing.created_at).getTime() - new Date(a.governing.created_at).getTime());

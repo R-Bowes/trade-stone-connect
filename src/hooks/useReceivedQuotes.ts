@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { markRecentAction } from "@/lib/recentActions";
+import { quoteVersionKey } from "@/lib/quoteVersions";
 
 export interface ReceivedQuote {
   id: string;
@@ -36,10 +37,13 @@ export interface ReceivedQuote {
 
 export function useReceivedQuotes() {
   const [quotes, setQuotes] = useState<ReceivedQuote[]>([]);
-  // quote_number -> the id of whichever sibling version a live job was
-  // actually minted from, when one exists — fed to resolveGoverningQuote,
-  // same precedence useContractorPipeline uses.
-  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<number, string>>(new Map());
+  // (contractor_id, quote_number) -> the id of whichever sibling version a
+  // live job was actually minted from, when one exists — fed to
+  // resolveGoverningQuote, same precedence useContractorPipeline uses.
+  // Keyed on the pair, not quote_number alone: this hook spans every
+  // contractor the homeowner has dealt with, and quote_number is only
+  // unique per-contractor.
+  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -112,11 +116,11 @@ export function useReceivedQuotes() {
         console.error("Error loading job links for quote versioning:", jobsError);
       } else {
         const quoteById = new Map(sentQuotes.map((q) => [q.id, q]));
-        const byNumber = new Map<number, string>();
+        const byNumber = new Map<string, string>();
         for (const row of jobRows ?? []) {
           if (!row.issued_quote_id) continue;
           const q = quoteById.get(row.issued_quote_id);
-          if (q?.quote_number != null) byNumber.set(q.quote_number, row.issued_quote_id);
+          if (q?.quote_number != null) byNumber.set(quoteVersionKey(q.contractor_id, q.quote_number), row.issued_quote_id);
         }
         setJobIssuedQuoteIdByNumber(byNumber);
       }

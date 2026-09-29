@@ -1,17 +1,31 @@
 export interface QuoteVersionLike {
   id: string;
+  contractor_id: string;
   quote_number: number;
   version: number;
   status: string;
 }
 
-/** Every version sharing a quote_number, keyed by that number. */
-export function groupByQuoteNumber<T extends QuoteVersionLike>(rows: T[]): Map<number, T[]> {
-  const map = new Map<number, T[]>();
+/**
+ * quote_number is per-contractor (each contractor's own sequential Q-0001,
+ * Q-0002, ...), never platform-unique — so grouping by quote_number alone
+ * conflates different contractors' quote #1s into one bucket wherever a
+ * listing spans more than one contractor (ReceivedQuotes.tsx does; a
+ * homeowner's quotes come from however many contractors they've dealt
+ * with). Every grouping key here MUST include contractor_id.
+ */
+export function quoteVersionKey(contractorId: string, quoteNumber: number): string {
+  return `${contractorId}:${quoteNumber}`;
+}
+
+/** Every version sharing a (contractor_id, quote_number) pair, keyed by that pair. */
+export function groupByQuoteNumber<T extends QuoteVersionLike>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
   for (const row of rows) {
-    const list = map.get(row.quote_number) ?? [];
+    const key = quoteVersionKey(row.contractor_id, row.quote_number);
+    const list = map.get(key) ?? [];
     list.push(row);
-    map.set(row.quote_number, list);
+    map.set(key, list);
   }
   return map;
 }

@@ -16,7 +16,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
 import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
-import { groupByQuoteNumber, resolveGoverningQuote } from "@/lib/quoteVersions";
+import { groupByQuoteNumber, resolveGoverningQuote, quoteVersionKey } from "@/lib/quoteVersions";
 import { QuoteCard } from "@/components/shared/QuoteCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 
@@ -34,6 +34,7 @@ const UNIT_OPTIONS = unitsForCountry("GB");
 
 interface IssuedQuote {
   id: string;
+  contractor_id: string;
   quote_number: number;
   version: number;
   title: string;
@@ -96,9 +97,10 @@ function fmtMoney(n: number): string {
 }
 
 
-function normaliseRow(q: Record<string, unknown>): IssuedQuote {
+function normaliseRow(q: Record<string, unknown>, contractorId: string): IssuedQuote {
   return {
     id: q.id as string,
+    contractor_id: contractorId,
     quote_number: q.quote_number as number,
     version: (q.version as number | null) ?? 1,
     title: q.title as string,
@@ -595,16 +597,18 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     }
   }, [toast]);
 
-  // quote_number -> the id of whichever sibling version a live job was
-  // actually minted from, when one exists — the top precedence signal
-  // resolveGoverningQuote uses.
-  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<number, string>>(new Map());
+  // (contractor_id, quote_number) -> the id of whichever sibling version a
+  // live job was actually minted from, when one exists — the top
+  // precedence signal resolveGoverningQuote uses. This view is scoped to
+  // one contractor already, but the key stays composite to match
+  // quoteVersions.ts's shared grouping contract.
+  const [jobIssuedQuoteIdByNumber, setJobIssuedQuoteIdByNumber] = useState<Map<string, string>>(new Map());
 
   const displayQuotes = useMemo(() => {
     const groups = groupByQuoteNumber(allQuotes);
     return Array.from(groups.entries())
-      .map(([quoteNumber, versions]) => ({
-        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(quoteNumber) ?? null),
+      .map(([key, versions]) => ({
+        governing: resolveGoverningQuote(versions, jobIssuedQuoteIdByNumber.get(key) ?? null),
         versions,
       }))
       .sort((a, b) => new Date(b.governing.created_at).getTime() - new Date(a.governing.created_at).getTime());
@@ -613,7 +617,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   const versionChain = useMemo(() => {
     if (!selectedQuote) return [];
     return allQuotes
-      .filter(q => q.quote_number === selectedQuote.quote_number)
+      .filter(q => q.quote_number === selectedQuote.quote_number && q.contractor_id === selectedQuote.contractor_id)
       .sort((a, b) => a.version - b.version);
   }, [allQuotes, selectedQuote]);
 
@@ -625,7 +629,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_paid, parent_quote_id, enquiry_id, recipient_response, notes, terms")
       .eq("contractor_id", profileId)
       .order("created_at", { ascending: false });
-    const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>)) : [];
+    const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>, profileId)) : [];
     if (!error) setAllQuotes(quotes);
     if (error) console.error("Error loading issued quotes:", error);
 
@@ -640,11 +644,11 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
         console.error("Error loading job links for quote versioning:", jobsError);
       } else {
         const quoteById = new Map(quotes.map((q) => [q.id, q]));
-        const byNumber = new Map<number, string>();
+        const byNumber = new Map<string, string>();
         for (const row of jobRows ?? []) {
           if (!row.issued_quote_id) continue;
           const q = quoteById.get(row.issued_quote_id);
-          if (q) byNumber.set(q.quote_number, row.issued_quote_id);
+          if (q) byNumber.set(quoteVersionKey(q.contractor_id, q.quote_number), row.issued_quote_id);
         }
         setJobIssuedQuoteIdByNumber(byNumber);
       }
@@ -830,7 +834,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     }
     const fresh = await fetchQuotes();
     setSaving(false);
-    const draftQuote = fresh.find(q => q.id === newRow.id) ?? normaliseRow({ ...newRow, version: newVersion } as Record<string, unknown>);
+    const draftQuote = fresh.find(q => q.id === newRow.id) ?? normaliseRow({ ...newRow, version: newVersion } as Record<string, unknown>, profileId);
     setSelectedQuote(draftQuote);
     startEdit(draftQuote);
     toast({ title: "Revision created", description: "Edit and send the revised quote." });
