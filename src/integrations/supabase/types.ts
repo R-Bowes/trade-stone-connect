@@ -2645,6 +2645,64 @@ export type Database = {
           },
         ]
       }
+      enquiry_recipients: {
+        Row: {
+          contractor_id: string
+          created_at: string
+          decline_reason_code: string | null
+          decline_reason_note: string | null
+          enquiry_id: string
+          id: string
+          responded_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contractor_id: string
+          created_at?: string
+          decline_reason_code?: string | null
+          decline_reason_note?: string | null
+          enquiry_id: string
+          id?: string
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contractor_id?: string
+          created_at?: string
+          decline_reason_code?: string | null
+          decline_reason_note?: string | null
+          enquiry_id?: string
+          id?: string
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enquiry_recipients_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiry_recipients_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiry_recipients_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           created_at: string

@@ -46,26 +46,31 @@ export function RejectDialog({ open, onOpenChange, enquiry, onSuccess }: RejectD
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("Not authenticated");
 
-      const { error: enquiryError } = await supabase
-        .from("enquiries")
-        .update({ status: "declined" })
-        .eq("id", enquiry.id);
-      if (enquiryError) throw enquiryError;
+      const { data: contractorProfile } = await supabase
+        .from("profiles")
+        .select("id, user_type")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const contractorId = contractorProfile?.id ?? enquiry.contractor_id;
+
+      // Per-recipient status, not the shared enquiries row — see
+      // enquiry_recipients migration. enquiries.status is now derived from
+      // this write via the mirror-up trigger, never written directly here.
+      const { error: recipientError } = await supabase
+        .from("enquiry_recipients")
+        .update({ status: "declined", responded_at: new Date().toISOString() })
+        .eq("enquiry_id", enquiry.id)
+        .eq("contractor_id", contractorId);
+      if (recipientError) throw recipientError;
 
       // If a reason was given, save it to the enquiry's thread so the
       // customer can see it — job_conversations/job_messages, the only
       // messaging system.
       if (reason.trim()) {
-        const { data: contractorProfile } = await supabase
-          .from("profiles")
-          .select("id, user_type")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
         const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiry.id });
         await supabase.from("job_messages").insert({
           conversation_id: conversationId,
-          sender_id: contractorProfile?.id ?? enquiry.contractor_id,
+          sender_id: contractorId,
           sender_role: contractorProfile?.user_type || "contractor",
           content: `Decline reason: ${reason.trim()}`,
           message_type: "message",

@@ -106,12 +106,15 @@ export function RespondDialog({ open, onOpenChange, enquiry, onSuccess }: Respon
         });
       if (msgError) throw msgError;
 
-      // Update enquiry status to replied
-      const { error: enquiryError } = await supabase
-        .from("enquiries")
-        .update({ status: "replied" })
-        .eq("id", enquiry.id);
-      if (enquiryError) throw enquiryError;
+      // Per-recipient status, not the shared enquiries row — see
+      // enquiry_recipients migration. enquiries.status is now derived from
+      // this write via the mirror-up trigger, never written directly here.
+      const { error: recipientError } = await supabase
+        .from("enquiry_recipients")
+        .update({ status: "replied", responded_at: new Date().toISOString() })
+        .eq("enquiry_id", enquiry.id)
+        .eq("contractor_id", contractorProfile.id);
+      if (recipientError) throw recipientError;
 
       toast({
         title: "Response sent",
