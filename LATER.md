@@ -903,6 +903,22 @@ public client ratings; automatic service refusal based on payment history.
 
 ## Tech debt / known issues to revisit
 
+- **Only the company owner can create a business enquiry.** `BusinessRequestsView.tsx`
+  always sets `customer_id: company.owner_id` on insert, regardless of who
+  actually submits the form. The `enquiries` INSERT RLS requires
+  `customer_id` to match the submitter's own profile, so a non-owner active
+  company member's insert fails RLS (42501) — the screen implies any
+  member can raise a request, but only the owner actually can. Found
+  during the `enquiries` RLS consolidation (2026-09-29); not fixed there
+  (out of scope, code bug not a policy bug).
+- **No company-member UPDATE policy on `enquiries`.** A company member who
+  can read a company enquiry (via `is_company_member(company_id)`) cannot
+  change it — only the row's own `customer_id`/`contractor_id` or a
+  platform admin can. In practice only the owner can update a company
+  enquiry, since (per the bug above) only the owner ever becomes its
+  `customer_id`. Relevant to the multi-recipient enquiry work:
+  `enquiry_recipients` will need its own explicit company-member write
+  path — this gap won't be inherited for free from `enquiries`.
 - **`.update()` without `.select()`, then patching local state with what the
   client sent, diverges from the database wherever a trigger computes a
   value on that write.** Confirmed root cause of a real bug (2026-08-09):
