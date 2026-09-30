@@ -17,8 +17,10 @@ export interface JobConversation {
   created_at: string;
 }
 
-// Standalone function — get or create a job-stage conversation
-export async function getOrCreateConversation(jobId: string): Promise<string> {
+// Standalone function — get or create a job-stage conversation. Unused
+// today (no live caller — confirmed by repo-wide grep) but kept correct:
+// contractor_id is required by job_conversations' own NOT NULL constraint.
+export async function getOrCreateConversation(jobId: string, contractorId: string): Promise<string> {
   const { data: existing } = await (supabase as any)
     .from("job_conversations")
     .select("id")
@@ -29,7 +31,7 @@ export async function getOrCreateConversation(jobId: string): Promise<string> {
 
   const { data: created, error } = await (supabase as any)
     .from("job_conversations")
-    .insert({ job_id: jobId, context: "job" })
+    .insert({ job_id: jobId, contractor_id: contractorId, context: "job" })
     .select("id")
     .single();
 
@@ -75,35 +77,49 @@ export function useConversations() {
     }
 
     // ── 2. Enquiry-stage conversations ──────────────────────────────────────
-    // These have job_id = null but enquiry_id set.
-    // The contractor is on the enquiry; the customer is the enquiry's customer_id.
-    const { data: enquiryConvData } = await (supabase as any)
+    // These have job_id = null but enquiry_id set. job_conversations now
+    // carries its own contractor_id directly, so "my own threads as
+    // contractor" is a direct filter — no join through enquiries.contractor_id
+    // needed (and that join would be WRONG once an enquiry can have more
+    // than one contractor recipient: it would only ever match the single
+    // legacy scalar, silently hiding every other recipient's own thread).
+    // The customer side still needs the join — no customer_id column exists
+    // on job_conversations, and every enquiry has exactly one customer.
+    const { data: myContractorConvs } = await (supabase as any)
       .from("job_conversations")
-      .select("id, job_id, enquiry_id, context, created_at")
+      .select("id, job_id, enquiry_id, context, contractor_id, created_at")
       .eq("context", "enquiry")
-      .is("job_id", null);
+      .is("job_id", null)
+      .eq("contractor_id", profileId);
 
-    // Filter to only enquiry convs where the current user is involved
-    // (contractor on the enquiry, or customer on the enquiry)
-    const enquiryIds = (enquiryConvData || [])
-      .map((c: any) => c.enquiry_id)
-      .filter(Boolean);
+    const { data: myEnquiries } = await supabase
+      .from("enquiries")
+      .select("id, title, contractor_id, customer_id")
+      .eq("customer_id", profileId);
+    const myEnquiryIds = (myEnquiries || []).map((e) => e.id);
+    const enquiryMap = new Map((myEnquiries || []).map((e) => [e.id, e]));
 
-    let relevantEnquiryConvs: any[] = [];
-    if (enquiryIds.length > 0) {
-      const { data: enquiries } = await supabase
-        .from("enquiries")
-        .select("id, title, contractor_id, customer_id")
-        .in("id", enquiryIds)
-        .or(`contractor_id.eq.${profileId},customer_id.eq.${profileId}`);
-
-      const relevantEnquiryIds = new Set((enquiries || []).map((e) => e.id));
-      const enquiryMap = new Map((enquiries || []).map((e) => [e.id, e]));
-
-      relevantEnquiryConvs = (enquiryConvData || [])
-        .filter((c: any) => relevantEnquiryIds.has(c.enquiry_id))
-        .map((c: any) => ({ ...c, _enquiry: enquiryMap.get(c.enquiry_id) }));
+    let myCustomerConvs: any[] = [];
+    if (myEnquiryIds.length > 0) {
+      const { data } = await (supabase as any)
+        .from("job_conversations")
+        .select("id, job_id, enquiry_id, context, contractor_id, created_at")
+        .eq("context", "enquiry")
+        .is("job_id", null)
+        .in("enquiry_id", myEnquiryIds);
+      myCustomerConvs = data || [];
     }
+
+    // A conversation row can't be both (its contractor_id is either me or
+    // it isn't), but dedupe by id defensively rather than assume.
+    const seenConvIds = new Set<string>();
+    const relevantEnquiryConvs = [...(myContractorConvs || []), ...myCustomerConvs]
+      .filter((c: any) => {
+        if (seenConvIds.has(c.id)) return false;
+        seenConvIds.add(c.id);
+        return true;
+      })
+      .map((c: any) => ({ ...c, _enquiry: enquiryMap.get(c.enquiry_id) }));
 
     // ── 3. Quote-stage conversations ─────────────────────────────────────────
     // job_id = null, enquiry_id = null, issued_quote_id set — pre-job
@@ -216,7 +232,9 @@ export function useConversations() {
           context: "enquiry" as const,
           job_title: enquiry?.title ?? "Enquiry",
           job_status: "enquiry",
-          contractor_id: enquiry?.contractor_id ?? "",
+          // This conversation's own contractor, not enquiry.contractor_id —
+          // the two only always agree while an enquiry has one recipient.
+          contractor_id: conv.contractor_id ?? "",
           customer_id: enquiry?.customer_id ?? "",
           latest_message: latest?.content ?? null,
           latest_message_at: latest?.created_at ?? null,

@@ -7,6 +7,7 @@ import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
+import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
 
 type Enquiry = {
   id: string;
@@ -68,31 +69,10 @@ export function RespondDialog({ open, onOpenChange, enquiry, onSuccess }: Respon
       const customerId = enquiry.customer_id;
       if (!customerId) throw new Error("No customer on this enquiry");
 
-      // Find or create a job_conversations row for this enquiry
-      let conversationId: string;
-
-      const { data: existing } = await (supabase as any)
-        .from("job_conversations")
-        .select("id")
-        .eq("enquiry_id", enquiry.id)
-        .maybeSingle();
-
-      if (existing?.id) {
-        conversationId = existing.id;
-      } else {
-        const { data: newConv, error: convError } = await (supabase as any)
-          .from("job_conversations")
-          .insert({
-            enquiry_id: enquiry.id,
-            context: "enquiry",
-            // job_id is null at this stage — will be linked when job is created
-          })
-          .select("id")
-          .single();
-
-        if (convError) throw convError;
-        conversationId = newConv.id;
-      }
+      const conversationId = await getOrCreateEngagementConversation({
+        enquiryId: enquiry.id,
+        contractorId: contractorProfile.id,
+      });
 
       // Write message to job_messages
       const { error: msgError } = await (supabase as any)

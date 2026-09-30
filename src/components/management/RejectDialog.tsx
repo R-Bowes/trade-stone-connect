@@ -67,7 +67,7 @@ export function RejectDialog({ open, onOpenChange, enquiry, onSuccess }: RejectD
       // customer can see it — job_conversations/job_messages, the only
       // messaging system.
       if (reason.trim()) {
-        const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiry.id });
+        const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiry.id, contractorId });
         await supabase.from("job_messages").insert({
           conversation_id: conversationId,
           sender_id: contractorId,

@@ -88,7 +88,7 @@ export function ContractorMessageDialog({
         .single();
       if (enquiryError) throw enquiryError;
 
-      const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiryRow.id });
+      const conversationId = await getOrCreateEngagementConversation({ enquiryId: enquiryRow.id, contractorId: contractorProfile.id });
       const { error: msgError } = await supabase.from("job_messages").insert({
         conversation_id: conversationId,
         sender_id: senderProfile.id,

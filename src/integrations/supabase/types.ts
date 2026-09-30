@@ -3897,6 +3897,7 @@ export type Database = {
       job_conversations: {
         Row: {
           context: string
+          contractor_id: string
           created_at: string
           enquiry_id: string | null
           id: string
@@ -3905,6 +3906,7 @@ export type Database = {
         }
         Insert: {
           context?: string
+          contractor_id: string
           created_at?: string
           enquiry_id?: string | null
           id?: string
@@ -3913,6 +3915,7 @@ export type Database = {
         }
         Update: {
           context?: string
+          contractor_id?: string
           created_at?: string
           enquiry_id?: string | null
           id?: string
@@ -3920,6 +3923,20 @@ export type Database = {
           job_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_conversations_enquiry_id_fkey"
             columns: ["enquiry_id"]
