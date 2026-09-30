@@ -36,6 +36,13 @@ interface EnquiryDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onSendQuote: (enquiry: EnquiryDetail) => void;
   onDecline: (enquiry: EnquiryDetail) => void;
+  /** The viewing contractor's own profiles.id — required to scope the quote
+   * and site-visit lookups below to THIS contractor's own activity on the
+   * enquiry. Without it, a multi-recipient enquiry would surface another
+   * recipient's quote or site-visit proposal here. */
+  contractorId: string | null;
+  /** True once this enquiry has more than one recipient — never a count. */
+  isMultiRecipient?: boolean;
 }
 
 type CustomerInfo = {
@@ -116,7 +123,7 @@ function firstNameLastInitial(fullName: string | null): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, onDecline }: EnquiryDetailSheetProps) {
+export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, onDecline, contractorId, isMultiRecipient }: EnquiryDetailSheetProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
@@ -150,13 +157,15 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
         if (!cancelled) setCustomer(data ?? null);
       }
 
-      const { data: quoteRow } = await supabase
+      // Scoped to this contractor's own quote — enquiry_id alone is no
+      // longer enough once an enquiry can have several recipients, each
+      // with their own quote against it.
+      let quoteQuery = supabase
         .from("issued_quotes")
         .select("id, quote_number, version, total, status, accepted_at, rejected_at, created_at")
-        .eq("enquiry_id", enquiry.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("enquiry_id", enquiry.id);
+      if (contractorId) quoteQuery = quoteQuery.eq("contractor_id", contractorId);
+      const { data: quoteRow } = await quoteQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
 
       if (!cancelled && quoteRow) {
         setQuote(quoteRow as QuoteInfo);
@@ -169,11 +178,15 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
         if (!cancelled) setJob((jobRow as JobInfo) ?? null);
       }
 
-      const { data: visitRows } = await supabase
+      // Same scoping — another recipient's proposed site visit is not this
+      // contractor's to see.
+      let visitQuery = supabase
         .from("schedule_events")
         .select("start_time, status")
         .eq("enquiry_id", enquiry.id)
         .eq("event_type", "site_visit");
+      if (contractorId) visitQuery = visitQuery.eq("contractor_id", contractorId);
+      const { data: visitRows } = await visitQuery;
 
       if (!cancelled) {
         const rows = visitRows ?? [];
@@ -193,7 +206,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
 
     load();
     return () => { cancelled = true; };
-  }, [open, enquiry]);
+  }, [open, enquiry, contractorId]);
 
   if (!enquiry) return null;
 
@@ -203,7 +216,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
   const handleMessageClient = async () => {
     setMessaging(true);
     try {
-      await getOrCreateEngagementConversation({ enquiryId: enquiry.id });
+      await getOrCreateEngagementConversation({ enquiryId: enquiry.id, contractorId });
       onOpenChange(false);
       navigate("/dashboard/contractor?view=messages");
     } catch (error) {
@@ -242,6 +255,9 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
                   <SheetDescription>
                     Received {formatDateTime(enquiry.created_at)}
                   </SheetDescription>
+                  {isMultiRecipient && (
+                    <p className="text-xs text-muted-foreground mt-1">This job is also being quoted by other contractors.</p>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">

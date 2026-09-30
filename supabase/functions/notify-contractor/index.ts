@@ -68,6 +68,12 @@ serve(async (req) => {
     if (!enquiry_id || typeof enquiry_id !== "string") {
       return jsonResponse(400, { success: false, error: "enquiry_id required" }, corsHeaders);
     }
+    // Fan-out (compare-quotes): enquiries.contractor_id is null once an
+    // enquiry has more than one recipient, so the caller passes which
+    // recipient this notification is for. Omitted, this falls back to
+    // enquiry.contractor_id exactly as before — the single-recipient path
+    // (QuoteRequestDialog, ContractorMessageDialog) is unchanged.
+    const contractor_id_override: string | undefined = body?.contractor_id;
 
     const { data: enquiry, error: enquiryError } = await supabase
       .from("enquiries")
@@ -80,14 +86,15 @@ serve(async (req) => {
       return jsonResponse(404, { success: false, error: "Enquiry not found" }, corsHeaders);
     }
 
-    if (!enquiry.contractor_id) {
+    const targetContractorId = contractor_id_override || enquiry.contractor_id;
+    if (!targetContractorId) {
       return jsonResponse(400, { success: false, error: "Enquiry has no contractor_id" }, corsHeaders);
     }
 
     const { data: contractorProfile } = await supabase
       .from("profiles")
       .select("email, full_name")
-      .eq("id", enquiry.contractor_id)
+      .eq("id", targetContractorId)
       .maybeSingle();
 
     if (!contractorProfile?.email) {

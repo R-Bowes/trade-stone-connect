@@ -303,6 +303,7 @@ export function EngagementThread({
               enquiryId={engagement.enquiryRef?.id}
               quoteId={detail.quote?.id}
               jobId={detail.job?.id}
+              contractorId={contractorId}
             />
             <Separator />
 

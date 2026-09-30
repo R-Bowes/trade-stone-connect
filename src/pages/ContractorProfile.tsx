@@ -27,6 +27,8 @@ import { extractVideoId } from "@/hooks/useProfileVideos";
 import { isEmbeddable } from "@/lib/videoEmbed";
 import { ConsentGatedEmbed } from "@/components/shared/ConsentGatedEmbed";
 import { BeforeAfterSlider } from "@/components/profile/BeforeAfterSlider";
+import { useCompareShortlist } from "@/lib/compareShortlist";
+import { CompareQuotesFlow } from "@/components/compare/CompareQuotesFlow";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1064,6 +1066,7 @@ const ContractorProfile = () => {
   const [detailedScoresOpen, setDetailedScoresOpen] = useState(false);
   const [viewerAuthed, setViewerAuthed] = useState(false);
   const { toast } = useToast();
+  const { add: addToShortlist, isSelected: isInShortlist } = useCompareShortlist();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -1071,6 +1074,7 @@ const ContractorProfile = () => {
 
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
   const [isMessageOpen, setIsMessageOpen] = useState(false);
+  const [compareFlowOpen, setCompareFlowOpen] = useState(false);
 
   // Availability hook — read-only, safe for public pages; takes profiles.id.
   const { getNextAvailable, loading: availLoading } = useAvailability(profile?.id ?? "");
@@ -1629,7 +1633,9 @@ const ContractorProfile = () => {
             </button>
           </div>
 
-          {/* CTA — always last */}
+          {/* CTA — always last. The single-contractor enquiry button above
+              is the unchanged, primary action. "Add to comparison" is a
+              secondary, additive action — it never replaces or intercepts it. */}
           <div style={{ background: "white", borderRadius: "0 0 12px 12px", padding: "20px 24px", boxShadow: "0 1px 3px rgba(0,0,0,0.07)" }}>
             <button
               onClick={handleEnquire}
@@ -1637,9 +1643,37 @@ const ContractorProfile = () => {
             >
               {ctaLabel}
             </button>
+            {profile.id && (
+              <button
+                onClick={() => {
+                  const already = isInShortlist(profile.id);
+                  if (already) {
+                    setCompareFlowOpen(true);
+                    return;
+                  }
+                  const result = addToShortlist({
+                    id: profile.id,
+                    name: profile.full_name ?? "Contractor",
+                    tsCode: profile.ts_profile_code,
+                    avatarUrl: profile.logo_url ?? profile.avatar_url,
+                  });
+                  if (!result.ok && result.reason) {
+                    toast({ title: "Comparison full", description: result.reason, variant: "destructive" });
+                    return;
+                  }
+                  toast({ title: "Added to comparison", description: `${profile.full_name ?? "This contractor"} added to your shortlist.` });
+                }}
+                style={{ width: "100%", background: "white", color: NAVY, border: "1px solid #d1d5db", borderRadius: 8, padding: "12px", marginTop: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              >
+                <i className="ti ti-scale" style={{ fontSize: 16 }} />
+                {isInShortlist(profile.id) ? "View comparison shortlist" : "Add to comparison"}
+              </button>
+            )}
           </div>
         </div>
       </main>
+
+      <CompareQuotesFlow open={compareFlowOpen} onOpenChange={setCompareFlowOpen} source={viewSource} />
 
       <QuoteRequestDialog
         isOpen={isQuoteOpen}

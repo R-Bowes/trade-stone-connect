@@ -291,14 +291,18 @@ export function useContractorPipeline() {
       return;
     }
 
-    const [enquiriesRes, quotesRes, jobsRes, invoicesRes] = await Promise.all([
+    const [enquiryRecipientsRes, quotesRes, jobsRes, invoicesRes] = await Promise.all([
+      // Resolved via enquiry_recipients, not enquiries.contractor_id directly
+      // — that column is null once an enquiry has more than one recipient.
+      // invited/viewed/replied is the recipient-side equivalent of the old
+      // "new" or "replied" filter (not yet converted or declined).
       supabase
-        .from("enquiries")
+        .from("enquiry_recipients")
         .select(
-          "id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, company_id",
+          "status, enquiry:enquiries(id, title, job_description, location, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, company_id)",
         )
         .eq("contractor_id", contractorId)
-        .in("status", ["new", "replied"]),
+        .in("status", ["invited", "viewed", "replied"]),
       supabase
         .from("issued_quotes")
         .select(
@@ -318,7 +322,7 @@ export function useContractorPipeline() {
         .eq("contractor_id", contractorId),
     ]);
 
-    const fetchError = enquiriesRes.error || quotesRes.error || jobsRes.error || invoicesRes.error;
+    const fetchError = enquiryRecipientsRes.error || quotesRes.error || jobsRes.error || invoicesRes.error;
     if (fetchError) {
       console.error("Error fetching pipeline data:", fetchError);
       if (!silent) {
@@ -328,7 +332,22 @@ export function useContractorPipeline() {
       return;
     }
 
-    const rawEnquiries = (enquiriesRes.data as RawEnquiry[]) ?? [];
+    // status is carried through as the recipient's own status, mapped back
+    // to the legacy enquiries vocabulary (invited/viewed -> new) so
+    // toEnquiryState() below — and every other reader of this shape —
+    // keeps working unchanged against a single-recipient enquiry, and
+    // correctly reflects THIS contractor's own state on a shared one.
+    // contractor_id is likewise overwritten with the viewing contractor's
+    // own id (enquiries.contractor_id is null once this enquiry has
+    // several recipients) — every downstream reader of enquiryRef.contractor_id
+    // has always implicitly meant "me", not the legacy single-recipient scalar.
+    const rawEnquiries = ((enquiryRecipientsRes.data as any[]) ?? [])
+      .filter((r) => r.enquiry)
+      .map((r) => ({
+        ...(r.enquiry as RawEnquiry),
+        contractor_id: contractorId,
+        status: r.status === "invited" || r.status === "viewed" ? "new" : r.status,
+      }));
     const rawQuotes = (quotesRes.data as RawQuote[]) ?? [];
     const rawJobs = (jobsRes.data as RawJob[]) ?? [];
     const rawInvoices = (invoicesRes.data as RawInvoice[]) ?? [];
@@ -385,10 +404,10 @@ export function useContractorPipeline() {
 
     // Quote cards show client_address; when null (guest quotes issued
     // straight off an enquiry often don't repeat the address on the quote
-    // itself), fall back to the linked enquiry's location. The enquiries
-    // fetch above only covers status IN ('new','replied') — a quote's
-    // enquiry has usually moved past that by the time a quote exists — so
-    // this is a separate flat lookup, not a join off `rawEnquiries`.
+    // itself), fall back to the linked enquiry's location. The enquiry
+    // fetch above only covers recipient status invited/viewed/replied — a
+    // quote's enquiry has usually moved past that by the time a quote
+    // exists — so this is a separate flat lookup, not a join off `rawEnquiries`.
     const quoteEnquiryIds = Array.from(
       new Set(rawQuotes.map((q) => q.enquiry_id).filter((id): id is string => !!id)),
     );
@@ -410,11 +429,11 @@ export function useContractorPipeline() {
 
     // ---- enquiry stage ----
     for (const enq of rawEnquiries) {
-      // The fetch already filters to status IN ('new','replied') at the
-      // query level, but that's a query-time constraint, not a type-level
-      // guarantee — narrow properly rather than casting, and skip the card
-      // entirely if a future value somehow slips through unrecognised
-      // rather than crashing the whole pipeline render on it.
+      // The fetch already filters to recipient status invited/viewed/replied
+      // at the query level, but that's a query-time constraint, not a
+      // type-level guarantee — narrow properly rather than casting, and
+      // skip the card entirely if a future value somehow slips through
+      // unrecognised rather than crashing the whole pipeline render on it.
       const enquiryState = toEnquiryState(enq.status);
       if (!enquiryState) continue;
       const enquiryResult = presentState(enquiryState, "contractor");

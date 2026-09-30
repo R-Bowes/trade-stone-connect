@@ -19,6 +19,11 @@ import { useToast } from "@/hooks/use-toast";
 
 interface SiteVisitReviewDialogProps {
   enquiryId: string;
+  /** Which recipient's proposals this dialog reviews — required now an
+   * enquiry can have several contractors, each proposing their own site
+   * visit slots. Every query below is scoped to this pair, never
+   * enquiry_id alone. */
+  contractorId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onResolved?: () => void;
@@ -34,7 +39,6 @@ type EnquiryInfo = {
   title: string | null;
   job_description: string;
   location: string;
-  contractor_id: string | null;
 };
 
 function getAmPmLabel(startIso: string): string {
@@ -43,7 +47,7 @@ function getAmPmLabel(startIso: string): string {
   return "Afternoon (PM)";
 }
 
-export function SiteVisitReviewDialog({ enquiryId, open, onOpenChange, onResolved }: SiteVisitReviewDialogProps) {
+export function SiteVisitReviewDialog({ enquiryId, contractorId, open, onOpenChange, onResolved }: SiteVisitReviewDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -58,45 +62,40 @@ export function SiteVisitReviewDialog({ enquiryId, open, onOpenChange, onResolve
   const load = useCallback(async () => {
     setLoading(true);
 
-    const [{ data: enq }, { data: slotRows }] = await Promise.all([
+    const [{ data: enq }, { data: slotRows }, { data: contractor }] = await Promise.all([
       supabase
         .from("enquiries")
-        .select("title, job_description, location, contractor_id")
+        .select("title, job_description, location")
         .eq("id", enquiryId)
         .maybeSingle(),
       supabase
         .from("schedule_events")
         .select("id, start_time, status")
         .eq("enquiry_id", enquiryId)
+        .eq("contractor_id", contractorId)
         .eq("event_type", "site_visit")
         .order("start_time", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("full_name, company_name")
+        .eq("id", contractorId)
+        .maybeSingle(),
     ]);
 
     setEnquiry(enq ?? null);
     setSlots((slotRows as Slot[]) ?? []);
-
-    if (enq?.contractor_id) {
-      const { data: contractor } = await supabase
-        .from("profiles")
-        .select("full_name, company_name")
-        .eq("id", enq.contractor_id)
-        .maybeSingle();
-      setContractorName(contractor?.company_name || contractor?.full_name || null);
-    } else {
-      setContractorName(null);
-    }
+    setContractorName(contractor?.company_name || contractor?.full_name || null);
 
     setLoading(false);
-  }, [enquiryId]);
+  }, [enquiryId, contractorId]);
 
   useEffect(() => {
     if (open) load();
   }, [open, load]);
 
   const notifyContractor = async (title: string, message: string, type: string) => {
-    if (!enquiry?.contractor_id) return;
     await supabase.from("notifications").insert({
-      user_id: enquiry.contractor_id,
+      user_id: contractorId,
       title,
       message,
       type,
@@ -129,6 +128,7 @@ export function SiteVisitReviewDialog({ enquiryId, open, onOpenChange, onResolve
         .from("schedule_events")
         .update({ status: "declined" })
         .eq("enquiry_id", enquiryId)
+        .eq("contractor_id", contractorId)
         .eq("event_type", "site_visit")
         .neq("id", slotId);
       if (declineError) throw declineError;
@@ -161,6 +161,7 @@ export function SiteVisitReviewDialog({ enquiryId, open, onOpenChange, onResolve
         .from("schedule_events")
         .update({ status: "declined" })
         .eq("enquiry_id", enquiryId)
+        .eq("contractor_id", contractorId)
         .eq("event_type", "site_visit");
       if (error) throw error;
 

@@ -141,6 +141,59 @@ const ContractorDashboard = () => {
   });
   const [activeJobs, setActiveJobs] = useState<Partial<Job>[]>([]);
 
+  // Enquiries can only be missed by filtering on enquiries.contractor_id —
+  // that column is null for a multi-recipient (compare-quotes) enquiry, so
+  // "my enquiries" is resolved via enquiry_recipients instead. status is
+  // mapped back to the legacy enquiries vocabulary (invited/viewed -> new,
+  // everything else passthrough) so every existing badge/filter/action-gate
+  // comparison in this file against 'new'/'replied'/'declined'/'converted'
+  // keeps working unchanged.
+  const [multiRecipientMap, setMultiRecipientMap] = useState<Record<string, boolean>>({});
+
+  const mapRecipientStatusToEnquiryStatus = (status: string): string =>
+    status === "invited" || status === "viewed" ? "new" : status;
+
+  const loadEnquiriesFor = async (contractorId: string) => {
+    const { data, error } = await supabase
+      .from("enquiry_recipients")
+      .select(
+        "status, created_at, enquiry:enquiries(id, title, job_description, location, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls)",
+      )
+      .eq("contractor_id", contractorId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading enquiries:", error);
+      return;
+    }
+
+    // contractor_id is overwritten with the VIEWING contractor's own id,
+    // not left as whatever enquiries.contractor_id (the legacy single-
+    // recipient scalar, null once this enquiry has several recipients)
+    // happens to hold. Every downstream reader of enquiry.contractor_id —
+    // ProposeSiteVisitDialog, SendQuoteDialog's availability panel — has
+    // always implicitly meant "me, the contractor looking at this enquiry",
+    // which is exactly this parameter, correct regardless of how many
+    // other recipients exist.
+    const rows = (data || [])
+      .filter((r: any) => r.enquiry)
+      .map((r: any) => ({ ...r.enquiry, contractor_id: contractorId, status: mapRecipientStatusToEnquiryStatus(r.status) }));
+    setEnquiries(rows);
+
+    const enquiryIds = [...new Set(rows.map((r: any) => r.id))] as string[];
+    if (enquiryIds.length > 0) {
+      const results = await Promise.all(
+        enquiryIds.map(async (id) => {
+          const { data: isMulti } = await supabase.rpc("enquiry_has_multiple_recipients", { p_enquiry_id: id });
+          return [id, !!isMulti] as const;
+        }),
+      );
+      setMultiRecipientMap(Object.fromEntries(results));
+    } else {
+      setMultiRecipientMap({});
+    }
+  };
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -327,11 +380,7 @@ const ContractorDashboard = () => {
         !!profileData && !profileData.postcode && profileData.coverage_type === 'radius',
       );
 
-      const { data: enquiriesData, error: enquiriesError } = await supabase.from('enquiries')
-        .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
-        .eq('contractor_id', currentUser.id).order('created_at', { ascending: false });
-      if (enquiriesError) console.error('Error loading enquiries:', enquiriesError);
-      else setEnquiries(enquiriesData || []);
+      await loadEnquiriesFor(currentUser.id);
 
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -384,10 +433,7 @@ const ContractorDashboard = () => {
 
   const reloadEnquiries = async () => {
     if (!user) return;
-    const { data } = await supabase.from('enquiries')
-      .select('id, title, job_description, location, status, created_at, contractor_id, customer_id, customer_name, customer_email, customer_phone, customer_ts_code, job_type, priority, access_notes, budget_range, preferred_timeline, preferred_time_of_day, preferred_window_start, preferred_window_end, photo_urls')
-      .eq('contractor_id', user.id).order('created_at', { ascending: false });
-    setEnquiries(data || []);
+    await loadEnquiriesFor(user.id);
   };
 
   const reloadEnquiriesAndPipeline = () => { reloadEnquiries(); refetchPipeline(); };
@@ -620,6 +666,9 @@ const ContractorDashboard = () => {
                             <span className="truncate">{enquiry.location || "—"}</span>
                             <span className="shrink-0">{new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
+                          {multiRecipientMap[enquiry.id] && (
+                            <p className="text-xs text-muted-foreground mt-1">This job is also being quoted by other contractors.</p>
+                          )}
                         </div>
                         <i className="ti ti-chevron-right text-muted-foreground shrink-0" style={{ fontSize: 18 }} />
                       </div>
@@ -638,6 +687,9 @@ const ContractorDashboard = () => {
                             {enquiry.preferred_timeline && <span>Timeline: {enquiry.preferred_timeline}</span>}
                             <span>Received: {new Date(enquiry.created_at).toLocaleDateString('en-GB')}</span>
                           </div>
+                          {multiRecipientMap[enquiry.id] && (
+                            <p className="text-xs text-muted-foreground mt-2">This job is also being quoted by other contractors.</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 md:min-w-[160px] justify-end" onClick={(e) => e.stopPropagation()}>
                           <div className="flex flex-col gap-2">
@@ -767,6 +819,8 @@ const ContractorDashboard = () => {
           onOpenChange={setDetailSheetOpen}
           onSendQuote={(enquiry) => { setDetailSheetOpen(false); openEnquiryDialog(enquiry, 'quote'); }}
           onDecline={(enquiry) => { setDetailSheetOpen(false); openEnquiryDialog(enquiry, 'reject'); }}
+          contractorId={profileId}
+          isMultiRecipient={!!(detailEnquiry && multiRecipientMap[detailEnquiry.id])}
         />
 
         {profileId && (

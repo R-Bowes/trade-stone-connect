@@ -9,10 +9,11 @@ interface ThreadConversationSectionProps {
   enquiryId?: string | null;
   quoteId?: string | null;
   jobId?: string | null;
+  contractorId: string;
 }
 
-export function ThreadConversationSection({ enquiryId, quoteId, jobId }: ThreadConversationSectionProps) {
-  const { messages, resolving, sendMessage } = useEngagementConversation({ enquiryId, quoteId, jobId });
+export function ThreadConversationSection({ enquiryId, quoteId, jobId, contractorId }: ThreadConversationSectionProps) {
+  const { messages, resolving, sendMessage } = useEngagementConversation({ enquiryId, quoteId, jobId, contractorId });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);

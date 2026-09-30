@@ -6,6 +6,8 @@ interface EngagementContext {
   enquiryId?: string | null;
   quoteId?: string | null;
   jobId?: string | null;
+  /** Required whenever enquiryId is set — see getOrCreateEngagementConversation. */
+  contractorId: string;
 }
 
 /**
@@ -13,7 +15,7 @@ interface EngagementContext {
  * getOrCreateEngagementConversation) and wires it to useMessages for the
  * contractor's side of the thread.
  */
-export function useEngagementConversation({ enquiryId, quoteId, jobId }: EngagementContext) {
+export function useEngagementConversation({ enquiryId, quoteId, jobId, contractorId }: EngagementContext) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [resolving, setResolving] = useState(true);
 
@@ -27,7 +29,7 @@ export function useEngagementConversation({ enquiryId, quoteId, jobId }: Engagem
       return;
     }
 
-    getOrCreateEngagementConversation({ jobId, quoteId, enquiryId })
+    getOrCreateEngagementConversation({ jobId, quoteId, enquiryId, contractorId })
       .then((id) => {
         if (!cancelled) setConversationId(id);
       })
@@ -39,7 +41,7 @@ export function useEngagementConversation({ enquiryId, quoteId, jobId }: Engagem
     return () => {
       cancelled = true;
     };
-  }, [jobId, quoteId, enquiryId]);
+  }, [jobId, quoteId, enquiryId, contractorId]);
 
   const messagesState = useMessages(conversationId, "contractor");
 

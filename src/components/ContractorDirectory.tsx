@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Loader2, Clock3, X } from "lucide-react";
+import { Search, MapPin, Loader2, Clock3, X, Scale } from "lucide-react";
 import { ContractorCard, ContractorCardData } from "./ContractorCard";
 import { useContractors } from "@/hooks/useContractors";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompareShortlist } from "@/lib/compareShortlist";
+import { MAX_COMPARE_RECIPIENTS } from "@/lib/quoteRequestFields";
+import { CompareQuotesFlow } from "@/components/compare/CompareQuotesFlow";
+import { useToast } from "@/hooks/use-toast";
 
 type AvailabilityFilter = "all" | "available" | "unavailable";
 
@@ -15,6 +19,10 @@ const ContractorDirectory = () => {
   const [selectedTrade, setSelectedTrade] = useState<string | undefined>(undefined);
   const [location, setLocation] = useState("");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
+  const [compareMode, setCompareMode] = useState(false);
+  const [flowOpen, setFlowOpen] = useState(false);
+  const { shortlist, toggle, isSelected } = useCompareShortlist();
+  const { toast } = useToast();
 
   const { data: contractorQuery, isLoading } = useContractors(searchTerm, selectedTrade, location);
   const contractors = contractorQuery?.contractors ?? [];
@@ -130,6 +138,15 @@ const ContractorDirectory = () => {
                   Clear filters
                 </Button>
               )}
+
+              <Button
+                variant={compareMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCompareMode((v) => !v)}
+              >
+                <Scale className="h-4 w-4 mr-1" />
+                {compareMode ? "Comparing" : "Compare quotes"}
+              </Button>
             </div>
 
             <div className="text-sm text-muted-foreground">
@@ -164,7 +181,20 @@ const ContractorDirectory = () => {
                 recentJobs: null,
                 isNew: !contractor.rating && !contractor.review_count,
               };
-              return <ContractorCard key={contractor.user_id} contractor={mapped} />;
+              return (
+                <ContractorCard
+                  key={contractor.user_id}
+                  contractor={mapped}
+                  compareMode={compareMode}
+                  compareSelected={isSelected(mapped.id)}
+                  onToggleCompare={(c) => {
+                    const result = toggle({ id: c.id, name: c.name, tsCode: c.tsCode, avatarUrl: c.logoUrl ?? c.avatarUrl });
+                    if (!result.ok && result.reason) {
+                      toast({ title: "Comparison full", description: result.reason, variant: "destructive" });
+                    }
+                  }}
+                />
+              );
             })}
           </div>
         ) : (
@@ -178,6 +208,19 @@ const ContractorDirectory = () => {
             <Button variant="outline" size="lg">Load more</Button>
           </div>
         )}
+
+        {compareMode && shortlist.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full border bg-background px-4 py-2.5 shadow-lg">
+            <span className="text-sm font-medium">
+              {shortlist.length} of {MAX_COMPARE_RECIPIENTS} selected
+            </span>
+            <Button size="sm" onClick={() => setFlowOpen(true)}>
+              Request quotes
+            </Button>
+          </div>
+        )}
+
+        <CompareQuotesFlow open={flowOpen} onOpenChange={setFlowOpen} />
       </div>
     </section>
   );

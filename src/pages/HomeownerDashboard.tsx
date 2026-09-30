@@ -49,6 +49,7 @@ interface PendingInvoice {
 
 interface PendingSiteVisit {
   enquiryId: string;
+  contractorId: string;
   title: string;
   contractorName: string | null;
   slotCount: number;
@@ -64,7 +65,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
   const [pendingSiteVisits, setPendingSiteVisits] = useState<PendingSiteVisit[]>([]);
-  const [siteVisitDialogEnquiryId, setSiteVisitDialogEnquiryId] = useState<string | null>(null);
+  const [siteVisitDialogTarget, setSiteVisitDialogTarget] = useState<{ enquiryId: string; contractorId: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -134,10 +135,15 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
 
       // Site visit proposals are read via the schedule_events RLS policy
       // scoped to the customer's own enquiries — no need to filter by
-      // customer here, only by the pending status.
+      // customer here, only by the pending status. Grouped by
+      // (enquiry_id, contractor_id), not enquiry_id alone — an enquiry
+      // with several recipients can have several contractors each
+      // proposing their own site-visit slots, and enquiries.contractor_id
+      // (the legacy single-recipient scalar) is null once that's true, so
+      // it can no longer be used to attribute a proposal to its contractor.
       const { data: visitRows } = await supabase
         .from("schedule_events")
-        .select("id, enquiry_id, start_time")
+        .select("id, enquiry_id, contractor_id, start_time")
         .eq("event_type", "site_visit")
         .eq("status", "proposed")
         .order("start_time", { ascending: true });
@@ -146,10 +152,11 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
       if (enquiryIds.length > 0) {
         const { data: enqRows } = await supabase
           .from("enquiries")
-          .select("id, title, job_description, contractor_id")
+          .select("id, title, job_description")
           .in("id", enquiryIds);
+        const enqMap = new Map((enqRows ?? []).map((e) => [e.id, e]));
 
-        const contractorIds = [...new Set((enqRows ?? []).map((e) => e.contractor_id).filter((id): id is string => !!id))];
+        const contractorIds = [...new Set((visitRows ?? []).map((r) => r.contractor_id).filter((id): id is string => !!id))];
         const { data: contractorRows } = contractorIds.length > 0
           ? await supabase.from("profiles").select("id, full_name, company_name").in("id", contractorIds)
           : { data: [] as { id: string; full_name: string | null; company_name: string | null }[] };
@@ -157,14 +164,26 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
           (contractorRows ?? []).map((c) => [c.id, c.company_name || c.full_name || "Contractor"]),
         );
 
-        setPendingSiteVisits(
-          (enqRows ?? []).map((e) => ({
-            enquiryId: e.id,
-            title: e.title || e.job_description?.slice(0, 60) || "Enquiry",
-            contractorName: e.contractor_id ? contractorNameMap.get(e.contractor_id) ?? null : null,
-            slotCount: (visitRows ?? []).filter((r) => r.enquiry_id === e.id).length,
-          })),
-        );
+        const byPair = new Map<string, PendingSiteVisit>();
+        for (const r of visitRows ?? []) {
+          if (!r.enquiry_id || !r.contractor_id) continue;
+          const key = `${r.enquiry_id}:${r.contractor_id}`;
+          const e = enqMap.get(r.enquiry_id);
+          const existing = byPair.get(key);
+          if (existing) {
+            existing.slotCount += 1;
+          } else {
+            byPair.set(key, {
+              enquiryId: r.enquiry_id,
+              contractorId: r.contractor_id,
+              title: e?.title || e?.job_description?.slice(0, 60) || "Enquiry",
+              contractorName: contractorNameMap.get(r.contractor_id) ?? null,
+              slotCount: 1,
+            });
+          }
+        }
+
+        setPendingSiteVisits([...byPair.values()]);
       } else {
         setPendingSiteVisits([]);
       }
@@ -269,7 +288,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
             <div className="space-y-2">
               {pendingSiteVisits.map((v) => (
                 <div
-                  key={v.enquiryId}
+                  key={`${v.enquiryId}:${v.contractorId}`}
                   className="flex items-center justify-between gap-4 p-3 rounded-lg border"
                 >
                   <div className="min-w-0">
@@ -278,7 +297,7 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
                       {v.contractorName ?? "Contractor"} proposed {v.slotCount} date{v.slotCount !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => setSiteVisitDialogEnquiryId(v.enquiryId)}>
+                  <Button size="sm" onClick={() => setSiteVisitDialogTarget({ enquiryId: v.enquiryId, contractorId: v.contractorId })}>
                     Review
                   </Button>
                 </div>
@@ -393,11 +412,12 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
         )}
       </div>
 
-      {siteVisitDialogEnquiryId && (
+      {siteVisitDialogTarget && (
         <SiteVisitReviewDialog
-          enquiryId={siteVisitDialogEnquiryId}
-          open={!!siteVisitDialogEnquiryId}
-          onOpenChange={(o) => { if (!o) setSiteVisitDialogEnquiryId(null); }}
+          enquiryId={siteVisitDialogTarget.enquiryId}
+          contractorId={siteVisitDialogTarget.contractorId}
+          open={!!siteVisitDialogTarget}
+          onOpenChange={(o) => { if (!o) setSiteVisitDialogTarget(null); }}
           onResolved={() => setReloadKey((k) => k + 1)}
         />
       )}

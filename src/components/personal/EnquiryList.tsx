@@ -3,25 +3,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, MapPin, Calendar, MessageCircle, Clock } from "lucide-react";
+import { Loader2, ChevronLeft, MapPin, Calendar, MessageCircle, Clock, Users } from "lucide-react";
 import { format, parseISO, addDays, startOfToday } from "date-fns";
 import { useAvailability } from "@/hooks/useAvailability";
 import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
+
+type RecipientContractor = {
+  full_name: string | null;
+  company_name: string | null;
+  ts_profile_code: string | null;
+};
+
+type Recipient = {
+  contractor_id: string;
+  status: string;
+  contractor: RecipientContractor | null;
+};
 
 type Enquiry = {
   id: string;
   title: string | null;
   job_description: string;
   location: string;
-  status: string | null;
   created_at: string | null;
-  contractor_id: string | null;
   photo_urls: string[] | null;
-  contractor: {
-    full_name: string | null;
-    company_name: string | null;
-    ts_profile_code: string | null;
-  } | null;
+  recipients: Recipient[];
 };
 
 type Message = {
@@ -37,6 +43,12 @@ type ConversationWithMessages = {
   messages: Message[];
 };
 
+// enquiry_recipients.status is a different, deliberately unrenamed
+// vocabulary (invited/viewed/replied/converted/declined) from what this
+// dict expects — mapped back to the legacy enquiries-style values
+// (invited/viewed -> new) before reaching statusBadge(), same mapping
+// ContractorDashboard.tsx uses, so a recipient's badge here matches
+// whatever the contractor themselves sees.
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   new:       { label: "Sent",      variant: "secondary" },
   viewed:    { label: "Viewed",    variant: "default" },
@@ -46,6 +58,10 @@ const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secon
   closed:    { label: "Closed",    variant: "outline" },
 };
 
+function mapRecipientStatus(status: string): string {
+  return status === "invited" || status === "viewed" ? "new" : status;
+}
+
 function statusBadge(status: string | null) {
   const s = STATUS_LABELS[status ?? "new"] ?? { label: status ?? "Sent", variant: "secondary" as const };
   return <Badge variant={s.variant}>{s.label}</Badge>;
@@ -54,6 +70,10 @@ function statusBadge(status: string | null) {
 function formatDate(iso: string | null) {
   if (!iso) return "";
   try { return format(parseISO(iso), "d MMM yyyy"); } catch { return ""; }
+}
+
+function contractorDisplayName(c: RecipientContractor | null): string {
+  return c?.company_name ?? c?.full_name ?? "Unknown";
 }
 
 // Availability panel — only rendered when contractor_id is known
@@ -142,6 +162,104 @@ function ContractorAvailabilityPanel({ contractorId }: { contractorId: string })
   );
 }
 
+// One contractor's own block within an enquiry's detail view — status,
+// availability, and its own conversation thread, resolved on the
+// (enquiry_id, contractor_id) pair, never enquiry_id alone (a different
+// recipient's thread must never surface here).
+function RecipientThread({ enquiryId, recipient, profileId }: { enquiryId: string; recipient: Recipient; profileId: string }) {
+  const [conversation, setConversation] = useState<ConversationWithMessages | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data: convData } = await supabase
+        .from("job_conversations")
+        .select("id")
+        .eq("enquiry_id", enquiryId)
+        .eq("contractor_id", recipient.contractor_id)
+        .maybeSingle();
+
+      if (!convData) {
+        if (!cancelled) { setConversation(null); setLoading(false); }
+        return;
+      }
+
+      const { data: msgData } = await supabase
+        .from("job_messages")
+        .select("id, content, created_at, sender_id")
+        .eq("conversation_id", convData.id)
+        .order("created_at", { ascending: true });
+
+      if (!cancelled) {
+        setConversation({
+          id: convData.id,
+          messages: (msgData ?? []).map((m) => ({
+            id: m.id,
+            content: m.content,
+            created_at: m.created_at,
+            sender_id: m.sender_id,
+            is_mine: m.sender_id === profileId,
+          })),
+        });
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [enquiryId, recipient.contractor_id, profileId]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">{contractorDisplayName(recipient.contractor)}</CardTitle>
+            {recipient.contractor?.ts_profile_code && (
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{recipient.contractor.ts_profile_code}</p>
+            )}
+          </div>
+          {statusBadge(mapRecipientStatus(recipient.status))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ContractorAvailabilityPanel contractorId={recipient.contractor_id} />
+
+        <div>
+          <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+            <MessageCircle className="h-3.5 w-3.5" /> Messages
+          </p>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading messages...
+            </div>
+          ) : !conversation || conversation.messages.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              No messages yet. This contractor will respond here once they review your enquiry.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {conversation.messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.is_mine ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    msg.is_mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                  }`}>
+                    <p>{msg.content}</p>
+                    <p className={`text-xs mt-1 ${msg.is_mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                      {formatDate(msg.created_at)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface EnquiryListProps {
   profileId: string;
   refreshKey?: number;
@@ -152,69 +270,63 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Enquiry | null>(null);
-  const [conversation, setConversation] = useState<ConversationWithMessages | null>(null);
-  const [convLoading, setConvLoading] = useState(false);
 
   const fetchEnquiries = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // Every enquiry has at least one enquiry_recipients row (the mirror-down
+    // trigger creates it at enquiry creation) — querying from the recipient
+    // side, grouped by enquiry, covers both the single-contractor and
+    // compare-quotes cases uniformly. enquiries.contractor_id alone would
+    // miss every recipient on a multi-recipient enquiry (it's null there).
     const { data, error: err } = await supabase
-      .from("enquiries")
+      .from("enquiry_recipients")
       .select(`
-        id, title, job_description, location, status, created_at, contractor_id, photo_urls,
-        contractor:profiles!enquiries_contractor_id_fkey (
-          full_name, company_name, ts_profile_code
-        )
+        enquiry_id, contractor_id, status,
+        contractor:profiles!enquiry_recipients_contractor_id_fkey ( full_name, company_name, ts_profile_code ),
+        enquiry:enquiries!inner ( id, title, job_description, location, created_at, photo_urls, customer_id )
       `)
-      .eq("customer_id", profileId)
+      .eq("enquiry.customer_id", profileId)
       .order("created_at", { ascending: false });
 
-    if (err) { setError("Could not load your enquiries."); }
-    else { setEnquiries((data as Enquiry[]) ?? []); }
+    if (err) {
+      setError("Could not load your enquiries.");
+      setLoading(false);
+      return;
+    }
+
+    const byEnquiry = new Map<string, Enquiry>();
+    for (const row of (data ?? []) as any[]) {
+      const e = row.enquiry;
+      if (!e) continue;
+      let entry = byEnquiry.get(e.id);
+      if (!entry) {
+        entry = {
+          id: e.id,
+          title: e.title,
+          job_description: e.job_description,
+          location: e.location,
+          created_at: e.created_at,
+          photo_urls: e.photo_urls,
+          recipients: [],
+        };
+        byEnquiry.set(e.id, entry);
+      }
+      entry.recipients.push({
+        contractor_id: row.contractor_id,
+        status: row.status,
+        contractor: row.contractor ?? null,
+      });
+    }
+
+    setEnquiries([...byEnquiry.values()]);
     setLoading(false);
   }, [profileId]);
 
   useEffect(() => {
     fetchEnquiries();
   }, [fetchEnquiries, refreshKey]);
-
-  const openDetail = useCallback(async (enquiry: Enquiry) => {
-    setSelected(enquiry);
-    setConversation(null);
-
-    if (!enquiry.contractor_id) return;
-
-    setConvLoading(true);
-    // job_conversations/job_messages — the only messaging system. Keyed
-    // directly on this enquiry's id, unlike the legacy conversations table's
-    // loose initiator/recipient match (which could surface a conversation
-    // with a different contractor entirely).
-    const { data: convData } = await supabase
-      .from("job_conversations")
-      .select("id")
-      .eq("enquiry_id", enquiry.id)
-      .maybeSingle();
-
-    if (!convData) { setConvLoading(false); return; }
-
-    const { data: msgData } = await supabase
-      .from("job_messages")
-      .select("id, content, created_at, sender_id")
-      .eq("conversation_id", convData.id)
-      .order("created_at", { ascending: true });
-
-    setConversation({
-      id: convData.id,
-      messages: (msgData ?? []).map((m) => ({
-        id: m.id,
-        content: m.content,
-        created_at: m.created_at,
-        sender_id: m.sender_id,
-        is_mine: m.sender_id === profileId,
-      })),
-    });
-    setConvLoading(false);
-  }, [profileId]);
 
   // Detail view
   if (selected) {
@@ -230,7 +342,11 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
               <CardTitle className="text-lg leading-snug">
                 {selected.title ?? selected.job_description.slice(0, 60)}
               </CardTitle>
-              {statusBadge(selected.status)}
+              {selected.recipients.length > 1 && (
+                <Badge variant="outline" className="gap-1">
+                  <Users className="h-3 w-3" /> {selected.recipients.length} contractors
+                </Badge>
+              )}
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-1">
               <span className="flex items-center gap-1">
@@ -250,64 +366,20 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
             {selected.photo_urls && selected.photo_urls.length > 0 && (
               <EnquiryPhotoThumbnails paths={selected.photo_urls} label="Your photos" />
             )}
-
-            {selected.contractor ? (
-              <div className="rounded-lg border p-3 space-y-0.5">
-                <p className="text-sm font-medium">Contractor</p>
-                <p className="text-sm">
-                  {selected.contractor.company_name ?? selected.contractor.full_name ?? "Unknown"}
-                </p>
-                {selected.contractor.ts_profile_code && (
-                  <p className="text-xs text-muted-foreground font-mono">{selected.contractor.ts_profile_code}</p>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-lg border p-3">
-                <p className="text-sm text-muted-foreground">This enquiry has not yet been assigned to a contractor.</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        {selected.contractor_id && (
-          <ContractorAvailabilityPanel contractorId={selected.contractor_id} />
+        {selected.recipients.length === 0 ? (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">This enquiry has not yet been assigned to a contractor.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          selected.recipients.map((r) => (
+            <RecipientThread key={r.contractor_id} enquiryId={selected.id} recipient={r} profileId={profileId} />
+          ))
         )}
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" /> Messages
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {convLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading messages...
-              </div>
-            ) : !conversation || conversation.messages.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                No messages yet. The contractor will respond here once they review your enquiry.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {conversation.messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.is_mine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      msg.is_mine
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground"
-                    }`}>
-                      <p>{msg.content}</p>
-                      <p className={`text-xs mt-1 ${msg.is_mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                        {formatDate(msg.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -343,7 +415,7 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
         <Card
           key={enq.id}
           className="cursor-pointer hover:border-primary/50 transition-colors"
-          onClick={() => openDetail(enq)}
+          onClick={() => setSelected(enq)}
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-4">
@@ -358,14 +430,21 @@ export function EnquiryList({ profileId, refreshKey = 0 }: EnquiryListProps) {
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> {formatDate(enq.created_at)}
                   </span>
-                  {enq.contractor && (
+                  {enq.recipients.length === 1 && enq.recipients[0].contractor && (
                     <span className="flex items-center gap-1">
-                      {enq.contractor.company_name ?? enq.contractor.full_name}
+                      {contractorDisplayName(enq.recipients[0].contractor)}
+                    </span>
+                  )}
+                  {enq.recipients.length > 1 && (
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" /> {enq.recipients.length} contractors
                     </span>
                   )}
                 </div>
               </div>
-              {statusBadge(enq.status)}
+              {enq.recipients.length === 1
+                ? statusBadge(mapRecipientStatus(enq.recipients[0].status))
+                : null}
             </div>
           </CardContent>
         </Card>

@@ -75,7 +75,15 @@ function RecentJobsStrip({
   );
 }
 
-export function ContractorCard({ contractor }: { contractor: ContractorCardData }) {
+interface ContractorCardProps {
+  contractor: ContractorCardData;
+  /** Compare-quotes selection mode — shows a checkbox, disables the click-through navigate. */
+  compareMode?: boolean;
+  compareSelected?: boolean;
+  onToggleCompare?: (contractor: ContractorCardData) => void;
+}
+
+export function ContractorCard({ contractor, compareMode, compareSelected, onToggleCompare }: ContractorCardProps) {
   const navigate = useNavigate();
 
   // Fix: call getNextAvailable() as a function, not destructure nextAvailable
@@ -91,6 +99,10 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
     : null;
 
   const handleClick = () => {
+    if (compareMode) {
+      onToggleCompare?.(contractor);
+      return;
+    }
     navigate(`/contractor/${contractor.tsCode}`, { state: { source: "marketplace" } });
   };
 
@@ -99,7 +111,7 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
 
   return (
     <div
-      style={styles.card}
+      style={{ ...styles.card, position: "relative" }}
       onClick={handleClick}
       role="button"
       tabIndex={0}
@@ -115,6 +127,32 @@ export function ContractorCard({ contractor }: { contractor: ContractorCardData 
         (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
       }}
     >
+      {compareMode && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 2,
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: compareSelected ? "#1a2744" : "rgba(255,255,255,0.9)",
+            border: compareSelected ? "2px solid #1a2744" : "2px solid #fff",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+          aria-hidden="true"
+        >
+          {compareSelected ? "✓" : ""}
+        </div>
+      )}
       {/* Orange header strip */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>

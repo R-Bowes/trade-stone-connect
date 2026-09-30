@@ -10900,6 +10900,10 @@ export type Database = {
       }
       accept_work_order: { Args: { p_work_order_id: string }; Returns: string }
       acting_contractor_ids: { Args: never; Returns: string[] }
+      add_enquiry_recipient: {
+        Args: { p_contractor_id: string; p_enquiry_id: string }
+        Returns: string
+      }
       admin_update_verification: {
         Args: {
           p_companies_house_status?: string
@@ -11077,6 +11081,10 @@ export type Database = {
       engagement_company_id: {
         Args: { p_engagement_id: string }
         Returns: string
+      }
+      enquiry_has_multiple_recipients: {
+        Args: { p_enquiry_id: string }
+        Returns: boolean
       }
       generate_b2b_invoice: {
         Args: {
