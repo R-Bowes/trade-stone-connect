@@ -11033,6 +11033,14 @@ export type Database = {
         Args: { p_contractor_id: string }
         Returns: string
       }
+      decline_quote: {
+        Args: {
+          p_quote_id: string
+          p_reason_code?: string
+          p_reason_note?: string
+        }
+        Returns: undefined
+      }
       decline_tender_agreement: {
         Args: { p_agreement_id: string; p_reason?: string }
         Returns: undefined

@@ -136,6 +136,27 @@ export function useReceivedQuotes() {
     fetchQuotes();
   }, [fetchQuotes]);
 
+  // Direct decline, with an optional structured reason — replaces
+  // respondToQuote(quoteId, "rejected") for the UI path. Goes through the
+  // decline_quote RPC rather than a plain client update: it also writes
+  // enquiry_recipients.status='declined' (today's plain update left that
+  // row looking identical to a live, undecided one), which a bare
+  // issued_quotes update can't do under RLS alone.
+  const declineQuote = async (quoteId: string, reasonCode?: string | null, reasonNote?: string | null) => {
+    const { error } = await supabase.rpc("decline_quote", {
+      p_quote_id: quoteId,
+      p_reason_code: reasonCode ?? null,
+      p_reason_note: reasonNote ?? null,
+    });
+    if (error) {
+      toast({ title: "Error", description: "Failed to decline quote", variant: "destructive" });
+      throw error;
+    }
+    markRecentAction(quoteId);
+    await fetchQuotes();
+    return quoteId;
+  };
+
   const respondToQuote = async (quoteId: string, response: "accepted" | "rejected" | "stalled") => {
     const { error } = await supabase
       .from("issued_quotes")
@@ -160,5 +181,5 @@ export function useReceivedQuotes() {
     return quoteId;
   };
 
-  return { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, refetch: fetchQuotes };
+  return { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, declineQuote, refetch: fetchQuotes };
 }

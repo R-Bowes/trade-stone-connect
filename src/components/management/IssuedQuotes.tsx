@@ -17,6 +17,7 @@ import { formatQuoteRef } from "@/lib/documentRefs";
 import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
 import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
 import { groupByQuoteNumber, resolveGoverningQuote, quoteVersionKey } from "@/lib/quoteVersions";
+import { declineReasonLabel } from "@/lib/declineReasons";
 import { QuoteCard } from "@/components/shared/QuoteCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 
@@ -163,6 +164,22 @@ function QuoteDetailPanel({
   const isDraft = quote.status === "draft";
   const isSent = quote.status === "sent";
   const isRejected = quote.status === "rejected";
+
+  const [declineReason, setDeclineReason] = useState<{ code: string | null; note: string | null } | null>(null);
+  useEffect(() => {
+    if (!isRejected || !quote.enquiry_id) { setDeclineReason(null); return; }
+    let cancelled = false;
+    supabase
+      .from("enquiry_recipients")
+      .select("decline_reason_code, decline_reason_note")
+      .eq("enquiry_id", quote.enquiry_id)
+      .eq("contractor_id", quote.contractor_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setDeclineReason({ code: data.decline_reason_code, note: data.decline_reason_note });
+      });
+    return () => { cancelled = true; };
+  }, [isRejected, quote.enquiry_id, quote.contractor_id]);
   const isAccepted = quote.status === "accepted";
   const isSuperseded = quote.status === "superseded";
 
@@ -269,6 +286,17 @@ function QuoteDetailPanel({
           {quote.accepted_at && <div>Accepted: {fmtDate(quote.accepted_at)}</div>}
           {quote.rejected_at && <div>Rejected: {fmtDate(quote.rejected_at)}</div>}
         </div>
+
+        {declineReason && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-2.5 text-sm text-red-900">
+            <p>{declineReasonLabel(declineReason.code) ?? "This quote was declined."}</p>
+            {declineReason.note && (
+              <p className="mt-1 text-xs text-red-800">
+                <span className="font-medium">Note from the client:</span> {declineReason.note}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Version history */}
         {versionChain.length > 1 && (

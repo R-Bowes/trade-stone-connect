@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { getOrCreateEngagementConversation } from "@/lib/engagementConversation";
 import { formatQuoteRef, formatJobRef } from "@/lib/documentRefs";
+import { declineReasonLabel } from "@/lib/declineReasons";
 
 export type EnquiryDetail = {
   id: string;
@@ -130,6 +131,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
   const [quote, setQuote] = useState<QuoteInfo | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [siteVisit, setSiteVisit] = useState<SiteVisitInfo | null>(null);
+  const [declineReason, setDeclineReason] = useState<{ code: string | null; note: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -147,6 +149,19 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
       setQuote(null);
       setJob(null);
       setSiteVisit(null);
+      setDeclineReason(null);
+
+      if (contractorId) {
+        const { data: recipientRow } = await supabase
+          .from("enquiry_recipients")
+          .select("status, decline_reason_code, decline_reason_note")
+          .eq("enquiry_id", enquiry.id)
+          .eq("contractor_id", contractorId)
+          .maybeSingle();
+        if (!cancelled && recipientRow?.status === "declined") {
+          setDeclineReason({ code: recipientRow.decline_reason_code, note: recipientRow.decline_reason_note });
+        }
+      }
 
       if (enquiry.customer_id) {
         const { data } = await supabase
@@ -257,6 +272,16 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
                   </SheetDescription>
                   {isMultiRecipient && (
                     <p className="text-xs text-muted-foreground mt-1">This job is also being quoted by other contractors.</p>
+                  )}
+                  {declineReason && (
+                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2.5 text-sm text-red-900">
+                      <p>{declineReasonLabel(declineReason.code) ?? "This enquiry was declined."}</p>
+                      {declineReason.note && (
+                        <p className="mt-1 text-xs text-red-800">
+                          <span className="font-medium">Note from the client:</span> {declineReason.note}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

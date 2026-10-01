@@ -903,22 +903,47 @@ public client ratings; automatic service refusal based on payment history.
 
 ## Tech debt / known issues to revisit
 
-- **Only the company owner can create a business enquiry.** `BusinessRequestsView.tsx`
-  always sets `customer_id: company.owner_id` on insert, regardless of who
-  actually submits the form. The `enquiries` INSERT RLS requires
-  `customer_id` to match the submitter's own profile, so a non-owner active
-  company member's insert fails RLS (42501) — the screen implies any
-  member can raise a request, but only the owner actually can. Found
-  during the `enquiries` RLS consolidation (2026-09-29); not fixed there
-  (out of scope, code bug not a policy bug).
-- **No company-member UPDATE policy on `enquiries`.** A company member who
-  can read a company enquiry (via `is_company_member(company_id)`) cannot
-  change it — only the row's own `customer_id`/`contractor_id` or a
-  platform admin can. In practice only the owner can update a company
-  enquiry, since (per the bug above) only the owner ever becomes its
-  `customer_id`. Relevant to the multi-recipient enquiry work:
-  `enquiry_recipients` will need its own explicit company-member write
-  path — this gap won't be inherited for free from `enquiries`.
+- **One root cause, three symptoms: `company.owner_id` is the only profile
+  ever written into a business enquiry's customer-facing columns, so a
+  non-owner active company member can't create, update, or (as of
+  2026-10-01) accept a quote on a business enquiry — only the owner can.**
+  - **Create**: `BusinessRequestsView.tsx` always sets `customer_id:
+    company.owner_id` on insert, regardless of who actually submits the
+    form. The `enquiries` INSERT RLS requires `customer_id` to match the
+    submitter's own profile, so a non-owner member's insert fails RLS
+    (42501) — the screen implies any member can raise a request, but only
+    the owner actually can. Found during the `enquiries` RLS consolidation
+    (2026-09-29).
+  - **Update**: no company-member UPDATE policy exists on `enquiries` at
+    all — only the row's own `customer_id`/`contractor_id` or a platform
+    admin can change it. Since `customer_id` is always the owner (per the
+    bug above), only the owner can ever update a company enquiry.
+    `enquiry_recipients` needed its own explicit company-member write path
+    rather than inheriting this gap — see `add_enquiry_recipient()`
+    (2026-09-30), which correctly checks `is_company_member()`.
+  - **Accept**: `accept_quote_with_slot`'s caller-authorisation check (a
+    direct `recipient_id = caller` equality, unmodified from the original
+    function) has no `is_company_member` fallback. `SendQuoteDialog.tsx`
+    sets `issued_quotes.recipient_id = enquiry.customer_id`, which is
+    always the owner — so chained together, only the company owner can
+    ever accept a B2B quote. Found 2026-10-01 while verifying the
+    accept/decline extension; not fixed there (pre-existing, not
+    introduced by that change, same root cause as the two above).
+  Not fixed anywhere yet — each symptom was found and logged as its own
+  surface was touched, never addressed as the one underlying cause it is.
+- **`AdminDashboard.tsx`'s contractor-reassign control surfaces a raw
+  Postgres error.** Reassigning `enquiries.contractor_id` on an enquiry
+  whose quote has already been accepted is correctly blocked by
+  `enforce_enquiry_recipient_limits` (you can't add a new recipient once
+  one's been accepted — reassigning away from an accepted, likely-minted
+  quote would orphan the job from its enquiry; the guard is doing its job,
+  confirmed intentional 2026-10-01). But the admin UI has no handling for
+  it — a 23514 check-violation reaches the client as-is, so an admin sees
+  a bare Postgres error with no indication of what happened or whether
+  something broke. Either disable the reassign control when the enquiry
+  has an accepted quote, or catch the error and say plainly that it can't
+  be reassigned once a quote has been accepted. Not part of the
+  accept/decline build that found it.
 - **`.update()` without `.select()`, then patching local state with what the
   client sent, diverges from the database wherever a trigger computes a
   value on that write.** Confirmed root cause of a real bug (2026-08-09):

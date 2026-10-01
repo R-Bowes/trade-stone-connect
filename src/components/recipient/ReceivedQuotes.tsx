@@ -12,9 +12,10 @@ import { formatQuoteRef } from "@/lib/documentRefs";
 import { groupByQuoteNumber, resolveGoverningQuote } from "@/lib/quoteVersions";
 import { QuoteCard } from "@/components/shared/QuoteCard";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { DeclineQuoteDialog } from "./DeclineQuoteDialog";
 
 export function ReceivedQuotes() {
-  const { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, refetch } = useReceivedQuotes();
+  const { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, declineQuote, refetch } = useReceivedQuotes();
   const [messageDialog, setMessageDialog] = useState<{
     open: boolean;
     quote: ReceivedQuote | null;
@@ -23,6 +24,7 @@ export function ReceivedQuotes() {
   const { toast } = useToast();
   const [scheduleQuote, setScheduleQuote] = useState<ReceivedQuote | null>(null);
   const [acceptScreenQuote, setAcceptScreenQuote] = useState<ReceivedQuote | null>(null);
+  const [declineQuoteTarget, setDeclineQuoteTarget] = useState<ReceivedQuote | null>(null);
   const [pendingIds, setPendingIds] = useState<Record<string, string>>({});
 
   // Governing version per quote_number — same precedence useContractorPipeline
@@ -62,14 +64,20 @@ export function ReceivedQuotes() {
     setScheduleQuote(quote);
   };
 
-  const handleReject = async (quote: ReceivedQuote) => {
+  const handleRejectClick = (quote: ReceivedQuote) => {
+    setDeclineQuoteTarget(quote);
+  };
+
+  const handleDeclineConfirmed = async (reasonCode: string | null, reasonNote: string | null) => {
+    const quote = declineQuoteTarget;
+    if (!quote) return;
     setPendingIds((prev) => ({ ...prev, [quote.id]: "rejected" }));
     try {
-      await respondToQuote(quote.id, "rejected");
+      await declineQuote(quote.id, reasonCode, reasonNote);
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "reject", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
-      toast({ title: "Quote rejected", description: "The contractor has been notified." });
+      toast({ title: "Quote declined", description: "The contractor has been notified." });
     } finally {
       setPendingIds((prev) => {
         const next = { ...prev };
@@ -162,7 +170,7 @@ export function ReceivedQuotes() {
                         <CheckCircle className="h-4 w-4 mr-1" />Expired
                       </Button>
                     )}
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(q)}>
+                    <Button size="sm" variant="destructive" onClick={() => handleRejectClick(q)}>
                       <XCircle className="h-4 w-4 mr-1" />Reject
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => handleStall(q)}>
@@ -256,6 +264,13 @@ export function ReceivedQuotes() {
           contextId={messageDialog.quote.id}
         />
       )}
+
+      <DeclineQuoteDialog
+        open={!!declineQuoteTarget}
+        onOpenChange={(o) => { if (!o) setDeclineQuoteTarget(null); }}
+        contractorName={declineQuoteTarget?.contractor_name}
+        onConfirm={handleDeclineConfirmed}
+      />
     </div>
   );
 }
