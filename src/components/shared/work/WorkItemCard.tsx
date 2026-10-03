@@ -22,9 +22,9 @@ const BAND_BADGE: Record<WorkItem["band"], { label: string; className: string }>
   waiting: { label: "Waiting", className: "bg-blue-100 text-blue-800" },
 };
 
-// Needs-you, not-overdue — the app's existing "this needs you" orange
-// (PipelineCard's PRIMARY_STYLE), reused here so the same signal reads the
-// same colour everywhere, not just in the unified list.
+// Needs-you, not-overdue — the app's "this needs you" orange, shared with
+// EngagementThread's PRIMARY_STYLE so the same signal reads the same colour
+// everywhere, not just in the unified list.
 const NEEDS_YOU_STYLE = { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" };
 
 /**

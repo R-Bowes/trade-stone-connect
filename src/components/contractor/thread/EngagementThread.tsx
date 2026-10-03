@@ -26,7 +26,7 @@ import { ThreadSchedulingSection } from "./ThreadSchedulingSection";
 import { ThreadJobSection, type ThreadJob } from "./ThreadJobSection";
 import { ThreadInvoiceSection, type ThreadInvoice } from "./ThreadInvoiceSection";
 
-// NEEDS_YOU primary action = orange fill — matches PipelineCard's PRIMARY_STYLE.
+// NEEDS_YOU primary action = orange fill — matches WorkItemCard's NEEDS_YOU_STYLE.
 const PRIMARY_STYLE = { backgroundColor: "#f07820", color: "#fff", borderColor: "#f07820" };
 
 interface EngagementDetail {
@@ -164,7 +164,7 @@ export function EngagementThread({
   const canArchive = !!detail?.quote && !detail?.job && detail.quote.status !== "lapsed";
 
   // useContractorPipeline only ever produces stage:"enquiry" engagements for
-  // enquiries with status IN ('new','replied') — same guard PipelineCard uses.
+  // enquiries with status IN ('new','replied').
   const isActionableEnquiry = engagement?.stage === "enquiry";
 
   const handleOpenEnquiryDialog = (dialog: "quote" | "reject" | "site_visit") => {

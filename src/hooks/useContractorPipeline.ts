@@ -743,10 +743,11 @@ export function useContractorPipeline() {
 
   // Fresh data on tab-focus-return is desirable, but must never re-arm the
   // loading gate — that would swap the card list for a spinner and undo
-  // whatever the contractor was mid-way through reading. `key={e.key}` on
-  // each PipelineCard (see ContractorDashboard.tsx) is already a stable
-  // per-engagement id rather than an array index, so replacing `engagements`
-  // in place reconciles onto the same DOM nodes without a remount.
+  // whatever the contractor was mid-way through reading. `e.key` is a stable
+  // per-engagement id rather than an array index, carried through to
+  // `WorkItem.key` (lib/workItems.ts) and used as `key={item.key}` on each
+  // WorkItemCard (WorkItemsList.tsx), so replacing `engagements` in place
+  // reconciles onto the same DOM nodes without a remount.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
