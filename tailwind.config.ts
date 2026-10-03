@@ -98,7 +98,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Lexend',
+  				'Barlow',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
