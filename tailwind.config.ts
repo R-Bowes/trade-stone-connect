@@ -98,7 +98,6 @@ export default {
   		fontFamily: {
   			sans: [
   				'Lexend',
-  				'Roboto',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -110,7 +109,7 @@ export default {
   				'sans-serif'
   			],
   			serif: [
-  				'Libre Caslon Text',
+  				'Source Serif 4',
   				'ui-serif',
   				'Georgia',
   				'Cambria',
@@ -131,7 +130,6 @@ export default {
   			],
 			heading: [
 				'Barlow Condensed',
-				'Roboto',
 				'ui-sans-serif',
 				'system-ui',
 				'sans-serif'

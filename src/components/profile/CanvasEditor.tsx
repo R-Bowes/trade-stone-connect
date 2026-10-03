@@ -1790,7 +1790,7 @@ function TopBar({ draft, isDirty, inSync, saving, publishing, onSave, onPublish,
 
   return (
     <div style={{ height: 48, background: NAVY, display: "flex", alignItems: "center", padding: "0 16px", gap: 8, flexShrink: 0, zIndex: 30, overflow: "hidden" }}>
-      <span className="hidden md:inline" style={{ fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: ORANGE, flexShrink: 0 }}>TradeStone</span>
+      <span className="hidden md:inline" style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.02em", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: ORANGE, flexShrink: 0 }}>TradeStone</span>
       <span className="hidden md:inline" style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
         {draft.displayName || "Profile"}
       </span>

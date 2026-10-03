@@ -181,7 +181,7 @@ const ContractorOnboarding = () => {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-[#1a2744]" style={{ fontFamily: "Georgia, serif" }}>
+          <div className="text-2xl font-bold text-[#1a2744]" style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}>
             Trade<span className="text-[#f07820]">Stone</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">Contractor setup — step {step} of 4</p>

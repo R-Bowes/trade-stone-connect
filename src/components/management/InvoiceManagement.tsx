@@ -301,7 +301,7 @@ export function InvoiceManagement() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Invoice #</p>
-                  <p className="font-semibold font-mono">{formatInvoiceRef(previewInvoice.invoice_number)}</p>
+                  <p className="font-medium font-mono">{formatInvoiceRef(previewInvoice.invoice_number)}</p>
                   <p className="text-sm text-muted-foreground mt-2">Issued: {format(new Date(previewInvoice.issued_date), "dd MMM yyyy")}</p>
                   <p className="text-sm text-muted-foreground">Due: {format(new Date(previewInvoice.due_date), "dd MMM yyyy")}</p>
                   <div className="mt-2">{getStatusBadge(previewInvoice)}</div>

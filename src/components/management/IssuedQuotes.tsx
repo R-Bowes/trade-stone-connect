@@ -254,7 +254,7 @@ function QuoteDetailPanel({
         {quote.deposit_required && quote.deposit_amount != null && (
           <div className="text-sm bg-muted/40 rounded p-3">
             <span className="text-muted-foreground">Deposit required: </span>
-            <span className="font-mono font-semibold">{fmtMoney(quote.deposit_amount)}</span>
+            <span className="font-mono font-medium">{fmtMoney(quote.deposit_amount)}</span>
           </div>
         )}
 

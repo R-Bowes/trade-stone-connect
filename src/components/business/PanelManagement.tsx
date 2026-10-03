@@ -192,7 +192,7 @@ function ScoreBlock({ row }: { row: ContractorScoreRow | undefined }) {
             <Award className="h-3 w-3 text-muted-foreground" />
             <span className="text-muted-foreground">{d.label}:</span>
             {ok ? (
-              <span className="font-mono font-semibold">{score!.toFixed(1)}/10</span>
+              <span className="font-mono font-medium">{score!.toFixed(1)}/10</span>
             ) : (
               <span className="text-muted-foreground italic">Not enough jobs yet</span>
             )}
