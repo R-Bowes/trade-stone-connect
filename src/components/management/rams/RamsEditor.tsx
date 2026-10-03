@@ -19,6 +19,7 @@ import {
   type RamsTemplate,
   type RiskLevel,
 } from "@/hooks/useRams";
+import { AddressInput, EMPTY_ADDRESS, composeAddressString, type AddressValue, type CountryCode } from "@/components/shared/AddressInput";
 
 const RISK_LEVELS: RiskLevel[] = ["low", "medium", "high"];
 
@@ -272,7 +273,13 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [siteAddress, setSiteAddress] = useState("");
+  // address is the structured, authoritative source; jobRams.site_address
+  // is the legacy free-text mirror, kept in sync in handleSaveContent
+  // below — never read back into `address`. Initialised from the row's
+  // own addr_* columns (never parsed from site_address); every existing
+  // RAMS record has no addr_* data yet, so this renders empty today and
+  // the user retypes the address structurally.
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
   const [jobDescription, setJobDescription] = useState("");
   const [assessorName, setAssessorName] = useState("");
   const [hazards, setHazards] = useState<Hazard[]>([]);
@@ -302,7 +309,14 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
 
   useEffect(() => {
     if (!jobRams) return;
-    setSiteAddress(jobRams.site_address ?? "");
+    setAddress({
+      addr_line1: jobRams.addr_line1 ?? null,
+      addr_line2: jobRams.addr_line2 ?? null,
+      addr_city: jobRams.addr_city ?? null,
+      addr_region: jobRams.addr_region ?? null,
+      addr_postcode: jobRams.addr_postcode ?? null,
+      addr_country: (jobRams.addr_country as CountryCode | null) ?? null,
+    });
     setJobDescription(jobRams.job_description ?? "");
     setHazards(jobRams.hazards);
     setMethodSteps(jobRams.method_steps);
@@ -344,8 +358,22 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
   const handleSaveContent = async () => {
     setSaving(true);
     try {
+      // Dual-write: composeAddressString(address) is authoritative when
+      // the structured fields have actually been filled in; if
+      // AddressInput was left untouched, fall back to whatever
+      // site_address already held rather than blanking out a value that
+      // may have been auto-filled from the job's own location at RAMS
+      // creation (see useRams.ts's createFromTemplate/createBlank). One
+      // direction only — site_address is never read back into `address`.
+      const composedAddress = composeAddressString(address);
       await updateJobRams(jobRams.id, {
-        site_address: siteAddress || null,
+        addr_line1: address.addr_line1,
+        addr_line2: address.addr_line2,
+        addr_city: address.addr_city,
+        addr_region: address.addr_region,
+        addr_postcode: address.addr_postcode,
+        addr_country: address.addr_country,
+        site_address: composedAddress || jobRams.site_address || null,
         job_description: jobDescription || null,
         hazards,
         method_steps: methodSteps,
@@ -412,9 +440,15 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
         <CardContent className="p-4 space-y-3">
           <h3 className="font-heading text-lg font-bold">Job Details</h3>
           <div className="grid sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-1 sm:col-span-2">
               <Label>Site address</Label>
-              <Input value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} disabled={readOnly} />
+              <AddressInput
+                value={address}
+                onChange={setAddress}
+                disabled={readOnly}
+                legacyValue={jobRams.site_address}
+                idPrefix="rams-addr"
+              />
             </div>
             <div className="space-y-1">
               <Label>Date of assessment</Label>
@@ -465,7 +499,7 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm text-amber-900">
               I confirm that this risk assessment and method statement has been reviewed and specifically adapted
-              for the works at <strong>{siteAddress || "this site"}</strong> on <strong>{format(new Date(), "d MMM yyyy")}</strong>.
+              for the works at <strong>{composeAddressString(address) || jobRams.site_address || "this site"}</strong> on <strong>{format(new Date(), "d MMM yyyy")}</strong>.
               Generic, un-tailored RAMS do not meet HSE requirements.
             </p>
             <div className="space-y-1">

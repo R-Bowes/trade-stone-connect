@@ -41,6 +41,15 @@ export interface JobRams {
   contractor_id: string;
   template_id: string | null;
   site_address: string | null;
+  // Structured address fields (20260817150000_structured_address_schema.sql).
+  // site_address above is the legacy free-text mirror, kept in sync by
+  // RamsEditor's save handler — never read back from here.
+  addr_line1: string | null;
+  addr_line2: string | null;
+  addr_city: string | null;
+  addr_region: string | null;
+  addr_postcode: string | null;
+  addr_country: string | null;
   job_description: string | null;
   hazards: Hazard[];
   method_steps: MethodStep[];
