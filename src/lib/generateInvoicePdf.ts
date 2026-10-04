@@ -32,7 +32,7 @@ export async function fetchContractorProfileForPdf(): Promise<ContractorProfile 
   if (!user) return undefined;
 
   const { data: profile } = await supabase
-    .from("profiles")
+    .from("my_profile")
     .select("full_name, company_name, email, phone, address, ts_profile_code, logo_url")
     .eq("user_id", user.id)
     .maybeSingle();

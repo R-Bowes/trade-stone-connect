@@ -12,6 +12,7 @@ import { SubcontractManagement } from "./SubcontractManagement";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/formatDate";
+import { lookupTsCodesByEmail } from "@/lib/lookupTsCodes";
 
 interface Contract {
   id: string;
@@ -74,17 +75,7 @@ export function ContractManagement() {
 
       const emails = [...new Set(loaded.map(c => c.client_email).filter(Boolean))];
       if (emails.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("email, ts_profile_code")
-          .in("email", emails);
-        if (profiles) {
-          const map: Record<string, string> = {};
-          for (const p of profiles) {
-            if (p.email && p.ts_profile_code) map[p.email] = p.ts_profile_code;
-          }
-          setClientTsCodeMap(map);
-        }
+        setClientTsCodeMap(await lookupTsCodesByEmail(emails));
       }
     } catch (error) {
       console.error("Error loading contracts:", error);

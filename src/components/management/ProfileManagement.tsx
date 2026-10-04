@@ -99,7 +99,7 @@ export function ProfileManagement() {
       setUserId(user.id);
 
       const { data, error } = await supabase
-        .from("profiles")
+        .from("my_profile")
         .select("*")
         .eq("user_id", user.id)
         .single();

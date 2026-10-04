@@ -634,9 +634,11 @@ const ProjectDelivery = () => {
       if (project.retention_percentage && proposal.total_cost) {
         const retentionAmount = Math.round((project.retention_percentage / 100) * proposal.total_cost * 100) / 100;
 
-        // Fetch client profile for invoice details
+        // Client profile for the invoice — the caller's OWN row: final
+        // sign-off is client-only (isClient: my profile id === posted_by),
+        // so read it from my_profile (email/phone are locked on profiles).
         const { data: clientProfile } = await supabase
-          .from("profiles")
+          .from("my_profile")
           .select("full_name, company_name, email, phone, user_id")
           .eq("id", project.posted_by)
           .single();

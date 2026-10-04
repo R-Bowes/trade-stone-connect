@@ -367,7 +367,7 @@ const ContractorDashboard = () => {
         postcode: string | null;
         coverage_type: string | null;
       }
-      const { data: profileDataRaw } = await supabase.from('profiles').select('trades, location, working_radius, logo_url, stripe_account_id, postcode, coverage_type').eq('user_id', currentUser.id).single();
+      const { data: profileDataRaw } = await supabase.from('my_profile').select('trades, location, working_radius, logo_url, stripe_account_id, postcode, coverage_type').eq('user_id', currentUser.id).single();
       const profileData = profileDataRaw as ProfileCompletenessRow | null;
       setStripeAccountId(profileData?.stripe_account_id ?? null);
       const trades = profileData?.trades;

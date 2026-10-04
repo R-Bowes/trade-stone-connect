@@ -285,7 +285,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
     if (existing?.id) return existing.id;
 
     const { data: profile } = await supabase
-      .from("profiles")
+      .from("my_profile")
       .select("full_name, company_name, email, phone, location")
       .eq("id", profileId)
       .maybeSingle();

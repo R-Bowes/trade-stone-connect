@@ -44,7 +44,7 @@ export const StripeConnect = () => {
     if (!user) return;
 
     const { data: profile } = await supabase
-      .from("profiles")
+      .from("my_profile")
       .select(
         "stripe_account_id, stripe_transfers_capability, stripe_payouts_enabled, stripe_disabled_reason, stripe_requirements_currently_due" as const,
       )

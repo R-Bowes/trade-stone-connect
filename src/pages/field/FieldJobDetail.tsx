@@ -89,15 +89,18 @@ export default function FieldJobDetail() {
     setJob(jobData);
 
     if (jobData.customer_id) {
-      // Phone fetched only while the job is live — not for complete or
-      // cancelled jobs (see PHONE_STATUSES).
-      if (PHONE_STATUSES.has(jobData.status)) {
-        const { data } = await supabase.from("profiles").select("full_name, phone").eq("id", jobData.customer_id).maybeSingle();
-        setCustomer(data ? { full_name: data.full_name, phone: data.phone } : null);
-      } else {
-        const { data } = await supabase.from("profiles").select("full_name").eq("id", jobData.customer_id).maybeSingle();
-        setCustomer(data ? { full_name: data.full_name, phone: null } : null);
-      }
+      // Phone is a locked profiles column: it comes only from
+      // get_job_customer_phone, which returns it for the contractor's team
+      // on a scheduled / in-progress / snagging job and null otherwise.
+      // Not even requested for complete or cancelled jobs.
+      const [{ data: nameRow }, phoneRes] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("id", jobData.customer_id).maybeSingle(),
+        PHONE_STATUSES.has(jobData.status)
+          ? supabase.rpc("get_job_customer_phone", { p_job_id: jobData.id })
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      if (phoneRes.error) console.error("[FieldJobDetail] customer phone lookup failed", phoneRes.error);
+      setCustomer({ full_name: nameRow?.full_name ?? null, phone: (phoneRes.data as string | null) ?? null });
     }
   };
 

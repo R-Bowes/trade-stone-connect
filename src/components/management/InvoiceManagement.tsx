@@ -24,6 +24,7 @@ import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaym
 import { RequestRefundDialog } from "@/components/management/RequestRefundDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
+import { lookupTsCodesByEmail } from "@/lib/lookupTsCodes";
 
 export function InvoiceManagement() {
   const {
@@ -43,18 +44,7 @@ export function InvoiceManagement() {
   useEffect(() => {
     if (invoices.length === 0) return;
     const emails = [...new Set(invoices.map(inv => inv.client_email).filter(Boolean))];
-    supabase
-      .from("profiles")
-      .select("email, ts_profile_code")
-      .in("email", emails)
-      .then(({ data }) => {
-        if (!data) return;
-        const map: Record<string, string> = {};
-        for (const row of data) {
-          if (row.email && row.ts_profile_code) map[row.email] = row.ts_profile_code;
-        }
-        setClientTsCodeMap(map);
-      });
+    void lookupTsCodesByEmail(emails).then(setClientTsCodeMap);
   }, [invoices]);
 
   const filteredInvoices = useMemo(() => {

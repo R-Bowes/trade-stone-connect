@@ -297,7 +297,7 @@ export function useProfileEditor() {
       if (!user) { setLoading(false); return; }
 
       const { data: profile } = await supabase
-        .from("profiles")
+        .from("my_profile")
         .select("*")
         .eq("user_id", user.id)
         .single();

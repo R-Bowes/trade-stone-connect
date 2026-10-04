@@ -444,7 +444,7 @@ function HomeownerSettings() {
       setEmail(user.email ?? "");
 
       const { data } = await supabase
-        .from("profiles")
+        .from("my_profile")
         .select("full_name, phone, location, ts_profile_code")
         .eq("user_id", user.id)
         .maybeSingle();

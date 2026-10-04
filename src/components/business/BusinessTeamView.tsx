@@ -40,6 +40,9 @@ interface PendingInviteRow {
   invited_email: string | null;
   invite_token: string | null;
   profile_id: string | null;
+  // TS-code invites only (profile_id set): readable profile columns, for the
+  // pending-list label. Never email — that column is locked.
+  profiles: { full_name: string | null; ts_profile_code: string | null } | null;
 }
 
 interface SiteGroup {
@@ -53,10 +56,11 @@ interface SiteEntry {
   name: string;
 }
 
+// No email: profiles.email is locked, and a TS-code lookup must not reveal an
+// arbitrary account's email address.
 interface CodeResult {
   id: string;
   full_name: string | null;
-  email: string | null;
   ts_profile_code: string | null;
   user_type: string;
 }
@@ -222,16 +226,20 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
-    const [activeRes, pendingRes, groupsRes, sitesRes] = await Promise.all([
+    // Members' email is a locked profiles column: names, emails and TS codes
+    // for the roster come from get_company_member_contacts (members of this
+    // company only), merged onto the business_members rows by profile_id.
+    const [activeRes, contactsRes, pendingRes, groupsRes, sitesRes] = await Promise.all([
       supabase
         .from("business_members")
-        .select("id, coverage_kind, coverage_group_id, coverage_site_id, profile_id, invited_email, profiles(full_name, email, ts_profile_code)")
+        .select("id, coverage_kind, coverage_group_id, coverage_site_id, profile_id, invited_email")
         .eq("company_id", companyId)
         .eq("status", "active")
         .order("created_at"),
+      supabase.rpc("get_company_member_contacts", { p_company_id: companyId }),
       supabase
         .from("business_members")
-        .select("id, coverage_kind, coverage_group_id, coverage_site_id, invited_email, invite_token, profile_id")
+        .select("id, coverage_kind, coverage_group_id, coverage_site_id, invited_email, invite_token, profile_id, profiles(full_name, ts_profile_code)")
         .eq("company_id", companyId)
         .eq("status", "invited")
         .order("created_at"),
@@ -245,7 +253,17 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
         .eq("company_id", companyId)
         .eq("is_active", true),
     ]);
-    setActiveMembers((activeRes.data ?? []) as unknown as ActiveMember[]);
+    if (contactsRes.error) console.error("get_company_member_contacts failed:", contactsRes.error);
+    const contactsById = new Map((contactsRes.data ?? []).map((c) => [c.profile_id, c]));
+    setActiveMembers(
+      (activeRes.data ?? []).map((m) => {
+        const c = m.profile_id ? contactsById.get(m.profile_id) : undefined;
+        return {
+          ...m,
+          profiles: c ? { full_name: c.full_name, email: c.email, ts_profile_code: c.ts_profile_code } : null,
+        };
+      }),
+    );
     setPendingInvites(pendingRes.data ?? []);
     setGroups(groupsRes.data ?? []);
     setSites((sitesRes.data ?? []) as SiteEntry[]);
@@ -361,7 +379,7 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, ts_profile_code, user_type")
+        .select("id, full_name, ts_profile_code, user_type")
         .eq("ts_profile_code", inviteCode.trim().toUpperCase())
         .maybeSingle();
       if (error) throw error;
@@ -406,14 +424,14 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
           coverage_group_id: inviteCoverage.coverage_group_id,
           coverage_site_id: inviteCoverage.coverage_site_id,
           profile_id: codeResolved.id,
-          invited_email: codeResolved.email,
+          invited_email: null,
           status: "invited",
           invite_token: null,
         });
       if (error) throw error;
       toast({
         title: "Invite sent",
-        description: `${codeResolved.full_name ?? codeResolved.email} will see the invite in their dashboard.`,
+        description: `${codeResolved.full_name ?? codeResolved.ts_profile_code} will see the invite in their dashboard.`,
       });
       setInviteMode("none");
       setInviteCode("");
@@ -566,8 +584,11 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                   const link = inv.invite_token
                     ? `${window.location.origin}/invite?token=${inv.invite_token}`
                     : null;
-                  const label = inv.invited_email
-                    ?? (inv.profile_id ? "TS-Code invite" : "Link invite");
+                  // TS-code invites: the invitee's name, else their TS code.
+                  // Link invites: the email typed when the link was made.
+                  const label = inv.profile_id
+                    ? (inv.profiles?.full_name || inv.profiles?.ts_profile_code || inv.invited_email || "TS-Code invite")
+                    : (inv.invited_email ?? "Link invite");
                   return (
                     <div
                       key={inv.id}
@@ -744,7 +765,6 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                 <div className="space-y-3">
                   <div className="rounded border p-3 text-sm space-y-0.5">
                     <p className="font-medium">{codeResolved.full_name ?? "No name"}</p>
-                    <p className="text-xs text-muted-foreground">{codeResolved.email}</p>
                     <p
                       className="text-xs text-muted-foreground"
                       style={{ fontFamily: "'Roboto Mono', monospace" }}

@@ -68,7 +68,7 @@ export function CompareQuoteRequestDialog({ isOpen, onClose, shortlist, onSent, 
         return;
       }
       const { data: profile } = await supabase
-        .from("profiles")
+        .from("my_profile")
         .select("full_name, email, phone, location")
         .eq("user_id", user.id)
         .single();

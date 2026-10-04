@@ -81,7 +81,7 @@ const BusinessSettings = ({ embedded = false }: BusinessSettingsProps) => {
       }
 
       const { data: profileRow, error: profileError } = await supabase
-        .from("profiles")
+        .from("my_profile")
         .select("id, user_type, full_name, email, phone")
         .eq("user_id", user.id)
         .maybeSingle();

@@ -59,7 +59,6 @@ type ProposalRow = {
   contractor: {
     full_name: string | null;
     company_name: string | null;
-    stripe_account_id: string | null;
   } | null;
   attachments: AttachmentRow[];
 };
@@ -277,7 +276,7 @@ const ProposalReview = () => {
   async function loadProposals(projectId: string) {
     const { data: propsData } = await supabase
       .from("project_proposals")
-      .select(`*, contractor:profiles!contractor_id(full_name, company_name, stripe_account_id)`)
+      .select(`*, contractor:profiles!contractor_id(full_name, company_name)`)
       .eq("project_id", projectId)
       .order("submitted_at", { ascending: true });
 

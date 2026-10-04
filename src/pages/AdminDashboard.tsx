@@ -270,20 +270,18 @@ export default function AdminDashboard() {
     if (activeTab !== 'broadcast') return;
     setBroadcastRecipientCount(null);
     const timer = setTimeout(async () => {
-      const db = supabase as any;
-      let query = db.from('profiles').select('id', { count: 'exact', head: true });
-      if (broadcastAudienceType !== 'all') {
-        const dbType = broadcastAudienceType === 'customers' ? 'personal' : broadcastAudienceType;
-        query = query.eq('user_type', dbType);
-      }
-      if (broadcastAudienceType === 'contractors' && broadcastTrade) {
-        query = query.contains('trades', [broadcastTrade]);
-      }
-      if (broadcastAudienceType === 'contractors' && broadcastVerification !== 'all') {
-        query = query.eq('is_verified', broadcastVerification === 'verified');
-      }
-      const { count } = await query;
-      setBroadcastRecipientCount(count ?? 0);
+      // Admin reads of profiles go through admin_list_profiles (raises for
+      // non-admins); the audience filters are applied here.
+      const { data, error } = await supabase.rpc('admin_list_profiles');
+      if (error) { console.error('admin_list_profiles failed:', error); setBroadcastRecipientCount(0); return; }
+      const dbType = broadcastAudienceType === 'customers' ? 'personal' : broadcastAudienceType;
+      const count = (data ?? []).filter((p) => {
+        if (broadcastAudienceType !== 'all' && p.user_type !== dbType) return false;
+        if (broadcastAudienceType === 'contractors' && broadcastTrade && !(p.trades ?? []).includes(broadcastTrade)) return false;
+        if (broadcastAudienceType === 'contractors' && broadcastVerification !== 'all' && !!p.is_verified !== (broadcastVerification === 'verified')) return false;
+        return true;
+      }).length;
+      setBroadcastRecipientCount(count);
     }, 400);
     return () => clearTimeout(timer);
   }, [activeTab, broadcastAudienceType, broadcastTrade, broadcastVerification]);
@@ -304,9 +302,10 @@ export default function AdminDashboard() {
       refundsRes,
       contractorDebtsRes,
     ] = await Promise.all([
-      db.from('profiles')
-        .select('id, ts_profile_code, full_name, user_type, email, trades, location, bio, stripe_account_id, is_verified, created_at')
-        .order('created_at', { ascending: false }),
+      // Full rows including locked columns (email, stripe_account_id) — admin
+      // only, via admin_list_profiles (raises for non-admins). Already
+      // ordered by created_at desc.
+      supabase.rpc('admin_list_profiles'),
       db.from('enquiries')
         .select('id, status, job_description, location, created_at, customer_id, contractor_id')
         .order('created_at', { ascending: false }),

@@ -333,6 +333,13 @@ export type Database = {
             foreignKeyName: "business_members_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -635,6 +642,13 @@ export type Database = {
             foreignKeyName: "contractor_absences_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_absences_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -680,6 +694,13 @@ export type Database = {
             foreignKeyName: "contractor_availability_overrides_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_availability_overrides_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -709,6 +730,13 @@ export type Database = {
           next_value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_counters_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_counters_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -775,6 +803,13 @@ export type Database = {
           verified_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_credentials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_credentials_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -872,6 +907,13 @@ export type Database = {
             foreignKeyName: "contractor_documents_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contractor_documents_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -928,6 +970,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_materials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_materials_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1040,6 +1089,13 @@ export type Database = {
             foreignKeyName: "contractor_photo_galleries_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_photo_galleries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1097,6 +1153,13 @@ export type Database = {
             foreignKeyName: "contractor_photos_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contractor_photos_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -1142,6 +1205,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_project_groups_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_project_groups_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1203,6 +1273,13 @@ export type Database = {
             foreignKeyName: "contractor_projects_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_projects_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1258,6 +1335,13 @@ export type Database = {
             foreignKeyName: "contractor_register_checks_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_register_checks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1299,6 +1383,13 @@ export type Database = {
           signal_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_score_history_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_score_history_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1365,6 +1456,13 @@ export type Database = {
           value_signal_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_scores_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_scores_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1441,6 +1539,13 @@ export type Database = {
             foreignKeyName: "contractor_tools_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_tools_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1494,6 +1599,13 @@ export type Database = {
           vehicle_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_vehicles_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_vehicles_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1579,6 +1691,13 @@ export type Database = {
             foreignKeyName: "contractor_verification_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: true
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1617,6 +1736,13 @@ export type Database = {
           start_time?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_working_patterns_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_working_patterns_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1683,6 +1809,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contracts_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "contracts_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1765,6 +1898,13 @@ export type Database = {
             foreignKeyName: "cooling_off_records_consumer_id_fkey"
             columns: ["consumer_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cooling_off_records_consumer_id_fkey"
+            columns: ["consumer_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1773,6 +1913,13 @@ export type Database = {
             columns: ["consumer_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cooling_off_records_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -1851,6 +1998,13 @@ export type Database = {
             foreignKeyName: "craft_signals_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_signals_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1914,6 +2068,13 @@ export type Database = {
             columns: ["callback_id"]
             isOneToOne: false
             referencedRelation: "job_callbacks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "craft_timer_windows_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -2068,6 +2229,13 @@ export type Database = {
             foreignKeyName: "crm_clients_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_clients_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2127,6 +2295,13 @@ export type Database = {
             foreignKeyName: "disputes_raised_by_fkey"
             columns: ["raised_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2178,6 +2353,13 @@ export type Database = {
             foreignKeyName: "engagement_notes_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2186,6 +2368,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -2344,6 +2533,13 @@ export type Database = {
             foreignKeyName: "engagement_rates_agreed_by_business_fkey"
             columns: ["agreed_by_business"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_agreed_by_business_fkey"
+            columns: ["agreed_by_business"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2352,6 +2548,13 @@ export type Database = {
             columns: ["agreed_by_business"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_rates_agreed_by_contractor_fkey"
+            columns: ["agreed_by_contractor"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -2567,6 +2770,13 @@ export type Database = {
             foreignKeyName: "enquiries_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2575,6 +2785,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -2684,6 +2901,13 @@ export type Database = {
             foreignKeyName: "enquiry_recipients_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enquiry_recipients_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2735,6 +2959,13 @@ export type Database = {
           sort_order?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "expense_categories_owner_contractor_id_fkey"
+            columns: ["owner_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expense_categories_owner_contractor_id_fkey"
             columns: ["owner_contractor_id"]
@@ -2855,6 +3086,13 @@ export type Database = {
             foreignKeyName: "expenses_contractor_id_fk"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_contractor_id_fk"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2919,6 +3157,13 @@ export type Database = {
             foreignKeyName: "favourites_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favourites_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2927,6 +3172,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favourites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -3016,6 +3268,13 @@ export type Database = {
           vat_status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "finance_settings_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "finance_settings_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -3287,6 +3546,13 @@ export type Database = {
             foreignKeyName: "invoices_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoices_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -3491,6 +3757,13 @@ export type Database = {
             foreignKeyName: "issued_quotes_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issued_quotes_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3623,6 +3896,13 @@ export type Database = {
             foreignKeyName: "job_callbacks_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3645,6 +3925,13 @@ export type Database = {
             columns: ["original_job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_callbacks_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -3739,6 +4026,13 @@ export type Database = {
             foreignKeyName: "job_certificates_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_certificates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3803,6 +4097,13 @@ export type Database = {
           stage?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_checklist_items_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_checklist_items_checked_by_fkey"
             columns: ["checked_by"]
@@ -3882,6 +4183,13 @@ export type Database = {
             foreignKeyName: "job_checklist_templates_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checklist_templates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3923,6 +4231,13 @@ export type Database = {
           job_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_conversations_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -4053,6 +4368,13 @@ export type Database = {
             foreignKeyName: "job_message_notifications_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_message_notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4102,6 +4424,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "job_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -4364,6 +4693,13 @@ export type Database = {
             foreignKeyName: "job_rams_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_rams_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4386,6 +4722,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_rams_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -4521,6 +4864,13 @@ export type Database = {
             foreignKeyName: "job_scheduling_proposals_proposed_by_fkey"
             columns: ["proposed_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scheduling_proposals_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4603,6 +4953,13 @@ export type Database = {
             foreignKeyName: "job_snag_items_raised_by_fkey"
             columns: ["raised_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4611,6 +4968,13 @@ export type Database = {
             columns: ["raised_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_snag_items_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -4811,6 +5175,13 @@ export type Database = {
             foreignKeyName: "job_variations_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_variations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4819,6 +5190,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_variations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5036,6 +5414,13 @@ export type Database = {
             foreignKeyName: "jobs_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5044,6 +5429,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5092,6 +5484,13 @@ export type Database = {
             foreignKeyName: "jobs_signed_off_by_fkey"
             columns: ["signed_off_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5107,6 +5506,13 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_site_signed_off_by_fkey"
+            columns: ["site_signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5198,6 +5604,13 @@ export type Database = {
             foreignKeyName: "logged_contracts_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logged_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5264,6 +5677,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "marketplace_listings_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "marketplace_listings_seller_id_fkey"
             columns: ["seller_id"]
@@ -5336,6 +5756,13 @@ export type Database = {
           vehicle_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mileage_trips_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mileage_trips_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -5492,6 +5919,13 @@ export type Database = {
             foreignKeyName: "panel_prequalification_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5500,6 +5934,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_prequalification_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5557,6 +5998,13 @@ export type Database = {
             foreignKeyName: "payment_schedules_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedules_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5565,6 +6013,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedules_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5825,6 +6280,13 @@ export type Database = {
             foreignKeyName: "peer_endorsements_endorsed_id_fkey"
             columns: ["endorsed_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_endorsements_endorsed_id_fkey"
+            columns: ["endorsed_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5833,6 +6295,13 @@ export type Database = {
             columns: ["endorsed_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_endorsements_endorser_id_fkey"
+            columns: ["endorser_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5929,6 +6398,13 @@ export type Database = {
             foreignKeyName: "prequalification_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5937,6 +6413,13 @@ export type Database = {
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prequalification_documents_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -5993,6 +6476,13 @@ export type Database = {
           title?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profile_before_after_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profile_before_after_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -6065,6 +6555,13 @@ export type Database = {
             foreignKeyName: "profile_videos_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_videos_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6104,6 +6601,13 @@ export type Database = {
             foreignKeyName: "profile_view_events_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_view_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6112,6 +6616,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_view_events_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -6177,6 +6688,13 @@ export type Database = {
           widget_key?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profile_widgets_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profile_widgets_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -6476,6 +6994,13 @@ export type Database = {
             foreignKeyName: "project_change_requests_submitted_by_fkey"
             columns: ["submitted_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_change_requests_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6565,6 +7090,13 @@ export type Database = {
           project_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_events_actor_id_fkey"
             columns: ["actor_id"]
@@ -6667,6 +7199,13 @@ export type Database = {
             foreignKeyName: "project_members_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6715,6 +7254,13 @@ export type Database = {
           visibility?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_notes_author_id_fkey"
             columns: ["author_id"]
@@ -6798,6 +7344,13 @@ export type Database = {
             foreignKeyName: "project_proposals_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_proposals_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6849,6 +7402,13 @@ export type Database = {
           question?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_qanda_asked_by_fkey"
+            columns: ["asked_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_qanda_asked_by_fkey"
             columns: ["asked_by"]
@@ -6915,6 +7475,13 @@ export type Database = {
             foreignKeyName: "project_sign_offs_signed_off_by_fkey"
             columns: ["signed_off_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_sign_offs_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6970,6 +7537,13 @@ export type Database = {
             foreignKeyName: "project_snags_raised_by_fkey"
             columns: ["raised_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_snags_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7011,6 +7585,13 @@ export type Database = {
           update_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_updates_posted_by_fkey"
+            columns: ["posted_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_updates_posted_by_fkey"
             columns: ["posted_by"]
@@ -7148,6 +7729,13 @@ export type Database = {
             foreignKeyName: "projects_customer_id_fkey"
             columns: ["posted_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["posted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7156,6 +7744,13 @@ export type Database = {
             columns: ["posted_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_lead_contractor_id_fkey"
+            columns: ["lead_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -7239,6 +7834,13 @@ export type Database = {
             foreignKeyName: "quote_form_templates_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_form_templates_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -7317,6 +7919,13 @@ export type Database = {
             foreignKeyName: "quotes_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quotes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -7373,6 +7982,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rams_templates_owner_contractor_id_fkey"
+            columns: ["owner_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rams_templates_owner_contractor_id_fkey"
             columns: ["owner_contractor_id"]
@@ -7669,6 +8285,13 @@ export type Database = {
             foreignKeyName: "search_appearance_daily_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "search_appearance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7736,6 +8359,13 @@ export type Database = {
             foreignKeyName: "service_contracts_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_contracts_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7790,6 +8420,13 @@ export type Database = {
           visit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "service_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "service_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
@@ -8003,6 +8640,13 @@ export type Database = {
             foreignKeyName: "service_reviews_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -8025,6 +8669,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -8159,6 +8810,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_visits_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -8482,6 +9140,13 @@ export type Database = {
             foreignKeyName: "sites_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -8606,6 +9271,13 @@ export type Database = {
           sla_rule_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sla_clock_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sla_clock_events_actor_id_fkey"
             columns: ["actor_id"]
@@ -8803,6 +9475,13 @@ export type Database = {
             foreignKeyName: "team_invitations_accepted_by_fkey"
             columns: ["accepted_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -8811,6 +9490,13 @@ export type Database = {
             columns: ["accepted_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -9040,6 +9726,13 @@ export type Database = {
             foreignKeyName: "team_members_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "team_members_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -9049,6 +9742,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "team_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "team_members_profile_id_fkey"
@@ -9098,6 +9798,13 @@ export type Database = {
           tender_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tender_addenda_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tender_addenda_issued_by_fkey"
             columns: ["issued_by"]
@@ -9176,6 +9883,13 @@ export type Database = {
             foreignKeyName: "tender_agreements_business_accepted_by_fkey"
             columns: ["business_accepted_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_business_accepted_by_fkey"
+            columns: ["business_accepted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9184,6 +9898,13 @@ export type Database = {
             columns: ["business_accepted_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_agreements_contractor_accepted_by_fkey"
+            columns: ["contractor_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -9333,6 +10054,13 @@ export type Database = {
             foreignKeyName: "tender_applications_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_applications_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9388,6 +10116,13 @@ export type Database = {
             foreignKeyName: "tender_clarifications_answered_by_fkey"
             columns: ["answered_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9396,6 +10131,13 @@ export type Database = {
             columns: ["answered_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_asked_by_fkey"
+            columns: ["asked_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -9506,6 +10248,13 @@ export type Database = {
             foreignKeyName: "tender_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9589,6 +10338,13 @@ export type Database = {
             foreignKeyName: "tender_invitations_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9597,6 +10353,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -9771,6 +10534,13 @@ export type Database = {
             foreignKeyName: "tender_scores_scored_by_fkey"
             columns: ["scored_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_scores_scored_by_fkey"
+            columns: ["scored_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9922,6 +10692,13 @@ export type Database = {
             foreignKeyName: "tenders_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10043,6 +10820,13 @@ export type Database = {
             foreignKeyName: "term_engagements_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10141,6 +10925,13 @@ export type Database = {
           worker_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "timesheets_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "timesheets_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -10274,6 +11065,13 @@ export type Database = {
             foreignKeyName: "user_seen_announcements_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_seen_announcements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10371,6 +11169,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_costs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -10527,6 +11332,13 @@ export type Database = {
             foreignKeyName: "work_orders_dispatched_to_fkey"
             columns: ["dispatched_to"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_dispatched_to_fkey"
+            columns: ["dispatched_to"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10617,6 +11429,13 @@ export type Database = {
             foreignKeyName: "contractor_verification_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: true
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_verification_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10642,6 +11461,13 @@ export type Database = {
             foreignKeyName: "jobs_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10653,6 +11479,234 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      my_profile: {
+        Row: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
+          address: string | null
+          availability_heading: string | null
+          avatar_url: string | null
+          bio: string | null
+          bio_heading: string | null
+          company_name: string | null
+          completed_jobs: number | null
+          country_code: string | null
+          cover_url: string | null
+          coverage_type: string | null
+          created_at: string | null
+          credentials_heading: string | null
+          cta_label: string | null
+          email: string | null
+          full_name: string | null
+          hourly_rate: number | null
+          id: string | null
+          is_active: boolean | null
+          is_available: boolean | null
+          is_verified: boolean | null
+          location: string | null
+          logo_url: string | null
+          onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
+          phone: string | null
+          postcode: string | null
+          profile_is_published: boolean | null
+          profile_published_at: string | null
+          profile_seo_description: string | null
+          profile_seo_title: string | null
+          profile_vanity_slug: string | null
+          profile_visibility_public: boolean | null
+          rating: number | null
+          review_count: number | null
+          reviews_heading: string | null
+          seo_description: string | null
+          seo_title: string | null
+          service_area_center_lat: number | null
+          service_area_center_lng: number | null
+          service_area_radius_miles: number | null
+          services_heading: string | null
+          social_links: Json | null
+          stripe_account_id: string | null
+          stripe_capabilities_event_created: number | null
+          stripe_capabilities_updated_at: string | null
+          stripe_charges_enabled: boolean | null
+          stripe_disabled_reason: string | null
+          stripe_payouts_enabled: boolean | null
+          stripe_requirements_currently_due: string[] | null
+          stripe_transfers_capability: string | null
+          team_heading: string | null
+          trades: string[] | null
+          ts_profile_code: string | null
+          updated_at: string | null
+          user_id: string | null
+          user_type: Database["public"]["Enums"]["user_type"] | null
+          vanity_slug: string | null
+          vat_number: string | null
+          vat_registered: boolean | null
+          vat_registration_date: string | null
+          visibility_public: boolean | null
+          website: string | null
+          working_radius: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
+          address?: string | null
+          availability_heading?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          bio_heading?: string | null
+          company_name?: string | null
+          completed_jobs?: number | null
+          country_code?: string | null
+          cover_url?: string | null
+          coverage_type?: string | null
+          created_at?: string | null
+          credentials_heading?: string | null
+          cta_label?: string | null
+          email?: string | null
+          full_name?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          is_available?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          phone?: string | null
+          postcode?: string | null
+          profile_is_published?: boolean | null
+          profile_published_at?: string | null
+          profile_seo_description?: string | null
+          profile_seo_title?: string | null
+          profile_vanity_slug?: string | null
+          profile_visibility_public?: boolean | null
+          rating?: number | null
+          review_count?: number | null
+          reviews_heading?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          service_area_center_lat?: number | null
+          service_area_center_lng?: number | null
+          service_area_radius_miles?: number | null
+          services_heading?: string | null
+          social_links?: Json | null
+          stripe_account_id?: string | null
+          stripe_capabilities_event_created?: number | null
+          stripe_capabilities_updated_at?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_disabled_reason?: string | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_currently_due?: string[] | null
+          stripe_transfers_capability?: string | null
+          team_heading?: string | null
+          trades?: string[] | null
+          ts_profile_code?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          user_type?: Database["public"]["Enums"]["user_type"] | null
+          vanity_slug?: string | null
+          vat_number?: string | null
+          vat_registered?: boolean | null
+          vat_registration_date?: string | null
+          visibility_public?: boolean | null
+          website?: string | null
+          working_radius?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          addr_city?: string | null
+          addr_country?: string | null
+          addr_lat?: number | null
+          addr_line1?: string | null
+          addr_line2?: string | null
+          addr_lng?: number | null
+          addr_place_id?: string | null
+          addr_postcode?: string | null
+          addr_region?: string | null
+          address?: string | null
+          availability_heading?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          bio_heading?: string | null
+          company_name?: string | null
+          completed_jobs?: number | null
+          country_code?: string | null
+          cover_url?: string | null
+          coverage_type?: string | null
+          created_at?: string | null
+          credentials_heading?: string | null
+          cta_label?: string | null
+          email?: string | null
+          full_name?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          is_available?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          phone?: string | null
+          postcode?: string | null
+          profile_is_published?: boolean | null
+          profile_published_at?: string | null
+          profile_seo_description?: string | null
+          profile_seo_title?: string | null
+          profile_vanity_slug?: string | null
+          profile_visibility_public?: boolean | null
+          rating?: number | null
+          review_count?: number | null
+          reviews_heading?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          service_area_center_lat?: number | null
+          service_area_center_lng?: number | null
+          service_area_radius_miles?: number | null
+          services_heading?: string | null
+          social_links?: Json | null
+          stripe_account_id?: string | null
+          stripe_capabilities_event_created?: number | null
+          stripe_capabilities_updated_at?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_disabled_reason?: string | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_currently_due?: string[] | null
+          stripe_transfers_capability?: string | null
+          team_heading?: string | null
+          trades?: string[] | null
+          ts_profile_code?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          user_type?: Database["public"]["Enums"]["user_type"] | null
+          vanity_slug?: string | null
+          vat_number?: string | null
+          vat_registered?: boolean | null
+          vat_registration_date?: string | null
+          visibility_public?: boolean | null
+          website?: string | null
+          working_radius?: string | null
+          years_experience?: number | null
+        }
+        Relationships: []
       }
       public_contractor_credentials: {
         Row: {
@@ -10677,6 +11731,13 @@ export type Database = {
           name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contractor_credentials_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contractor_credentials_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -10834,6 +11895,13 @@ export type Database = {
             foreignKeyName: "tender_clarifications_answered_by_fkey"
             columns: ["answered_by"]
             isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_clarifications_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -10873,6 +11941,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "term_engagements_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
@@ -10933,6 +12008,90 @@ export type Database = {
       add_enquiry_recipient: {
         Args: { p_contractor_id: string; p_enquiry_id: string }
         Returns: string
+      }
+      admin_list_profiles: {
+        Args: never
+        Returns: {
+          addr_city: string | null
+          addr_country: string | null
+          addr_lat: number | null
+          addr_line1: string | null
+          addr_line2: string | null
+          addr_lng: number | null
+          addr_place_id: string | null
+          addr_postcode: string | null
+          addr_region: string | null
+          address: string | null
+          availability_heading: string | null
+          avatar_url: string | null
+          bio: string | null
+          bio_heading: string | null
+          company_name: string | null
+          completed_jobs: number | null
+          country_code: string
+          cover_url: string | null
+          coverage_type: string
+          created_at: string
+          credentials_heading: string | null
+          cta_label: string | null
+          email: string | null
+          full_name: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_available: boolean | null
+          is_verified: boolean | null
+          location: string | null
+          logo_url: string | null
+          onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
+          phone: string | null
+          postcode: string | null
+          profile_is_published: boolean
+          profile_published_at: string | null
+          profile_seo_description: string | null
+          profile_seo_title: string | null
+          profile_vanity_slug: string | null
+          profile_visibility_public: boolean
+          rating: number | null
+          review_count: number | null
+          reviews_heading: string | null
+          seo_description: string | null
+          seo_title: string | null
+          service_area_center_lat: number | null
+          service_area_center_lng: number | null
+          service_area_radius_miles: number | null
+          services_heading: string | null
+          social_links: Json | null
+          stripe_account_id: string | null
+          stripe_capabilities_event_created: number | null
+          stripe_capabilities_updated_at: string | null
+          stripe_charges_enabled: boolean | null
+          stripe_disabled_reason: string | null
+          stripe_payouts_enabled: boolean | null
+          stripe_requirements_currently_due: string[] | null
+          stripe_transfers_capability: string | null
+          team_heading: string | null
+          trades: string[] | null
+          ts_profile_code: string | null
+          updated_at: string
+          user_id: string
+          user_type: Database["public"]["Enums"]["user_type"]
+          vanity_slug: string | null
+          vat_number: string | null
+          vat_registered: boolean | null
+          vat_registration_date: string | null
+          visibility_public: boolean
+          website: string | null
+          working_radius: string | null
+          years_experience: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       admin_update_verification: {
         Args: {
@@ -11138,6 +12297,15 @@ export type Database = {
       generate_ts_profile_code:
         | { Args: never; Returns: string }
         | { Args: { p_user_type?: string }; Returns: string }
+      get_company_member_contacts: {
+        Args: { p_company_id: string }
+        Returns: {
+          email: string
+          full_name: string
+          profile_id: string
+          ts_profile_code: string
+        }[]
+      }
       get_contractor_activity_band: {
         Args: { p_contractor_id: string }
         Returns: string
@@ -11154,6 +12322,7 @@ export type Database = {
           remaining_capacity: number
         }[]
       }
+      get_job_customer_phone: { Args: { p_job_id: string }; Returns: string }
       get_secret: { Args: { p_name: string }; Returns: string }
       get_team_invitation_preview: {
         Args: { p_token: string }
@@ -11186,6 +12355,13 @@ export type Database = {
       log_search_appearance: {
         Args: { p_profile_ids: string[] }
         Returns: undefined
+      }
+      lookup_ts_codes_by_email: {
+        Args: { p_emails: string[] }
+        Returns: {
+          email: string
+          ts_profile_code: string
+        }[]
       }
       mark_elapsed_cooling_off: { Args: never; Returns: number }
       mark_overdue_visits: { Args: never; Returns: number }

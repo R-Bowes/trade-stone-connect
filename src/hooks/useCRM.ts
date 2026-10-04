@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { lookupTsCodesByEmail } from "@/lib/lookupTsCodes";
 
 export interface CRMClient {
   id: string;
@@ -231,11 +232,12 @@ export function useCRM() {
   }, []);
 
   const linkProfile = async (clientId: string, email: string) => {
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("id, ts_profile_code")
-      .eq("email", email)
-      .maybeSingle();
+    // profiles.email is locked: resolve email -> TS code through the
+    // contractor-only RPC, then TS code -> id (both readable columns).
+    const tsCode = (await lookupTsCodesByEmail([email]))[email];
+    const { data: profileRow } = tsCode
+      ? await supabase.from("profiles").select("id, ts_profile_code").eq("ts_profile_code", tsCode).maybeSingle()
+      : { data: null };
 
     if (!profileRow?.id) {
       toast({
