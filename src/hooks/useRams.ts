@@ -60,13 +60,29 @@ export interface JobRams {
   tailored_at: string | null;
   tailored_by: string | null;
   status: RamsStatus;
+  // Revision chain (20261003100000_rams_record_fixes.sql). At most one
+  // non-superseded row per job (partial unique index); older versions are
+  // 'superseded' and read-only.
+  version: number;
+  supersedes_id: string | null;
+  // signed_off_at / signed_off_by are set by the job_rams_guard trigger on
+  // the move into 'signed' — never written from the client.
   signed_off_at: string | null;
+  signed_off_by: string | null;
   signed_off_by_name: string | null;
   signed_off_by_role: string | null;
   pdf_storage_path: string | null;
   pdf_generated_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A superseded earlier version, listed for PDF download only. */
+export interface JobRamsVersionSummary {
+  id: string;
+  version: number;
+  status: RamsStatus;
+  signed_off_at: string | null;
 }
 
 // The DB stores these as jsonb — cast through unknown at the read boundary
@@ -89,24 +105,46 @@ function rowToJobRams(row: Record<string, unknown>): JobRams {
   };
 }
 
+const JOB_RAMS_VERSION_SELECT = "id, version, status, signed_off_at" as const;
+
+// The contractor a RAMS belongs to is the JOB's contractor, never the
+// caller's own id or a team membership: a team member can be active for
+// more than one contractor, and job_rams_insert requires
+// contractor_id = jobs.contractor_id. For the owner this is their own id.
+async function fetchJobForRams(forJobId: string) {
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("contractor_id, location, description")
+    .eq("id", forJobId)
+    .maybeSingle();
+  if (error) console.error("Error fetching job for RAMS:", error);
+  return data;
+}
+
 export function useRams(jobId?: string) {
   const [templates, setTemplates] = useState<RamsTemplate[]>([]);
   const [jobRams, setJobRams] = useState<JobRams | null>(null);
+  const [previousVersions, setPreviousVersions] = useState<JobRamsVersionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchTemplates = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+  // System templates plus those owned by `ownerContractorId` — the job's
+  // contractor in job mode, the signed-in contractor in library mode.
+  const fetchTemplates = useCallback(async (ownerContractorId?: string) => {
+    let owner = ownerContractorId;
+    if (!owner) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // profiles.id == profiles.user_id == auth.uid() by construction (see
+      // CLAUDE.md RLS section).
+      owner = user.id;
+    }
 
-    // profiles.id == profiles.user_id == auth.uid() by construction (see
-    // CLAUDE.md RLS section) — auth.uid() is used directly as the
-    // contractor id throughout, matching the house pattern.
     const { data, error } = await (supabase as any)
       .from("rams_templates")
       .select("*")
       .eq("is_active", true)
-      .or(`owner_contractor_id.is.null,owner_contractor_id.eq.${user.id}`)
+      .or(`owner_contractor_id.is.null,owner_contractor_id.eq.${owner}`)
       .order("name", { ascending: true });
 
     if (error) {
@@ -116,52 +154,75 @@ export function useRams(jobId?: string) {
     setTemplates((data ?? []).map(rowToTemplate));
   }, []);
 
+  // The live RAMS for a job: the one non-superseded row (the partial unique
+  // index job_rams_one_live_per_job guarantees at most one), so
+  // maybeSingle() is safe once filtered. Superseded versions are listed
+  // separately for download only.
   const fetchJobRams = useCallback(async (forJobId: string) => {
-    const { data, error } = await (supabase as any)
-      .from("job_rams")
-      .select("*")
-      .eq("job_id", forJobId)
-      .maybeSingle();
+    const [{ data, error }, { data: older, error: olderError }] = await Promise.all([
+      (supabase as any)
+        .from("job_rams")
+        .select("*")
+        .eq("job_id", forJobId)
+        .neq("status", "superseded")
+        .maybeSingle(),
+      (supabase as any)
+        .from("job_rams")
+        .select(JOB_RAMS_VERSION_SELECT)
+        .eq("job_id", forJobId)
+        .eq("status", "superseded")
+        .order("version", { ascending: false }),
+    ]);
 
     if (error) {
       console.error("Error fetching job RAMS:", error);
       setJobRams(null);
-      return;
+    } else {
+      setJobRams(data ? rowToJobRams(data) : null);
     }
-    setJobRams(data ? rowToJobRams(data) : null);
+    if (olderError) {
+      console.error("Error fetching earlier RAMS versions:", olderError);
+      setPreviousVersions([]);
+    } else {
+      setPreviousVersions((older ?? []) as JobRamsVersionSummary[]);
+    }
   }, []);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await fetchTemplates();
-      if (jobId) await fetchJobRams(jobId);
+      if (jobId) {
+        const job = await fetchJobForRams(jobId);
+        await Promise.all([
+          job?.contractor_id ? fetchTemplates(job.contractor_id) : Promise.resolve(),
+          fetchJobRams(jobId),
+        ]);
+      } else {
+        await fetchTemplates();
+      }
       setLoading(false);
     };
     load();
   }, [jobId, fetchTemplates, fetchJobRams]);
 
   const createFromTemplate = async (forJobId: string, templateId: string): Promise<JobRams | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
     const template = templates.find((t) => t.id === templateId);
     if (!template) {
       toast({ title: "Error", description: "Template not found", variant: "destructive" });
       return null;
     }
 
-    const { data: job } = await supabase
-      .from("jobs")
-      .select("location, description")
-      .eq("id", forJobId)
-      .maybeSingle();
+    const job = await fetchJobForRams(forJobId);
+    if (!job) {
+      toast({ title: "Error", description: "Job not found", variant: "destructive" });
+      return null;
+    }
 
     const { data, error } = await (supabase as any)
       .from("job_rams")
       .insert({
         job_id: forJobId,
-        contractor_id: user.id,
+        contractor_id: job.contractor_id,
         template_id: templateId,
         site_address: job?.location ?? null,
         job_description: job?.description ?? null,
@@ -185,20 +246,17 @@ export function useRams(jobId?: string) {
   };
 
   const createBlank = async (forJobId: string): Promise<JobRams | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: job } = await supabase
-      .from("jobs")
-      .select("location, description")
-      .eq("id", forJobId)
-      .maybeSingle();
+    const job = await fetchJobForRams(forJobId);
+    if (!job) {
+      toast({ title: "Error", description: "Job not found", variant: "destructive" });
+      return null;
+    }
 
     const { data, error } = await (supabase as any)
       .from("job_rams")
       .insert({
         job_id: forJobId,
-        contractor_id: user.id,
+        contractor_id: job.contractor_id,
         template_id: null,
         site_address: job?.location ?? null,
         job_description: job?.description ?? null,
@@ -247,13 +305,27 @@ export function useRams(jobId?: string) {
     });
   };
 
+  // signed_off_at / signed_off_by are deliberately not sent: the
+  // job_rams_guard trigger stamps both on the move into 'signed' (and
+  // rejects a sign-off from anything but 'tailored').
   const signOff = async (id: string, name: string, role: string) => {
     return updateJobRams(id, {
-      signed_off_at: new Date().toISOString(),
       signed_off_by_name: name,
       signed_off_by_role: role,
       status: "signed",
     });
+  };
+
+  // Supersedes a signed RAMS and opens the new draft (version + 1,
+  // untailored) that revise_job_rams returns.
+  const reviseJobRams = async (id: string): Promise<string | null> => {
+    const { data, error } = await (supabase as any).rpc("revise_job_rams", { p_job_rams_id: id });
+    if (error) {
+      toast({ title: "Error", description: error.message || "Failed to revise RAMS", variant: "destructive" });
+      throw error;
+    }
+    if (jobId) await fetchJobRams(jobId);
+    return (data as string | null) ?? null;
   };
 
   const saveAsTemplate = async (source: JobRams, name: string): Promise<RamsTemplate | null> => {
@@ -339,12 +411,14 @@ export function useRams(jobId?: string) {
   return {
     templates,
     jobRams,
+    previousVersions,
     loading,
     createFromTemplate,
     createBlank,
     updateJobRams,
     confirmTailoring,
     signOff,
+    reviseJobRams,
     saveAsTemplate,
     createTemplate,
     updateTemplate,

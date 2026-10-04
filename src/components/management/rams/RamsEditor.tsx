@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, FileDown, Save, Lock, Unlock, ShieldCheck } from "lucide-react";
+import { Loader2, Plus, Trash2, FileDown, Save, Lock, Unlock, ShieldCheck, History } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -268,7 +268,10 @@ interface RamsEditorProps {
 }
 
 export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
-  const { templates, jobRams, loading, createFromTemplate, createBlank, updateJobRams, confirmTailoring, signOff, saveAsTemplate } = useRams(jobId);
+  const {
+    templates, jobRams, previousVersions, loading, createFromTemplate, createBlank, updateJobRams,
+    confirmTailoring, signOff, reviseJobRams, saveAsTemplate, fetchJobRams,
+  } = useRams(jobId);
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -296,6 +299,9 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
 
   const [signerName, setSignerName] = useState("");
   const [signerRole, setSignerRole] = useState(SIGNER_ROLES[0]);
+  const [signing, setSigning] = useState(false);
+  const [revising, setRevising] = useState(false);
+  const [downloadingVersionId, setDownloadingVersionId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -352,8 +358,9 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
     );
   }
 
-  const readOnly = jobRams.status === "tailored" || jobRams.status === "signed";
+  const readOnly = jobRams.status !== "draft";
   const canTailor = jobRams.status === "draft";
+  const isSigned = jobRams.status === "signed";
 
   const handleSaveContent = async () => {
     setSaving(true);
@@ -394,8 +401,19 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
     toast({ title: "RAMS tailored and locked" });
   };
 
+  // Clears the PDF too: the tailored PDF no longer represents the document
+  // once it is editable again, and Sign Off is only offered while
+  // pdf_generated_at is set. (job_rams_guard also clears it on any content
+  // change — this covers the unlock-and-re-tailor-without-edits case.)
   const handleUnlock = async () => {
-    await updateJobRams(jobRams.id, { tailored_for_job: false, tailored_at: null, tailored_by: null, status: "draft" });
+    await updateJobRams(jobRams.id, {
+      tailored_for_job: false,
+      tailored_at: null,
+      tailored_by: null,
+      status: "draft",
+      pdf_storage_path: null,
+      pdf_generated_at: null,
+    });
   };
 
   const handleGeneratePdf = async () => {
@@ -405,6 +423,9 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
         body: { job_rams_id: jobRams.id },
       });
       window.open(url, "_blank");
+      // The function records pdf_storage_path / pdf_generated_at — reload so
+      // the Sign-off card (gated on pdf_generated_at) reflects it.
+      await fetchJobRams(jobId);
     } catch (err) {
       toast({
         title: "PDF generation failed",
@@ -429,12 +450,66 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
 
   const handleSignOff = async () => {
     if (!signerName.trim()) return;
-    await signOff(jobRams.id, signerName.trim(), signerRole);
-    toast({ title: "RAMS signed off" });
+    setSigning(true);
+    try {
+      await signOff(jobRams.id, signerName.trim(), signerRole);
+      toast({ title: "RAMS signed off" });
+      // Seal the final signed PDF now rather than on first view. A failure
+      // here is not fatal: the next view of the signed RAMS seals it.
+      try {
+        await invokeEdgeFunction<{ url: string }>("generate-rams-pdf", { body: { job_rams_id: jobRams.id } });
+      } catch (err) {
+        toast({
+          title: "Signed PDF not generated yet",
+          description: err instanceof Error ? err.message : "It will be generated the next time the RAMS is viewed.",
+          variant: "destructive",
+        });
+      }
+      await fetchJobRams(jobId);
+      onSaved?.();
+    } finally {
+      setSigning(false);
+    }
   };
+
+  const handleRevise = async () => {
+    setRevising(true);
+    try {
+      await reviseJobRams(jobRams.id);
+      toast({ title: `Revision started`, description: `Version ${jobRams.version + 1} is a draft — tailor and sign it off again.` });
+      onSaved?.();
+    } finally {
+      setRevising(false);
+    }
+  };
+
+  const handleDownloadVersion = async (versionId: string) => {
+    setDownloadingVersionId(versionId);
+    try {
+      const { url } = await invokeEdgeFunction<{ url: string }>("generate-rams-pdf", {
+        body: { job_rams_id: versionId },
+      });
+      window.open(url, "_blank");
+    } catch (err) {
+      toast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingVersionId(null);
+    }
+  };
+
+  const statusLabel = jobRams.status === "signed" ? "Signed off" : jobRams.status === "tailored" ? "Tailored" : "Draft";
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="font-mono">v{jobRams.version}</Badge>
+        <Badge variant="secondary">{statusLabel}</Badge>
+      </div>
+
       {/* Job details */}
       <Card>
         <CardContent className="p-4 space-y-3">
@@ -534,7 +609,7 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={handleGeneratePdf} disabled={generatingPdf}>
                 {generatingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
-                Generate PDF
+                {isSigned ? "Download PDF" : "Generate PDF"}
               </Button>
               {jobRams.status === "tailored" && (
                 <Button type="button" variant="outline" onClick={handleUnlock}>
@@ -583,18 +658,63 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
                 </Select>
               </div>
             </div>
-            <Button type="button" onClick={handleSignOff} disabled={!signerName.trim()}>
+            <Button type="button" onClick={handleSignOff} disabled={!signerName.trim() || signing}>
+              {signing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Sign Off
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {jobRams.status === "signed" && (
+      {isSigned && (
         <Card>
-          <CardContent className="p-4 text-sm text-muted-foreground">
-            Signed off by {jobRams.signed_off_by_name} ({jobRams.signed_off_by_role}) on{" "}
-            {jobRams.signed_off_at ? format(new Date(jobRams.signed_off_at), "d MMM yyyy") : "—"}.
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Signed off by {jobRams.signed_off_by_name} ({jobRams.signed_off_by_role}) on{" "}
+              {jobRams.signed_off_at ? format(new Date(jobRams.signed_off_at), "d MMM yyyy") : "—"}.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={handleRevise} disabled={revising}>
+                {revising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <History className="h-4 w-4 mr-1" />}
+                Revise
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Starts version {jobRams.version + 1} as a draft. This version stays on record as superseded.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Earlier versions — superseded, read-only, PDF download only. */}
+      {previousVersions.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <h3 className="font-heading text-lg font-bold">Earlier versions</h3>
+            {previousVersions.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-3 rounded-md border p-2">
+                <div className="flex items-center gap-2 min-w-0 text-sm">
+                  <Badge variant="outline" className="font-mono shrink-0">v{v.version}</Badge>
+                  <span className="text-muted-foreground truncate">
+                    Superseded
+                    {v.signed_off_at ? ` · signed off ${format(new Date(v.signed_off_at), "d MMM yyyy")}` : ""}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={downloadingVersionId === v.id}
+                  onClick={() => handleDownloadVersion(v.id)}
+                >
+                  {downloadingVersionId === v.id
+                    ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    : <FileDown className="h-4 w-4 mr-1.5" />}
+                  PDF
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

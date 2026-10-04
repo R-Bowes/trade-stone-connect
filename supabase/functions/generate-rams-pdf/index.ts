@@ -1,11 +1,29 @@
 // Deploy: supabase functions deploy generate-rams-pdf
-// Required secrets: SUPABASE_URL, ADMIN_SECRET_KEY
-// Storage bucket: generated-documents (private) — path rams/{job_id}.pdf,
-// see 20260802100000_rams.sql for the storage read policy.
+// Required secrets: SUPABASE_URL, ADMIN_SECRET_KEY (SUPABASE_ANON_KEY is
+// platform-injected).
+// Storage bucket: generated-documents (private) — new PDFs at
+// rams/{job_id}/v{version}.pdf; rows generated before 20261003 keep their
+// old rams/{job_id}.pdf path. See 20261003120000_rams_pdf_storage_policy.sql
+// for the storage read policy (keyed on job_rams.pdf_storage_path).
+//
+// Access model:
+// - The job_rams row is read with the CALLER's JWT, so job_rams_select
+//   decides who can see it at all (owner + acting team members: every
+//   status; customer / company members: signed + superseded only).
+// - Draft / tailored rows: only the contractor side (job_rams.contractor_id
+//   in acting_contractor_ids()) can generate; anyone else gets 404.
+// - Signed / superseded rows: frozen. If no PDF exists yet, or the stored one
+//   predates signed_off_at, the final PDF is generated once (any caller who
+//   can see the row may trigger it — content is frozen, so the result is the
+//   same). Otherwise the existing file is returned, never regenerated.
+// - Service role is used, only AFTER the access checks above pass, for the
+//   print data (job, contractor profile, quote client name, customer
+//   profile) so a frozen PDF is identical whoever triggers it, and for the
+//   storage upload, the pdf_* column update and the signed URL.
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
-import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, degrees, rgb } from "npm:pdf-lib@1.17.1";
 import {
   createBrandedPage,
   drawContractorHeader,
@@ -81,10 +99,17 @@ interface JobRamsRow {
   tailored_at: string | null;
   tailored_by: string | null;
   status: string;
+  version: number;
   signed_off_at: string | null;
   signed_off_by_name: string | null;
   signed_off_by_role: string | null;
+  pdf_storage_path: string | null;
+  pdf_generated_at: string | null;
 }
+
+const SIGNED_LINK_SECONDS = 60 * 5;
+
+const isFrozenStatus = (status: string) => status === "signed" || status === "superseded";
 
 interface Job {
   id: string;
@@ -134,8 +159,9 @@ async function buildRamsPdf(
   ensureSpace(60);
   y -= 10;
   page.drawText("RISK ASSESSMENT & METHOD STATEMENT", { x: MARGIN, y, size: 16, font: bold, color: NAVY });
-  const refW = bold.widthOfTextAtSize(jobRef, 12);
-  page.drawText(jobRef, { x: PAGE_WIDTH - MARGIN - refW, y: y + 2, size: 12, font: bold, color: NAVY });
+  const refText = `${jobRef}  v${ramsRow.version}`;
+  const refW = bold.widthOfTextAtSize(refText, 12);
+  page.drawText(refText, { x: PAGE_WIDTH - MARGIN - refW, y: y + 2, size: 12, font: bold, color: NAVY });
   y -= 30;
 
   // ── Section 1: Job details ──────────────────────────────────────────────
@@ -291,7 +317,9 @@ async function buildRamsPdf(
   page.drawText(`Tailored by: ${ramsRow.tailored_by ? sanitizeForPdf(ramsRow.tailored_by) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
   page.drawText(`Date: ${fmtDate(ramsRow.tailored_at)}`, { x: MARGIN + 260, y, size: 9, font: regular, color: DARK });
   y -= 15;
-  if (ramsRow.status === "signed") {
+  // signed_off_at, not status: a superseded row was signed too, and its
+  // frozen PDF must still carry the sign-off.
+  if (ramsRow.signed_off_at) {
     page.drawText(`Signed off by: ${ramsRow.signed_off_by_name ? sanitizeForPdf(ramsRow.signed_off_by_name) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
     y -= 13;
     page.drawText(`Role: ${ramsRow.signed_off_by_role ? sanitizeForPdf(ramsRow.signed_off_by_role) : "—"}`, { x: MARGIN, y, size: 9, font: regular, color: DARK });
@@ -309,6 +337,29 @@ async function buildRamsPdf(
     y -= 9;
   }
 
+  // ── Draft mark ───────────────────────────────────────────────────────────
+  // Any copy generated before sign-off is marked on every page so it cannot
+  // be mistaken for the issued document.
+  if (!isFrozenStatus(ramsRow.status)) {
+    const mark = "DRAFT - NOT SIGNED OFF";
+    for (const p of pdfDoc.getPages()) {
+      const { height } = p.getSize();
+      const bannerW = bold.widthOfTextAtSize(mark, 11);
+      p.drawText(mark, { x: (PAGE_WIDTH - bannerW) / 2, y: height - 22, size: 11, font: bold, color: rgb(0.86, 0.15, 0.15) });
+      const wmSize = 44;
+      const wmW = bold.widthOfTextAtSize(mark, wmSize);
+      p.drawText(mark, {
+        x: PAGE_WIDTH / 2 - (wmW / 2) * Math.cos(Math.PI / 4),
+        y: height / 2 - (wmW / 2) * Math.sin(Math.PI / 4),
+        size: wmSize,
+        font: bold,
+        color: rgb(0.86, 0.15, 0.15),
+        opacity: 0.12,
+        rotate: degrees(45),
+      });
+    }
+  }
+
   return pdfDoc.save();
 }
 
@@ -319,24 +370,33 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("ADMIN_SECRET_KEY")!,
-      { auth: { persistSession: false } },
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // Service role: never used for an access decision. Print-data reads
+    // (after access is decided), storage upload, pdf_* update, signed URL.
+    const admin = createClient(supabaseUrl, Deno.env.get("ADMIN_SECRET_KEY")!, {
+      auth: { persistSession: false },
+    });
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return jsonResponse(401, { error: "Unauthorized" }, cors);
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: authErr } = await supabase.auth.getUser(token);
+    const { data: userData, error: authErr } = await admin.auth.getUser(token);
     if (authErr || !userData.user) return jsonResponse(401, { error: "Unauthorized" }, cors);
+
+    // Caller-scoped client: every read goes through the caller's own RLS.
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      auth: { persistSession: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
 
     const body = await req.json();
     const { job_rams_id } = body as { job_rams_id?: string };
     if (!job_rams_id) return jsonResponse(400, { error: "job_rams_id is required" }, cors);
 
-    const { data: ramsRow, error: ramsErr } = await supabase
+    // job_rams_select decides visibility. Not visible = 404, whatever the
+    // reason (wrong party, or a customer asking for an unsigned RAMS).
+    const { data: ramsData, error: ramsErr } = await supabase
       .from("job_rams")
       .select("*")
       .eq("id", job_rams_id)
@@ -345,9 +405,48 @@ serve(async (req) => {
       console.error("[generate-rams-pdf] job_rams fetch failed:", ramsErr);
       return jsonResponse(500, { error: "Failed to load RAMS" }, cors);
     }
-    if (!ramsRow) return jsonResponse(404, { error: "RAMS not found" }, cors);
+    if (!ramsData) return jsonResponse(404, { error: "RAMS not found" }, cors);
+    const ramsRow = ramsData as JobRamsRow;
 
-    const { data: job, error: jobErr } = await supabase
+    const createLink = async (path: string) => {
+      const { data: signedData, error: signErr } = await admin.storage
+        .from("generated-documents")
+        .createSignedUrl(path, SIGNED_LINK_SECONDS);
+      if (signErr || !signedData) {
+        console.error("[generate-rams-pdf] signed URL failed:", signErr);
+        return jsonResponse(500, { error: "Failed to create download link" }, cors);
+      }
+      return jsonResponse(200, { url: signedData.signedUrl }, cors);
+    };
+
+    const frozen = isFrozenStatus(ramsRow.status);
+    if (frozen) {
+      // Final PDF exists and postdates sign-off: return it, never regenerate.
+      const finalExists =
+        !!ramsRow.pdf_storage_path &&
+        !!ramsRow.pdf_generated_at &&
+        !(ramsRow.signed_off_at && new Date(ramsRow.pdf_generated_at) < new Date(ramsRow.signed_off_at));
+      if (finalExists) return await createLink(ramsRow.pdf_storage_path!);
+      // Otherwise fall through and generate the final PDF once, for any
+      // caller who can see the row.
+    } else {
+      // Draft / tailored: contractor side only. acting_contractor_ids() is
+      // called as the caller and includes their own id.
+      const { data: actingIds, error: actingErr } = await supabase.rpc("acting_contractor_ids");
+      if (actingErr) {
+        console.error("[generate-rams-pdf] acting_contractor_ids failed:", actingErr);
+        return jsonResponse(500, { error: "Failed to resolve access" }, cors);
+      }
+      // SETOF uuid: PostgREST returns scalars; tolerate a keyed-object shape.
+      const ids = ((actingIds ?? []) as unknown[]).map((v) =>
+        typeof v === "string" ? v : (Object.values(v as Record<string, string>)[0] ?? ""),
+      );
+      if (!ids.includes(ramsRow.contractor_id)) {
+        return jsonResponse(404, { error: "RAMS not found" }, cors);
+      }
+    }
+
+    const { data: job, error: jobErr } = await admin
       .from("jobs")
       .select("id, job_number, title, location, contractor_id, customer_id, company_id, issued_quote_id")
       .eq("id", ramsRow.job_id)
@@ -357,19 +456,7 @@ serve(async (req) => {
       return jsonResponse(500, { error: "Failed to load job" }, cors);
     }
 
-    // Auth: contractor must own the RAMS, or be a party on the job
-    // (homeowner customer, or a member of the job's company for B2B/FM).
-    let authorised = userData.user.id === job.contractor_id || userData.user.id === job.customer_id;
-    if (!authorised && job.company_id) {
-      const [{ data: ownedCompany }, { data: membership }] = await Promise.all([
-        supabase.from("companies").select("id").eq("id", job.company_id).eq("owner_id", userData.user.id).maybeSingle(),
-        supabase.from("business_members").select("id").eq("company_id", job.company_id).eq("profile_id", userData.user.id).eq("status", "active").maybeSingle(),
-      ]);
-      authorised = !!ownedCompany || !!membership;
-    }
-    if (!authorised) return jsonResponse(403, { error: "Forbidden" }, cors);
-
-    const { data: contractor, error: contractorErr } = await supabase
+    const { data: contractor, error: contractorErr } = await admin
       .from("profiles")
       .select("full_name, company_name, ts_profile_code, address, phone, email, vat_number, logo_url")
       .eq("id", job.contractor_id)
@@ -381,7 +468,7 @@ serve(async (req) => {
 
     let clientName: string | null = null;
     if (job.issued_quote_id) {
-      const { data: quoteRow } = await supabase
+      const { data: quoteRow } = await admin
         .from("issued_quotes")
         .select("client_name")
         .eq("id", job.issued_quote_id)
@@ -389,7 +476,7 @@ serve(async (req) => {
       clientName = quoteRow?.client_name ?? null;
     }
     if (!clientName) {
-      const { data: clientProfile } = await supabase
+      const { data: clientProfile } = await admin
         .from("profiles")
         .select("full_name, company_name")
         .eq("id", job.customer_id)
@@ -400,19 +487,21 @@ serve(async (req) => {
     let pdfBytes: Uint8Array;
     try {
       pdfBytes = await buildRamsPdf(
-        ramsRow as JobRamsRow,
+        ramsRow,
         job as Job,
         contractor as ContractorProfile,
-        clientName,
-        (ramsRow as JobRamsRow).tailored_by || contractor.full_name || "Assessor",
+        clientName ?? "Client",
+        ramsRow.tailored_by || contractor.full_name || "Assessor",
       );
     } catch (err) {
       console.error("[generate-rams-pdf] PDF generation failed:", err);
       return jsonResponse(500, { error: "Failed to generate PDF" }, cors);
     }
 
-    const filePath = `rams/${job.id}.pdf`;
-    const { error: uploadErr } = await supabase.storage
+    // Per-version path. A regenerated draft overwrites its own version's
+    // file (upsert); other versions' files are never touched.
+    const filePath = `rams/${ramsRow.job_id}/v${ramsRow.version}.pdf`;
+    const { error: uploadErr } = await admin.storage
       .from("generated-documents")
       .upload(filePath, pdfBytes, { contentType: "application/pdf", upsert: true });
     if (uploadErr) {
@@ -420,24 +509,20 @@ serve(async (req) => {
       return jsonResponse(500, { error: "Failed to upload PDF" }, cors);
     }
 
+    // Sets new PDF metadata in the same update, so job_rams_guard's
+    // content-change clear does not fire. Fail loudly: the storage policy
+    // keys on pdf_storage_path, and a frozen row must record its final PDF.
     const nowIso = new Date().toISOString();
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await admin
       .from("job_rams")
       .update({ pdf_storage_path: filePath, pdf_generated_at: nowIso })
-      .eq("id", job_rams_id);
+      .eq("id", ramsRow.id);
     if (updateErr) {
       console.error("[generate-rams-pdf] failed to record pdf metadata:", updateErr);
+      return jsonResponse(500, { error: "Failed to record PDF" }, cors);
     }
 
-    const { data: signedData, error: signErr } = await supabase.storage
-      .from("generated-documents")
-      .createSignedUrl(filePath, 60 * 60 * 48);
-    if (signErr || !signedData) {
-      console.error("[generate-rams-pdf] signed URL failed:", signErr);
-      return jsonResponse(500, { error: "Failed to create download link" }, cors);
-    }
-
-    return jsonResponse(200, { url: signedData.signedUrl }, cors);
+    return await createLink(filePath);
   } catch (err) {
     console.error("[generate-rams-pdf] unexpected error:", err);
     return jsonResponse(500, { error: "Internal server error" }, cors);

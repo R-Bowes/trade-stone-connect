@@ -10,6 +10,7 @@ import FieldSignatureCapture from "@/components/field/FieldSignatureCapture";
 import FieldChecklist from "@/components/field/FieldChecklist";
 import FieldPhotos from "@/components/field/FieldPhotos";
 import FieldNotes from "@/components/field/FieldNotes";
+import { RamsEditor } from "@/components/management/rams/RamsEditor";
 import { jobTypeLabel, jobHeading } from "@/lib/jobLabels";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -146,6 +147,14 @@ export default function FieldJobDetail() {
             <p className="text-base whitespace-pre-wrap">{job.description}</p>
           </Section>
         )}
+
+        {/* The contractor dashboard's RAMS editor, reused as-is (not yet
+            laid out for phone — a later brief builds the mobile site-check
+            screen). RLS (acting_contractor_ids) lets the team member edit,
+            tailor and sign the job contractor's RAMS. */}
+        <Section title="RAMS">
+          <RamsEditor jobId={jobId} />
+        </Section>
 
         <Section title="Checklist">
           <FieldChecklist jobId={jobId} ownProfileId={ownProfileId} />

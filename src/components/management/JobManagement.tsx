@@ -261,10 +261,13 @@ export function JobManagement() {
 
   const loadRamsStatuses = async (jobIds: string[]) => {
     if (jobIds.length === 0) { setRamsByJob({}); return; }
+    // Live version only: superseded rows would otherwise overwrite the live
+    // one in the map below (last row wins).
     const { data } = await (supabase as any)
       .from("job_rams")
       .select("id, job_id, status")
-      .in("job_id", jobIds);
+      .in("job_id", jobIds)
+      .neq("status", "superseded");
     const map: Record<string, { id: string; status: string } | null> = {};
     for (const id of jobIds) map[id] = null;
     for (const row of data || []) map[row.job_id] = { id: row.id, status: row.status };

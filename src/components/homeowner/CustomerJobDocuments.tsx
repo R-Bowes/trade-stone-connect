@@ -10,12 +10,14 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { useJobCertificates, CERTIFICATE_TYPE_LABELS } from "@/hooks/useJobCertificates";
 
 // Read-only summary of documents the contractor has produced for this job —
-// RAMS (once tailored/signed, never a draft) and job certificates/warranties.
-// Deliberately not tied to job.status: a certificate can be issued mid-job
-// (e.g. a gas safety check) and RAMS is normally in place before work
-// starts, well before "complete". Renders nothing at all if there is
-// nothing to show — no empty state, see CLAUDE.md copy rules on not
-// overclaiming (this is "from your contractor", not TradeStone-checked).
+// RAMS (signed only: job_rams_select returns nothing else to a customer or
+// company member, and the filter below says so explicitly) and job
+// certificates/warranties. Deliberately not tied to job.status: a
+// certificate can be issued mid-job (e.g. a gas safety check) and RAMS is
+// normally in place before work starts, well before "complete". The RAMS
+// line always shows, with "RAMS not issued yet" until one is signed; the
+// rest renders only when present (see CLAUDE.md copy rules on not
+// overclaiming — this is "from your contractor", not TradeStone-checked).
 //
 // No "Verified" badge: job_certificates.verified has no admin review step
 // behind it at all (unlike contractor_credentials) — RLS lets a contractor
@@ -67,13 +69,14 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
     let cancelled = false;
     (async () => {
       setRamsLoading(true);
-      // job_rams isn't in the generated Supabase types yet (same pattern as
-      // useRams.ts) — cast through `any` at the read boundary only.
+      // Cast through `any` at the read boundary only (same pattern as
+      // useRams.ts). Signed only: at most one signed row per job (the live
+      // row; earlier versions are 'superseded').
       const { data, error } = await (supabase as any)
         .from("job_rams")
         .select("id, status, tailored_at, signed_off_at")
         .eq("job_id", jobId)
-        .in("status", ["tailored", "signed"])
+        .eq("status", "signed")
         .maybeSingle();
       if (cancelled) return;
       if (error) {
@@ -176,7 +179,6 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
   };
 
   if (ramsLoading || certsLoading || insuranceLoading) return null;
-  if (!rams && certificates.length === 0 && !insurance) return null;
 
   const warranties = certificates.filter(
     (c) => c.certificate_type === "manufacturer_warranty" || c.certificate_type === "workmanship_warranty",
@@ -218,16 +220,12 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
           </div>
         )}
 
-        {rams && (
+        {rams ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
             <div className="min-w-0">
               <p className="text-sm font-medium">Risk Assessment & Method Statement</p>
               <p className="text-xs text-muted-foreground">
-                {rams.status === "signed" && rams.signed_off_at
-                  ? `Signed off ${format(new Date(rams.signed_off_at), "d MMM yyyy")}`
-                  : rams.tailored_at
-                  ? `Prepared ${format(new Date(rams.tailored_at), "d MMM yyyy")}`
-                  : null}
+                {rams.signed_off_at ? `Signed off ${format(new Date(rams.signed_off_at), "d MMM yyyy")}` : null}
               </p>
             </div>
             <Button size="sm" variant="outline" disabled={ramsOpening} onClick={handleViewRams}>
@@ -238,6 +236,11 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
               )}
               View
             </Button>
+          </div>
+        ) : (
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Risk Assessment & Method Statement</p>
+            <p className="text-xs text-muted-foreground">RAMS not issued yet</p>
           </div>
         )}
 
