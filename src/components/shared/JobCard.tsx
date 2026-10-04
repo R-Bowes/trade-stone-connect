@@ -37,6 +37,8 @@ interface JobCardProps {
   costSummary?: JobCostSummary | null;
   density?: "full" | "compact";
   actions?: ReactNode;
+  /** Viewer-specific markers shown before the status badge (e.g. the contractor's RAMS marker). */
+  extraBadges?: ReactNode;
 }
 
 const STATUS: Record<string, { label: string; className: string }> = {
@@ -87,6 +89,7 @@ export function JobCard({
   costSummary,
   density = "full",
   actions,
+  extraBadges,
 }: JobCardProps) {
   const status = STATUS[job.status] ?? { label: job.status, className: "bg-slate-100 text-slate-700" };
   const resolutionDue = jobResolutionDue(job);
@@ -127,6 +130,7 @@ export function JobCard({
       badges={
         <>
           {overdue && <Badge className="bg-red-100 text-red-800 border-red-200">Overdue</Badge>}
+          {extraBadges}
           <Badge className={status.className}>{status.label}</Badge>
         </>
       }

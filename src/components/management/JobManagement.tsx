@@ -241,7 +241,7 @@ export function JobManagement() {
   const [originByJob, setOriginByJob] = useState<Record<string, JobOrigin>>({});
   const [originLoadingId, setOriginLoadingId] = useState<string | null>(null);
   const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
-  const [ramsByJob, setRamsByJob] = useState<Record<string, { id: string; status: string } | null>>({});
+  const [ramsByJob, setRamsByJob] = useState<Record<string, { id: string; status: string; version: number } | null>>({});
   const [showRams, setShowRams] = useState(false);
   const [downloadingRamsId, setDownloadingRamsId] = useState<string | null>(null);
   const [certCountByJob, setCertCountByJob] = useState<Record<string, number>>({});
@@ -265,13 +265,33 @@ export function JobManagement() {
     // one in the map below (last row wins).
     const { data } = await (supabase as any)
       .from("job_rams")
-      .select("id, job_id, status")
+      .select("id, job_id, status, version")
       .in("job_id", jobIds)
       .neq("status", "superseded");
-    const map: Record<string, { id: string; status: string } | null> = {};
+    const map: Record<string, { id: string; status: string; version: number } | null> = {};
     for (const id of jobIds) map[id] = null;
-    for (const row of data || []) map[row.job_id] = { id: row.id, status: row.status };
+    for (const row of data || []) map[row.job_id] = { id: row.id, status: row.status, version: row.version };
     setRamsByJob(map);
+  };
+
+  // RAMS marker on each job card, from the live statuses loaded above:
+  // grey "No RAMS", amber while draft/tailored, green tick + version once
+  // signed.
+  const ramsMarker = (jobId: string) => {
+    const rams = ramsByJob[jobId];
+    if (!rams) return <Badge variant="outline" className="text-muted-foreground">No RAMS</Badge>;
+    if (rams.status === "signed") {
+      return (
+        <Badge className="bg-green-100 text-green-800 border-green-200 gap-1">
+          <i className="ti ti-check" />RAMS v{rams.version}
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+        RAMS {rams.status === "tailored" ? "tailored" : "draft"}
+      </Badge>
+    );
   };
 
   const handleDownloadRamsPdf = async (jobRamsId: string) => {
@@ -889,6 +909,7 @@ export function JobManagement() {
         workers={workerNames(job)}
         origin={originLabel(job)}
         costSummary={job.work_order_id ? jobCtx.costs[job.work_order_id] ?? null : null}
+        extraBadges={ramsMarker(job.id)}
         actions={
           <>
             <Button size="sm" variant="outline" onClick={() => setSelectedJobId(job.id)}>View</Button>

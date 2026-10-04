@@ -90,6 +90,12 @@ interface JobRamsRow {
   job_id: string;
   contractor_id: string;
   site_address: string | null;
+  addr_line1: string | null;
+  addr_line2: string | null;
+  addr_city: string | null;
+  addr_region: string | null;
+  addr_postcode: string | null;
+  addr_country: string | null;
   job_description: string | null;
   hazards: Hazard[];
   method_steps: MethodStep[];
@@ -108,6 +114,25 @@ interface JobRamsRow {
 }
 
 const SIGNED_LINK_SECONDS = 60 * 5;
+
+// Mirrors composeAddressString in src/components/shared/AddressInput.tsx —
+// edge functions cannot import from src, so any change to the address
+// format must be made in both places.
+const COUNTRY_NAME: Record<string, string> = { GB: "United Kingdom", US: "United States", CA: "Canada" };
+
+function composeSiteAddress(r: JobRamsRow): string {
+  return [
+    r.addr_line1,
+    r.addr_line2,
+    r.addr_city,
+    r.addr_region,
+    r.addr_postcode,
+    r.addr_country ? COUNTRY_NAME[r.addr_country] ?? r.addr_country : null,
+  ]
+    .map((p) => p?.trim())
+    .filter((p): p is string => !!p)
+    .join(", ");
+}
 
 const isFrozenStatus = (status: string) => status === "signed" || status === "superseded";
 
@@ -154,6 +179,11 @@ async function buildRamsPdf(
 
   y = await drawContractorHeader(page, y, contractor, regular, bold);
 
+  // Running section numbers, so they close up when an optional section
+  // (Additional notes) is omitted.
+  let sectionNo = 0;
+  const sectionTitle = (title: string) => `${++sectionNo}. ${title}`;
+
   const jobRef = formatDocNumber("J", contractor.ts_profile_code ?? "", job.job_number);
 
   ensureSpace(60);
@@ -166,11 +196,11 @@ async function buildRamsPdf(
 
   // ── Section 1: Job details ──────────────────────────────────────────────
   ensureSpace(24);
-  page.drawText("1. JOB DETAILS", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("JOB DETAILS"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
 
   const detailRows: [string, string][] = [
-    ["Site address", ramsRow.site_address || job.location || "—"],
+    ["Site address", composeSiteAddress(ramsRow) || ramsRow.site_address || job.location || "—"],
     ["Job description", ramsRow.job_description || job.title],
     ["Date of assessment", fmtDate(ramsRow.tailored_at ?? new Date().toISOString())],
     ["Assessor", assessorName],
@@ -192,7 +222,7 @@ async function buildRamsPdf(
 
   // ── Section 2: Hazard register ──────────────────────────────────────────
   ensureSpace(30);
-  page.drawText("2. HAZARD REGISTER", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("HAZARD REGISTER"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
 
   const tableWidth = PAGE_WIDTH - 2 * MARGIN;
@@ -201,10 +231,27 @@ async function buildRamsPdf(
   const colControl = MARGIN + tableWidth * 0.42;
   const colResidual = MARGIN + tableWidth * 0.84;
 
+  // Column headings, repeated at the top of any page the table runs onto.
+  const drawHazardHeadings = () => {
+    const headings: [string, number][] = [
+      ["Hazard", colHazard],
+      ["Risk", colRisk],
+      ["Control measures", colControl],
+      ["Residual risk", colResidual],
+    ];
+    for (const [text, x] of headings) page.drawText(text, { x, y, size: 8, font: bold, color: NAVY });
+    y -= 6;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + tableWidth, y }, thickness: 0.75, color: NAVY });
+    y -= 12;
+  };
+
   if (ramsRow.hazards.length === 0) {
     ensureSpace(14);
     page.drawText("No hazards recorded.", { x: MARGIN, y, size: 9, font: regular, color: MID });
     y -= 16;
+  } else {
+    ensureSpace(40);
+    drawHazardHeadings();
   }
 
   for (const h of ramsRow.hazards) {
@@ -213,7 +260,9 @@ async function buildRamsPdf(
     const rowLines = Math.max(hazardLines.length, controlLines.length, 1);
     const rowHeight = rowLines * 10 + 6;
 
+    const pageBefore = page;
     ensureSpace(rowHeight + 4);
+    if (page !== pageBefore) drawHazardHeadings();
     const rowTop = y;
 
     page.drawText(hazardLines[0] ?? "", { x: colHazard, y: rowTop, size: 8, font: regular, color: DARK });
@@ -235,7 +284,7 @@ async function buildRamsPdf(
 
   // ── Section 3: Method statement ─────────────────────────────────────────
   ensureSpace(24);
-  page.drawText("3. METHOD STATEMENT", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("METHOD STATEMENT"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
 
   if (ramsRow.method_steps.length === 0) {
@@ -260,7 +309,7 @@ async function buildRamsPdf(
 
   // ── Section 4: PPE requirements ─────────────────────────────────────────
   ensureSpace(24);
-  page.drawText("4. PPE REQUIREMENTS", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("PPE REQUIREMENTS"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
 
   if (ramsRow.ppe_requirements.length === 0) {
@@ -284,7 +333,7 @@ async function buildRamsPdf(
 
   // ── Section 5: Emergency procedures ─────────────────────────────────────
   ensureSpace(24);
-  page.drawText("5. EMERGENCY PROCEDURES", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("EMERGENCY PROCEDURES"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
   const emergencyLines = wrapText(sanitizeForPdf(ramsRow.emergency_procedures || "Not specified."), regular, 9, tableWidth);
   for (const line of emergencyLines) {
@@ -297,7 +346,7 @@ async function buildRamsPdf(
   // ── Section 6: Additional notes ─────────────────────────────────────────
   if (ramsRow.additional_notes) {
     ensureSpace(24);
-    page.drawText("6. ADDITIONAL NOTES", { x: MARGIN, y, size: 10, font: bold, color: MID });
+    page.drawText(sectionTitle("ADDITIONAL NOTES"), { x: MARGIN, y, size: 10, font: bold, color: MID });
     y -= 16;
     const noteLines = wrapText(sanitizeForPdf(ramsRow.additional_notes), regular, 9, tableWidth);
     for (const line of noteLines) {
@@ -310,7 +359,7 @@ async function buildRamsPdf(
 
   // ── Section 7: Declaration ──────────────────────────────────────────────
   ensureSpace(70);
-  page.drawText("7. DECLARATION", { x: MARGIN, y, size: 10, font: bold, color: MID });
+  page.drawText(sectionTitle("DECLARATION"), { x: MARGIN, y, size: 10, font: bold, color: MID });
   y -= 16;
   page.drawText("This RAMS has been specifically prepared for the above works.", { x: MARGIN, y, size: 9, font: regular, color: DARK });
   y -= 15;

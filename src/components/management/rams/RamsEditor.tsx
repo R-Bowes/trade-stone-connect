@@ -303,10 +303,13 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
   const [revising, setRevising] = useState(false);
   const [downloadingVersionId, setDownloadingVersionId] = useState<string | null>(null);
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setCurrentUserId(user.id);
       const { data } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle();
       setAssessorName(data?.full_name ?? "");
       setTailorName(data?.full_name ?? "");
@@ -361,6 +364,13 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
   const readOnly = jobRams.status !== "draft";
   const canTailor = jobRams.status === "draft";
   const isSigned = jobRams.status === "signed";
+  // Templates are owned by the signed-in user (rams_templates_insert), so
+  // only the job's own contractor gets "Save as My Template" — a team
+  // member's copy would be orphaned under their own id.
+  const isJobContractor = !!currentUserId && currentUserId === jobRams.contractor_id;
+  // A RAMS is site-specific: tailoring is blocked until a structured site
+  // address (line 1 + postcode, country chosen first) is entered.
+  const hasSiteAddress = !!address.addr_line1?.trim() && !!address.addr_postcode?.trim();
 
   const handleSaveContent = async () => {
     setSaving(true);
@@ -396,6 +406,7 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
   };
 
   const handleConfirmTailoring = async () => {
+    if (!hasSiteAddress) return;
     await handleSaveContent();
     await confirmTailoring(jobRams.id, tailorName);
     toast({ title: "RAMS tailored and locked" });
@@ -585,9 +596,14 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
               <Checkbox checked={tailorChecked} onCheckedChange={(c) => setTailorChecked(!!c)} />
               I have reviewed and tailored this RAMS for this specific job
             </label>
+            {!hasSiteAddress && (
+              <p className="text-sm text-red-700">
+                Enter the site address above (address line 1 and postcode) before confirming. A RAMS must name the site it covers.
+              </p>
+            )}
             <Button
               type="button"
-              disabled={!tailorChecked || !tailorName.trim() || saving}
+              disabled={!tailorChecked || !tailorName.trim() || !hasSiteAddress || saving}
               onClick={handleConfirmTailoring}
               style={{ backgroundColor: "#f07820", color: "#fff" }}
             >
@@ -622,18 +638,20 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
                 </Badge>
               )}
             </div>
-            <div className="flex gap-2 pt-2 border-t">
-              <Input
-                placeholder="Template name"
-                value={templateNameInput}
-                onChange={(e) => setTemplateNameInput(e.target.value)}
-                className="max-w-xs"
-              />
-              <Button type="button" variant="outline" onClick={handleSaveAsTemplate} disabled={savingTemplate || !templateNameInput.trim()}>
-                {savingTemplate && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save as My Template
-              </Button>
-            </div>
+            {isJobContractor && (
+              <div className="flex gap-2 pt-2 border-t">
+                <Input
+                  placeholder="Template name"
+                  value={templateNameInput}
+                  onChange={(e) => setTemplateNameInput(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Button type="button" variant="outline" onClick={handleSaveAsTemplate} disabled={savingTemplate || !templateNameInput.trim()}>
+                  {savingTemplate && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save as My Template
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

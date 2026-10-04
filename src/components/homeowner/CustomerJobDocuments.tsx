@@ -10,8 +10,8 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { useJobCertificates, CERTIFICATE_TYPE_LABELS } from "@/hooks/useJobCertificates";
 
 // Read-only summary of documents the contractor has produced for this job —
-// RAMS (signed only: job_rams_select returns nothing else to a customer or
-// company member, and the filter below says so explicitly) and job
+// RAMS (signed versions only: job_rams_select returns nothing else to a
+// customer or company member, and the filter below says so explicitly) and job
 // certificates/warranties. Deliberately not tied to job.status: a
 // certificate can be issued mid-job (e.g. a gas safety check) and RAMS is
 // normally in place before work starts, well before "complete". The RAMS
@@ -33,6 +33,7 @@ function isExpired(expiryDate: string | null): boolean {
 interface JobRamsSummary {
   id: string;
   status: "draft" | "tailored" | "signed" | "superseded";
+  version: number;
   tailored_at: string | null;
   signed_off_at: string | null;
 }
@@ -70,20 +71,24 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
     (async () => {
       setRamsLoading(true);
       // Cast through `any` at the read boundary only (same pattern as
-      // useRams.ts). Signed only: at most one signed row per job (the live
-      // row; earlier versions are 'superseded').
+      // useRams.ts). The latest version this viewer can see: job_rams_select
+      // returns only 'signed' and 'superseded' rows to a customer or company
+      // member, and both were signed. If the top one is 'superseded', the
+      // live version is an unsigned revision in progress — show the latest
+      // signed version with a note rather than "not issued".
       const { data, error } = await (supabase as any)
         .from("job_rams")
-        .select("id, status, tailored_at, signed_off_at")
+        .select("id, status, version, tailored_at, signed_off_at")
         .eq("job_id", jobId)
-        .eq("status", "signed")
-        .maybeSingle();
+        .in("status", ["signed", "superseded"])
+        .order("version", { ascending: false })
+        .limit(1);
       if (cancelled) return;
       if (error) {
         console.error("Error fetching job RAMS for customer view:", error);
         setRams(null);
       } else {
-        setRams((data as JobRamsSummary | null) ?? null);
+        setRams(((data as JobRamsSummary[] | null) ?? [])[0] ?? null);
       }
       setRamsLoading(false);
     })();
@@ -225,8 +230,12 @@ export function CustomerJobDocuments({ jobId }: { jobId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-medium">Risk Assessment & Method Statement</p>
               <p className="text-xs text-muted-foreground">
-                {rams.signed_off_at ? `Signed off ${format(new Date(rams.signed_off_at), "d MMM yyyy")}` : null}
+                {`v${rams.version}`}
+                {rams.signed_off_at ? ` · signed off ${format(new Date(rams.signed_off_at), "d MMM yyyy")}` : null}
               </p>
+              {rams.status === "superseded" && (
+                <p className="text-xs text-amber-700">A revised version is being prepared</p>
+              )}
             </div>
             <Button size="sm" variant="outline" disabled={ramsOpening} onClick={handleViewRams}>
               {ramsOpening ? (
