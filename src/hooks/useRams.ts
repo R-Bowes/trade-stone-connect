@@ -166,7 +166,7 @@ export function useRams(jobId?: string) {
         .eq("job_id", forJobId)
         .neq("status", "superseded")
         .maybeSingle(),
-      (supabase as any)
+      supabase
         .from("job_rams")
         .select(JOB_RAMS_VERSION_SELECT)
         .eq("job_id", forJobId)
@@ -319,7 +319,7 @@ export function useRams(jobId?: string) {
   // Supersedes a signed RAMS and opens the new draft (version + 1,
   // untailored) that revise_job_rams returns.
   const reviseJobRams = async (id: string): Promise<string | null> => {
-    const { data, error } = await (supabase as any).rpc("revise_job_rams", { p_job_rams_id: id });
+    const { data, error } = await supabase.rpc("revise_job_rams", { p_job_rams_id: id });
     if (error) {
       toast({ title: "Error", description: error.message || "Failed to revise RAMS", variant: "destructive" });
       throw error;

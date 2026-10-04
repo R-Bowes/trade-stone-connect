@@ -4274,15 +4274,18 @@ export type Database = {
           pdf_storage_path: string | null
           ppe_requirements: Json
           signed_off_at: string | null
+          signed_off_by: string | null
           signed_off_by_name: string | null
           signed_off_by_role: string | null
           site_address: string | null
           status: string
+          supersedes_id: string | null
           tailored_at: string | null
           tailored_by: string | null
           tailored_for_job: boolean
           template_id: string | null
           updated_at: string
+          version: number
         }
         Insert: {
           additional_notes?: string | null
@@ -4307,15 +4310,18 @@ export type Database = {
           pdf_storage_path?: string | null
           ppe_requirements?: Json
           signed_off_at?: string | null
+          signed_off_by?: string | null
           signed_off_by_name?: string | null
           signed_off_by_role?: string | null
           site_address?: string | null
           status?: string
+          supersedes_id?: string | null
           tailored_at?: string | null
           tailored_by?: string | null
           tailored_for_job?: boolean
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
           additional_notes?: string | null
@@ -4340,15 +4346,18 @@ export type Database = {
           pdf_storage_path?: string | null
           ppe_requirements?: Json
           signed_off_at?: string | null
+          signed_off_by?: string | null
           signed_off_by_name?: string | null
           signed_off_by_role?: string | null
           site_address?: string | null
           status?: string
+          supersedes_id?: string | null
           tailored_at?: string | null
           tailored_by?: string | null
           tailored_for_job?: boolean
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -4368,15 +4377,36 @@ export type Database = {
           {
             foreignKeyName: "job_rams_job_id_fkey"
             columns: ["job_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "job_adjusted_contract_value"
             referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "job_rams_job_id_fkey"
             columns: ["job_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_rams_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_rams_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_rams_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "job_rams"
             referencedColumns: ["id"]
           },
           {
@@ -11228,6 +11258,7 @@ export type Database = {
         }
         Returns: string
       }
+      revise_job_rams: { Args: { p_job_rams_id: string }; Returns: string }
       run_compliance_watcher: { Args: never; Returns: undefined }
       run_expiry_radar: { Args: never; Returns: undefined }
       run_ppm_generator: { Args: never; Returns: undefined }
