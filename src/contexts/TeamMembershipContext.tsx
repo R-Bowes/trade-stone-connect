@@ -2,14 +2,23 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+// Only what the membership check and the /field pages use. Deliberately
+// NOT the full row: team_members also holds pay (hourly_rate, day_rate,
+// overtime_rate) and utr_number, which must never be fetched into the
+// browser just to answer "is this user a team member".
+const TEAM_MEMBERSHIP_SELECT = "id, contractor_id, profile_id, status" as const;
+
+export type TeamMembershipRow = Pick<
+  Database["public"]["Tables"]["team_members"]["Row"],
+  "id" | "contractor_id" | "profile_id" | "status"
+>;
 
 export interface TeamMembershipState {
   loading: boolean;
   isTeamMember: boolean;
-  // Full row, so callers that need contractor_id (e.g. useFieldTeamMember's
-  // employer lookup) don't have to re-query it.
-  teamMember: TeamMember | null;
+  // The ids callers need (e.g. contractor_id for useFieldTeamMember's
+  // employer lookup), so they don't have to re-query.
+  teamMember: TeamMembershipRow | null;
 }
 
 const initialState: TeamMembershipState = {
@@ -50,7 +59,7 @@ export function TeamMembershipProvider({ children }: { children: ReactNode }) {
 
       const { data } = await supabase
         .from("team_members")
-        .select("*")
+        .select(TEAM_MEMBERSHIP_SELECT)
         .eq("profile_id", userId)
         .eq("status", "active")
         .maybeSingle();

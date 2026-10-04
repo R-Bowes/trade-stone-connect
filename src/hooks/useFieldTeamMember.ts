@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-import { useTeamMembership } from "@/contexts/TeamMembershipContext";
+import { useTeamMembership, type TeamMembershipRow } from "@/contexts/TeamMembershipContext";
 
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+type TeamMember = TeamMembershipRow;
 
 export interface FieldTeamMemberState {
   loading: boolean;

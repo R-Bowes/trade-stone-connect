@@ -22,10 +22,13 @@ const ORANGE = "#f07820";
 export default function FieldHeader({
   title,
   subtitle,
+  eyebrow,
   onBack,
 }: {
   title: string;
   subtitle?: string;
+  /** Small line above the title, e.g. the job reference. */
+  eyebrow?: string;
   onBack?: () => void;
 }) {
   const navigate = useNavigate();
@@ -45,10 +48,12 @@ export default function FieldHeader({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <h1
-            className="text-lg font-semibold text-white truncate"
-            style={{ fontFamily: "Lexend, sans-serif" }}
-          >
+          {eyebrow && (
+            <p className="font-mono text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="text-lg font-semibold text-white truncate">
             {title}
           </h1>
           {subtitle && (

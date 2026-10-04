@@ -28,7 +28,7 @@ import {
 import { useJobs, useJobNotes, useJobPhotos, useJobTeam, useJobReview, useServiceReview, type Job, type ServiceReviewInput, type ServiceReview } from "@/hooks/useJobs";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { format } from "date-fns";
-import { formatQuoteRef } from "@/lib/documentRefs";
+import { formatJobRef, formatQuoteRef } from "@/lib/documentRefs";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { fetchJobOrigin, type JobOrigin } from "@/lib/fetchJobOrigin";
 import { JobOriginSection } from "@/components/JobOriginSection";
@@ -54,16 +54,59 @@ const statusConfig: Record<string, { label: string; icon: any; color: string }> 
   completed: { label: "Completed", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
 };
 
+/**
+ * Customer-facing reference line: the job first, then the quote it came
+ * from, both in the full form with the contractor's code —
+ * "J-4AE203-0014 · from quote Q-4AE203-0018". Falls back to the short form
+ * only if the contractor's code could not be read.
+ */
+function customerJobRefLine(job: Job, contractorCode: string | null | undefined): string {
+  const opts = contractorCode ? { contractorCode } : undefined;
+  const jobRef = formatJobRef(job.job_number, opts);
+  return job.quote_number != null ? `${jobRef} · from quote ${formatQuoteRef(job.quote_number, opts)}` : jobRef;
+}
+
+// Contractor TS codes for the customer's jobs, from public_pro_profiles —
+// the client-facing view (never profiles directly from customer code).
+const CONTRACTOR_CODE_SELECT = "id, ts_profile_code" as const;
+
 export function ClientJobsView() {
   const { jobs, loading, loadJobs } = useJobs("client");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [contractorCodes, setContractorCodes] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    const ids = Array.from(new Set(jobs.map((j) => j.contractor_id).filter(Boolean)));
+    if (ids.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("public_pro_profiles").select(CONTRACTOR_CODE_SELECT).in("id", ids);
+      if (cancelled) return;
+      if (error) {
+        console.error("Error loading contractor codes:", error);
+        return;
+      }
+      const map: Record<string, string | null> = {};
+      for (const row of data ?? []) if (row.id) map[row.id] = row.ts_profile_code;
+      setContractorCodes(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobs]);
 
   if (loading) {
     return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   if (selectedJob) {
-    return <ClientJobDetail job={selectedJob} onBack={() => { setSelectedJob(null); void loadJobs(); }} />;
+    return (
+      <ClientJobDetail
+        job={selectedJob}
+        refLine={customerJobRefLine(selectedJob, contractorCodes[selectedJob.contractor_id])}
+        onBack={() => { setSelectedJob(null); void loadJobs(); }}
+      />
+    );
   }
 
   return (
@@ -90,11 +133,9 @@ export function ClientJobsView() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold truncate">{job.title}</h3>
-                        {job.quote_number != null && (
-                          <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {formatQuoteRef(job.quote_number)}
-                          </span>
-                        )}
+                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                          {customerJobRefLine(job, contractorCodes[job.contractor_id])}
+                        </span>
                         <Badge className={sc.color}>
                           <StatusIcon className="h-3 w-3 mr-1" />
                           {sc.label}
@@ -123,7 +164,7 @@ export function ClientJobsView() {
 
 const REVIEW_DELAY_MS = 48 * 60 * 60 * 1000;
 
-function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
+function ClientJobDetail({ job, refLine, onBack }: { job: Job; refLine: string; onBack: () => void }) {
   const { notes, addNote } = useJobNotes(job.id);
   const { photos } = useJobPhotos(job.id);
   // job-photos is a private bucket — getPublicUrl() 400s against it.
@@ -242,11 +283,9 @@ function ClientJobDetail({ job, onBack }: { job: Job; onBack: () => void }) {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-xl">{job.title}</CardTitle>
-{job.quote_number != null && (
-  <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">
-    {formatQuoteRef(job.quote_number)}
-  </span>
-)}
+<span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">
+  {refLine}
+</span>
               {job.description && <CardDescription>{job.description}</CardDescription>}
             </div>
             <Badge className={sc.color}>

@@ -8,6 +8,7 @@ export interface Job {
   customer_id: string;
   issued_quote_id: string | null;
   engagement_id: string | null;
+  job_number: number;
   quote_number: number | null;
   company_id: string | null;
   title: string;

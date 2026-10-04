@@ -16,15 +16,22 @@ const STAGE_LABEL: Record<Stage, string> = {
 export default function FieldChecklist({
   jobId,
   ownProfileId,
+  onCountChange,
 }: {
   jobId: string;
   ownProfileId: string;
+  /** Reports {done, total} whenever the items change (e.g. for a "3 of 5" heading). */
+  onCountChange?: (done: number, total: number) => void;
 }) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newText, setNewText] = useState("");
   const [newStage, setNewStage] = useState<Stage>("work_started");
   const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    onCountChange?.(items.filter((i) => i.is_checked).length, items.length);
+  }, [items, onCountChange]);
 
   const load = async () => {
     setLoading(true);
