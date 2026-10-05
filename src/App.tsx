@@ -34,10 +34,6 @@ import ContractorOnboarding from "./pages/ContractorOnboarding";
 import PayInvoicePage from "./pages/PayInvoicePage";
 import ResetPassword from "./components/ui/ResetPassword";
 import BusinessSettings from "./pages/BusinessSettings";
-import Projects from "./pages/Projects";
-import TenderDetail from "./pages/TenderDetail";
-import ProposalReview from "./pages/ProposalReview";
-import ProjectDelivery from "./pages/ProjectDelivery";
 import InvitePage from "./pages/InvitePage";
 import AcceptTeamInvite from "./pages/AcceptTeamInvite";
 import SitePortal from "./pages/SitePortal";
@@ -140,10 +136,6 @@ const App = () => (
           <Route path="/field" element={<FieldGuard><FieldJobList /></FieldGuard>} />
           <Route path="/field/job/:jobId" element={<FieldGuard><FieldJobDetail /></FieldGuard>} />
           <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
-          <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-          <Route path="/projects/:id" element={<ProtectedRoute><TenderDetail /></ProtectedRoute>} />
-          <Route path="/projects/:id/proposals" element={<ProtectedRoute><ProposalReview /></ProtectedRoute>} />
-          <Route path="/projects/:id/delivery" element={<ProtectedRoute><ProjectDelivery /></ProtectedRoute>} />
 
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />
