@@ -32,6 +32,11 @@ out to block validation, move it here — don't build it in place.
 
 ## BLOCKING VALIDATION
 
+### Write-path hardening (authorised 6 Oct 2026) — Phase 0 blocker
+Order: invoices, issued_quotes, jobs, payments/refunds/stages,
+contractor_panel, tender awards and invitations, job_reviews.
+Projects slice 2 is paused until the money tables are done.
+
 ### Mobile quote acceptance missing
 **Priority: highest. Blocks end-to-end validation.**
 
@@ -83,6 +88,16 @@ deposit-required acceptance.
 
 Close by: issuing one quote with deposit required, accepting as Test Customer,
 confirming a new `invoices` row lands with `status = 'sent'`.
+
+---
+
+## RAMS workstream (authorised 3 Oct 2026, ahead of Phase 0 close)
+1. RAMS record fixes: ownership check, team access, clients see issued only, versioning and revision
+2. Hazard ids and hazard library
+3. Template builder UI
+4. Site checks (point-of-work RA with sign-on)
+5. System template expansion to the trade list
+6. Business-required RAMS and checklists per site
 
 ---
 
@@ -159,7 +174,9 @@ goes in front of a real user. Flagged in both migrations
 Verify it doesn't leak contractor contact details that the rest of the
 platform deliberately keeps behind `public_pro_profiles` / messaging.
 Comms invariant: no phone numbers or email addresses on platform-generated
-documents or contractor-facing views.
+documents or contractor-facing views. Exception: the customer's phone number
+is shown to the contractor and their team on the field job page for a
+confirmed job that is not yet complete, so they can reach the customer on site.
 
 ### `BusinessManagement.tsx` renders hardcoded fake data
 Line 54: `"Pending Invoices", value: "£3,200", change: "5 invoices"`.

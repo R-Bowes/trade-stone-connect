@@ -119,6 +119,15 @@ form doesn't get heavy enough to cause abandonment.
   hard acceptance commitment, public Q&A thread, weighted scoring,
   Gantt/budget/contractor views, two-stage sign-off, retention management,
   contract versioning on approved change requests.
+  **Approved mock (5 Oct 2026) — homeowner project page:**
+- Sections: budget bar (paid / agreed still to pay / left to commit),
+  packages grouped by trade, timeline with today marker, "Needs you" list,
+  light snag list and sign-off.
+- A contractor's phases each show as their own package, grouped under the
+  contractor. One job per package still holds.
+- Unfilled packages get a "choose by" date derived from surrounding job
+  dates, surfaced in "Needs you".
+- Mock: https://claude.ai/artifact/DTgL9VPnPgN3w3cm37h64S
 - **Gantt / timeline view** — part of Projects, not detailed yet.
 - **Change request flow** — post-acceptance scope changes with revised cost +
   timeline, customer approve/decline. Distinct from job variations (shipped),
@@ -128,6 +137,42 @@ form doesn't get heavy enough to cause abandonment.
 - **Template schemas** for proposals — needs real tender data first.
 - **Blocker:** `create-deposit-checkout` is quarantined (see tech debt) and
   must be fixed before Projects deposits can be taken.
+  - DO NOT RUN — company ownership: add projects.company_id (uuid, nullable,
+  FK companies(id)) with a CHECK requiring it when account_type = 'business'.
+  Rename projects_customer_id_fkey to match posted_by. RLS via existing
+  company membership helpers.
+- DO NOT RUN — packages: project_jobs becomes the planned-package list.
+  job_id nullable and unique; the job's project_id must match the package's
+  project. Rename to project_packages. jobs.project_id remains the only
+  membership link. Remove the double insert at ProposalReview.tsx:360-373.
+- Tenders should reference the package they fill, not only the project.
+- projects.account_type already allows personal, contractor, business. The
+  replacement create-project form must set it (PostTenderForm is retiring).
+
+  - DO NOT RUN — business projects follow the site model: add
+  projects.company_id (uuid, nullable, FK companies(id)), required when
+  account_type = 'business', plus a project-to-sites link (a project may
+  cover several sites, as tenders do). Access by existing team coverage
+  via can_access_site(): a member sees a project if they cover at least
+  one of its sites, and within it only the work at their sites. No
+  per-project member lists for business teams. Rename
+  projects_customer_id_fkey to match posted_by.
+- Negotiation (5 Oct 2026): counter-proposals dropped (quote revisions
+  cover it; sealed tenders must not allow haggling). Expiry prompts move
+  to quotes as a standalone feature, outside Projects.
+  **Business project page — mock agreed (5 Oct 2026):**
+- Same skeleton as the homeowner page, inside the business dashboard, with
+  Projects under Work in the side menu.
+- Shows the sites covered, how each package was procured (tender or direct
+  quote, reference linked), tender status without revealing bids, change
+  requests, who can see the project by coverage, two-stage completion.
+- Each unfilled package carries an allowance so the budget adds up before
+  award.
+- OUT: approval thresholds on quotes (not needed).
+- PARKED: retention. Not in the business version. Conflicts with the invoice
+  rules (an invoice deliberately part-paid for months) and raises who holds
+  the money. Revisit only if a real client asks.
+- Mock: https://claude.ai/artifact/DTgL9VPnPgN3w3cm37h64S
 
 ---
 
@@ -1558,15 +1603,6 @@ a coverage number that does not match their actual directory reach.
 Either collapse to one field or derive display from the canonical
 one.
 
-## /projects/:id queries the legacy projects table
-
-Two parallel tendering location models coexist live: the current
-tenders → tender_sites → sites system, and a legacy `projects`
-table with structured city/postcode columns and 0 rows.
-TenderDetail.tsx at the live /projects/:id route still queries the
-legacy one (LOCATION-AUDIT.md finding 3). Verify in the browser
-whether that route is broken.
-
 ## issued_quotes.client_address is a dead column
 
 0 of 22 rows non-null; nothing in the current codebase writes it.
@@ -1615,18 +1651,6 @@ legacy, permanently unwritten table — so even if it were live it would seed
 nothing. Decide whether to drop the definition from the migration history's
 intent (a new migration dropping the function) or to rebuild seeding on
 `job_assignments`. Not fixed here.
-
-## AdminDashboard "mark job complete" writes a status the constraint rejects
-
-`AdminDashboard.tsx:519` (`handleMarkJobComplete`) does
-`update({ status: 'completed' })`. The live `jobs_status_check` has no
-`'completed'` (the value is `'complete'`), so the update violates the
-constraint. The call is wrapped in `(supabase as any)` and the returned
-error is never read, so the admin sees the dialog close and the list reload
-with nothing changed — a silent failure. Probable fix: write `'complete'`
-(and go through the normal transition, which also needs `completed_at`), and
-check the error. Not fixed here.
-
 
 ## Two SLA engines write to jobs — retire one at the start of the SLA pass
 
@@ -1730,3 +1754,56 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
+## Projects (slice 1 live; slices 2 to 4 to build)
+
+**State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
+and their routes unregistered (c77bf32). Slice 1 foundations live
+(20261005120000, commit 3b93839): projects reshaped with company_id,
+status and target dates; project_sites; project_packages; one owner-side
+access model; attach/detach job functions. All project tables hold 0
+rows. Old tables (project_jobs, project_proposals, project_qanda,
+project_members, project_notes, project_events, project_contracts,
+project_updates, project_change_requests) remain, unused, until a
+cleanup migration. generate-project-contract is still deployed and
+unused. Contractor-created projects are blocked until slice 4.
+
+**Locked direction (5 Oct 2026):**
+- Projects and Tendering are separate features. Tendering is the only bidding
+  system. A project MAY use a tender; neither requires the other.
+- Projects = organising and delivery layer only: jobs grouped under a timeline
+  and budget, updates, snags, change requests, sign-off, contracts.
+- Link is tenders.project_id. A tender award or accepted quote becomes a normal
+  job inside the project, minted through the canonical path.
+- RETIRE the built-in Projects bidding flow: project_proposals,
+  proposal_attachments, project_qanda, PostTenderForm, SubmitProposalForm,
+  TenderDetail.tsx, ProposalReview.tsx.
+
+**Still open:**
+- Confirm what contractor_projects / contractor_project_groups are.
+
+**Still parked:** Gantt detail, sub-contractor hiring, template schemas.
+
+## Parked from 5–6 Oct 2026
+- Customer invoice PDF: suspected to show the customer's own details in the
+  contractor block; no download button found on the received-invoices card.
+  Unconfirmed.
+- Received invoices shows a "5% platform fee applies" notice to customers,
+  who pay no fee.
+- Directory: review the Compare quotes button.
+- Profile scores show Craft / Service / Value; spec is Craft, Service,
+  Client Outcomes, Conduct, with price never affecting the score.
+- /contracts page shows "Available Now" labels; AI contracts are Coming Soon.
+- Contractor menu has no Tenders entry; no screen performs a tender award.
+- Account deletion: admin button removed 6 Oct. Needs a proper design
+  (erasure, retention of financial records, blocking sign-in).
+- Suspension only hides the directory listing; it does not block sign-in.
+- Email change flow: profile email is read-only; no way to change it yet.
+- rating, review_count, completed_jobs have no writer at all.
+- recalculate_contractor_tier is executable by anon; tighten.
+- Admin handlers ignore errors (enquiries, jobs, disputes, invoices);
+  'mark job complete' writes a status the constraint rejects.
+- Projects slice 4 hardening: direct changes to jobs.project_id and
+  tenders.project_id; unlinking a site with pinned packages; expense and
+  mileage project pickers return nothing until contractor access exists.
+- Profiles: optionally restrict which profile rows a user can see
+  (column locks done 5 and 6 Oct).
