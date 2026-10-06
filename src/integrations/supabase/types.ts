@@ -7284,6 +7284,114 @@ export type Database = {
           },
         ]
       }
+      project_packages: {
+        Row: {
+          allowance: number | null
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string | null
+          needed_from: string | null
+          needed_to: string | null
+          project_id: string
+          site_id: string | null
+          sort_order: number
+          tender_id: string | null
+          title: string
+          trade: string | null
+          updated_at: string
+        }
+        Insert: {
+          allowance?: number | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string | null
+          needed_from?: string | null
+          needed_to?: string | null
+          project_id: string
+          site_id?: string | null
+          sort_order?: number
+          tender_id?: string | null
+          title: string
+          trade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allowance?: number | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string | null
+          needed_from?: string | null
+          needed_to?: string | null
+          project_id?: string
+          site_id?: string | null
+          sort_order?: number
+          tender_id?: string | null
+          title?: string
+          trade?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_packages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_adjusted_contract_value"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "project_packages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_packages_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_proposals: {
         Row: {
           contractor_id: string
@@ -7494,11 +7602,45 @@ export type Database = {
           },
         ]
       }
+      project_sites: {
+        Row: {
+          id: string
+          project_id: string
+          site_id: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          site_id: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_sites_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_snags: {
         Row: {
           created_at: string
           description: string
           id: string
+          package_id: string | null
           project_id: string
           raised_by: string
           resolved_at: string | null
@@ -7509,6 +7651,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          package_id?: string | null
           project_id: string
           raised_by: string
           resolved_at?: string | null
@@ -7519,6 +7662,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          package_id?: string | null
           project_id?: string
           raised_by?: string
           resolved_at?: string | null
@@ -7526,6 +7670,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_snags_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "project_packages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_snags_project_id_fkey"
             columns: ["project_id"]
@@ -7633,6 +7784,7 @@ export type Database = {
           budget_revised: number | null
           budget_visible_to_contractors: boolean | null
           city: string | null
+          company_id: string | null
           created_at: string
           deposit_amount: number | null
           deposit_percentage: number | null
@@ -7646,6 +7798,9 @@ export type Database = {
           qanda_public: boolean | null
           retention_percentage: number | null
           scoring_criteria: Json | null
+          status: string
+          target_end: string | null
+          target_start: string | null
           tender_status: string
           title: string
           trade_categories: string[] | null
@@ -7669,6 +7824,7 @@ export type Database = {
           budget_revised?: number | null
           budget_visible_to_contractors?: boolean | null
           city?: string | null
+          company_id?: string | null
           created_at?: string
           deposit_amount?: number | null
           deposit_percentage?: number | null
@@ -7682,6 +7838,9 @@ export type Database = {
           qanda_public?: boolean | null
           retention_percentage?: number | null
           scoring_criteria?: Json | null
+          status?: string
+          target_end?: string | null
+          target_start?: string | null
           tender_status?: string
           title: string
           trade_categories?: string[] | null
@@ -7705,6 +7864,7 @@ export type Database = {
           budget_revised?: number | null
           budget_visible_to_contractors?: boolean | null
           city?: string | null
+          company_id?: string | null
           created_at?: string
           deposit_amount?: number | null
           deposit_percentage?: number | null
@@ -7718,6 +7878,9 @@ export type Database = {
           qanda_public?: boolean | null
           retention_percentage?: number | null
           scoring_criteria?: Json | null
+          status?: string
+          target_end?: string | null
+          target_start?: string | null
           tender_status?: string
           title?: string
           trade_categories?: string[] | null
@@ -7726,43 +7889,50 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["posted_by"]
+            foreignKeyName: "projects_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_lead_contractor_id_fkey"
+            columns: ["lead_contractor_id"]
             isOneToOne: false
             referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["posted_by"]
+            foreignKeyName: "projects_lead_contractor_id_fkey"
+            columns: ["lead_contractor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["posted_by"]
+            foreignKeyName: "projects_lead_contractor_id_fkey"
+            columns: ["lead_contractor_id"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_lead_contractor_id_fkey"
-            columns: ["lead_contractor_id"]
+            foreignKeyName: "projects_posted_by_fkey"
+            columns: ["posted_by"]
             isOneToOne: false
             referencedRelation: "my_profile"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_lead_contractor_id_fkey"
-            columns: ["lead_contractor_id"]
+            foreignKeyName: "projects_posted_by_fkey"
+            columns: ["posted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_lead_contractor_id_fkey"
-            columns: ["lead_contractor_id"]
+            foreignKeyName: "projects_posted_by_fkey"
+            columns: ["posted_by"]
             isOneToOne: false
             referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
@@ -11807,12 +11977,12 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
-          postcode?: string | null
+          postcode?: never
           profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
-          service_area_center_lat?: number | null
-          service_area_center_lng?: number | null
+          service_area_center_lat?: never
+          service_area_center_lng?: never
           service_area_radius_miles?: number | null
           social_links?: Json | null
           trades?: string[] | null
@@ -11841,12 +12011,12 @@ export type Database = {
           is_verified?: boolean | null
           location?: string | null
           logo_url?: string | null
-          postcode?: string | null
+          postcode?: never
           profile_is_published?: boolean | null
           rating?: number | null
           review_count?: number | null
-          service_area_center_lat?: number | null
-          service_area_center_lng?: number | null
+          service_area_center_lat?: never
+          service_area_center_lng?: never
           service_area_radius_miles?: number | null
           social_links?: Json | null
           trades?: string[] | null
@@ -11980,6 +12150,16 @@ export type Database = {
           p_unit_cost: number
         }
         Returns: Record<string, unknown>
+      }
+      _project_job_link_allowed: {
+        Args: {
+          p_account_type: string
+          p_job_company: string
+          p_job_customer: string
+          p_job_site: string
+          p_project_company: string
+        }
+        Returns: boolean
       }
       _work_order_approval_threshold: {
         Args: { p_company_id: string; p_site_id: string }
@@ -12135,6 +12315,10 @@ export type Database = {
         Args: { p_cost_id: string }
         Returns: undefined
       }
+      attach_job_to_package: {
+        Args: { p_job_id: string; p_package_id: string }
+        Returns: undefined
+      }
       auth_user_company_ids: { Args: never; Returns: string[] }
       award_tender_agreement: {
         Args: { p_application_id: string; p_standstill_ends_at?: string }
@@ -12161,6 +12345,7 @@ export type Database = {
         Returns: undefined
       }
       calculate_trade_averages: { Args: never; Returns: undefined }
+      can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       check_contractor_compliance: {
         Args: { p_contractor_id: string }
@@ -12236,6 +12421,10 @@ export type Database = {
       }
       decline_work_order: {
         Args: { p_reason: string; p_work_order_id: string }
+        Returns: undefined
+      }
+      detach_job_from_package: {
+        Args: { p_package_id: string }
         Returns: undefined
       }
       effective_engagement_rates: {
@@ -12379,6 +12568,16 @@ export type Database = {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
       }
+      project_access_rule: {
+        Args: {
+          p_account_type: string
+          p_company_id: string
+          p_posted_by: string
+          p_project_id: string
+        }
+        Returns: boolean
+      }
+      project_company_id: { Args: { p_project_id: string }; Returns: string }
       propose_engagement_rate_version: {
         Args: {
           p_callout_ooh: number
