@@ -21,6 +21,7 @@ type Profile = {
   bio: string | null;
   stripe_account_id: string | null;
   is_verified: boolean | null;
+  is_active: boolean | null;
   created_at: string;
 };
 
@@ -199,8 +200,7 @@ export default function AdminDashboard() {
   // UI state — profile actions
   const [profileSlideOver, setProfileSlideOver] = useState<Profile | null>(null);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
-  const [editFields, setEditFields] = useState({ full_name: '', trade: '', location: '', bio: '', user_type: '' });
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editFields, setEditFields] = useState({ full_name: '', trade: '', location: '', bio: '' });
 
   // UI state — admin management
   const [createAdminOpen, setCreateAdminOpen] = useState(false);
@@ -399,46 +399,33 @@ export default function AdminDashboard() {
 
   // ── Users ────────────────────────────────────────────────────────────────
 
-  async function handleSuspend(id: string) {
-    await (supabase as any).from('profiles').update({ user_type: 'suspended' }).eq('id', id);
-    await logActivity('suspend_user', 'user', id);
-    loadData();
-  }
-
-  async function handleReinstate(id: string) {
-    await (supabase as any).from('profiles').update({ user_type: 'contractor' }).eq('id', id);
-    await logActivity('reinstate_user', 'user', id);
-    loadData();
-  }
-
-  async function handleVerifyContractor(id: string, current: boolean | null) {
-    await (supabase as any).from('profiles').update({ is_verified: !current }).eq('id', id);
-    await logActivity(current ? 'unverify_contractor' : 'verify_contractor', 'user', id);
+  // Suspend / reinstate flip profiles.is_active through an admin-only RPC
+  // (is_active is not client-writable). Suspending hides the listing from
+  // the directory (public_pro_profiles); it does not block sign-in.
+  async function handleSetActive(id: string, active: boolean) {
+    const { error } = await supabase.rpc('admin_set_profile_active', { p_profile_id: id, p_active: active });
+    if (error) {
+      alert(`Failed to ${active ? 'reinstate' : 'suspend'} user: ${error.message}`);
+      return;
+    }
+    await logActivity(active ? 'reinstate_user' : 'suspend_user', 'user', id);
     loadData();
   }
 
   async function handleEditProfile() {
     if (!editingProfile) return;
-    await (supabase as any).from('profiles').update({
+    const { error } = await (supabase as any).from('profiles').update({
       full_name: editFields.full_name,
       trades: editFields.trade ? [editFields.trade] : null,
       location: editFields.location || null,
       bio: editFields.bio || null,
-      user_type: editFields.user_type,
     }).eq('id', editingProfile.id);
+    if (error) {
+      alert(`Failed to save profile: ${error.message}`);
+      return;
+    }
     await logActivity('edit_profile', 'user', editingProfile.id, editFields as unknown as Record<string, unknown>);
     setEditingProfile(null);
-    loadData();
-  }
-
-  async function handleDeleteAccount(id: string) {
-    await (supabase as any).from('profiles').update({
-      email: `deleted_${id}@tradestone.com`,
-      full_name: 'Deleted Account',
-      is_active: false,
-    }).eq('id', id);
-    await logActivity('delete_account', 'user', id);
-    setDeleteConfirmId(null);
     loadData();
   }
 
@@ -730,7 +717,6 @@ export default function AdminDashboard() {
     contractor: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80' },
     business:   { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
     personal:   { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
-    suspended:  { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
   };
 
   const statusColor: Record<string, { bg: string; color: string }> = {
@@ -903,6 +889,9 @@ export default function AdminDashboard() {
             {activeTab === 'users' && (
               <>
                 <div style={countStyle}>{profiles.length} records</div>
+                <div style={{ ...countStyle, color: 'rgba(255,255,255,0.45)' }}>
+                  Suspending hides the listing from the directory. It does not block sign-in.
+                </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -925,25 +914,20 @@ export default function AdminDashboard() {
                           {p.is_verified && (
                             <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, fontWeight: 500, background: 'rgba(34,197,94,0.15)', color: '#4ade80', marginLeft: 5 }}>✓</span>
                           )}
+                          {p.is_active === false && (
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 500, background: 'rgba(248,113,113,0.15)', color: '#f87171', marginLeft: 5 }}>suspended</span>
+                          )}
                         </td>
                         <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
                           {new Date(p.created_at).toLocaleDateString('en-GB')}
                         </td>
                         <td style={{ padding: '10px 16px' }}>
                           <button style={btn} onClick={() => setProfileSlideOver(p)}>View</button>
-                          <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trades?.[0] || '', location: p.location || '', bio: p.bio || '', user_type: p.user_type }); }}>Edit</button>
-                          {p.user_type === 'contractor' && (
-                            <button style={p.is_verified ? btnDanger : btnSuccess} onClick={() => handleVerifyContractor(p.id, p.is_verified)}>
-                              {p.is_verified ? 'Unverify' : 'Verify'}
-                            </button>
-                          )}
-                          {p.user_type === 'suspended'
-                            ? <button style={btn} onClick={() => handleReinstate(p.id)}>Reinstate</button>
-                            : <button style={btn} onClick={() => handleSuspend(p.id)}>Suspend</button>
+                          <button style={btn} onClick={() => { setEditingProfile(p); setEditFields({ full_name: p.full_name || '', trade: p.trades?.[0] || '', location: p.location || '', bio: p.bio || '' }); }}>Edit</button>
+                          {p.is_active === false
+                            ? <button style={btn} onClick={() => handleSetActive(p.id, true)}>Reinstate</button>
+                            : <button style={btn} title="Suspending hides the listing from the directory. It does not block sign-in." onClick={() => handleSetActive(p.id, false)}>Suspend</button>
                           }
-                          {isSuperAdmin && (
-                            <button style={btnDanger} onClick={() => setDeleteConfirmId(p.id)}>Delete</button>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -1670,12 +1654,6 @@ export default function AdminDashboard() {
             <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 24px' }}>Edit Profile</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={labelS}>Full Name</label><input value={editFields.full_name} onChange={e => setEditFields(f => ({ ...f, full_name: e.target.value }))} style={inputS} /></div>
-              <div>
-                <label style={labelS}>Account Type</label>
-                <select value={editFields.user_type} onChange={e => setEditFields(f => ({ ...f, user_type: e.target.value }))} style={{ ...inputS, cursor: 'pointer' }}>
-                  {['contractor', 'business', 'personal', 'suspended'].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
               <div><label style={labelS}>Trade</label><input value={editFields.trade} onChange={e => setEditFields(f => ({ ...f, trade: e.target.value }))} style={inputS} /></div>
               <div><label style={labelS}>Location</label><input value={editFields.location} onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} style={inputS} /></div>
               <div><label style={labelS}>Bio</label><textarea value={editFields.bio} onChange={e => setEditFields(f => ({ ...f, bio: e.target.value }))} style={{ ...inputS, minHeight: 80, resize: 'vertical' }} /></div>
@@ -1683,22 +1661,6 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
               <button onClick={() => setEditingProfile(null)} style={btnSecondary}>Cancel</button>
               <button onClick={handleEditProfile} style={btnPrimary}>Save Changes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete account confirm */}
-      {deleteConfirmId && (
-        <div style={overlay} onClick={() => setDeleteConfirmId(null)}>
-          <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Delete Account</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
-              This will anonymise the email to <code style={{ color: '#f07820' }}>deleted_[id]@tradestone.com</code> and set <code style={{ color: '#f07820' }}>is_active = false</code>. This cannot be undone from the dashboard.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={btnSecondary}>Cancel</button>
-              <button onClick={() => handleDeleteAccount(deleteConfirmId)} style={{ ...btnPrimary, background: '#ef4444' }}>Delete Account</button>
             </div>
           </div>
         </div>

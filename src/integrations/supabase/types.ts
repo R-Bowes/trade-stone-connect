@@ -12273,6 +12273,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_set_profile_active: {
+        Args: { p_active: boolean; p_profile_id: string }
+        Returns: undefined
+      }
       admin_update_verification: {
         Args: {
           p_companies_house_status?: string

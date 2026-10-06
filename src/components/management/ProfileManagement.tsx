@@ -241,9 +241,10 @@ export function ProfileManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // email is not sent: it is the login identity and platform-controlled
+      // (profiles write lock), shown read-only below.
       const updateData: any = {
         full_name: profile.full_name,
-        email: profile.email,
         phone: profile.phone,
         company_name: profile.company_name,
       };
@@ -584,8 +585,12 @@ export function ProfileManagement() {
               id="email"
               type="email"
               value={profile.email}
-              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+              readOnly
+              disabled
             />
+            <p className="text-xs text-muted-foreground">
+              Your email is your login. To change it, contact support.
+            </p>
           </div>
 
           <div className="space-y-2">
