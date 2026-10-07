@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import HomeownerLayout from "@/components/layout/HomeownerLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
+import { ProjectsView } from "@/components/projects/ProjectsView";
+import { ProjectPage } from "@/components/projects/ProjectPage";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { EnquiryList } from "@/components/personal/EnquiryList";
@@ -575,6 +577,7 @@ export default function HomeownerDashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeView = searchParams.get("view") ?? "dashboard";
+  const projectId = searchParams.get("project");
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -626,6 +629,13 @@ export default function HomeownerDashboard() {
     if (!userId || !profileId) return null;
 
     switch (activeView) {
+      case "projects":
+        return (
+          <div className="p-6">
+            {projectId ? <ProjectPage key={projectId} projectId={projectId} /> : <ProjectsView />}
+          </div>
+        );
+
       case "jobs":
         return <div className="p-6"><ClientJobsView /></div>;
 

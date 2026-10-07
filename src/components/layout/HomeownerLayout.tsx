@@ -28,6 +28,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: "My Jobs",
     items: [
+      { value: "projects",  label: "Projects",   icon: "ti-layout-kanban" },
       { value: "jobs",      label: "Jobs",       icon: "ti-briefcase" },
       { value: "quotes",    label: "Quotes",     icon: "ti-file-text" },
       { value: "enquiries", label: "Enquiries",  icon: "ti-message-question" },
@@ -56,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 const VIEW_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
+  projects:  "Projects",
   jobs:      "Jobs",
   quotes:    "Quotes",
   enquiries: "Enquiries",
