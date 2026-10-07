@@ -16,7 +16,7 @@ const projectPath = (id: string) => `/dashboard/homeowner?view=projects&project=
 /** The homeowner's list of projects. Opening one navigates to ?project=<id>. */
 export function ProjectsView() {
   const navigate = useNavigate();
-  const { projects, loading, error, refetch, createProject } = useHomeownerProjects();
+  const { projects, attachedJobCounts, loading, error, refetch, createProject } = useHomeownerProjects();
   const [creating, setCreating] = useState(false);
 
   if (loading) return <LoadingState message="Loading your projects..." />;
@@ -31,10 +31,8 @@ export function ProjectsView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="font-heading text-2xl font-bold">Projects</h2>
-        {projects.length > 0 && newProjectButton}
-      </div>
+      {/* The layout already shows the "Projects" page header. */}
+      {projects.length > 0 && <div className="flex justify-end">{newProjectButton}</div>}
 
       {projects.length === 0 ? (
         <EmptyState
@@ -45,7 +43,12 @@ export function ProjectsView() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} onOpen={() => navigate(projectPath(project.id))} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              attachedJobCount={attachedJobCounts[project.id] ?? 0}
+              onOpen={() => navigate(projectPath(project.id))}
+            />
           ))}
         </div>
       )}
@@ -62,10 +65,9 @@ export function ProjectsView() {
   );
 }
 
-function ProjectCard({ project, onOpen }: { project: HomeownerProject; onOpen: () => void }) {
-  // Jobs are not loaded on the list, so the chip reflects only the stored
-  // status here; the project page passes the real attached-job count.
-  const status = projectDisplayStatus(project.status, 0);
+function ProjectCard({ project, attachedJobCount, onOpen }: { project: HomeownerProject; attachedJobCount: number; onOpen: () => void }) {
+  // Same count as the project page, so the two chips always agree.
+  const status = projectDisplayStatus(project.status, attachedJobCount);
   return (
     <Card
       role="button"

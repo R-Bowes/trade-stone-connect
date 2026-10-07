@@ -33,6 +33,9 @@ const NOT_CHANGED = "The project was not changed. It may have been removed, or y
  */
 export function useHomeownerProjects() {
   const [projects, setProjects] = useState<HomeownerProject[]>([]);
+  // Jobs attached per project (packages with a job_id), so the list's status
+  // chip uses the same count as the project page.
+  const [attachedJobCounts, setAttachedJobCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +55,20 @@ export function useHomeownerProjects() {
         .order("created_at", { ascending: false });
       if (queryError) throw queryError;
 
-      setProjects((data ?? []) as HomeownerProject[]);
+      const list = (data ?? []) as HomeownerProject[];
+      const counts: Record<string, number> = {};
+      if (list.length > 0) {
+        const { data: attached, error: packagesError } = await supabase
+          .from("project_packages")
+          .select("project_id")
+          .in("project_id", list.map((p) => p.id))
+          .not("job_id", "is", null);
+        if (packagesError) throw packagesError;
+        for (const row of attached ?? []) counts[row.project_id] = (counts[row.project_id] ?? 0) + 1;
+      }
+
+      setProjects(list);
+      setAttachedJobCounts(counts);
     } catch (err) {
       console.error("Error loading projects:", err);
       setError(err instanceof Error ? err.message : "Could not load your projects.");
@@ -128,5 +144,5 @@ export function useHomeownerProjects() {
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  return { projects, loading, error, refetch: fetchProjects, createProject, updateProject, deleteProject };
+  return { projects, attachedJobCounts, loading, error, refetch: fetchProjects, createProject, updateProject, deleteProject };
 }

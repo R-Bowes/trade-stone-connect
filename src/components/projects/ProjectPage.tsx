@@ -10,19 +10,15 @@ import {
 import { Loader2 } from "lucide-react";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { useHomeownerProjects } from "@/hooks/useHomeownerProjects";
+import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "./CreateProjectDialog";
+import { PackagesSection } from "./PackagesSection";
+import { messageOf } from "./projectErrors";
 
 const LIST_PATH = "/dashboard/homeowner?view=projects";
-
-function messageOf(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
-    return (err as { message: string }).message;
-  }
-  return "Something went wrong. Please try again.";
-}
 
 /** "Started" once the date has arrived, "Starts" while it is still ahead. */
 function startLabel(date: string): string {
@@ -31,22 +27,24 @@ function startLabel(date: string): string {
 }
 
 /**
- * One homeowner project. Slice 2, step 1: the header, edit and delete.
- * Packages, budget, timeline and the right column are placeholders, built
- * in steps 2 to 4.
+ * One homeowner project. Slice 2, steps 1 and 2: the header, edit and
+ * delete, and packages of work. Budget, timeline and the right column are
+ * placeholders, built in steps 3 and 4.
  */
 export function ProjectPage({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
-  const { projects, loading, error, refetch, updateProject, deleteProject } = useHomeownerProjects();
+  const detail = useProjectDetail(projectId);
+  // Edit and delete go through the list hook, which owns those writes.
+  const { updateProject, deleteProject } = useHomeownerProjects();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  if (loading) return <LoadingState message="Loading project..." />;
-  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
+  if (detail.loading && !detail.project) return <LoadingState message="Loading project..." />;
+  if (detail.error) return <ErrorState message={detail.error} onRetry={() => void detail.refetch()} />;
 
-  const project = projects.find((p) => p.id === projectId);
+  const project = detail.project;
 
   const backLink = (
     <Button variant="link" className="px-0 text-muted-foreground" onClick={() => navigate(LIST_PATH)}>
@@ -64,8 +62,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
     );
   }
 
-  // No jobs are loaded in this step; step 2 passes the attached-job count.
-  const status = projectDisplayStatus(project.status, 0);
+  const status = projectDisplayStatus(project.status, detail.attachedJobCount);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -128,11 +125,22 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* ── PLACEHOLDERS: slice 2 steps 2 to 4 (no data shown yet) ─────────── */}
+      {/* ── PLACEHOLDERS: slice 2 steps 3 and 4 (no data shown yet) ────────── */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <PlaceholderSection title="Budget" step="step 3" />
-          <PlaceholderSection title="Packages of work" step="step 2" />
+          <PackagesSection
+            packages={detail.packages}
+            jobs={detail.jobs}
+            invoices={detail.invoices}
+            contractors={detail.contractors}
+            addPackage={detail.addPackage}
+            updatePackage={detail.updatePackage}
+            deletePackage={detail.deletePackage}
+            attachJob={detail.attachJob}
+            detachJob={detail.detachJob}
+            loadAttachableJobs={detail.loadAttachableJobs}
+          />
           <PlaceholderSection title="Timeline" step="step 3" />
         </div>
         <div className="space-y-6">
@@ -146,7 +154,10 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         open={editing}
         project={project}
         onClose={() => setEditing(false)}
-        onSave={async (values) => { await updateProject(project.id, values); }}
+        onSave={async (values) => {
+          await updateProject(project.id, values);
+          await detail.refetch();
+        }}
       />
 
       <AlertDialog open={confirmingDelete} onOpenChange={(v) => !deleting && setConfirmingDelete(v)}>

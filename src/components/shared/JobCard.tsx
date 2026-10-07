@@ -4,6 +4,7 @@ import { RecordCard, type RecordCardField } from "@/components/shared/RecordCard
 import { formatDate } from "@/lib/formatDate";
 import { formatJobRef } from "@/lib/documentRefs";
 import { formatJobValue, type JobCostSummary } from "@/lib/jobValue";
+import { jobStatusChip } from "@/lib/jobStatus";
 
 export interface JobCardJob {
   id: string;
@@ -40,14 +41,6 @@ interface JobCardProps {
   /** Viewer-specific markers shown before the status badge (e.g. the contractor's RAMS marker). */
   extraBadges?: ReactNode;
 }
-
-const STATUS: Record<string, { label: string; className: string }> = {
-  scheduled: { label: "Scheduled", className: "bg-[#1e3a5f] text-white border-[#1e3a5f]" },
-  in_progress: { label: "In progress", className: "bg-[#f07820] text-white border-[#f07820]" },
-  snagging: { label: "Snagging", className: "bg-amber-500 text-white border-amber-500" },
-  complete: { label: "Complete", className: "bg-green-600 text-white border-green-600" },
-  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800 border-red-200" },
-};
 
 /**
  * Two engines write the resolution deadline: the sla-clock edge function writes
@@ -91,7 +84,7 @@ export function JobCard({
   actions,
   extraBadges,
 }: JobCardProps) {
-  const status = STATUS[job.status] ?? { label: job.status, className: "bg-slate-100 text-slate-700" };
+  const status = jobStatusChip(job.status);
   const resolutionDue = jobResolutionDue(job);
   const live = job.status !== "complete" && job.status !== "cancelled";
   const overdue = live && !!resolutionDue && new Date(resolutionDue).getTime() < Date.now();

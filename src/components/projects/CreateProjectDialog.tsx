@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import type { HomeownerProject, ProjectFormValues } from "@/hooks/useHomeownerProjects";
+import { messageOf } from "./projectErrors";
 
 type Props = {
   open: boolean;
@@ -16,13 +17,6 @@ type Props = {
   onSave: (values: ProjectFormValues) => Promise<void>;
 };
 
-/** Message from anything thrown by the hook (Error or a Supabase error object). */
-function messageOf(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
-    return (err as { message: string }).message;
-  }
-  return "Something went wrong. Please try again.";
-}
 
 export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
   const [title, setTitle] = useState("");
