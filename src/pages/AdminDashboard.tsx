@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { formatInvoiceRef } from '@/lib/documentRefs';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/lib/invokeEdgeFunction';
 import { CONTRACTOR_TRADES } from '@/constants/trades';
 import AdminOverview from '@/components/admin/AdminOverview';
 import AdminVerification from '@/components/admin/AdminVerification';
@@ -54,7 +55,7 @@ type Job = {
 type Invoice = {
   id: string;
   status: string;
-  total_amount: number | null;
+  total: number | null;
   created_at: string;
   invoice_number: number | null;
   client_name: string | null;
@@ -183,6 +184,7 @@ export default function AdminDashboard() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoicesLoadError, setInvoicesLoadError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
@@ -221,8 +223,8 @@ export default function AdminDashboard() {
   const [disputeNote, setDisputeNote] = useState('');
 
   // UI state — invoice actions
-  const [markPaidInvoiceId, setMarkPaidInvoiceId] = useState<string | null>(null);
   const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState('');
 
   // Data — refunds (Stripe refund audit trail) and contractor debt ledger
   const [refunds, setRefunds] = useState<Refund[]>([]);
@@ -313,7 +315,7 @@ export default function AdminDashboard() {
         .select('id, status, created_at, contractor_id, customer_id')
         .order('created_at', { ascending: false }),
       db.from('invoices')
-        .select('id, status, total_amount, created_at, invoice_number, client_name')
+        .select('id, status, total, created_at, invoice_number, client_name')
         .order('created_at', { ascending: false }),
       db.from('job_conversations')
         .select('id, context, created_at, job_messages(id, sender_id, content, created_at)')
@@ -355,6 +357,8 @@ export default function AdminDashboard() {
     setEnquiries(enquiriesDataRes.data || []);
     setJobs(jobsDataRes.data || []);
     setInvoices(invoicesDataRes.data || []);
+    // Show a failed load as a failure, not as "No invoices yet".
+    setInvoicesLoadError(invoicesDataRes.error ? invoicesDataRes.error.message : null);
     setConversations(conversationsRes.data || []);
     setAdminUsers(adminUsersRes.data || []);
     setActivityLog(activityRes.data || []);
@@ -523,17 +527,22 @@ export default function AdminDashboard() {
 
   // ── Invoices ─────────────────────────────────────────────────────────────
 
-  async function handleMarkInvoicePaid(id: string) {
-    await (supabase as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
-    await logActivity('mark_invoice_paid', 'invoice', id);
-    setMarkPaidInvoiceId(null);
-    loadData();
-  }
-
+  // Invoice invariants (CLAUDE.md): only the server (Stripe webhook) or the
+  // contractor's record_manual_payment marks an invoice paid, so there is no
+  // admin mark-paid. Void goes through the void-invoice edge function, which
+  // cancels any open card payment before calling void_invoice.
   async function handleVoidInvoice(id: string) {
-    await (supabase as any).from('invoices').update({ status: 'voided' }).eq('id', id);
-    await logActivity('void_invoice', 'invoice', id);
+    const reason = voidReason.trim();
+    if (!reason) return;
+    try {
+      await invokeEdgeFunction('void-invoice', { body: { invoiceId: id, reason } });
+    } catch (error) {
+      alert(`Failed to void invoice: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return;
+    }
+    await logActivity('void_invoice', 'invoice', id, { reason });
     setVoidInvoiceId(null);
+    setVoidReason('');
     loadData();
   }
 
@@ -732,7 +741,7 @@ export default function AdminDashboard() {
     paid:      { bg: 'rgba(34,197,94,0.15)',     color: '#4ade80' },
     unpaid:    { bg: 'rgba(234,179,8,0.15)',     color: '#facc15' },
     overdue:   { bg: 'rgba(248,113,113,0.15)',   color: '#f87171' },
-    voided:    { bg: 'rgba(255,255,255,0.06)',   color: 'rgba(255,255,255,0.3)' },
+    void:      { bg: 'rgba(255,255,255,0.06)',   color: 'rgba(255,255,255,0.3)' },
   };
 
   const badge = (s: string): CSSProperties => ({
@@ -1021,7 +1030,8 @@ export default function AdminDashboard() {
 
             {/* ── INVOICES ─────────────────────────────────────────────── */}
             {activeTab === 'invoices' && (
-              invoices.length === 0 ? emptyState('No invoices yet') : (
+              invoicesLoadError ? emptyState(`Could not load invoices: ${invoicesLoadError}`)
+              : invoices.length === 0 ? emptyState('No invoices yet') : (
                 <>
                   <div style={countStyle}>{invoices.length} records</div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -1040,17 +1050,14 @@ export default function AdminDashboard() {
                           </td>
                           <td style={{ padding: '12px 16px' }}><span style={badge(inv.status)}>{inv.status || '—'}</span></td>
                           <td style={{ padding: '12px 16px', color: '#e8eef4' }}>
-                            {inv.total_amount != null ? `£${Number(inv.total_amount).toFixed(2)}` : '—'}
+                            {inv.total != null ? `£${Number(inv.total).toFixed(2)}` : '—'}
                           </td>
                           <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
                             {new Date(inv.created_at).toLocaleDateString('en-GB')}
                           </td>
                           <td style={{ padding: '10px 16px' }}>
-                            {isSuperAdmin && inv.status !== 'paid' && inv.status !== 'voided' && (
-                              <button style={btnSuccess} onClick={() => setMarkPaidInvoiceId(inv.id)}>Mark Paid</button>
-                            )}
-                            {isSuperAdmin && inv.status !== 'voided' && inv.status !== 'paid' && (
-                              <button style={btnDanger} onClick={() => setVoidInvoiceId(inv.id)}>Void</button>
+                            {isSuperAdmin && (inv.status === 'sent' || inv.status === 'viewed') && (
+                              <button style={btnDanger} onClick={() => { setVoidInvoiceId(inv.id); setVoidReason(''); }}>Void</button>
                             )}
                           </td>
                         </tr>
@@ -1787,33 +1794,31 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Mark invoice paid confirm */}
-      {markPaidInvoiceId && (
-        <div style={overlay} onClick={() => setMarkPaidInvoiceId(null)}>
-          <div style={modal} onClick={e => e.stopPropagation()}>
-            <h2 className="font-heading" style={{ color: '#e8eef4', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mark Invoice as Paid</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
-              Manually mark this invoice as <strong>paid</strong>. Use only when payment was received outside of Stripe.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setMarkPaidInvoiceId(null)} style={btnSecondary}>Cancel</button>
-              <button onClick={() => handleMarkInvoicePaid(markPaidInvoiceId)} style={btnPrimary}>Mark Paid</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Void invoice confirm */}
       {voidInvoiceId && (
-        <div style={overlay} onClick={() => setVoidInvoiceId(null)}>
+        <div style={overlay} onClick={() => { setVoidInvoiceId(null); setVoidReason(''); }}>
           <div style={modal} onClick={e => e.stopPropagation()}>
             <h2 className="font-heading" style={{ color: '#f87171', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Void Invoice</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>
-              Set this invoice to <strong>voided</strong>. This cannot be undone from the dashboard.
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 16 }}>
+              Set this invoice to <strong>void</strong>. Any open card payment on it is cancelled first. An invoice that has been
+              paid, or has a deposit paid, cannot be voided. This cannot be undone from the dashboard.
             </p>
+            <label style={labelS}>Reason</label>
+            <textarea
+              value={voidReason}
+              onChange={e => setVoidReason(e.target.value)}
+              maxLength={500}
+              style={{ ...inputS, minHeight: 70, resize: 'vertical', marginBottom: 20 }}
+            />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setVoidInvoiceId(null)} style={btnSecondary}>Cancel</button>
-              <button onClick={() => handleVoidInvoice(voidInvoiceId)} style={{ ...btnPrimary, background: '#ef4444' }}>Void Invoice</button>
+              <button onClick={() => { setVoidInvoiceId(null); setVoidReason(''); }} style={btnSecondary}>Cancel</button>
+              <button
+                onClick={() => handleVoidInvoice(voidInvoiceId)}
+                disabled={!voidReason.trim()}
+                style={{ ...btnPrimary, background: '#ef4444', opacity: voidReason.trim() ? 1 : 0.5 }}
+              >
+                Void Invoice
+              </button>
             </div>
           </div>
         </div>

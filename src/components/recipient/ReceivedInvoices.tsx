@@ -12,8 +12,10 @@ import { formatInvoiceRef } from "@/lib/documentRefs";
 import { InvoiceCard } from "@/components/shared/InvoiceCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 
+// The customer's own stall/query signal. 'paid' is deliberately absent: the
+// status badge already shows Paid, and recipient_response is never what
+// makes an invoice paid (CLAUDE.md invoice invariants).
 const RESPONSE_BADGE: Record<string, { label: string; className: string }> = {
-  paid: { label: "Paid", className: "bg-green-100 text-green-800 border-green-200" },
   stalled: { label: "Stalled", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
   queried: { label: "Queried", className: "bg-orange-100 text-orange-800 border-orange-200" },
 };
@@ -81,8 +83,12 @@ export function ReceivedInvoices() {
     setMessageDialog({ open: true, invoice });
   };
 
+  // Keyed on status, which only the server sets — recipient_response is the
+  // customer's own stall/query signal and never means "paid".
+  const isOpenInvoice = (inv: ReceivedInvoice) => inv.status === "sent" || inv.status === "viewed";
+
   const renderActions = (inv: ReceivedInvoice) =>
-    inv.recipient_response === "paid" ? (
+    !isOpenInvoice(inv) ? (
       <Button
         size="sm"
         variant="outline"
@@ -98,7 +104,7 @@ export function ReceivedInvoices() {
       <>
         <PayInvoiceButton
           invoiceId={inv.id}
-          status={inv.recipient_response || "pending"}
+          status={inv.status}
         />
         <Button size="sm" variant="outline" onClick={() => handleStall(inv)}>
           <Pause className="h-4 w-4 mr-1" />Stall

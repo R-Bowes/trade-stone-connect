@@ -101,12 +101,25 @@ serve(async (req) => {
       return jsonResponse(400, { success: false, error: "Invoice not found" });
     }
 
-    // Nothing left to collect on a paid invoice, and a voided one should
-    // never be charged at all.
-    if (invoice.status === "paid" || invoice.status === "void") {
+    // Status gates (invoice invariants, CLAUDE.md):
+    //   send_invoice         — only a draft can be sent.
+    //   create_client_secret — only an open invoice (sent, or viewed) can be
+    //                          paid. A draft has not been issued, a paid one
+    //                          has nothing left to collect, and a void one
+    //                          must never be charged.
+    if (action === "send_invoice" && invoice.status !== "draft") {
       return jsonResponse(400, {
         success: false,
-        error: `This invoice is ${invoice.status} — there is nothing to pay.`,
+        error: `This invoice is ${invoice.status} and cannot be sent again.`,
+      });
+    }
+
+    if (action === "create_client_secret" && invoice.status !== "sent" && invoice.status !== "viewed") {
+      return jsonResponse(400, {
+        success: false,
+        error: invoice.status === "draft"
+          ? "This invoice has not been sent yet."
+          : `This invoice is ${invoice.status} — there is nothing to pay.`,
       });
     }
 

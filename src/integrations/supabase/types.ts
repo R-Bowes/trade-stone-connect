@@ -3398,6 +3398,9 @@ export type Database = {
           total: number
           updated_at: string
           viewed_at: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           addr_city?: string | null
@@ -3448,6 +3451,9 @@ export type Database = {
           total?: number
           updated_at?: string
           viewed_at?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           addr_city?: string | null
@@ -3498,6 +3504,9 @@ export type Database = {
           total?: number
           updated_at?: string
           viewed_at?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -12616,6 +12625,10 @@ export type Database = {
         Returns: number
       }
       recency_decay_weight: { Args: { p_timestamp: string }; Returns: number }
+      record_manual_payment: {
+        Args: { p_invoice_id: string; p_notes: string }
+        Returns: string
+      }
       reject_refund: {
         Args: { p_reason: string; p_refund_id: string }
         Returns: string
@@ -12636,6 +12649,10 @@ export type Database = {
           p_reason_detail?: string
         }
         Returns: string
+      }
+      respond_to_invoice: {
+        Args: { p_invoice_id: string; p_response: string }
+        Returns: undefined
       }
       revise_job_rams: { Args: { p_job_rams_id: string }; Returns: string }
       run_compliance_watcher: { Args: never; Returns: undefined }
@@ -12679,6 +12696,10 @@ export type Database = {
       value_variance_to_score: {
         Args: { p_variance_pct: number }
         Returns: number
+      }
+      void_invoice: {
+        Args: { p_actor: string; p_invoice_id: string; p_reason: string }
+        Returns: undefined
       }
       withdraw_or_decline_engagement_rate_version: {
         Args: { p_rate_id: string }

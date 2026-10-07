@@ -844,6 +844,37 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   two when adding a new document family — check whether it crosses a party
   boundary before picking a convention.
 
+## Invoice invariants
+
+Enforced in the database by `20261006120000_invoice_rpcs.sql` and
+`20261006130000_invoice_one_per_quote.sql`. Breaking any of these is a money
+bug, not a style issue.
+
+- **`invoices.total` is always gross.** Never net a deposit, discount or
+  earlier payment into it, and never add a deposit as a negative line item.
+- **A deposit is a payment against the invoice.** `deposit_amount`,
+  `deposit_paid`, `deposit_paid_at` and `deposit_deducted` are written by
+  the server only (`accept-quote`, `stripe-webhook`). Amount outstanding =
+  total − deposit settled, as in `src/lib/invoiceMoney.ts` and
+  `supabase/functions/_shared/paymentMath.ts`.
+- **One live invoice per quote.** `invoices_one_live_per_quote` is a unique
+  index on `quote_id` where `status <> 'void'`. A void invoice frees the
+  quote for a reissue. Stage invoicing is retired; quotes offer deposit plus
+  balance only, and `PaymentProgress` is display-only.
+- **Clients edit and delete drafts only.** RLS (`invoices_contractor_*_draft`),
+  column grants (content columns only) and the
+  `invoices_client_draft_only_guard` trigger all enforce it. Client code
+  builds invoice payloads from an explicit column list (`useInvoices.ts`),
+  never by spreading form data.
+- **A sent invoice is corrected by void and reissue.** Void goes through the
+  `void-invoice` edge function, which cancels any open Stripe PaymentIntent
+  before calling `void_invoice` (service_role only). Void is refused once a
+  deposit or any payment has been made.
+- **Only the server or `record_manual_payment` marks an invoice paid.**
+  Customers can only stall or query (`respond_to_invoice`).
+  `recipient_response = 'paid'` does not mean paid — check `status`.
+- **Statuses:** draft, sent, viewed, paid, void. Never `'voided'`.
+
 ## Quote → job creation sequence (job creation is a manual mint, not a trigger)
 
 Investigated 2026-07-16 after production data showed a gap that looked like a

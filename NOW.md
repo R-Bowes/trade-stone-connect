@@ -37,6 +37,22 @@ Order: invoices, issued_quotes, jobs, payments/refunds/stages,
 contractor_panel, tender awards and invitations, job_reviews.
 Projects slice 2 is paused until the money tables are done.
 
+Done 7 Oct: migration 20261006120000 live; void-invoice and
+create-payment-intent deployed; new invoice screens.
+
+Still open, holes NOT yet closed:
+- accept-quote invoice reuse and stripe-webhook void handling.
+- Migration B (the lock) and checks a to j, parked in scratchpad/pending.
+- Then issued_quotes, jobs, payments, refunds, contractor_panel, tenders,
+  job_reviews.
+
+Parked defects:
+- VAT charged by non-registered contractors.
+- Invoice form should identify the customer by TS code.
+- Refund icon on manually paid invoices.
+- Customers can download void invoices.
+- Quote form not browser-checked.
+
 ### Mobile quote acceptance missing
 **Priority: highest. Blocks end-to-end validation.**
 

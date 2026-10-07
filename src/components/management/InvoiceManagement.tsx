@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DollarSign, Clock, AlertTriangle, FileText, Plus, Trash2, Edit, Eye,
-  Search, Send, CheckCircle, Loader2, Download, Banknote, Undo2
+  Search, Send, Loader2, Download, Banknote, Undo2, Ban
 } from "lucide-react";
 import { InvoiceCard } from "@/components/shared/InvoiceCard";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -21,6 +21,7 @@ import { useInvoices, type Invoice, type InvoiceItem } from "@/hooks/useInvoices
 import { isOverdue as invoiceIsOverdue, depositSettled } from "@/lib/invoiceMoney";
 import { InvoiceFormDialog } from "@/components/management/invoices/InvoiceFormDialog";
 import { RecordPaymentDialog } from "@/components/management/invoices/RecordPaymentDialog";
+import { VoidInvoiceDialog } from "@/components/management/invoices/VoidInvoiceDialog";
 import { RequestRefundDialog } from "@/components/management/RequestRefundDialog";
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
@@ -29,13 +30,14 @@ import { lookupTsCodesByEmail } from "@/lib/lookupTsCodes";
 export function InvoiceManagement() {
   const {
     invoices, loading, createInvoice, updateInvoice, deleteInvoice,
-    markAsPaid, markAsSent, recordManualPayment, paid, outstanding, outstandingCount, overdue,
+    markAsSent, recordManualPayment, voidInvoice, paid, outstanding, outstandingCount, overdue,
   } = useInvoices();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [recordPaymentInvoice, setRecordPaymentInvoice] = useState<Invoice | null>(null);
+  const [voidingInvoice, setVoidingInvoice] = useState<Invoice | null>(null);
   const [refundRequestInvoice, setRefundRequestInvoice] = useState<Invoice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -68,6 +70,7 @@ export function InvoiceManagement() {
       case "sent": return <Badge className="bg-amber-100 text-amber-800">Sent</Badge>;
       case "viewed": return <Badge className="bg-blue-100 text-blue-800">Viewed</Badge>;
       case "draft": return <Badge className="bg-slate-200 text-slate-700">Draft</Badge>;
+      case "void": return <Badge variant="outline" className="text-muted-foreground">Void</Badge>;
       default: return <Badge variant="outline">{invoice.status}</Badge>;
     }
   };
@@ -172,6 +175,7 @@ export function InvoiceManagement() {
             <SelectItem value="sent">Sent</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
+            <SelectItem value="void">Void</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -190,7 +194,11 @@ export function InvoiceManagement() {
       ) : (
         <div className="grid gap-3">
           {filteredInvoices.map(inv => {
-            const isPaid = inv.status === "paid" || inv.recipient_response === "paid";
+            // Only the server marks an invoice paid; a client's
+            // recipient_response is never treated as payment.
+            const isPaid = inv.status === "paid";
+            const isDraft = inv.status === "draft";
+            const isOpen = inv.status === "sent" || inv.status === "viewed";
             return (
               <InvoiceCard
                 key={inv.id}
@@ -214,29 +222,29 @@ export function InvoiceManagement() {
                         <Undo2 className="h-4 w-4" />
                       </Button>
                     )}
-                    {!isPaid && inv.status === "draft" && (
-                      <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Mark as Sent">
+                    {isDraft && (
+                      <Button variant="ghost" size="sm" onClick={() => markAsSent(inv.id)} title="Send">
                         <Send className="h-4 w-4" />
                       </Button>
                     )}
-                    {!isPaid && (
-                      <Button variant="ghost" size="sm" onClick={() => markAsPaid(inv.id)} title="Mark as Paid">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      </Button>
-                    )}
-                    {!isPaid && inv.status !== "draft" && (
+                    {isOpen && (
                       <Button variant="ghost" size="sm" onClick={() => setRecordPaymentInvoice(inv)} title="Record Payment">
                         <Banknote className="h-4 w-4 text-blue-600" />
                       </Button>
                     )}
-                    {!isPaid && (
+                    {isDraft && (
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(inv)} title="Edit">
                         <Edit className="h-4 w-4" />
                       </Button>
                     )}
-                    {!isPaid && (
+                    {isDraft && (
                       <Button variant="ghost" size="sm" onClick={() => deleteInvoice(inv.id)} title="Delete">
                         <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                    {isOpen && (
+                      <Button variant="ghost" size="sm" onClick={() => setVoidingInvoice(inv)} title="Void">
+                        <Ban className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
                   </>
@@ -260,7 +268,15 @@ export function InvoiceManagement() {
         open={!!recordPaymentInvoice}
         invoice={recordPaymentInvoice}
         onClose={() => setRecordPaymentInvoice(null)}
-        onConfirm={(payment) => recordManualPayment(recordPaymentInvoice!, payment)}
+        onConfirm={(notes) => recordManualPayment(recordPaymentInvoice!, notes)}
+      />
+
+      {/* Void Invoice Dialog */}
+      <VoidInvoiceDialog
+        open={!!voidingInvoice}
+        invoice={voidingInvoice}
+        onClose={() => setVoidingInvoice(null)}
+        onConfirm={(reason) => voidInvoice(voidingInvoice!, reason)}
       />
 
       {/* Request Refund Dialog */}

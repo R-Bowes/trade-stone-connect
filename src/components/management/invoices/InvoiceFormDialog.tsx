@@ -22,12 +22,12 @@ export type InvoiceFormInitialData = {
   contractorId?: string;
   clientId?: string;
   quoteId?: string | null;
-  /** deposit_required on the origin quote — drives the unpaid-deposit banner. */
+  /** deposit_required on the origin quote — drives the unpaid-deposit banner only. */
   depositRequired?: boolean;
-  /** deposit_paid on the origin quote — a paid deposit is already reflected as a deduction line in `items`. */
+  /** deposit_paid on the origin quote — drives the unpaid-deposit banner only.
+   *  Deposit fields on the invoice row are server-owned (CLAUDE.md invoice
+   *  invariants); this form never writes them. */
   depositPaid?: boolean;
-  /** The amount already deducted as a line item, carried onto the invoice row for structured reference (invoices.deposit_deducted). */
-  depositAmount?: number | null;
 };
 
 type InvoiceFormDialogProps = {
@@ -48,10 +48,8 @@ type InvoiceFormDialogProps = {
     tax_amount: number;
     total: number;
     notes?: string;
+    /** "sent" means send once saved; never written to the invoice row. */
     status: string;
-    deposit_amount?: number | null;
-    deposit_deducted?: number | null;
-    deposit_paid?: boolean;
   }) => Promise<void>;
   invoice?: Invoice | null;
   initialData?: InvoiceFormInitialData | null;
@@ -183,9 +181,6 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
         total,
         notes: notes || undefined,
         status: asDraft ? "draft" : "sent",
-        deposit_amount: initialData?.depositAmount ?? null,
-        deposit_deducted: initialData?.depositPaid ? initialData?.depositAmount ?? null : null,
-        deposit_paid: initialData?.depositPaid,
       });
       onClose();
     } catch (e) {

@@ -122,7 +122,9 @@ function HomeownerOverview({ profileId, userId }: { profileId: string; userId: s
         deposit_paid: boolean | null;
       };
       const allInvoices = (invoicesResult.data ?? []) as InvoiceRow[];
-      const unpaid = allInvoices.filter((inv) => inv.recipient_response !== "paid");
+      // Open invoices only (sent or viewed). Paid is set by the server;
+      // recipient_response is the customer's stall/query signal, never payment.
+      const unpaid = allInvoices.filter((inv) => inv.status === "sent" || inv.status === "viewed");
       setPendingInvoices(
         unpaid.slice(0, 5).map((inv) => ({
           id: inv.id,

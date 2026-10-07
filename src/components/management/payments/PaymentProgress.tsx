@@ -28,8 +28,11 @@ const STATUS_LABEL: Record<string, string> = {
   skipped: "Skipped",
 };
 
+// Display only. Stage invoicing is retired (CLAUDE.md invoice invariants):
+// a job has one live invoice, and a stage's status changes only on the
+// server when that invoice is paid or voided.
 export function PaymentProgress({ jobId, isContractor }: PaymentProgressProps) {
-  const { schedule, loading, fetchSchedule, markStageReady, createStageInvoice } = usePaymentSchedule();
+  const { schedule, loading, fetchSchedule } = usePaymentSchedule();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,8 +80,6 @@ export function PaymentProgress({ jobId, isContractor }: PaymentProgressProps) {
               key={stage.id}
               stage={stage}
               isContractor={isContractor}
-              onMarkReady={() => markStageReady(stage.id)}
-              onCreateInvoice={() => createStageInvoice(stage.id)}
               onViewInvoice={() => stage.invoice_id && navigate(isContractor ? "/dashboard/contractor?view=invoices" : "/dashboard/homeowner?view=invoices")}
             />
           ))}
@@ -91,14 +92,10 @@ export function PaymentProgress({ jobId, isContractor }: PaymentProgressProps) {
 function StageCard({
   stage,
   isContractor,
-  onMarkReady,
-  onCreateInvoice,
   onViewInvoice,
 }: {
   stage: PaymentStage;
   isContractor: boolean;
-  onMarkReady: () => void;
-  onCreateInvoice: () => void;
   onViewInvoice: () => void;
 }) {
   return (
@@ -121,14 +118,6 @@ function StageCard({
 
       {isContractor ? (
         <div className="flex gap-2">
-          {stage.status === "pending" && (
-            <Button size="sm" variant="outline" onClick={onMarkReady}>Mark Milestone Reached</Button>
-          )}
-          {stage.status === "ready" && (
-            <Button size="sm" style={{ backgroundColor: "#f07820" }} className="text-white" onClick={onCreateInvoice}>
-              Create Invoice
-            </Button>
-          )}
           {stage.status === "invoiced" && (
             <Button size="sm" variant="link" className="px-0" onClick={onViewInvoice}>View Invoice</Button>
           )}

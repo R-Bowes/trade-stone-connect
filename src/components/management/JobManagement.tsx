@@ -230,6 +230,9 @@ export function JobManagement() {
   const [savingJobId, setSavingJobId] = useState<string | null>(null);
   const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  // The job "Generate Invoice" was opened for: the invoice is created with
+  // its job_id, so every view that looks invoices up by job can find it.
+  const [invoiceJobId, setInvoiceJobId] = useState<string | null>(null);
   const [invoiceInitialData, setInvoiceInitialData] = useState<InvoiceFormInitialData | null>(null);
   const [invoiceStatusByQuoteId, setInvoiceStatusByQuoteId] = useState<Record<string, string>>({});
   const [contractorProfileId, setContractorProfileId] = useState<string | null>(null);
@@ -480,10 +483,13 @@ export function JobManagement() {
 
     const quoteIds = mapped.map((j) => j.issued_quote_id).filter(Boolean) as string[];
     if (quoteIds.length > 0) {
+      // A void invoice no longer counts: the quote can be invoiced again
+      // (one live invoice per quote, CLAUDE.md invoice invariants).
       const { data: existingInvoices } = await supabase
         .from("invoices")
         .select("quote_id, status")
-        .in("quote_id", quoteIds);
+        .in("quote_id", quoteIds)
+        .neq("status", "void");
       const statusMap: Record<string, string> = {};
       for (const inv of existingInvoices || []) {
         if ((inv as any).quote_id) statusMap[(inv as any).quote_id] = (inv as any).status;
@@ -766,14 +772,10 @@ export function JobManagement() {
       total: Number(item.total ?? Number(item.quantity ?? 1) * Number(item.unit_price ?? 0)),
     }));
 
-    // A paid deposit was already collected at quote acceptance. Under the
-    // locked invariant (invoices.total is ALWAYS gross; a deposit is a
-    // payment against the invoice, never a reduction of its value), that is
-    // NOT encoded as a line item here — items stay gross. deposit_amount /
-    // deposit_deducted / deposit_paid below carry the deposit onto the
-    // invoice row itself (see InvoiceFormDialog.tsx), which is the single
-    // correct population point.
-    const depositAmount = Number(quote?.deposit_amount ?? 0);
+    // Invoice invariants (CLAUDE.md): invoices.total is always gross, so a
+    // paid deposit is never a line item here. Deposit fields on the invoice
+    // row are server-owned — this client never writes them. The flags below
+    // only drive the form's unpaid-deposit banner.
     const depositPaid = !!quote?.deposit_paid;
     const depositRequired = !!quote?.deposit_required;
 
@@ -851,8 +853,8 @@ export function JobManagement() {
       quoteId: fullJob.issued_quote_id,
       depositRequired,
       depositPaid,
-      depositAmount: depositPaid ? depositAmount : null,
     });
+    setInvoiceJobId(fullJob.id);
     setInvoiceDialogOpen(true);
   };
 
@@ -1632,9 +1634,10 @@ export function JobManagement() {
         onClose={() => {
           setInvoiceDialogOpen(false);
           setInvoiceInitialData(null);
+          setInvoiceJobId(null);
         }}
         initialData={invoiceInitialData}
-        onSave={async (data) => { await createInvoice(data); loadJobs(); }}
+        onSave={async (data) => { await createInvoice({ ...data, job_id: invoiceJobId }); loadJobs(); }}
       />
     </>
   );

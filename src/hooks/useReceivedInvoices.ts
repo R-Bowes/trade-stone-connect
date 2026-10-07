@@ -58,14 +58,14 @@ export function useReceivedInvoices() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  const respondToInvoice = async (invoiceId: string, response: "paid" | "stalled" | "queried") => {
-    const { error } = await supabase
-      .from("invoices")
-      .update({
-        recipient_response: response,
-        responded_at: new Date().toISOString(),
-      })
-      .eq("id", invoiceId);
+  // A customer's only write to an invoice: stall or query it while it is
+  // open. Goes through respond_to_invoice — customers have no direct UPDATE
+  // on invoices (CLAUDE.md invoice invariants).
+  const respondToInvoice = async (invoiceId: string, response: "stalled" | "queried") => {
+    const { error } = await supabase.rpc("respond_to_invoice", {
+      p_invoice_id: invoiceId,
+      p_response: response,
+    });
 
     if (error) {
       toast({ title: "Error", description: "Failed to respond to invoice", variant: "destructive" });

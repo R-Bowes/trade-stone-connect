@@ -12,7 +12,6 @@ import { SlotPicker, type PickedSlot } from "@/components/recipient/SlotPicker";
 import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
-import { PaymentScheduleBuilder, isScheduleValid, type BuilderStage } from "@/components/management/quotes/PaymentScheduleBuilder";
 import { unitsForCountry } from "@/constants/units";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
@@ -84,7 +83,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [submitting, setSubmitting] = useState(false);
   const [customerTsCode, setCustomerTsCode] = useState<string | null>(null);
   const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
-  const [scheduleStages, setScheduleStages] = useState<BuilderStage[] | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +98,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setDepositRequired(false);
     setDepositPercentage(25);
     setProposedSlots([]);
-    setScheduleStages(null);
 
     if (enquiry.customer_id) {
       supabase
@@ -129,14 +126,11 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
 
-  // When staged payments are on, stage 1 (on_acceptance) IS the deposit —
-  // it drives the existing deposit_required/percentage/amount fields
-  // instead of the manual deposit toggle below (see PaymentScheduleBuilder
-  // spec: "stage 1 ... deposit_required/deposit_percentage/deposit_amount
-  // ... should be set from stage 1").
-  const acceptanceStage = scheduleStages?.find((s) => s.trigger_type === "on_acceptance") ?? null;
-  const effectiveDepositRequired = scheduleStages ? !!acceptanceStage : depositRequired;
-  const effectiveDepositPercentage = scheduleStages ? (acceptanceStage?.percentage ?? 0) : depositPercentage;
+  // Deposit plus balance only. Staged payments are retired: a job has one
+  // live invoice, and the deposit is a payment against it (CLAUDE.md
+  // invoice invariants), so no payment_schedule is written.
+  const effectiveDepositRequired = depositRequired;
+  const effectiveDepositPercentage = depositPercentage;
   const depositAmount = effectiveDepositRequired ? total * (effectiveDepositPercentage / 100) : 0;
 
   const fmt = (n: number) =>
@@ -159,10 +153,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     }
     if (proposedSlots.length < 2 || proposedSlots.length > 5) {
       toast({ title: "Select 2–5 available dates", description: "Offer the customer between 2 and 5 dates before sending.", variant: "destructive" });
-      return;
-    }
-    if (!isScheduleValid(scheduleStages)) {
-      toast({ title: "Payment schedule invalid", description: "Stages need a title each and must sum to exactly 100%.", variant: "destructive" });
       return;
     }
 
@@ -229,18 +219,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         terms: terms.trim() || null,
         status: "sent",
         sent_at: new Date().toISOString(),
-        payment_schedule: scheduleStages
-          ? {
-              type: "milestone",
-              stages: scheduleStages.map((s) => ({
-                stage_number: s.stage_number,
-                title: s.title.trim(),
-                percentage: s.percentage,
-                trigger_type: s.trigger_type,
-                trigger_date: s.trigger_type === "date" ? s.trigger_date ?? null : null,
-              })),
-            }
-          : null,
       };
 
       const { data: insertedQuote, error: quoteError } = await supabase
@@ -462,8 +440,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
             )}
           </div>
 
-          <PaymentScheduleBuilder totalAmount={total} onScheduleChange={setScheduleStages} />
-
           <div className="space-y-2 rounded-md border p-4">
             <Label>
               Available dates <span className="text-destructive">*</span>
@@ -537,16 +513,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
             </Select>
           </div>
 
-          {scheduleStages ? (
-            <div className="rounded-md border p-4 text-sm text-muted-foreground">
-              Deposit is controlled by Stage 1 (On acceptance) in the payment schedule above.
-              {acceptanceStage && (
-                <span className="text-foreground font-medium">
-                  {" "}Customer will pay £{fmt(depositAmount)} ({effectiveDepositPercentage}%) before the job is confirmed and scheduled.
-                </span>
-              )}
-            </div>
-          ) : (
           <div className="space-y-3 rounded-md border p-4">
             <div className="flex items-center gap-2">
               <input
@@ -582,7 +548,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               </div>
             )}
           </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="quote-notes">Notes (optional)</Label>
