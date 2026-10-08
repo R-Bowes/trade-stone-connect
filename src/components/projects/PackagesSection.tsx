@@ -18,6 +18,7 @@ import { jobStatusChip } from "@/lib/jobStatus";
 import { formatJobRef } from "@/lib/documentRefs";
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
+import { groupPackagesByTrade } from "@/lib/projectPackages";
 import { AddPackageDialog } from "./AddPackageDialog";
 import { AttachJobDialog } from "./AttachJobDialog";
 import { messageOf } from "./projectErrors";
@@ -35,21 +36,6 @@ type Props = {
   loadAttachableJobs: () => Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }>;
 };
 
-const OTHER_TRADE = "Other";
-
-/** Packages grouped by trade, each group in sort order; groups ordered by their first package. */
-function groupByTrade(packages: ProjectPackage[]): { trade: string; items: ProjectPackage[] }[] {
-  const sorted = [...packages].sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
-  const groups = new Map<string, ProjectPackage[]>();
-  for (const pkg of sorted) {
-    const key = pkg.trade?.trim() || OTHER_TRADE;
-    groups.set(key, [...(groups.get(key) ?? []), pkg]);
-  }
-  const ordered = [...groups.entries()].map(([trade, items]) => ({ trade, items }));
-  // Untraded packages last.
-  return [...ordered.filter((g) => g.trade !== OTHER_TRADE), ...ordered.filter((g) => g.trade === OTHER_TRADE)];
-}
-
 export function PackagesSection(props: Props) {
   const { packages, jobs, invoices, contractors } = props;
   const navigate = useNavigate();
@@ -64,7 +50,7 @@ export function PackagesSection(props: Props) {
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const filled = packages.filter((p) => !!p.job_id).length;
-  const groups = groupByTrade(packages);
+  const groups = groupPackagesByTrade(packages);
 
   const requestDelete = (pkg: ProjectPackage) => {
     if (pkg.job_id) {
@@ -224,7 +210,7 @@ function PackageRow({
   onFindContractor: () => void;
 }) {
   const manage = (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex shrink-0 flex-nowrap gap-1">
       <Button size="sm" variant="ghost" onClick={onEdit} title="Edit package">
         <i className="ti ti-pencil" aria-hidden="true" />
         <span className="sr-only">Edit package</span>
@@ -240,7 +226,7 @@ function PackageRow({
   if (!pkg.job_id) {
     return (
       <li className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <p className="font-medium">{pkg.title}</p>
           <p className="text-sm text-muted-foreground">
             No contractor yet
@@ -248,12 +234,14 @@ function PackageRow({
             {pkg.needed_from ? `needed from ${formatDate(pkg.needed_from)}` : "no date set"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onFindContractor}>
+        {/* Wraps only on narrow screens; from sm up the buttons and the
+            edit/delete icons stay on one line. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+          <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onFindContractor}>
             <i className="ti ti-search mr-2" aria-hidden="true" />
             Find a contractor
           </Button>
-          <Button size="sm" variant="outline" onClick={onAttach}>
+          <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onAttach}>
             <i className="ti ti-link mr-2" aria-hidden="true" />
             Attach a job
           </Button>

@@ -16,6 +16,8 @@ import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { PackagesSection } from "./PackagesSection";
+import { BudgetBand } from "./BudgetBand";
+import { ProjectTimeline } from "./ProjectTimeline";
 import { messageOf } from "./projectErrors";
 
 const LIST_PATH = "/dashboard/homeowner?view=projects";
@@ -27,9 +29,9 @@ function startLabel(date: string): string {
 }
 
 /**
- * One homeowner project. Slice 2, steps 1 and 2: the header, edit and
- * delete, and packages of work. Budget, timeline and the right column are
- * placeholders, built in steps 3 and 4.
+ * One homeowner project. Slice 2, steps 1 to 3: the header, edit and
+ * delete, packages of work, the budget band and the timeline. The right
+ * column is still a placeholder, built in step 4.
  */
 export function ProjectPage({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
@@ -125,10 +127,18 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* ── PLACEHOLDERS: slice 2 steps 3 and 4 (no data shown yet) ────────── */}
+      {/* ── PLACEHOLDERS: the right column, slice 2 step 4 (no data shown) ─── */}
+      {/* min-w-0 lets the columns shrink, so only the timeline's own box
+          scrolls sideways on a narrow screen, never the page. */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <PlaceholderSection title="Budget" step="step 3" />
+        <div className="min-w-0 space-y-6 lg:col-span-2">
+          <BudgetBand
+            budget={project.budget}
+            packages={detail.packages}
+            jobs={detail.jobs}
+            invoices={detail.invoices}
+            onEditProject={() => setEditing(true)}
+          />
           <PackagesSection
             packages={detail.packages}
             jobs={detail.jobs}
@@ -141,9 +151,15 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             detachJob={detail.detachJob}
             loadAttachableJobs={detail.loadAttachableJobs}
           />
-          <PlaceholderSection title="Timeline" step="step 3" />
+          <ProjectTimeline
+            targetStart={project.target_start}
+            targetEnd={project.target_end}
+            packages={detail.packages}
+            jobs={detail.jobs}
+            contractors={detail.contractors}
+          />
         </div>
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <PlaceholderSection title="Needs you" step="step 4" />
           <PlaceholderSection title="Snags" step="step 4" />
           <PlaceholderSection title="Sign-off" step="step 4" />
