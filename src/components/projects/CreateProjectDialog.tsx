@@ -8,24 +8,43 @@ import { Loader2 } from "lucide-react";
 import type { HomeownerProject, ProjectFormValues } from "@/hooks/useHomeownerProjects";
 import { messageOf } from "./projectErrors";
 
+export interface ProjectDialogValues extends ProjectFormValues {
+  /** Business projects only — the sites selected in the picker below. */
+  siteIds?: string[];
+}
+
+export interface ProjectSiteOption {
+  id: string;
+  name: string;
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
   /** When set, the dialog edits this project instead of creating one. */
   project?: HomeownerProject | null;
+  /**
+   * Business projects only. When provided (and not editing), a site
+   * picker is shown and at least one site is required.
+   */
+  sites?: ProjectSiteOption[];
   /** Saves the values; throws with a message the dialog shows on failure. */
-  onSave: (values: ProjectFormValues) => Promise<void>;
+  onSave: (values: ProjectDialogValues) => Promise<void>;
 };
 
 
-export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
+export function CreateProjectDialog({ open, onClose, project, sites, onSave }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
   const [targetStart, setTargetStart] = useState("");
   const [targetEnd, setTargetEnd] = useState("");
+  const [siteIds, setSiteIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isEdit = !!project;
+  const showSitePicker = !!sites && !isEdit;
 
   useEffect(() => {
     if (!open) return;
@@ -34,8 +53,13 @@ export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
     setBudget(project?.budget != null ? String(project.budget) : "");
     setTargetStart(project?.target_start ?? "");
     setTargetEnd(project?.target_end ?? "");
+    setSiteIds([]);
     setError(null);
   }, [open, project]);
+
+  const toggleSite = (id: string) => {
+    setSiteIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  };
 
   const validate = (): string | null => {
     if (!title.trim()) return "Give the project a name.";
@@ -45,6 +69,9 @@ export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
     }
     if (targetStart && targetEnd && targetEnd < targetStart) {
       return "The target finish can't be before the target start.";
+    }
+    if (showSitePicker && siteIds.length === 0) {
+      return "Select at least one site.";
     }
     return null;
   };
@@ -65,6 +92,7 @@ export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
         budget: budget.trim() === "" ? null : Number(budget),
         target_start: targetStart || null,
         target_end: targetEnd || null,
+        ...(showSitePicker ? { siteIds } : {}),
       });
       onClose();
     } catch (err) {
@@ -73,8 +101,6 @@ export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
       setSaving(false);
     }
   };
-
-  const isEdit = !!project;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !saving && onClose()}>
@@ -138,6 +164,32 @@ export function CreateProjectDialog({ open, onClose, project, onSave }: Props) {
               />
             </div>
           </div>
+
+          {showSitePicker && (
+            <div className="space-y-2">
+              <Label>Sites ({siteIds.length} selected)</Label>
+              {sites!.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sites in your company yet.</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto border border-input rounded-md p-1">
+                  {sites!.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={siteIds.includes(s.id)}
+                        onChange={() => toggleSite(s.id)}
+                        style={{ accentColor: "#f07820", width: 14, height: 14 }}
+                      />
+                      <span className="text-sm">{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

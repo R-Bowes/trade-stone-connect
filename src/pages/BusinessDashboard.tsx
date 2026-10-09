@@ -6,6 +6,8 @@ import BusinessLayout from "@/components/layout/BusinessLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { BusinessOverview } from "@/components/business/BusinessOverview";
 import { BusinessJobsView } from "@/components/business/BusinessJobsView";
+import { BusinessProjectsView } from "@/components/business/BusinessProjectsView";
+import { BusinessProjectPage } from "@/components/business/BusinessProjectPage";
 import { WorkOrderDashboard } from "@/components/business/WorkOrderDashboard";
 import { BusinessBillingView } from "@/components/business/BusinessBillingView";
 import { ServiceRequestQueue } from "@/components/business/ServiceRequestQueue";
@@ -239,7 +241,7 @@ const BusinessDashboard = () => {
     }
 
     // Company-required guard — distinguish query error from genuine no-company.
-    const needsCompany = ["dashboard", "jobs", "requests", "sites", "assets", "team", "groups", "tenders", "tender-form", "tender-detail"].includes(activeView);
+    const needsCompany = ["dashboard", "jobs", "projects", "requests", "sites", "assets", "team", "groups", "tenders", "tender-form", "tender-detail"].includes(activeView);
     if (needsCompany && companyFetchError) {
       return (
         <div className="p-6">
@@ -273,6 +275,13 @@ const BusinessDashboard = () => {
 
       case "jobs":
         return <BusinessJobsView companyId={companyId!} profileId={profileId} />;
+
+      case "projects": {
+        const projectId = searchParams.get("project");
+        return projectId
+          ? <BusinessProjectPage companyId={companyId!} projectId={projectId} />
+          : <BusinessProjectsView companyId={companyId!} />;
+      }
 
       case "work-orders":
         return <WorkOrderDashboard companyId={companyId!} profileId={profileId} />;
