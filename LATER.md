@@ -112,67 +112,7 @@ form doesn't get heavy enough to cause abandonment.
 
 ## Projects (fully designed — see Projects design notes / memory)
 
-- **Projects feature** — container for multi-phase work. Schema first:
-  `projects`, `project_proposals`, `proposal_phases`; `asset_id` FK on jobs as
-  future-proofing. Open tender vs invite-by-TS-code, proposal versioning,
-  expiry mechanic (90% prompt, extension, auto-expiry), budget envelope toggle,
-  hard acceptance commitment, public Q&A thread, weighted scoring,
-  Gantt/budget/contractor views, two-stage sign-off, retention management,
-  contract versioning on approved change requests.
-  **Approved mock (5 Oct 2026) — homeowner project page:**
-- Sections: budget bar (paid / agreed still to pay / left to commit),
-  packages grouped by trade, timeline with today marker, "Needs you" list,
-  light snag list and sign-off.
-- A contractor's phases each show as their own package, grouped under the
-  contractor. One job per package still holds.
-- Unfilled packages get a "choose by" date derived from surrounding job
-  dates, surfaced in "Needs you".
-- Mock: https://claude.ai/artifact/DTgL9VPnPgN3w3cm37h64S
-- **Gantt / timeline view** — part of Projects, not detailed yet.
-- **Change request flow** — post-acceptance scope changes with revised cost +
-  timeline, customer approve/decline. Distinct from job variations (shipped),
-  which operate within a single job. Parked with Projects.
-- **Sub-contractor hiring** — contractor as principal on a sub-job via
-  `parent_job_id` FK (Option A), no tier escalation. Needs contractor volume.
-- **Template schemas** for proposals — needs real tender data first.
-- **Blocker:** `create-deposit-checkout` is quarantined (see tech debt) and
-  must be fixed before Projects deposits can be taken.
-  - DO NOT RUN — company ownership: add projects.company_id (uuid, nullable,
-  FK companies(id)) with a CHECK requiring it when account_type = 'business'.
-  Rename projects_customer_id_fkey to match posted_by. RLS via existing
-  company membership helpers.
-- DO NOT RUN — packages: project_jobs becomes the planned-package list.
-  job_id nullable and unique; the job's project_id must match the package's
-  project. Rename to project_packages. jobs.project_id remains the only
-  membership link. Remove the double insert at ProposalReview.tsx:360-373.
-- Tenders should reference the package they fill, not only the project.
-- projects.account_type already allows personal, contractor, business. The
-  replacement create-project form must set it (PostTenderForm is retiring).
-
-  - DO NOT RUN — business projects follow the site model: add
-  projects.company_id (uuid, nullable, FK companies(id)), required when
-  account_type = 'business', plus a project-to-sites link (a project may
-  cover several sites, as tenders do). Access by existing team coverage
-  via can_access_site(): a member sees a project if they cover at least
-  one of its sites, and within it only the work at their sites. No
-  per-project member lists for business teams. Rename
-  projects_customer_id_fkey to match posted_by.
-- Negotiation (5 Oct 2026): counter-proposals dropped (quote revisions
-  cover it; sealed tenders must not allow haggling). Expiry prompts move
-  to quotes as a standalone feature, outside Projects.
-  **Business project page — mock agreed (5 Oct 2026):**
-- Same skeleton as the homeowner page, inside the business dashboard, with
-  Projects under Work in the side menu.
-- Shows the sites covered, how each package was procured (tender or direct
-  quote, reference linked), tender status without revealing bids, change
-  requests, who can see the project by coverage, two-stage completion.
-- Each unfilled package carries an allowance so the budget adds up before
-  award.
-- OUT: approval thresholds on quotes (not needed).
-- PARKED: retention. Not in the business version. Conflicts with the invoice
-  rules (an invoice deliberately part-paid for months) and raises who holds
-  the money. Revisit only if a real client asks.
-- Mock: https://claude.ai/artifact/DTgL9VPnPgN3w3cm37h64S
+See "Projects (slices 1 and 2 live; slices 3 and 4 to build)" further down this file for the current state and decisions.
 
 ---
 
@@ -1754,7 +1694,7 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
-## Projects (slice 1 live; slices 2 to 4 to build)
+## Projects (slices 1 and 2 live; slices 3 and 4 to build)
 
 **State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
 and their routes unregistered (c77bf32). Slice 1 foundations live
@@ -1766,6 +1706,20 @@ project_members, project_notes, project_events, project_contracts,
 project_updates, project_change_requests) remain, unused, until a
 cleanup migration. generate-project-contract is still deployed and
 unused. Contractor-created projects are blocked until slice 4.
+
+**Slice 2 (9 Oct 2026, commit fdc0ab2):** homeowner project page live.
+Projects in the homeowner menu; packages with job attach and detach;
+budget band and timeline read from jobs and invoices; Needs you,
+snags, and sign-off via sign_off_project (migration 20261008100000).
+projects.status is server-only. Personal accounts only.
+
+**Slice 2 polish:**
+- snag hint text still shows on a signed-off project
+- confirm box should say when money is still unpaid at sign-off
+- budget legend "Left to commit" wraps onto two lines
+- an unfilled package cannot carry itself through to a quote; the
+  homeowner attaches the job by hand after accepting
+- contractor dashboard has an unrelated tab also called "Projects"
 
 **Locked direction (5 Oct 2026):**
 - Projects and Tendering are separate features. Tendering is the only bidding
