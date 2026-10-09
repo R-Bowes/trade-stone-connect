@@ -21,11 +21,16 @@ import { BudgetBand } from "@/components/projects/BudgetBand";
 import { PackagesSection } from "@/components/projects/PackagesSection";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
 import { SnagListCard } from "@/components/projects/SnagListCard";
+import { NeedsYouCard } from "@/components/projects/NeedsYouCard";
+import { SignOffCard } from "@/components/projects/SignOffCard";
+import { signOffBlockers } from "@/lib/projectSignOff";
+import { WhoCanSeeCard } from "@/components/business/WhoCanSeeCard";
 import { messageOf } from "@/components/projects/projectErrors";
 
 const LIST_PATH = "/dashboard/business?view=projects";
 /** Find-a-contractor for a business package goes to Requests — raising an enquiry/quote request to a panel contractor is the closest business equivalent of the homeowner "hire" flow. */
 const FIND_CONTRACTOR_PATH = "/dashboard/business?view=requests";
+const INVOICES_PATH = "/dashboard/business?view=invoices";
 
 interface AvailableSite {
   id: string;
@@ -33,11 +38,11 @@ interface AvailableSite {
 }
 
 /**
- * One business project: header, edit/delete, the Sites card, packages,
- * timeline and snags. Mirrors ProjectPage.tsx's shape but reads via
- * useProjectDetail in 'business' mode, and adds the Sites card the
- * homeowner page has no equivalent of. Budget, Needs you, Sign-off and
- * "Who can see this" are still placeholders — later steps.
+ * One business project: header, edit/delete, budget, packages, timeline,
+ * and the right column (sites, needs you, snags, sign-off, who can see
+ * this). Mirrors ProjectPage.tsx's shape but reads via useProjectDetail in
+ * 'business' mode, and adds the Sites and "Who can see this" cards the
+ * homeowner page has no equivalent of.
  */
 export function BusinessProjectPage({ companyId, projectId }: { companyId: string; projectId: string }) {
   const navigate = useNavigate();
@@ -101,9 +106,14 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
 
   const status = projectDisplayStatus(project.status, detail.attachedJobCount);
   const readOnly = project.status === "completed";
+  const blockers = signOffBlockers(project.status, detail.packages, detail.jobs, detail.snags);
+  const stillToPay = detail.packages
+    .filter((p) => !!p.job_id)
+    .reduce((sum, p) => sum + (detail.money[p.id]?.still_to_pay ?? 0), 0);
 
   const linkedSiteIds = new Set(detail.projectSites.map((s) => s.id));
   const unlinkedSites = availableSites.filter((s) => !linkedSiteIds.has(s.id));
+  const packagesPinnedToSite = (siteId: string) => detail.packages.filter((p) => p.site_id === siteId);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -248,21 +258,32 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
                 <p className="text-sm text-muted-foreground">No sites linked yet.</p>
               ) : (
                 <ul className="divide-y rounded-md border text-sm">
-                  {detail.projectSites.map((site) => (
-                    <li key={site.id} className="flex items-center justify-between gap-3 p-2.5">
-                      <span>{site.name}</span>
-                      {!readOnly && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => { setSiteActionError(null); setRemovingSite(site); }}
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </li>
-                  ))}
+                  {detail.projectSites.map((site) => {
+                    const pinned = packagesPinnedToSite(site.id);
+                    return (
+                      <li key={site.id} className="flex items-center justify-between gap-3 p-2.5">
+                        <span>{site.name}</span>
+                        {!readOnly && (
+                          pinned.length > 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              {pinned.map((p) => p.title).join(", ")}{" "}
+                              {pinned.length === 1 ? "is" : "are"} pinned to this site. Move or clear{" "}
+                              {pinned.length === 1 ? "its" : "their"} site first.
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => { setSiteActionError(null); setRemovingSite(site); }}
+                            >
+                              Remove
+                            </Button>
+                          )
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
@@ -289,7 +310,16 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
             </CardContent>
           </Card>
 
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Needs you — coming in a later step.</CardContent></Card>
+          <NeedsYouCard
+            packages={detail.packages}
+            jobs={detail.jobs}
+            money={detail.money}
+            contractors={detail.contractors}
+            snags={detail.snags}
+            readyToSignOff={!readOnly && blockers.length === 0}
+            invoicesPath={INVOICES_PATH}
+            findContractorPath={FIND_CONTRACTOR_PATH}
+          />
 
           <SnagListCard
             snags={detail.snags}
@@ -299,8 +329,15 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
             resolveSnag={detail.resolveSnag}
           />
 
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Sign-off — coming in a later step.</CardContent></Card>
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Who can see this — coming in a later step.</CardContent></Card>
+          <SignOffCard
+            projectStatus={project.status}
+            signOffs={detail.signOffs}
+            blockers={blockers}
+            stillToPay={stillToPay}
+            onSignOff={detail.signOff}
+          />
+
+          <WhoCanSeeCard companyId={companyId} projectSites={detail.projectSites} />
         </div>
       </div>
 
@@ -345,7 +382,7 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
           <AlertDialogHeader>
             <AlertDialogTitle>Remove this site from the project?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{removingSite?.name}" will no longer be linked to this project. Refused while any package is pinned to it.
+              "{removingSite?.name}" will no longer be linked to this project.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

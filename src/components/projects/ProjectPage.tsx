@@ -72,6 +72,9 @@ export function ProjectPage({ projectId }: { projectId: string }) {
   // detach and snag action is hidden.
   const readOnly = project.status === "completed";
   const blockers = signOffBlockers(project.status, detail.packages, detail.jobs, detail.snags);
+  const stillToPay = detail.packages
+    .filter((p) => !!p.job_id)
+    .reduce((sum, p) => sum + (detail.money[p.id]?.still_to_pay ?? 0), 0);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -177,6 +180,8 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             contractors={detail.contractors}
             snags={detail.snags}
             readyToSignOff={!readOnly && blockers.length === 0}
+            invoicesPath="/dashboard/homeowner?view=invoices"
+            findContractorPath="/dashboard/homeowner?view=hire"
           />
           <SnagListCard
             snags={detail.snags}
@@ -189,6 +194,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             projectStatus={project.status}
             signOffs={detail.signOffs}
             blockers={blockers}
+            stillToPay={stillToPay}
             onSignOff={detail.signOff}
           />
         </div>

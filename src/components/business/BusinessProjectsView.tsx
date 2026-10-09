@@ -12,6 +12,7 @@ import { projectDisplayStatus, PROJECT_STATUS_CHIP, type ProjectDisplayStatus } 
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog, type ProjectSiteOption } from "@/components/projects/CreateProjectDialog";
+import { ProjectsNeedsYouPanel } from "./ProjectsNeedsYouPanel";
 
 const projectPath = (id: string) => `/dashboard/business?view=projects&project=${id}`;
 
@@ -207,6 +208,9 @@ export function BusinessProjectsView({ companyId }: { companyId: string }) {
             </Select>
           </div>
           {filtersError && <p className="text-sm text-destructive">{filtersError}</p>}
+
+          {/* ── Needs you, across the listed projects ─────────────────── */}
+          <ProjectsNeedsYouPanel projects={filtered.map(({ project }) => ({ id: project.id, title: project.title, status: project.status }))} />
 
           {/* ── List ───────────────────────────────────────────────────── */}
           {filtered.length === 0 ? (

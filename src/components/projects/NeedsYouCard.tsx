@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { ContractorSummary, PackageMoney, ProjectJob, ProjectPackage, ProjectSnag } from "@/hooks/useProjectDetail";
 import { orderPackages } from "@/lib/projectPackages";
 import { isSnagOpen } from "@/lib/projectSignOff";
+import { chooseBy } from "@/lib/chooseByDate";
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 
@@ -15,25 +16,18 @@ type Props = {
   snags: ProjectSnag[];
   /** True when sign-off is unlocked and the project is not yet completed. */
   readyToSignOff: boolean;
+  /** Where "Invoices" goes. Always required — no hard-coded default. */
+  invoicesPath: string;
+  /** Where "Find" (an unfilled package) goes. Always required — no hard-coded default. */
+  findContractorPath: string;
 };
-
-/** How far ahead of a package's needed-from date the homeowner should choose a contractor. */
-const CHOOSE_BY_DAYS = 14;
-
-function chooseBy(neededFrom: string): { date: Date; overdue: boolean } {
-  const [y, m, d] = neededFrom.slice(0, 10).split("-").map(Number);
-  const date = new Date(y, m - 1, d - CHOOSE_BY_DAYS);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return { date, overdue: date < today };
-}
 
 /**
  * What the homeowner should act on, in order: invoices to pay, packages
  * still without a contractor, open snags, and sign-off once it is ready.
  * Read-only: every action links to the screen that does it.
  */
-export function NeedsYouCard({ packages, jobs, money, contractors, snags, readyToSignOff }: Props) {
+export function NeedsYouCard({ packages, jobs, money, contractors, snags, readyToSignOff, invoicesPath, findContractorPath }: Props) {
   const navigate = useNavigate();
   const ordered = orderPackages(packages);
 
@@ -66,7 +60,7 @@ export function NeedsYouCard({ packages, jobs, money, contractors, snags, readyT
                   Pay <span className="font-mono font-semibold">{formatGBP(amount)}</span> to{" "}
                   {contractors[job.contractor_id]?.name ?? "your contractor"}
                 </span>
-                <Button size="sm" variant="link" className="h-auto shrink-0 p-0" onClick={() => navigate("/dashboard/homeowner?view=invoices")}>
+                <Button size="sm" variant="link" className="h-auto shrink-0 p-0" onClick={() => navigate(invoicesPath)}>
                   Invoices
                 </Button>
               </li>
@@ -91,7 +85,7 @@ export function NeedsYouCard({ packages, jobs, money, contractors, snags, readyT
                       )}
                     </span>
                   </span>
-                  <Button size="sm" variant="link" className="h-auto shrink-0 p-0" onClick={() => navigate("/dashboard/homeowner?view=hire")}>
+                  <Button size="sm" variant="link" className="h-auto shrink-0 p-0" onClick={() => navigate(findContractorPath)}>
                     Find
                   </Button>
                 </li>

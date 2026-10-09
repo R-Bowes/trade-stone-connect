@@ -133,7 +133,7 @@ export function BudgetBand({ budget, packages, money, onEditProject, readOnly = 
           {segments.map((s) => (
             <li key={s.key} className="flex items-center gap-2">
               <span className={`inline-block h-3 w-5 shrink-0 rounded-sm ${s.className}`} style={s.style} aria-hidden="true" />
-              <span className="text-muted-foreground">{s.label}</span>
+              <span className="whitespace-nowrap text-muted-foreground">{s.label}</span>
               <span className="ml-auto font-mono sm:ml-0">{formatGBP(s.amount)}</span>
             </li>
           ))}

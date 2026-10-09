@@ -109,7 +109,7 @@ export function SnagListCard({ snags, packages, readOnly, addSnag, resolveSnag }
           </div>
         )}
 
-        {snags.length === 0 && (
+        {snags.length === 0 && !readOnly && (
           <p className="text-sm text-muted-foreground">Note anything that needs putting right before you sign off.</p>
         )}
       </CardContent>

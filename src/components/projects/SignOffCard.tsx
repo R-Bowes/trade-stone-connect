@@ -8,6 +8,7 @@ import {
 import { Loader2 } from "lucide-react";
 import type { ProjectSignOff } from "@/hooks/useProjectDetail";
 import { formatDate } from "@/lib/formatDate";
+import { formatGBP } from "@/lib/formatGBP";
 import { messageOf } from "./projectErrors";
 
 type Props = {
@@ -15,11 +16,13 @@ type Props = {
   signOffs: ProjectSignOff[];
   /** From signOffBlockers(); empty when sign-off can go ahead. */
   blockers: string[];
+  /** Total still to pay across the project's filled packages. Signing off does not settle it. */
+  stillToPay: number;
   onSignOff: () => Promise<void>;
 };
 
 /** Sign-off: unlocked only when nothing blocks it; sign_off_project re-checks and records it. */
-export function SignOffCard({ projectStatus, signOffs, blockers, onSignOff }: Props) {
+export function SignOffCard({ projectStatus, signOffs, blockers, stillToPay, onSignOff }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,12 @@ export function SignOffCard({ projectStatus, signOffs, blockers, onSignOff }: Pr
             <AlertDialogDescription>
               You are confirming that all the work is finished. The project will be marked completed and can no longer
               be changed.
+              {stillToPay > 0 && (
+                <span className="mt-2 block font-medium text-foreground">
+                  <span className="font-mono">{formatGBP(stillToPay)}</span> is still to pay on this project. Signing
+                  off does not settle it.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && <p className="text-sm text-destructive">{error}</p>}
