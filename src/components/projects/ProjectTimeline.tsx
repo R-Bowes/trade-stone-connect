@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ContractorSummary, ProjectJob, ProjectPackage } from "@/hooks/useProjectDetail";
@@ -13,8 +14,8 @@ type Props = {
   contractors: Record<string, ContractorSummary>;
 };
 
-const DAY_PX = 12;
-const WEEK_PX = DAY_PX * 7;
+/** Narrowest a week column may get before the timeline scrolls sideways. */
+const MIN_WEEK_PX = 32;
 const LABEL_PX = 200;
 const MS_PER_DAY = 86_400_000;
 
@@ -79,10 +80,15 @@ function buildRows(packages: ProjectPackage[], jobs: Record<string, ProjectJob>,
 
 /**
  * One bar per package across whole weeks (Monday starts), with a Today
- * marker. Plain CSS; scrolls sideways inside its own box on narrow screens.
- * Read-only.
+ * marker. Plain CSS. Week columns shrink to fit the card, down to
+ * MIN_WEEK_PX; only below that does the timeline scroll sideways, inside its
+ * own box. On load it scrolls so today is in view. Read-only.
  */
 export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contractors }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
+  const scrolledToToday = useRef(false);
+
   const projectEnd = targetEnd ? parseDay(targetEnd) : null;
   const rows = buildRows(packages, jobs, projectEnd);
 
@@ -91,6 +97,43 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
     ...(projectEnd ? [projectEnd] : []),
     ...rows.flatMap((r) => (r.start && r.end ? [r.start, r.end] : [])),
   ];
+  const hasTimeline = packages.length > 0 && allDates.length > 0;
+
+  // Range, rounded out to whole Monday-starting weeks (end exclusive).
+  const rangeStart = hasTimeline ? mondayOf(new Date(Math.min(...allDates.map((d) => d.getTime())))) : null;
+  const rangeEnd = hasTimeline ? addDays(mondayOf(new Date(Math.max(...allDates.map((d) => d.getTime())))), 7) : null;
+  const totalDays = rangeStart && rangeEnd ? daysBetween(rangeStart, rangeEnd) : 0;
+  const weekCount = totalDays / 7;
+
+  // Fit the weeks to the box, never narrower than MIN_WEEK_PX.
+  const weekPx = weekCount > 0 && boxWidth > 0
+    ? Math.max(MIN_WEEK_PX, Math.floor((boxWidth - LABEL_PX) / weekCount))
+    : MIN_WEEK_PX;
+  const dayPx = weekPx / 7;
+  const trackWidth = weekCount * weekPx;
+
+  const now = today();
+  const todayX = rangeStart && rangeEnd && now >= rangeStart && now < rangeEnd
+    ? daysBetween(rangeStart, now) * dayPx + dayPx / 2
+    : null;
+
+  // Track the box width so the weeks can fit it.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setBoxWidth(el.clientWidth);
+    const observer = new ResizeObserver(() => setBoxWidth(el.clientWidth));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasTimeline]);
+
+  // Once, after the first real layout: bring today into view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (scrolledToToday.current || !el || boxWidth === 0 || todayX == null) return;
+    el.scrollLeft = Math.max(0, todayX - (el.clientWidth - LABEL_PX) / 2);
+    scrolledToToday.current = true;
+  }, [boxWidth, todayX]);
 
   const header = (
     <CardHeader>
@@ -98,7 +141,7 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
     </CardHeader>
   );
 
-  if (packages.length === 0 || allDates.length === 0) {
+  if (!hasTimeline || !rangeStart) {
     return (
       <Card>
         {header}
@@ -111,27 +154,18 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
     );
   }
 
-  const earliest = new Date(Math.min(...allDates.map((d) => d.getTime())));
-  const latest = new Date(Math.max(...allDates.map((d) => d.getTime())));
-  const rangeStart = mondayOf(earliest);
-  const rangeEnd = addDays(mondayOf(latest), 7); // exclusive
-  const totalDays = daysBetween(rangeStart, rangeEnd);
-  const trackWidth = totalDays * DAY_PX;
-  const weeks = Array.from({ length: totalDays / 7 }, (_, i) => addDays(rangeStart, i * 7));
-
-  const now = today();
-  const todayX = now >= rangeStart && now < rangeEnd ? daysBetween(rangeStart, now) * DAY_PX + DAY_PX / 2 : null;
+  const weeks = Array.from({ length: weekCount }, (_, i) => addDays(rangeStart, i * 7));
 
   const weekLines: React.CSSProperties = {
-    backgroundImage: `repeating-linear-gradient(to right, hsl(var(--border)) 0 1px, transparent 1px ${WEEK_PX}px)`,
+    backgroundImage: `repeating-linear-gradient(to right, hsl(var(--border)) 0 1px, transparent 1px ${weekPx}px)`,
   };
 
   return (
     <Card>
       {header}
       <CardContent className="space-y-4">
-        {/* Only this box scrolls sideways; the page never does. */}
-        <div className="max-w-full overflow-x-auto rounded-md border">
+        {/* Only this box scrolls sideways, and only once weeks hit their minimum width. */}
+        <div ref={scrollRef} className="max-w-full overflow-x-auto rounded-md border">
           <div className="relative" style={{ width: LABEL_PX + trackWidth }}>
             {/* Month names, then each week's Monday date. */}
             <div className="flex border-b bg-muted/40 text-xs">
@@ -141,15 +175,16 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
                   {weeks.map((monday, i) => {
                     const showMonth = i === 0 || monday.getMonth() !== weeks[i - 1].getMonth();
                     return (
-                      <div key={monday.getTime()} className="shrink-0 truncate px-1 font-semibold" style={{ width: WEEK_PX }}>
-                        {showMonth ? format(monday, "MMM yyyy") : ""}
+                      <div key={monday.getTime()} className="shrink-0 overflow-visible whitespace-nowrap px-1 font-semibold" style={{ width: weekPx }}>
+                        {/* Narrow weeks: month only, so labels do not collide. */}
+                        {showMonth ? format(monday, weekPx < 64 ? "MMM" : "MMM yyyy") : ""}
                       </div>
                     );
                   })}
                 </div>
                 <div className="flex h-5 text-muted-foreground">
                   {weeks.map((monday) => (
-                    <div key={monday.getTime()} className="shrink-0 border-l px-1" style={{ width: WEEK_PX }}>
+                    <div key={monday.getTime()} className="shrink-0 border-l px-1" style={{ width: weekPx }}>
                       {format(monday, "d")}
                     </div>
                   ))}
@@ -161,8 +196,8 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
             {rows.map((row) => {
               const chip = row.job ? jobStatusChip(row.job.status) : null;
               const contractor = row.job ? contractors[row.job.contractor_id] : undefined;
-              const left = row.start ? daysBetween(rangeStart, row.start) * DAY_PX : 0;
-              const width = row.start && row.end ? (daysBetween(row.start, row.end) + 1) * DAY_PX : 0;
+              const left = row.start ? daysBetween(rangeStart, row.start) * dayPx : 0;
+              const width = row.start && row.end ? (daysBetween(row.start, row.end) + 1) * dayPx : 0;
               const dateText = row.start && row.end
                 ? `${formatDate(row.start)} to ${row.openEnd ? "end not set" : formatDate(row.end)}`
                 : "No dates yet";

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +17,10 @@ import { CreateProjectDialog } from "./CreateProjectDialog";
 import { PackagesSection } from "./PackagesSection";
 import { BudgetBand } from "./BudgetBand";
 import { ProjectTimeline } from "./ProjectTimeline";
+import { NeedsYouCard } from "./NeedsYouCard";
+import { SnagListCard } from "./SnagListCard";
+import { SignOffCard } from "./SignOffCard";
+import { signOffBlockers } from "@/lib/projectSignOff";
 import { messageOf } from "./projectErrors";
 
 const LIST_PATH = "/dashboard/homeowner?view=projects";
@@ -29,9 +32,9 @@ function startLabel(date: string): string {
 }
 
 /**
- * One homeowner project. Slice 2, steps 1 to 3: the header, edit and
- * delete, packages of work, the budget band and the timeline. The right
- * column is still a placeholder, built in step 4.
+ * One homeowner project: the header, edit and delete, packages of work,
+ * the budget band, the timeline, and the right column (needs you, snags,
+ * sign-off). Once signed off the project is read-only.
  */
 export function ProjectPage({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
@@ -65,6 +68,10 @@ export function ProjectPage({ projectId }: { projectId: string }) {
   }
 
   const status = projectDisplayStatus(project.status, detail.attachedJobCount);
+  // A signed-off project is read-only: every add, edit, delete, attach,
+  // detach and snag action is hidden.
+  const readOnly = project.status === "completed";
+  const blockers = signOffBlockers(project.status, detail.packages, detail.jobs, detail.snags);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -111,6 +118,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             </span>
           </div>
         </div>
+        {!readOnly && (
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setEditing(true)}>
             <i className="ti ti-pencil mr-2" aria-hidden="true" />
@@ -125,9 +133,9 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             Delete
           </Button>
         </div>
+        )}
       </div>
 
-      {/* ── PLACEHOLDERS: the right column, slice 2 step 4 (no data shown) ─── */}
       {/* min-w-0 lets the columns shrink, so only the timeline's own box
           scrolls sideways on a narrow screen, never the page. */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -138,6 +146,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             jobs={detail.jobs}
             invoices={detail.invoices}
             onEditProject={() => setEditing(true)}
+            readOnly={readOnly}
           />
           <PackagesSection
             packages={detail.packages}
@@ -150,6 +159,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             attachJob={detail.attachJob}
             detachJob={detail.detachJob}
             loadAttachableJobs={detail.loadAttachableJobs}
+            readOnly={readOnly}
           />
           <ProjectTimeline
             targetStart={project.target_start}
@@ -160,9 +170,27 @@ export function ProjectPage({ projectId }: { projectId: string }) {
           />
         </div>
         <div className="min-w-0 space-y-6">
-          <PlaceholderSection title="Needs you" step="step 4" />
-          <PlaceholderSection title="Snags" step="step 4" />
-          <PlaceholderSection title="Sign-off" step="step 4" />
+          <NeedsYouCard
+            packages={detail.packages}
+            jobs={detail.jobs}
+            invoices={detail.invoices}
+            contractors={detail.contractors}
+            snags={detail.snags}
+            readyToSignOff={!readOnly && blockers.length === 0}
+          />
+          <SnagListCard
+            snags={detail.snags}
+            packages={detail.packages}
+            readOnly={readOnly}
+            addSnag={detail.addSnag}
+            resolveSnag={detail.resolveSnag}
+          />
+          <SignOffCard
+            projectStatus={project.status}
+            signOffs={detail.signOffs}
+            blockers={blockers}
+            onSignOff={detail.signOff}
+          />
         </div>
       </div>
 
@@ -203,19 +231,5 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-/** PLACEHOLDER — replaced as each later step is built. Shows no data. */
-function PlaceholderSection({ title, step }: { title: string; step: string }) {
-  return (
-    <Card className="border-dashed">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-heading text-lg">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        Not built yet (Projects slice 2, {step}).
-      </CardContent>
-    </Card>
   );
 }

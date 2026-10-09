@@ -10,6 +10,8 @@ type Props = {
   jobs: Record<string, ProjectJob>;
   invoices: ProjectInvoice[];
   onEditProject: () => void;
+  /** A completed project is read-only: no "Edit project" link. */
+  readOnly?: boolean;
 };
 
 // Each segment has its own fill AND pattern, and is always named in the
@@ -35,7 +37,7 @@ function widthPct(amount: number, scale: number): string {
  * Budget band: paid, agreed still to pay, and left to commit, from the jobs
  * attached to the project's packages. Read-only.
  */
-export function BudgetBand({ budget, packages, jobs, invoices, onEditProject }: Props) {
+export function BudgetBand({ budget, packages, jobs, invoices, onEditProject, readOnly = false }: Props) {
   const attached = packages
     .map((p) => (p.job_id ? jobs[p.job_id] : undefined))
     .filter((j): j is ProjectJob => !!j);
@@ -116,7 +118,7 @@ export function BudgetBand({ budget, packages, jobs, invoices, onEditProject }: 
           </p>
         )}
 
-        {!hasBudget && (
+        {!hasBudget && !readOnly && (
           <p className="text-sm text-muted-foreground">
             Set a budget to see what is left.{" "}
             <Button variant="link" className="h-auto p-0" onClick={onEditProject}>Edit project</Button>

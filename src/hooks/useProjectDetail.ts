@@ -5,6 +5,11 @@ import type { ProjectInvoice } from "@/lib/projectMoney";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 type PackageRow = Database["public"]["Tables"]["project_packages"]["Row"];
+type SnagRow = Database["public"]["Tables"]["project_snags"]["Row"];
+type SignOffRow = Database["public"]["Tables"]["project_sign_offs"]["Row"];
+
+export type ProjectSnag = Pick<SnagRow, "id" | "description" | "status" | "package_id" | "created_at" | "resolved_at">;
+export type ProjectSignOff = Pick<SignOffRow, "id" | "stage" | "signed_at">;
 
 export type ProjectDetail = Pick<
   ProjectRow,
@@ -49,6 +54,9 @@ const PACKAGE_SELECT =
   "id, project_id, title, trade, sort_order, allowance, needed_from, needed_to, job_id, created_at" as const;
 const JOB_SELECT =
   "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id" as const;
+const SNAG_SELECT = "id, description, status, package_id, created_at, resolved_at" as const;
+const SIGN_OFF_SELECT = "id, stage, signed_at" as const;
+
 const INVOICE_SELECT =
   "status, total, due_date, deposit_amount, deposit_deducted, deposit_paid, job_id, quote_id" as const;
 
@@ -89,6 +97,8 @@ export function useProjectDetail(projectId: string) {
   const [jobs, setJobs] = useState<Record<string, ProjectJob>>({});
   const [invoices, setInvoices] = useState<ProjectInvoice[]>([]);
   const [contractors, setContractors] = useState<Record<string, ContractorSummary>>({});
+  const [snags, setSnags] = useState<ProjectSnag[]>([]);
+  const [signOffs, setSignOffs] = useState<ProjectSignOff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,6 +117,8 @@ export function useProjectDetail(projectId: string) {
         setPackages([]);
         setJobs({});
         setInvoices([]);
+        setSnags([]);
+        setSignOffs([]);
         setContractors({});
         return;
       }
@@ -146,6 +158,22 @@ export function useProjectDetail(projectId: string) {
       setJobs(jobMap);
       setInvoices(jobInvoices);
       setContractors(await loadContractors(Object.values(jobMap).map((j) => j.contractor_id)));
+
+      const { data: snagRows, error: snagsError } = await supabase
+        .from("project_snags")
+        .select(SNAG_SELECT)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
+      if (snagsError) throw snagsError;
+      setSnags((snagRows ?? []) as ProjectSnag[]);
+
+      const { data: signOffRows, error: signOffsError } = await supabase
+        .from("project_sign_offs")
+        .select(SIGN_OFF_SELECT)
+        .eq("project_id", projectId)
+        .order("signed_at", { ascending: false });
+      if (signOffsError) throw signOffsError;
+      setSignOffs((signOffRows ?? []) as ProjectSignOff[]);
     } catch (err) {
       console.error("Error loading project:", err);
       setError(err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Could not load this project.");
@@ -242,11 +270,45 @@ export function useProjectDetail(projectId: string) {
     return { jobs: list, contractors: await loadContractors(list.map((j) => j.contractor_id)) };
   }, []);
 
+  /** Raises a snag, optionally against one package. */
+  const addSnag = useCallback(async (description: string, packageId: string | null) => {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("You are not signed in.");
+    const { data, error: insertError } = await supabase
+      .from("project_snags")
+      .insert({ project_id: projectId, package_id: packageId, raised_by: user.id, description })
+      .select(SNAG_SELECT)
+      .single();
+    if (insertError) throw insertError;
+    setSnags((prev) => [data as ProjectSnag, ...prev]);
+  }, [projectId]);
+
+  const resolveSnag = useCallback(async (snagId: string) => {
+    const { data, error: updateError } = await supabase
+      .from("project_snags")
+      .update({ status: "resolved", resolved_at: new Date().toISOString() })
+      .eq("id", snagId)
+      .select(SNAG_SELECT);
+    if (updateError) throw updateError;
+    if (!data || data.length === 0) throw new Error("The snag was not changed. It may have been removed, or you may not have access to it.");
+    const updated = data[0] as ProjectSnag;
+    setSnags((prev) => prev.map((s) => (s.id === snagId ? updated : s)));
+  }, []);
+
+  /** sign_off_project checks every condition, then records the sign-off and completes the project. */
+  const signOff = useCallback(async () => {
+    const { error: rpcError } = await supabase.rpc("sign_off_project", { p_project_id: projectId });
+    if (rpcError) throw rpcError;
+    await load();
+  }, [projectId, load]);
+
   const attachedJobCount = packages.filter((p) => !!p.job_id).length;
 
   return {
-    project, packages, jobs, invoices, contractors, attachedJobCount,
+    project, packages, jobs, invoices, contractors, snags, signOffs, attachedJobCount,
     loading, error, refetch: load,
     addPackage, updatePackage, deletePackage, attachJob, detachJob, loadAttachableJobs,
+    addSnag, resolveSnag, signOff,
   };
 }

@@ -34,10 +34,12 @@ type Props = {
   attachJob: (packageId: string, jobId: string) => Promise<void>;
   detachJob: (packageId: string) => Promise<void>;
   loadAttachableJobs: () => Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }>;
+  /** A completed project is read-only: no add, edit, delete, attach or detach. */
+  readOnly?: boolean;
 };
 
 export function PackagesSection(props: Props) {
-  const { packages, jobs, invoices, contractors } = props;
+  const { packages, jobs, invoices, contractors, readOnly = false } = props;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -83,10 +85,12 @@ export function PackagesSection(props: Props) {
             {packages.length === 0 ? "No packages yet" : `${filled} of ${packages.length} have a contractor`}
           </p>
         </div>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          <i className="ti ti-plus mr-2" aria-hidden="true" />
-          Add a package
-        </Button>
+        {!readOnly && (
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <i className="ti ti-plus mr-2" aria-hidden="true" />
+            Add a package
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         {packages.length === 0 ? (
@@ -108,6 +112,7 @@ export function PackagesSection(props: Props) {
                     job={pkg.job_id ? jobs[pkg.job_id] : undefined}
                     contractor={pkg.job_id && jobs[pkg.job_id] ? contractors[jobs[pkg.job_id].contractor_id] : undefined}
                     invoices={invoices}
+                    readOnly={readOnly}
                     onEdit={() => setEditing(pkg)}
                     onDelete={() => requestDelete(pkg)}
                     onDetach={() => { setConfirmError(null); setDetaching(pkg); }}
@@ -197,19 +202,20 @@ export function PackagesSection(props: Props) {
 }
 
 function PackageRow({
-  pkg, job, contractor, invoices, onEdit, onDelete, onDetach, onAttach, onFindContractor,
+  pkg, job, contractor, invoices, readOnly, onEdit, onDelete, onDetach, onAttach, onFindContractor,
 }: {
   pkg: ProjectPackage;
   job: ProjectJob | undefined;
   contractor: ContractorSummary | undefined;
   invoices: ProjectInvoice[];
+  readOnly: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onDetach: () => void;
   onAttach: () => void;
   onFindContractor: () => void;
 }) {
-  const manage = (
+  const manage = readOnly ? null : (
     <div className="flex shrink-0 flex-nowrap gap-1">
       <Button size="sm" variant="ghost" onClick={onEdit} title="Edit package">
         <i className="ti ti-pencil" aria-hidden="true" />
@@ -236,6 +242,7 @@ function PackageRow({
         </div>
         {/* Wraps only on narrow screens; from sm up the buttons and the
             edit/delete icons stay on one line. */}
+        {!readOnly && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
           <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onFindContractor}>
             <i className="ti ti-search mr-2" aria-hidden="true" />
@@ -247,6 +254,7 @@ function PackageRow({
           </Button>
           {manage}
         </div>
+        )}
       </li>
     );
   }
@@ -261,10 +269,12 @@ function PackageRow({
           <p className="font-medium">{pkg.title}</p>
           <p className="text-sm text-muted-foreground">The attached job's details are not available.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onDetach}>Detach</Button>
-          {manage}
-        </div>
+        {!readOnly && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onDetach}>Detach</Button>
+            {manage}
+          </div>
+        )}
       </li>
     );
   }
@@ -303,10 +313,12 @@ function PackageRow({
           <p className="font-mono font-semibold">{money.agreed != null ? formatGBP(money.agreed) : "Not agreed"}</p>
           <p className="text-sm text-muted-foreground">{moneyLine}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onDetach}>Detach</Button>
-          {manage}
-        </div>
+        {!readOnly && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onDetach}>Detach</Button>
+            {manage}
+          </div>
+        )}
       </div>
     </li>
   );

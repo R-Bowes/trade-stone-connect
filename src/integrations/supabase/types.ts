@@ -12664,6 +12664,7 @@ export type Database = {
         Args: { p_application_id: string }
         Returns: undefined
       }
+      sign_off_project: { Args: { p_project_id: string }; Returns: undefined }
       submit_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
