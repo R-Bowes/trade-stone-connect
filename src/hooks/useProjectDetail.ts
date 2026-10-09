@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import type { ProjectInvoice } from "@/lib/projectMoney";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 type PackageRow = Database["public"]["Tables"]["project_packages"]["Row"];
@@ -40,6 +39,14 @@ export interface ProjectSite {
   name: string;
 }
 
+/** One package's money, from the project_money RPC. Totals only — no invoice rows ever reach the client. */
+export interface PackageMoney {
+  agreed: number | null;
+  paid: number;
+  still_to_pay: number;
+  due_now: number;
+}
+
 export interface ContractorSummary {
   id: string;
   name: string;
@@ -66,9 +73,6 @@ const JOB_SELECT =
   "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id, site_id" as const;
 const SNAG_SELECT = "id, description, status, package_id, created_at, resolved_at" as const;
 const SIGN_OFF_SELECT = "id, stage, signed_at" as const;
-
-const INVOICE_SELECT =
-  "status, total, due_date, deposit_amount, deposit_deducted, deposit_paid, job_id, quote_id" as const;
 
 // A zero-row write blocked by RLS comes back as success; every write reads
 // its row back and treats "no row" as a failure (CLAUDE.md RLS failure modes).
@@ -103,10 +107,19 @@ export interface UseProjectDetailOptions {
 }
 
 /**
- * One project with its packages, the jobs attached to them, those jobs'
- * invoices (as the viewer can read them) and the contractors' names.
- * Read-only over money: the only job writes are attach and detach, through
- * attach_job_to_package / detach_job_from_package.
+ * One project with its packages, the jobs attached to them, each filled
+ * package's money (via the project_money RPC — see
+ * 20261009120000_project_money.sql, drafted but not yet pushed) and the
+ * contractors' names. Read-only over money: the only job writes are
+ * attach and detach, through attach_job_to_package / detach_job_from_package.
+ *
+ * Money is server-computed rather than read from the client's own
+ * `invoices` query, because a business team member can only read
+ * invoices.recipient_id = themselves under RLS — a colleague's
+ * deposit-paid invoice on the same project would otherwise silently drop
+ * out of a client-side figure. project_money is SECURITY DEFINER and
+ * returns totals only, never an invoice row, so this applies to the
+ * personal viewer too (same function, same figures as before).
  *
  * In 'business' mode the project's sites are also loaded (for the Sites
  * card and the package site picker), and attachable jobs are the
@@ -117,7 +130,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [packages, setPackages] = useState<ProjectPackage[]>([]);
   const [jobs, setJobs] = useState<Record<string, ProjectJob>>({});
-  const [invoices, setInvoices] = useState<ProjectInvoice[]>([]);
+  const [money, setMoney] = useState<Record<string, PackageMoney>>({});
   const [contractors, setContractors] = useState<Record<string, ContractorSummary>>({});
   const [snags, setSnags] = useState<ProjectSnag[]>([]);
   const [signOffs, setSignOffs] = useState<ProjectSignOff[]>([]);
@@ -140,7 +153,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
       if (!projectRow) {
         setPackages([]);
         setJobs({});
-        setInvoices([]);
+        setMoney({});
         setSnags([]);
         setSignOffs([]);
         setContractors({});
@@ -161,7 +174,6 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
 
       const jobIds = pkgs.map((p) => p.job_id).filter((id): id is string => !!id);
       let jobMap: Record<string, ProjectJob> = {};
-      let jobInvoices: ProjectInvoice[] = [];
       if (jobIds.length > 0) {
         const { data: jobRows, error: jobsError } = await supabase
           .from("jobs")
@@ -169,28 +181,25 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
           .in("id", jobIds);
         if (jobsError) throw jobsError;
         jobMap = Object.fromEntries(((jobRows ?? []) as ProjectJob[]).map((j) => [j.id, j]));
-
-        // Business mode shows the agreed amount only (jobs.contract_value),
-        // never paid/still-to-pay — a coverage-scoped member can't read a
-        // colleague's recipient-only invoices, so the totals would be
-        // wrong. Skip the invoices read entirely rather than show a partial
-        // figure that looks complete.
-        if (viewer !== "business") {
-          // The customer's invoices for these jobs: by job_id, or by quote_id
-          // for older invoices raised before job_id was recorded.
-          const quoteIds = Object.values(jobMap).map((j) => j.issued_quote_id).filter((id): id is string => !!id);
-          const orFilter = [`job_id.in.(${jobIds.join(",")})`, ...(quoteIds.length > 0 ? [`quote_id.in.(${quoteIds.join(",")})`] : [])].join(",");
-          const { data: invoiceRows, error: invoicesError } = await supabase
-            .from("invoices")
-            .select(INVOICE_SELECT)
-            .or(orFilter);
-          if (invoicesError) throw invoicesError;
-          jobInvoices = (invoiceRows ?? []) as ProjectInvoice[];
-        }
       }
       setJobs(jobMap);
-      setInvoices(jobInvoices);
       setContractors(await loadContractors(Object.values(jobMap).map((j) => j.contractor_id)));
+
+      // Server-computed money for every package the caller may see —
+      // see project_money's own comment block for why this replaces a
+      // client-side invoices query for both viewers.
+      const { data: moneyRows, error: moneyError } = await supabase.rpc("project_money", {
+        p_project_id: projectId,
+      });
+      if (moneyError) throw moneyError;
+      setMoney(
+        Object.fromEntries(
+          (moneyRows ?? []).map((r) => [
+            r.package_id,
+            { agreed: r.agreed, paid: r.paid, still_to_pay: r.still_to_pay, due_now: r.due_now } as PackageMoney,
+          ])
+        )
+      );
 
       if (viewer === "business") {
         const { data: siteLinkRows, error: sitesError } = await supabase
@@ -418,7 +427,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
   const attachedJobCount = packages.filter((p) => !!p.job_id).length;
 
   return {
-    project, packages, jobs, invoices, contractors, snags, signOffs, attachedJobCount,
+    project, packages, jobs, money, contractors, snags, signOffs, attachedJobCount,
     projectSites, siteNames,
     loading, error, refetch: load,
     addPackage, updatePackage, deletePackage, attachJob, detachJob, loadAttachableJobs,

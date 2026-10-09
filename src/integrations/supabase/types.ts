@@ -12591,6 +12591,25 @@ export type Database = {
         Returns: boolean
       }
       project_company_id: { Args: { p_project_id: string }; Returns: string }
+      project_money: {
+        Args: { p_project_id: string }
+        Returns: {
+          agreed: number
+          due_now: number
+          job_id: string
+          package_id: string
+          paid: number
+          still_to_pay: number
+        }[]
+      }
+      project_money_totals: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          agreed: number
+          paid: number
+          project_id: string
+        }[]
+      }
       propose_engagement_rate_version: {
         Args: {
           p_callout_ooh: number

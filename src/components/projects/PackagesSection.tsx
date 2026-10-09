@@ -10,10 +10,8 @@ import {
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type {
-  ContractorSummary, PackageFormValues, ProjectJob, ProjectPackage,
+  ContractorSummary, PackageFormValues, PackageMoney, ProjectJob, ProjectPackage,
 } from "@/hooks/useProjectDetail";
-import type { ProjectInvoice } from "@/lib/projectMoney";
-import { jobMoney } from "@/lib/projectMoney";
 import { jobStatusChip } from "@/lib/jobStatus";
 import { formatJobRef } from "@/lib/documentRefs";
 import { formatGBP } from "@/lib/formatGBP";
@@ -26,7 +24,7 @@ import { messageOf } from "./projectErrors";
 type Props = {
   packages: ProjectPackage[];
   jobs: Record<string, ProjectJob>;
-  invoices: ProjectInvoice[];
+  money: Record<string, PackageMoney>;
   contractors: Record<string, ContractorSummary>;
   addPackage: (values: PackageFormValues) => Promise<void>;
   updatePackage: (packageId: string, values: PackageFormValues) => Promise<void>;
@@ -36,7 +34,7 @@ type Props = {
   loadAttachableJobs: () => Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }>;
   /** A completed project is read-only: no add, edit, delete, attach or detach. */
   readOnly?: boolean;
-  /** 'personal' (default) is unchanged. 'business' hides paid/still-to-pay and shows each package's site. */
+  /** 'personal' (default) is unchanged. 'business' also shows each package's site. */
   viewer?: "personal" | "business";
   /** Where "Find a contractor" goes. Always required — no hard-coded default. */
   findContractorPath: string;
@@ -47,7 +45,7 @@ type Props = {
 };
 
 export function PackagesSection(props: Props) {
-  const { packages, jobs, invoices, contractors, readOnly = false, viewer = "personal", findContractorPath, siteNames = {}, projectSites } = props;
+  const { packages, jobs, money, contractors, readOnly = false, viewer = "personal", findContractorPath, siteNames = {}, projectSites } = props;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -119,7 +117,7 @@ export function PackagesSection(props: Props) {
                     pkg={pkg}
                     job={pkg.job_id ? jobs[pkg.job_id] : undefined}
                     contractor={pkg.job_id && jobs[pkg.job_id] ? contractors[jobs[pkg.job_id].contractor_id] : undefined}
-                    invoices={invoices}
+                    money={money[pkg.id]}
                     readOnly={readOnly}
                     viewer={viewer}
                     siteName={pkg.site_id ? siteNames[pkg.site_id] : undefined}
@@ -213,12 +211,12 @@ export function PackagesSection(props: Props) {
 }
 
 function PackageRow({
-  pkg, job, contractor, invoices, readOnly, viewer, siteName, onEdit, onDelete, onDetach, onAttach, onFindContractor,
+  pkg, job, contractor, money, readOnly, viewer, siteName, onEdit, onDelete, onDetach, onAttach, onFindContractor,
 }: {
   pkg: ProjectPackage;
   job: ProjectJob | undefined;
   contractor: ContractorSummary | undefined;
-  invoices: ProjectInvoice[];
+  money: PackageMoney | undefined;
   readOnly: boolean;
   viewer: "personal" | "business";
   /** Business only — the package's own site, if any. */
@@ -301,22 +299,20 @@ function PackageRow({
   }
 
   const chip = jobStatusChip(job.status);
-  const money = jobMoney(job, invoices);
+  // money comes from project_money (SECURITY DEFINER) via useProjectDetail,
+  // so paid/still-to-pay are correct for both viewers — including a
+  // business member who can't read a colleague's invoices directly.
+  const m: PackageMoney = money ?? { agreed: job.contract_value ?? null, paid: 0, still_to_pay: 0, due_now: 0 };
   const reference = formatJobRef(job.job_number, contractor?.tsCode ? { contractorCode: contractor.tsCode } : undefined);
   const dates = job.start_date || job.end_date
     ? `${job.start_date ? formatDate(job.start_date) : "Start not set"} – ${job.end_date ? formatDate(job.end_date) : "end not set"}`
     : "Dates not set";
 
-  // Business mode shows the agreed amount only — a coverage-scoped member
-  // can't read a colleague's recipient-only invoices (see useProjectDetail),
-  // so paid/still-to-pay would be wrong rather than just incomplete.
-  let moneyLine: string | null;
-  if (viewer === "business") {
-    moneyLine = null;
-  } else if (money.agreed != null && money.agreed > 0 && money.paid >= money.agreed) {
+  let moneyLine: string;
+  if (m.agreed != null && m.agreed > 0 && m.paid >= m.agreed) {
     moneyLine = "Paid in full";
-  } else if (money.paid > 0) {
-    moneyLine = `${formatGBP(money.paid)} paid, ${formatGBP(money.stillToPay)} to pay`;
+  } else if (m.paid > 0) {
+    moneyLine = `${formatGBP(m.paid)} paid, ${formatGBP(m.still_to_pay)} to pay`;
   } else {
     moneyLine = "Nothing paid yet";
   }
@@ -341,8 +337,8 @@ function PackageRow({
       </div>
       <div className="flex flex-col items-start gap-2 sm:items-end">
         <div className="text-left sm:text-right">
-          <p className="font-mono font-semibold">{money.agreed != null ? formatGBP(money.agreed) : "Not agreed"}</p>
-          {moneyLine && <p className="text-sm text-muted-foreground">{moneyLine}</p>}
+          <p className="font-mono font-semibold">{m.agreed != null ? formatGBP(m.agreed) : "Not agreed"}</p>
+          <p className="text-sm text-muted-foreground">{moneyLine}</p>
         </div>
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">

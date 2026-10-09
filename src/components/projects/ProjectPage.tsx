@@ -143,15 +143,14 @@ export function ProjectPage({ projectId }: { projectId: string }) {
           <BudgetBand
             budget={project.budget}
             packages={detail.packages}
-            jobs={detail.jobs}
-            invoices={detail.invoices}
+            money={detail.money}
             onEditProject={() => setEditing(true)}
             readOnly={readOnly}
           />
           <PackagesSection
             packages={detail.packages}
             jobs={detail.jobs}
-            invoices={detail.invoices}
+            money={detail.money}
             contractors={detail.contractors}
             addPackage={detail.addPackage}
             updatePackage={detail.updatePackage}
@@ -174,7 +173,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
           <NeedsYouCard
             packages={detail.packages}
             jobs={detail.jobs}
-            invoices={detail.invoices}
+            money={detail.money}
             contractors={detail.contractors}
             snags={detail.snags}
             readyToSignOff={!readOnly && blockers.length === 0}

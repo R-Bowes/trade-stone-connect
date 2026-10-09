@@ -874,6 +874,10 @@ bug, not a style issue.
   Customers can only stall or query (`respond_to_invoice`).
   `recipient_response = 'paid'` does not mean paid — check `status`.
 - **Statuses:** draft, sent, viewed, paid, void. Never `'voided'`.
+- **`project_money` and `project_money_totals` (SQL functions) mirror
+  `src/lib/invoiceMoney.ts`'s rules exactly.** Change them together — a
+  drift between the two means a homeowner and a business team member see
+  different figures for the same kind of invoice.
 
 ## Quote → job creation sequence (job creation is a manual mint, not a trigger)
 

@@ -17,6 +17,7 @@ import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { BudgetBand } from "@/components/projects/BudgetBand";
 import { PackagesSection } from "@/components/projects/PackagesSection";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
 import { SnagListCard } from "@/components/projects/SnagListCard";
@@ -200,12 +201,19 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Budget band — coming in a later step.</CardContent></Card>
+          <BudgetBand
+            budget={project.budget}
+            packages={detail.packages}
+            money={detail.money}
+            onEditProject={() => setEditing(true)}
+            readOnly={readOnly}
+            viewer="business"
+          />
 
           <PackagesSection
             packages={detail.packages}
             jobs={detail.jobs}
-            invoices={detail.invoices}
+            money={detail.money}
             contractors={detail.contractors}
             addPackage={detail.addPackage}
             updatePackage={detail.updatePackage}

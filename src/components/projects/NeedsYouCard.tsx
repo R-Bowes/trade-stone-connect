@@ -1,9 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { ContractorSummary, ProjectJob, ProjectPackage, ProjectSnag } from "@/hooks/useProjectDetail";
-import { amountOutstanding } from "@/lib/invoiceMoney";
-import { invoicesForJob, type ProjectInvoice } from "@/lib/projectMoney";
+import type { ContractorSummary, PackageMoney, ProjectJob, ProjectPackage, ProjectSnag } from "@/hooks/useProjectDetail";
 import { orderPackages } from "@/lib/projectPackages";
 import { isSnagOpen } from "@/lib/projectSignOff";
 import { formatGBP } from "@/lib/formatGBP";
@@ -12,7 +10,7 @@ import { formatDate } from "@/lib/formatDate";
 type Props = {
   packages: ProjectPackage[];
   jobs: Record<string, ProjectJob>;
-  invoices: ProjectInvoice[];
+  money: Record<string, PackageMoney>;
   contractors: Record<string, ContractorSummary>;
   snags: ProjectSnag[];
   /** True when sign-off is unlocked and the project is not yet completed. */
@@ -35,16 +33,15 @@ function chooseBy(neededFrom: string): { date: Date; overdue: boolean } {
  * still without a contractor, open snags, and sign-off once it is ready.
  * Read-only: every action links to the screen that does it.
  */
-export function NeedsYouCard({ packages, jobs, invoices, contractors, snags, readyToSignOff }: Props) {
+export function NeedsYouCard({ packages, jobs, money, contractors, snags, readyToSignOff }: Props) {
   const navigate = useNavigate();
   const ordered = orderPackages(packages);
 
   const toPay = ordered
-    .map((pkg) => (pkg.job_id ? jobs[pkg.job_id] : undefined))
-    .filter((job): job is ProjectJob => !!job)
-    .map((job) => ({
-      job,
-      amount: invoicesForJob(job, invoices).reduce((sum, inv) => sum + amountOutstanding(inv), 0),
+    .filter((pkg) => !!pkg.job_id && jobs[pkg.job_id!])
+    .map((pkg) => ({
+      job: jobs[pkg.job_id!],
+      amount: money[pkg.id]?.due_now ?? 0,
     }))
     .filter((item) => item.amount > 0);
 

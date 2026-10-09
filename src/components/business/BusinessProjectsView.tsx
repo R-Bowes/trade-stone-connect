@@ -25,11 +25,19 @@ interface SiteGroupOption {
  * caller's coverage reaches; the site/group filters below only affect
  * what's shown of that already-narrowed list, not what's fetched.
  */
+interface ProjectMoneyTotal {
+  agreed: number;
+  paid: number;
+}
+
 export function BusinessProjectsView({ companyId }: { companyId: string }) {
   const navigate = useNavigate();
   const { projects, attachedJobCounts, loading, error, refetch, createProject } = useCompanyProjects(companyId);
   const [creating, setCreating] = useState(false);
   const [createWarning, setCreateWarning] = useState<string | null>(null);
+
+  const [moneyTotals, setMoneyTotals] = useState<Record<string, ProjectMoneyTotal>>({});
+  const [moneyError, setMoneyError] = useState<string | null>(null);
 
   const [sites, setSites] = useState<ProjectSiteOption[]>([]);
   const [siteGroups, setSiteGroups] = useState<SiteGroupOption[]>([]);
@@ -73,6 +81,26 @@ export function BusinessProjectsView({ companyId }: { companyId: string }) {
     void loadFilters();
   }, [companyId]);
 
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+
+  useEffect(() => {
+    if (projectIds.length === 0) {
+      setMoneyTotals({});
+      return;
+    }
+    const loadMoney = async () => {
+      setMoneyError(null);
+      const { data, error: rpcError } = await supabase.rpc("project_money_totals", { p_project_ids: projectIds });
+      if (rpcError) {
+        setMoneyError(rpcError.message);
+        return;
+      }
+      setMoneyTotals(Object.fromEntries((data ?? []).map((r) => [r.project_id, { agreed: r.agreed, paid: r.paid }])));
+    };
+    void loadMoney();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectIds.join(",")]);
+
   const withStatus = useMemo(
     () =>
       projects.map((p) => ({
@@ -95,15 +123,17 @@ export function BusinessProjectsView({ companyId }: { companyId: string }) {
   }, [withStatus, statusFilter, siteFilter, groupFilter, groupSiteIds]);
 
   const tiles = useMemo(() => {
-    let planning = 0, inProgress = 0, completed = 0, totalBudget = 0;
+    let planning = 0, inProgress = 0, completed = 0, totalBudget = 0, committed = 0, paid = 0;
     for (const { project, status } of filtered) {
       if (status === "Planning") planning++;
       else if (status === "In progress") inProgress++;
       else completed++;
       totalBudget += project.budget ?? 0;
+      committed += moneyTotals[project.id]?.agreed ?? 0;
+      paid += moneyTotals[project.id]?.paid ?? 0;
     }
-    return { planning, inProgress, completed, totalBudget };
-  }, [filtered]);
+    return { planning, inProgress, completed, totalBudget, committed, paid };
+  }, [filtered, moneyTotals]);
 
   if (loading) return <LoadingState message="Loading projects..." />;
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
@@ -134,12 +164,15 @@ export function BusinessProjectsView({ companyId }: { companyId: string }) {
       ) : (
         <>
           {/* ── Tiles ──────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <Tile label="Planning" value={String(tiles.planning)} />
             <Tile label="In progress" value={String(tiles.inProgress)} />
             <Tile label="Completed" value={String(tiles.completed)} />
             <Tile label="Total budget" value={formatGBP(tiles.totalBudget)} mono />
+            <Tile label="Committed" value={formatGBP(tiles.committed)} mono />
+            <Tile label="Paid" value={formatGBP(tiles.paid)} mono />
           </div>
+          {moneyError && <p className="text-sm text-destructive">{moneyError}</p>}
 
           {/* ── Filters ────────────────────────────────────────────────── */}
           <div className="flex flex-wrap gap-3">
@@ -181,7 +214,13 @@ export function BusinessProjectsView({ companyId }: { companyId: string }) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {filtered.map(({ project, status }) => (
-                <ProjectCard key={project.id} project={project} status={status} onOpen={() => navigate(projectPath(project.id))} />
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  status={status}
+                  money={moneyTotals[project.id]}
+                  onOpen={() => navigate(projectPath(project.id))}
+                />
               ))}
             </div>
           )}
@@ -217,7 +256,7 @@ function Tile({ label, value, mono }: { label: string; value: string; mono?: boo
   );
 }
 
-function ProjectCard({ project, status, onOpen }: { project: BusinessProject; status: ProjectDisplayStatus; onOpen: () => void }) {
+function ProjectCard({ project, status, money, onOpen }: { project: BusinessProject; status: ProjectDisplayStatus; money: ProjectMoneyTotal | undefined; onOpen: () => void }) {
   return (
     <Card
       role="button"
@@ -246,6 +285,10 @@ function ProjectCard({ project, status, onOpen }: { project: BusinessProject; st
           <dd>{project.target_end ? formatDate(project.target_end) : "Not set"}</dd>
           <dt className="text-muted-foreground">Budget</dt>
           <dd className="font-mono">{project.budget != null ? formatGBP(project.budget) : "Not set"}</dd>
+          <dt className="text-muted-foreground">Agreed</dt>
+          <dd className="font-mono">{formatGBP(money?.agreed ?? 0)}</dd>
+          <dt className="text-muted-foreground">Paid</dt>
+          <dd className="font-mono">{formatGBP(money?.paid ?? 0)}</dd>
         </dl>
       </CardContent>
     </Card>
