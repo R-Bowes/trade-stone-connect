@@ -18,7 +18,7 @@ export type ProjectDetail = Pick<
 
 export type ProjectPackage = Pick<
   PackageRow,
-  "id" | "project_id" | "title" | "trade" | "sort_order" | "allowance" | "needed_from" | "needed_to" | "job_id" | "created_at"
+  "id" | "project_id" | "title" | "trade" | "sort_order" | "allowance" | "needed_from" | "needed_to" | "job_id" | "site_id" | "created_at"
 >;
 
 export interface ProjectJob {
@@ -32,6 +32,12 @@ export interface ProjectJob {
   contractor_id: string;
   issued_quote_id: string | null;
   project_id: string | null;
+  site_id: string | null;
+}
+
+export interface ProjectSite {
+  id: string;
+  name: string;
 }
 
 export interface ContractorSummary {
@@ -40,20 +46,24 @@ export interface ContractorSummary {
   tsCode: string | null;
 }
 
-/** Package fields the homeowner edits. */
+/** Package fields the caller edits. site_id and allowance are business-only — omitted entirely, they are not touched. */
 export interface PackageFormValues {
   title: string;
   trade: string | null;
   needed_from: string | null;
   needed_to: string | null;
+  /** Business only. undefined leaves the column untouched. */
+  site_id?: string | null;
+  /** Business only. undefined leaves the column untouched. */
+  allowance?: number | null;
 }
 
 const PROJECT_SELECT =
   "id, title, description, budget, status, target_start, target_end, created_at, updated_at" as const;
 const PACKAGE_SELECT =
-  "id, project_id, title, trade, sort_order, allowance, needed_from, needed_to, job_id, created_at" as const;
+  "id, project_id, title, trade, sort_order, allowance, needed_from, needed_to, job_id, site_id, created_at" as const;
 const JOB_SELECT =
-  "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id" as const;
+  "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id, site_id" as const;
 const SNAG_SELECT = "id, description, status, package_id, created_at, resolved_at" as const;
 const SIGN_OFF_SELECT = "id, stage, signed_at" as const;
 
@@ -85,13 +95,25 @@ export async function loadContractors(ids: string[]): Promise<Record<string, Con
   return map;
 }
 
+export interface UseProjectDetailOptions {
+  /** 'personal' (default) is unchanged. 'business' loads project sites and scopes attachable jobs to the company. */
+  viewer?: "personal" | "business";
+  /** Required when viewer is 'business'. */
+  companyId?: string;
+}
+
 /**
- * One homeowner project with its packages, the jobs attached to them, those
- * jobs' invoices (as the customer sees them) and the contractors' names.
+ * One project with its packages, the jobs attached to them, those jobs'
+ * invoices (as the viewer can read them) and the contractors' names.
  * Read-only over money: the only job writes are attach and detach, through
  * attach_job_to_package / detach_job_from_package.
+ *
+ * In 'business' mode the project's sites are also loaded (for the Sites
+ * card and the package site picker), and attachable jobs are the
+ * company's own rather than the caller's personally.
  */
-export function useProjectDetail(projectId: string) {
+export function useProjectDetail(projectId: string, options: UseProjectDetailOptions = {}) {
+  const { viewer = "personal", companyId } = options;
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [packages, setPackages] = useState<ProjectPackage[]>([]);
   const [jobs, setJobs] = useState<Record<string, ProjectJob>>({});
@@ -99,6 +121,8 @@ export function useProjectDetail(projectId: string) {
   const [contractors, setContractors] = useState<Record<string, ContractorSummary>>({});
   const [snags, setSnags] = useState<ProjectSnag[]>([]);
   const [signOffs, setSignOffs] = useState<ProjectSignOff[]>([]);
+  const [projectSites, setProjectSites] = useState<ProjectSite[]>([]);
+  const [siteNames, setSiteNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +144,8 @@ export function useProjectDetail(projectId: string) {
         setSnags([]);
         setSignOffs([]);
         setContractors({});
+        setProjectSites([]);
+        setSiteNames({});
         return;
       }
 
@@ -144,20 +170,60 @@ export function useProjectDetail(projectId: string) {
         if (jobsError) throw jobsError;
         jobMap = Object.fromEntries(((jobRows ?? []) as ProjectJob[]).map((j) => [j.id, j]));
 
-        // The customer's invoices for these jobs: by job_id, or by quote_id
-        // for older invoices raised before job_id was recorded.
-        const quoteIds = Object.values(jobMap).map((j) => j.issued_quote_id).filter((id): id is string => !!id);
-        const orFilter = [`job_id.in.(${jobIds.join(",")})`, ...(quoteIds.length > 0 ? [`quote_id.in.(${quoteIds.join(",")})`] : [])].join(",");
-        const { data: invoiceRows, error: invoicesError } = await supabase
-          .from("invoices")
-          .select(INVOICE_SELECT)
-          .or(orFilter);
-        if (invoicesError) throw invoicesError;
-        jobInvoices = (invoiceRows ?? []) as ProjectInvoice[];
+        // Business mode shows the agreed amount only (jobs.contract_value),
+        // never paid/still-to-pay — a coverage-scoped member can't read a
+        // colleague's recipient-only invoices, so the totals would be
+        // wrong. Skip the invoices read entirely rather than show a partial
+        // figure that looks complete.
+        if (viewer !== "business") {
+          // The customer's invoices for these jobs: by job_id, or by quote_id
+          // for older invoices raised before job_id was recorded.
+          const quoteIds = Object.values(jobMap).map((j) => j.issued_quote_id).filter((id): id is string => !!id);
+          const orFilter = [`job_id.in.(${jobIds.join(",")})`, ...(quoteIds.length > 0 ? [`quote_id.in.(${quoteIds.join(",")})`] : [])].join(",");
+          const { data: invoiceRows, error: invoicesError } = await supabase
+            .from("invoices")
+            .select(INVOICE_SELECT)
+            .or(orFilter);
+          if (invoicesError) throw invoicesError;
+          jobInvoices = (invoiceRows ?? []) as ProjectInvoice[];
+        }
       }
       setJobs(jobMap);
       setInvoices(jobInvoices);
       setContractors(await loadContractors(Object.values(jobMap).map((j) => j.contractor_id)));
+
+      if (viewer === "business") {
+        const { data: siteLinkRows, error: sitesError } = await supabase
+          .from("project_sites")
+          .select("site_id, sites(name)")
+          .eq("project_id", projectId);
+        if (sitesError) throw sitesError;
+        const linked = (siteLinkRows ?? []) as unknown as { site_id: string; sites: { name: string } | null }[];
+        setProjectSites(linked.map((r) => ({ id: r.site_id, name: r.sites?.name ?? "Unknown site" })));
+
+        // Names for any site referenced by a package or a job, which may
+        // include sites not (or no longer) linked to the project.
+        const siteIds = [
+          ...new Set([
+            ...linked.map((r) => r.site_id),
+            ...pkgs.map((p) => p.site_id).filter((id): id is string => !!id),
+            ...Object.values(jobMap).map((j) => j.site_id).filter((id): id is string => !!id),
+          ]),
+        ];
+        if (siteIds.length > 0) {
+          const { data: siteRows, error: siteNamesError } = await supabase
+            .from("sites")
+            .select("id, name")
+            .in("id", siteIds);
+          if (siteNamesError) throw siteNamesError;
+          setSiteNames(Object.fromEntries((siteRows ?? []).map((s) => [s.id, s.name])));
+        } else {
+          setSiteNames({});
+        }
+      } else {
+        setProjectSites([]);
+        setSiteNames({});
+      }
 
       const { data: snagRows, error: snagsError } = await supabase
         .from("project_snags")
@@ -180,7 +246,7 @@ export function useProjectDetail(projectId: string) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, viewer]);
 
   useEffect(() => {
     void load();
@@ -197,6 +263,10 @@ export function useProjectDetail(projectId: string) {
         needed_from: values.needed_from,
         needed_to: values.needed_to,
         sort_order: nextOrder,
+        // Business-only fields — omitted entirely (not written as null)
+        // when the caller (the homeowner dialog) never supplies them.
+        ...(values.site_id !== undefined ? { site_id: values.site_id } : {}),
+        ...(values.allowance !== undefined ? { allowance: values.allowance } : {}),
       })
       .select(PACKAGE_SELECT)
       .single();
@@ -212,6 +282,8 @@ export function useProjectDetail(projectId: string) {
         trade: values.trade,
         needed_from: values.needed_from,
         needed_to: values.needed_to,
+        ...(values.site_id !== undefined ? { site_id: values.site_id } : {}),
+        ...(values.allowance !== undefined ? { allowance: values.allowance } : {}),
       })
       .eq("id", packageId)
       .select(PACKAGE_SELECT);
@@ -251,24 +323,64 @@ export function useProjectDetail(projectId: string) {
   }, [load]);
 
   /**
-   * My jobs that can be attached: not in any project and not cancelled.
-   * (attach_job_to_package re-checks this, and that I am the job's customer.)
+   * Personal mode: my jobs that can be attached — not in any project, not
+   * cancelled. Business mode: the project's company's jobs, same two
+   * conditions; RLS narrows these by the caller's coverage.
+   * (attach_job_to_package re-checks this, and ownership, either way.)
    */
   const loadAttachableJobs = useCallback(async (): Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }> => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error("You are not signed in.");
-    const { data, error: jobsError } = await supabase
+    let query = supabase
       .from("jobs")
       .select(JOB_SELECT)
-      .eq("customer_id", user.id)
       .is("project_id", null)
       .neq("status", "cancelled")
       .order("created_at", { ascending: false });
+
+    if (viewer === "business") {
+      if (!companyId) throw new Error("No company to load jobs for.");
+      query = query.eq("company_id", companyId);
+    } else {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("You are not signed in.");
+      query = query.eq("customer_id", user.id);
+    }
+
+    const { data, error: jobsError } = await query;
     if (jobsError) throw jobsError;
     const list = (data ?? []) as ProjectJob[];
     return { jobs: list, contractors: await loadContractors(list.map((j) => j.contractor_id)) };
-  }, []);
+  }, [viewer, companyId]);
+
+  /** Links a site the caller can access to the project (business only). */
+  const addSite = useCallback(async (siteId: string) => {
+    const { error: insertError } = await supabase
+      .from("project_sites")
+      .insert({ project_id: projectId, site_id: siteId });
+    if (insertError) throw insertError;
+    await load();
+  }, [projectId, load]);
+
+  /**
+   * Unlinks a site from the project. Refused here, before any write, while
+   * a package is still pinned to it — packages.site_id points at the site
+   * directly, so removing the link wouldn't itself be blocked by the
+   * database, and would leave that package's site dangling.
+   */
+  const removeSite = useCallback(async (siteId: string) => {
+    if (packages.some((p) => p.site_id === siteId)) {
+      throw new Error("A package is pinned to this site. Move or clear that package's site first.");
+    }
+    const { data, error: deleteError } = await supabase
+      .from("project_sites")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("site_id", siteId)
+      .select("id");
+    if (deleteError) throw deleteError;
+    if (!data || data.length === 0) throw new Error(NOT_CHANGED);
+    await load();
+  }, [projectId, packages, load]);
 
   /** Raises a snag, optionally against one package. */
   const addSnag = useCallback(async (description: string, packageId: string | null) => {
@@ -307,8 +419,9 @@ export function useProjectDetail(projectId: string) {
 
   return {
     project, packages, jobs, invoices, contractors, snags, signOffs, attachedJobCount,
+    projectSites, siteNames,
     loading, error, refetch: load,
     addPackage, updatePackage, deletePackage, attachJob, detachJob, loadAttachableJobs,
-    addSnag, resolveSnag, signOff,
+    addSnag, resolveSnag, signOff, addSite, removeSite,
   };
 }

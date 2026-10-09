@@ -160,6 +160,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             detachJob={detail.detachJob}
             loadAttachableJobs={detail.loadAttachableJobs}
             readOnly={readOnly}
+            findContractorPath="/dashboard/homeowner?view=hire"
           />
           <ProjectTimeline
             targetStart={project.target_start}

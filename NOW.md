@@ -45,6 +45,9 @@ Still open, holes NOT yet closed:
 - Migration B (the lock) and checks a to j, parked in scratchpad/pending.
 - Then issued_quotes, jobs, payments, refunds, contractor_panel, tenders,
   job_reviews.
+- jobs SELECT for company members is not narrowed by site coverage: a
+  site-only member can read every job in the company ("Company members
+  can view company jobs" checks is_company_member only). Found 9 Oct.
 
 Parked defects:
 - VAT charged by non-registered contractors.

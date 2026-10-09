@@ -36,10 +36,18 @@ type Props = {
   loadAttachableJobs: () => Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }>;
   /** A completed project is read-only: no add, edit, delete, attach or detach. */
   readOnly?: boolean;
+  /** 'personal' (default) is unchanged. 'business' hides paid/still-to-pay and shows each package's site. */
+  viewer?: "personal" | "business";
+  /** Where "Find a contractor" goes. Always required — no hard-coded default. */
+  findContractorPath: string;
+  /** Business only: site id -> name, for showing each package's site. */
+  siteNames?: Record<string, string>;
+  /** Business only: the project's own sites, offered in the package site picker. */
+  projectSites?: { id: string; name: string }[];
 };
 
 export function PackagesSection(props: Props) {
-  const { packages, jobs, invoices, contractors, readOnly = false } = props;
+  const { packages, jobs, invoices, contractors, readOnly = false, viewer = "personal", findContractorPath, siteNames = {}, projectSites } = props;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -113,11 +121,13 @@ export function PackagesSection(props: Props) {
                     contractor={pkg.job_id && jobs[pkg.job_id] ? contractors[jobs[pkg.job_id].contractor_id] : undefined}
                     invoices={invoices}
                     readOnly={readOnly}
+                    viewer={viewer}
+                    siteName={pkg.site_id ? siteNames[pkg.site_id] : undefined}
                     onEdit={() => setEditing(pkg)}
                     onDelete={() => requestDelete(pkg)}
                     onDetach={() => { setConfirmError(null); setDetaching(pkg); }}
                     onAttach={() => setAttachingTo(pkg)}
-                    onFindContractor={() => navigate("/dashboard/homeowner?view=hire")}
+                    onFindContractor={() => navigate(findContractorPath)}
                   />
                 ))}
               </ul>
@@ -129,6 +139,7 @@ export function PackagesSection(props: Props) {
       <AddPackageDialog
         open={adding || !!editing}
         pkg={editing}
+        sites={projectSites}
         onClose={() => { setAdding(false); setEditing(null); }}
         onSave={async (values) => {
           if (editing) await props.updatePackage(editing.id, values);
@@ -202,13 +213,16 @@ export function PackagesSection(props: Props) {
 }
 
 function PackageRow({
-  pkg, job, contractor, invoices, readOnly, onEdit, onDelete, onDetach, onAttach, onFindContractor,
+  pkg, job, contractor, invoices, readOnly, viewer, siteName, onEdit, onDelete, onDetach, onAttach, onFindContractor,
 }: {
   pkg: ProjectPackage;
   job: ProjectJob | undefined;
   contractor: ContractorSummary | undefined;
   invoices: ProjectInvoice[];
   readOnly: boolean;
+  viewer: "personal" | "business";
+  /** Business only — the package's own site, if any. */
+  siteName: string | undefined;
   onEdit: () => void;
   onDelete: () => void;
   onDetach: () => void;
@@ -238,6 +252,13 @@ function PackageRow({
             No contractor yet
             {" · "}
             {pkg.needed_from ? `needed from ${formatDate(pkg.needed_from)}` : "no date set"}
+            {viewer === "business" && (
+              <>
+                {" · "}
+                {siteName ?? "All project sites"}
+                {pkg.allowance != null && <> · allowance {formatGBP(pkg.allowance)}</>}
+              </>
+            )}
           </p>
         </div>
         {/* Wraps only on narrow screens; from sm up the buttons and the
@@ -286,10 +307,19 @@ function PackageRow({
     ? `${job.start_date ? formatDate(job.start_date) : "Start not set"} – ${job.end_date ? formatDate(job.end_date) : "end not set"}`
     : "Dates not set";
 
-  let moneyLine: string;
-  if (money.agreed != null && money.agreed > 0 && money.paid >= money.agreed) moneyLine = "Paid in full";
-  else if (money.paid > 0) moneyLine = `${formatGBP(money.paid)} paid, ${formatGBP(money.stillToPay)} to pay`;
-  else moneyLine = "Nothing paid yet";
+  // Business mode shows the agreed amount only — a coverage-scoped member
+  // can't read a colleague's recipient-only invoices (see useProjectDetail),
+  // so paid/still-to-pay would be wrong rather than just incomplete.
+  let moneyLine: string | null;
+  if (viewer === "business") {
+    moneyLine = null;
+  } else if (money.agreed != null && money.agreed > 0 && money.paid >= money.agreed) {
+    moneyLine = "Paid in full";
+  } else if (money.paid > 0) {
+    moneyLine = `${formatGBP(money.paid)} paid, ${formatGBP(money.stillToPay)} to pay`;
+  } else {
+    moneyLine = "Nothing paid yet";
+  }
 
   return (
     <li className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
@@ -306,12 +336,13 @@ function PackageRow({
           <span className="font-mono">{reference}</span>
           {" · "}
           {dates}
+          {viewer === "business" && <> · {siteName ?? "All project sites"}</>}
         </p>
       </div>
       <div className="flex flex-col items-start gap-2 sm:items-end">
         <div className="text-left sm:text-right">
           <p className="font-mono font-semibold">{money.agreed != null ? formatGBP(money.agreed) : "Not agreed"}</p>
-          <p className="text-sm text-muted-foreground">{moneyLine}</p>
+          {moneyLine && <p className="text-sm text-muted-foreground">{moneyLine}</p>}
         </div>
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">

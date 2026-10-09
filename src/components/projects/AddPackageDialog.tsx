@@ -14,18 +14,28 @@ type Props = {
   onClose: () => void;
   /** When set, the dialog edits this package instead of adding one. */
   pkg?: ProjectPackage | null;
+  /**
+   * Business projects only. When provided (even empty), shows a site
+   * choice ("All project sites" or one of these) and an allowance field.
+   */
+  sites?: { id: string; name: string }[];
   onSave: (values: PackageFormValues) => Promise<void>;
 };
 
 const NO_TRADE = "__none__";
+const ALL_SITES = "__all__";
 
-export function AddPackageDialog({ open, onClose, pkg, onSave }: Props) {
+export function AddPackageDialog({ open, onClose, pkg, sites, onSave }: Props) {
   const [title, setTitle] = useState("");
   const [trade, setTrade] = useState<string>(NO_TRADE);
   const [neededFrom, setNeededFrom] = useState("");
   const [neededTo, setNeededTo] = useState("");
+  const [siteId, setSiteId] = useState<string>(ALL_SITES);
+  const [allowance, setAllowance] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const showBusinessFields = sites !== undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -33,6 +43,8 @@ export function AddPackageDialog({ open, onClose, pkg, onSave }: Props) {
     setTrade(pkg?.trade ?? NO_TRADE);
     setNeededFrom(pkg?.needed_from ?? "");
     setNeededTo(pkg?.needed_to ?? "");
+    setSiteId(pkg?.site_id ?? ALL_SITES);
+    setAllowance(pkg?.allowance != null ? String(pkg.allowance) : "");
     setError(null);
   }, [open, pkg]);
 
@@ -51,6 +63,13 @@ export function AddPackageDialog({ open, onClose, pkg, onSave }: Props) {
       setError("'Needed to' can't be before 'needed from'.");
       return;
     }
+    if (showBusinessFields && allowance.trim() !== "") {
+      const n = Number(allowance);
+      if (!Number.isFinite(n) || n < 0) {
+        setError("The allowance must be zero or more.");
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -59,6 +78,12 @@ export function AddPackageDialog({ open, onClose, pkg, onSave }: Props) {
         trade: trade === NO_TRADE ? null : trade,
         needed_from: neededFrom || null,
         needed_to: neededTo || null,
+        ...(showBusinessFields
+          ? {
+              site_id: siteId === ALL_SITES ? null : siteId,
+              allowance: allowance.trim() === "" ? null : Number(allowance),
+            }
+          : {}),
       });
       onClose();
     } catch (err) {
@@ -121,6 +146,36 @@ export function AddPackageDialog({ open, onClose, pkg, onSave }: Props) {
               />
             </div>
           </div>
+
+          {showBusinessFields && (
+            <>
+              <div className="space-y-2">
+                <Label>Site</Label>
+                <Select value={siteId} onValueChange={setSiteId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_SITES}>All project sites</SelectItem>
+                    {sites!.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="package-allowance">Allowance (£, optional)</Label>
+                <Input
+                  id="package-allowance"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={allowance}
+                  onChange={(e) => setAllowance(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+            </>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

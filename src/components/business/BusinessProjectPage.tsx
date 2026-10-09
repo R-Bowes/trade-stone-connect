@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -10,34 +12,75 @@ import {
 import { Loader2 } from "lucide-react";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { useCompanyProjects } from "@/hooks/useCompanyProjects";
+import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { PackagesSection } from "@/components/projects/PackagesSection";
+import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
+import { SnagListCard } from "@/components/projects/SnagListCard";
 import { messageOf } from "@/components/projects/projectErrors";
 
 const LIST_PATH = "/dashboard/business?view=projects";
+/** Find-a-contractor for a business package goes to Requests — raising an enquiry/quote request to a panel contractor is the closest business equivalent of the homeowner "hire" flow. */
+const FIND_CONTRACTOR_PATH = "/dashboard/business?view=requests";
+
+interface AvailableSite {
+  id: string;
+  name: string;
+}
 
 /**
- * Shell only — header, edit and delete, and placeholders for the
- * sections that come in later steps (sites, packages, budget, timeline,
- * needs-you, snags, sign-off). Mirrors ProjectPage.tsx's header, but
- * reads from useCompanyProjects rather than useHomeownerProjects, and
- * shows site names instead of a single customer.
+ * One business project: header, edit/delete, the Sites card, packages,
+ * timeline and snags. Mirrors ProjectPage.tsx's shape but reads via
+ * useProjectDetail in 'business' mode, and adds the Sites card the
+ * homeowner page has no equivalent of. Budget, Needs you, Sign-off and
+ * "Who can see this" are still placeholders — later steps.
  */
 export function BusinessProjectPage({ companyId, projectId }: { companyId: string; projectId: string }) {
   const navigate = useNavigate();
-  const { projects, attachedJobCounts, loading, error, refetch, updateProject, deleteProject } =
+  const { projects, loading: listLoading, error: listError, refetch: refetchList, updateProject, deleteProject } =
     useCompanyProjects(companyId);
+  const detail = useProjectDetail(projectId, { viewer: "business", companyId });
+
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  if (loading) return <LoadingState message="Loading project..." />;
-  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
+  const [availableSites, setAvailableSites] = useState<AvailableSite[]>([]);
+  const [sitesLoading, setSitesLoading] = useState(true);
+  const [sitesError, setSitesError] = useState<string | null>(null);
+  const [addingSiteId, setAddingSiteId] = useState<string>("");
+  const [siteActionError, setSiteActionError] = useState<string | null>(null);
+  const [siteActionBusy, setSiteActionBusy] = useState(false);
+  const [removingSite, setRemovingSite] = useState<AvailableSite | null>(null);
 
-  const project = projects.find((p) => p.id === projectId);
+  const loadAvailableSites = useCallback(async () => {
+    setSitesLoading(true);
+    setSitesError(null);
+    try {
+      const { data, error } = await supabase.from("sites").select("id, name").eq("company_id", companyId).order("name");
+      if (error) throw error;
+      setAvailableSites(data ?? []);
+    } catch (err) {
+      setSitesError(messageOf(err));
+    } finally {
+      setSitesLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void loadAvailableSites();
+  }, [loadAvailableSites]);
+
+  if (listLoading || detail.loading) return <LoadingState message="Loading project..." />;
+  if (listError) return <ErrorState message={listError} onRetry={() => void refetchList()} />;
+  if (detail.error) return <ErrorState message={detail.error} onRetry={() => void detail.refetch()} />;
+
+  const summary = projects.find((p) => p.id === projectId);
+  const project = detail.project;
 
   const backLink = (
     <Button variant="link" className="px-0 text-muted-foreground" onClick={() => navigate(LIST_PATH)}>
@@ -48,16 +91,18 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
 
   if (!project) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-6">
         {backLink}
         <ErrorState message="This project could not be found. It may have been deleted, or you may not have access to it." />
       </div>
     );
   }
 
-  const attachedJobCount = attachedJobCounts[project.id] ?? 0;
-  const status = projectDisplayStatus(project.status, attachedJobCount);
+  const status = projectDisplayStatus(project.status, detail.attachedJobCount);
   const readOnly = project.status === "completed";
+
+  const linkedSiteIds = new Set(detail.projectSites.map((s) => s.id));
+  const unlinkedSites = availableSites.filter((s) => !linkedSiteIds.has(s.id));
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -70,6 +115,37 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
       setDeleteError(messageOf(err));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleAddSite = async () => {
+    if (!addingSiteId) return;
+    setSiteActionBusy(true);
+    setSiteActionError(null);
+    try {
+      await detail.addSite(addingSiteId);
+      setAddingSiteId("");
+    } catch (err) {
+      setSiteActionError(messageOf(err));
+    } finally {
+      setSiteActionBusy(false);
+    }
+  };
+
+  const handleRemoveSite = async () => {
+    if (!removingSite) return;
+    setSiteActionBusy(true);
+    setSiteActionError(null);
+    try {
+      await detail.removeSite(removingSite.id);
+      setRemovingSite(null);
+    } catch (err) {
+      // Shown inline on the card, not in the confirm dialog — the dialog
+      // closes either way so the message is visible against the list.
+      setRemovingSite(null);
+      setSiteActionError(messageOf(err));
+    } finally {
+      setSiteActionBusy(false);
     }
   };
 
@@ -88,7 +164,7 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
             <span>
               <span className="text-muted-foreground">Sites: </span>
-              {project.siteNames.length > 0 ? project.siteNames.join(", ") : "None"}
+              {detail.projectSites.length > 0 ? detail.projectSites.map((s) => s.name).join(", ") : "None"}
             </span>
             <span>
               <span className="text-muted-foreground">Start: </span>
@@ -122,27 +198,111 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
         )}
       </div>
 
-      {/* ── Placeholders for later steps ──────────────────────────────── */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Budget band — coming in a later step.</CardContent></Card>
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Packages and attached jobs — coming in a later step.</CardContent></Card>
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Timeline — coming in a later step.</CardContent></Card>
+
+          <PackagesSection
+            packages={detail.packages}
+            jobs={detail.jobs}
+            invoices={detail.invoices}
+            contractors={detail.contractors}
+            addPackage={detail.addPackage}
+            updatePackage={detail.updatePackage}
+            deletePackage={detail.deletePackage}
+            attachJob={detail.attachJob}
+            detachJob={detail.detachJob}
+            loadAttachableJobs={detail.loadAttachableJobs}
+            readOnly={readOnly}
+            viewer="business"
+            findContractorPath={FIND_CONTRACTOR_PATH}
+            siteNames={detail.siteNames}
+            projectSites={detail.projectSites}
+          />
+
+          <ProjectTimeline
+            targetStart={project.target_start}
+            targetEnd={project.target_end}
+            packages={detail.packages}
+            jobs={detail.jobs}
+            contractors={detail.contractors}
+          />
         </div>
+
         <div className="min-w-0 space-y-6">
+          {/* ── Sites ──────────────────────────────────────────────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="font-heading text-lg">Sites</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {detail.projectSites.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sites linked yet.</p>
+              ) : (
+                <ul className="divide-y rounded-md border text-sm">
+                  {detail.projectSites.map((site) => (
+                    <li key={site.id} className="flex items-center justify-between gap-3 p-2.5">
+                      <span>{site.name}</span>
+                      {!readOnly && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => { setSiteActionError(null); setRemovingSite(site); }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {!readOnly && (
+                <div className="flex gap-2">
+                  <Select value={addingSiteId} onValueChange={setAddingSiteId} disabled={sitesLoading || unlinkedSites.length === 0}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder={unlinkedSites.length === 0 ? "No more sites to add" : "Choose a site"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unlinkedSites.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" disabled={!addingSiteId || siteActionBusy} onClick={() => void handleAddSite()}>
+                    {siteActionBusy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Add
+                  </Button>
+                </div>
+              )}
+              {sitesError && <p className="text-sm text-destructive">{sitesError}</p>}
+              {siteActionError && <p className="text-sm text-destructive">{siteActionError}</p>}
+            </CardContent>
+          </Card>
+
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Needs you — coming in a later step.</CardContent></Card>
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Snags — coming in a later step.</CardContent></Card>
+
+          <SnagListCard
+            snags={detail.snags}
+            packages={detail.packages}
+            readOnly={readOnly}
+            addSnag={detail.addSnag}
+            resolveSnag={detail.resolveSnag}
+          />
+
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Sign-off — coming in a later step.</CardContent></Card>
+          <Card><CardContent className="p-6 text-sm text-muted-foreground">Who can see this — coming in a later step.</CardContent></Card>
         </div>
       </div>
 
       <CreateProjectDialog
         open={editing}
-        project={project}
+        project={summary}
         onClose={() => setEditing(false)}
         onSave={async (values) => {
           await updateProject(project.id, values);
-          await refetch();
+          await detail.refetch();
         }}
       />
 
@@ -167,6 +327,31 @@ export function BusinessProjectPage({ companyId, projectId }: { companyId: strin
             >
               {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!removingSite} onOpenChange={(v) => !siteActionBusy && !v && setRemovingSite(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this site from the project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{removingSite?.name}" will no longer be linked to this project. Refused while any package is pinned to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={siteActionBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={siteActionBusy}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleRemoveSite();
+              }}
+            >
+              {siteActionBusy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remove site
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
