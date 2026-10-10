@@ -12383,6 +12383,45 @@ export type Database = {
         Returns: boolean
       }
       contractor_covers_site: { Args: { p_site_id: string }; Returns: boolean }
+      contractor_project_snags: {
+        Args: { p_project_id: string }
+        Returns: {
+          description: string
+          raised_at: string
+          resolved_at: string
+          snag_id: string
+          status: string
+        }[]
+      }
+      contractor_project_view: {
+        Args: { p_project_id: string }
+        Returns: {
+          is_mine: boolean
+          job_end_date: string
+          job_id: string
+          job_number: number
+          job_start_date: string
+          job_status: string
+          needed_from: string
+          needed_to: string
+          package_id: string
+          title: string
+          trade: string
+        }[]
+      }
+      contractor_projects: {
+        Args: never
+        Returns: {
+          attached_job_count: number
+          my_package_count: number
+          owner_name: string
+          project_id: string
+          status: string
+          target_end: string
+          target_start: string
+          title: string
+        }[]
+      }
       convert_awarded_agreement_to_job: {
         Args: { p_agreement_id: string }
         Returns: string

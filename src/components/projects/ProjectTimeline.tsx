@@ -12,6 +12,14 @@ type Props = {
   packages: ProjectPackage[];
   jobs: Record<string, ProjectJob>;
   contractors: Record<string, ContractorSummary>;
+  /**
+   * Package ids to render in a neutral, muted style regardless of job
+   * status — trade and dates only, no status colour or contractor name.
+   * Used by the contractor's own project view, where every package but
+   * the caller's own must not reveal another contractor's status or
+   * identity. Omitted (the default) renders exactly as before.
+   */
+  mutedPackageIds?: Set<string>;
 };
 
 /** Narrowest a week column may get before the timeline scrolls sideways. */
@@ -84,7 +92,7 @@ function buildRows(packages: ProjectPackage[], jobs: Record<string, ProjectJob>,
  * MIN_WEEK_PX; only below that does the timeline scroll sideways, inside its
  * own box. On load it scrolls so today is in view. Read-only.
  */
-export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contractors }: Props) {
+export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contractors, mutedPackageIds }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
   const scrolledToToday = useRef(false);
@@ -196,6 +204,7 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
             {rows.map((row) => {
               const chip = row.job ? jobStatusChip(row.job.status) : null;
               const contractor = row.job ? contractors[row.job.contractor_id] : undefined;
+              const muted = mutedPackageIds?.has(row.pkg.id) ?? false;
               const left = row.start ? daysBetween(rangeStart, row.start) * dayPx : 0;
               const width = row.start && row.end ? (daysBetween(row.start, row.end) + 1) * dayPx : 0;
               const dateText = row.start && row.end
@@ -209,25 +218,29 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
                   >
                     <p className="truncate font-medium" title={row.pkg.title}>{row.pkg.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {row.kind === "job" && chip ? `${chip.label}${contractor ? ` · ${contractor.name}` : ""}` : null}
-                      {row.kind === "needed" && "No contractor yet"}
-                      {row.kind === "none" && "No dates yet"}
-                      {row.kind === "job" && row.openEnd && " · end not set"}
+                      {muted
+                        ? (row.pkg.trade || "Other trade")
+                        : row.kind === "job" && chip ? `${chip.label}${contractor ? ` · ${contractor.name}` : ""}` : null}
+                      {!muted && row.kind === "needed" && "No contractor yet"}
+                      {!muted && row.kind === "none" && "No dates yet"}
+                      {!muted && row.kind === "job" && row.openEnd && " · end not set"}
                     </p>
                   </div>
                   <div className="relative h-14" style={{ width: trackWidth, ...weekLines }}>
                     {row.kind === "job" && chip && (
                       <div
-                        className={`absolute top-1/2 h-6 -translate-y-1/2 border ${chip.className} ${row.openEnd ? "rounded-l-md" : "rounded-md"}`}
+                        className={muted
+                          ? `absolute top-1/2 h-6 -translate-y-1/2 rounded-md border border-muted-foreground/40 bg-muted-foreground/25`
+                          : `absolute top-1/2 h-6 -translate-y-1/2 border ${chip.className} ${row.openEnd ? "rounded-l-md" : "rounded-md"}`}
                         style={{
                           left,
                           width,
                           // Open end: fades out instead of stopping, so it reads as "not finished".
-                          ...(row.openEnd
+                          ...(!muted && row.openEnd
                             ? { maskImage: "linear-gradient(to right, black 70%, transparent)", WebkitMaskImage: "linear-gradient(to right, black 70%, transparent)" }
                             : {}),
                         }}
-                        title={`${row.pkg.title}: ${chip.label}, ${dateText}`}
+                        title={muted ? `${row.pkg.title}: ${row.pkg.trade || "Other trade"}, ${dateText}` : `${row.pkg.title}: ${chip.label}, ${dateText}`}
                       />
                     )}
                     {row.kind === "needed" && (
@@ -284,6 +297,12 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
             <span className="inline-block h-3 w-0.5 shrink-0 bg-red-600" aria-hidden="true" />
             Red line: today
           </li>
+          {mutedPackageIds && mutedPackageIds.size > 0 && (
+            <li className="flex items-center gap-2">
+              <span className="inline-block h-3 w-6 shrink-0 rounded-sm border border-muted-foreground/40 bg-muted-foreground/25" aria-hidden="true" />
+              Grey bar: another contractor's work — trade and dates only
+            </li>
+          )}
         </ul>
       </CardContent>
     </Card>

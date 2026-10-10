@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
-  DollarSign, Users, FileText, Clock, Plus, Eye, Edit, Send,
+  DollarSign, Users, FileText, Clock, Eye, Send,
   Filter, MessageCircle, Star, Loader2,
   XCircle, MessageSquare, Calendar,
   AlertTriangle, Wrench, UserCheck, MapPin, X,
@@ -61,6 +61,8 @@ import { EnquiryDetailSheet, type EnquiryDetail } from "@/components/contractor/
 import { useWorkItems } from "@/hooks/useWorkItems";
 import { WorkItemsList } from "@/components/shared/work/WorkItemsList";
 import { CONTRACTOR_WORK_ITEM_STAGES } from "@/lib/workItems";
+import { ContractorProjectsView } from "@/components/contractor/ContractorProjectsView";
+import { ContractorProjectPage } from "@/components/contractor/ContractorProjectPage";
 
 type EnquiryForDialog = {
   id: string;
@@ -723,45 +725,14 @@ const ContractorDashboard = () => {
 
           <TabsContent value="invoices"><InvoiceManagement /></TabsContent>
 
-          {/* Projects Tab */}
+          {/* Projects Tab — real projects/project_packages the contractor
+              takes part in, via contractor_projects()/contractor_project_view()
+              (migration 20261010120000). Read-only: no create, no edit. */}
           <TabsContent value="projects" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="font-heading text-2xl font-bold">Project Management</h2>
-              <Button onClick={() => setActiveTab("jobs")}><Plus className="h-4 w-4 mr-2" />New Job</Button>
-            </div>
-            {activeJobs.length === 0 ? (
-              <Card><CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Active Projects</h3>
-                <p className="text-muted-foreground">Create a job to get started.</p>
-              </CardContent></Card>
+            {searchParams.get("project") ? (
+              <ContractorProjectPage projectId={searchParams.get("project")!} />
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {activeJobs.map((job) => (
-                  <Card key={job.id}>
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{job.title}</CardTitle>
-                          <CardDescription>{job.contract_value ? `£${Number(job.contract_value).toLocaleString('en-GB')}` : 'Value TBC'}</CardDescription>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <Badge className={getStatusColor(job.status || '')}>{job.status}</Badge>
-                          <SlaStatusPill status={(job as JobWithSla).sla_status} completionDue={(job as JobWithSla).sla_completion_due} />
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {job.start_date && <div className="flex justify-between text-sm"><span>Start:</span><span>{new Date(job.start_date).toLocaleDateString('en-GB')}</span></div>}
-                      {job.end_date && <div className="flex justify-between text-sm"><span>Deadline:</span><span>{new Date(job.end_date).toLocaleDateString('en-GB')}</span></div>}
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Eye className="h-4 w-4 mr-2" />View</Button>
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setActiveTab("jobs")}><Edit className="h-4 w-4 mr-2" />Edit</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <ContractorProjectsView />
             )}
           </TabsContent>
 
