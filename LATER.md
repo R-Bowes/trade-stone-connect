@@ -1694,7 +1694,7 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
-## Projects (slices 1 and 2 live; slices 3 and 4 to build)
+## Projects (slices 1 to 3 live; slice 4 and tender link to build)
 
 **State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
 and their routes unregistered (c77bf32). Slice 1 foundations live
@@ -1712,6 +1712,27 @@ Projects in the homeowner menu; packages with job attach and detach;
 budget band and timeline read from jobs and invoices; Needs you,
 snags, and sign-off via sign_off_project (migration 20261008100000).
 projects.status is server-only. Personal accounts only.
+
+**Slice 3 (10 Oct 2026, commit de13da4):** business projects live.
+Overview with status, budget, committed and paid tiles, filters and a
+Needs you panel across projects. Project page with sites, site-pinned
+packages with allowances, the company's jobs attached, a four-part
+budget band, timeline, snags, sign-off and "Who can see this".
+Project money is computed server-side by project_money and
+project_money_totals (migration 20261009120000) for anyone with
+project access; they mirror src/lib/invoiceMoney.ts.
+
+**Slice 3 follow-ups:**
+- coverage not yet seen in the browser: needs a second site and a
+  site-only member in the test company
+- change requests on business projects: project_change_requests still
+  uses the old access rules
+- "Tender this": link a tender to a package, and carry project_id
+  through award and convert_awarded_agreement_to_job; needs the tender
+  award screen first
+- overview Needs you makes one request per project; batch it if a
+  company has many projects
+- any member with access can sign off a business project
 
 **Slice 2 polish:**
 - snag hint text still shows on a signed-off project
