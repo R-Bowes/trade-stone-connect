@@ -1,39 +1,63 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { useContractorProjectsList, type ContractorProjectSummary } from "@/hooks/useContractorProjectParticipation";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatDate } from "@/lib/formatDate";
+import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 
 const projectPath = (id: string) => `/dashboard/contractor?view=projects&project=${id}`;
 
 /**
- * Real projects (not jobs) the contractor takes part in — one of their
- * jobs is attached to a package. Read-only: no create, no edit.
+ * Projects (not jobs) the contractor either owns — their own jobs
+ * grouped for one customer — or merely takes part in, because one of
+ * their jobs is attached to someone else's project.
  */
 export function ContractorProjectsView() {
   const navigate = useNavigate();
-  const { projects, loading, error, refetch } = useContractorProjectsList();
+  const { projects, loading, error, refetch, createProject } = useContractorProjectsList();
+  const [creating, setCreating] = useState(false);
 
   if (loading) return <LoadingState message="Loading your projects..." />;
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
-  if (projects.length === 0) {
-    return (
-      <EmptyState
-        icon={<i className="ti ti-layout-kanban text-4xl" aria-hidden="true" />}
-        message="When a customer adds one of your jobs to a project, it appears here."
-      />
-    );
-  }
+  const newProjectButton = (
+    <Button onClick={() => setCreating(true)}>
+      <i className="ti ti-plus mr-2" aria-hidden="true" />
+      New project
+    </Button>
+  );
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {projects.map((project) => (
-        <ProjectCard key={project.project_id} project={project} onOpen={() => navigate(projectPath(project.project_id))} />
-      ))}
+    <div className="space-y-6">
+      {projects.length > 0 && <div className="flex justify-end">{newProjectButton}</div>}
+
+      {projects.length === 0 ? (
+        <EmptyState
+          icon={<i className="ti ti-layout-kanban text-4xl" aria-hidden="true" />}
+          message="When a customer adds one of your jobs to a project, it appears here."
+          action={newProjectButton}
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {projects.map((project) => (
+            <ProjectCard key={project.project_id} project={project} onOpen={() => navigate(projectPath(project.project_id))} />
+          ))}
+        </div>
+      )}
+
+      <CreateProjectDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onSave={async (values) => {
+          const id = await createProject(values);
+          navigate(projectPath(id));
+        }}
+      />
     </div>
   );
 }
@@ -58,7 +82,11 @@ function ProjectCard({ project, onOpen }: { project: ContractorProjectSummary; o
           <h3 className="font-heading text-lg font-semibold leading-tight">{project.title}</h3>
           <Badge className={PROJECT_STATUS_CHIP[status]}>{status}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">{project.owner_name ?? "Unknown"}</p>
+        <p className="text-sm text-muted-foreground">
+          {project.relationship === "owner"
+            ? (project.customerName ? `Yours · for ${project.customerName}` : "Yours")
+            : `For ${project.owner_name ?? "Unknown"}`}
+        </p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Start</dt>
           <dd>{project.target_start ? formatDate(project.target_start) : "Not set"}</dd>

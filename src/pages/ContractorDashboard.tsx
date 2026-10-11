@@ -62,7 +62,7 @@ import { useWorkItems } from "@/hooks/useWorkItems";
 import { WorkItemsList } from "@/components/shared/work/WorkItemsList";
 import { CONTRACTOR_WORK_ITEM_STAGES } from "@/lib/workItems";
 import { ContractorProjectsView } from "@/components/contractor/ContractorProjectsView";
-import { ContractorProjectPage } from "@/components/contractor/ContractorProjectPage";
+import { ContractorProjectRoute } from "@/components/contractor/ContractorProjectRoute";
 
 type EnquiryForDialog = {
   id: string;
@@ -730,7 +730,7 @@ const ContractorDashboard = () => {
               (migration 20261010120000). Read-only: no create, no edit. */}
           <TabsContent value="projects" className="space-y-6">
             {searchParams.get("project") ? (
-              <ContractorProjectPage projectId={searchParams.get("project")!} />
+              <ContractorProjectRoute projectId={searchParams.get("project")!} />
             ) : (
               <ContractorProjectsView />
             )}

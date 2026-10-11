@@ -219,7 +219,7 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
                     <p className="truncate font-medium" title={row.pkg.title}>{row.pkg.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {muted
-                        ? (row.pkg.trade || "Other trade")
+                        ? [row.pkg.trade || "Other trade", contractor?.name].filter(Boolean).join(" · ")
                         : row.kind === "job" && chip ? `${chip.label}${contractor ? ` · ${contractor.name}` : ""}` : null}
                       {!muted && row.kind === "needed" && "No contractor yet"}
                       {!muted && row.kind === "none" && "No dates yet"}
@@ -240,7 +240,9 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
                             ? { maskImage: "linear-gradient(to right, black 70%, transparent)", WebkitMaskImage: "linear-gradient(to right, black 70%, transparent)" }
                             : {}),
                         }}
-                        title={muted ? `${row.pkg.title}: ${row.pkg.trade || "Other trade"}, ${dateText}` : `${row.pkg.title}: ${chip.label}, ${dateText}`}
+                        title={muted
+                          ? `${row.pkg.title}: ${[row.pkg.trade || "Other trade", contractor?.name].filter(Boolean).join(" · ")}, ${dateText}`
+                          : `${row.pkg.title}: ${chip.label}, ${dateText}`}
                       />
                     )}
                     {row.kind === "needed" && (
@@ -300,7 +302,7 @@ export function ProjectTimeline({ targetStart, targetEnd, packages, jobs, contra
           {mutedPackageIds && mutedPackageIds.size > 0 && (
             <li className="flex items-center gap-2">
               <span className="inline-block h-3 w-6 shrink-0 rounded-sm border border-muted-foreground/40 bg-muted-foreground/25" aria-hidden="true" />
-              Grey bar: another contractor's work — trade and dates only
+              Grey bar: another contractor's work — trade, dates and their name only
             </li>
           )}
         </ul>

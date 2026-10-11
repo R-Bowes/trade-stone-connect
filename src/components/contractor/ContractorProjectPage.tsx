@@ -8,7 +8,7 @@ import {
   useContractorProjectDetail,
   type ContractorProjectPackageRow,
 } from "@/hooks/useContractorProjectParticipation";
-import type { ProjectJob, ProjectPackage, ProjectSnag } from "@/hooks/useProjectDetail";
+import type { ContractorSummary, ProjectJob, ProjectPackage, ProjectSnag } from "@/hooks/useProjectDetail";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
 import { SnagListCard } from "@/components/projects/SnagListCard";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
@@ -22,8 +22,8 @@ const JOBS_PATH = "/dashboard/contractor?view=jobs";
 
 /**
  * Read-only: a contractor's view of one project they take part in. Their
- * own packages show full job detail; every other package shows trade
- * and dates only, muted, with no status, contractor name or money
+ * own packages show full job detail; every other package shows trade,
+ * dates and the other contractor's name, muted, with no status or money
  * figure. No edit controls anywhere on this page.
  */
 export function ContractorProjectPage({ projectId }: { projectId: string }) {
@@ -75,6 +75,7 @@ export function ContractorProjectPage({ projectId }: { projectId: string }) {
     created_at: new Date(0).toISOString(),
   }));
   const timelineJobs: Record<string, ProjectJob> = {};
+  const timelineContractors: Record<string, ContractorSummary> = {};
   for (const p of packages) {
     if (!p.job_status) continue;
     const key = p.job_id ?? `other-${p.package_id}`;
@@ -86,13 +87,21 @@ export function ContractorProjectPage({ projectId }: { projectId: string }) {
       start_date: p.job_start_date,
       end_date: p.job_end_date,
       contract_value: null,
-      contractor_id: "",
+      customer_id: null,
+      // The synthetic key doubles as the "contractor id" the timeline
+      // looks up in `contractors` below — never a real contractor uuid,
+      // since another contractor's is never exposed to this caller.
+      contractor_id: key,
       issued_quote_id: null,
       project_id: projectId,
       site_id: null,
     };
+    if (p.contractor_name) {
+      timelineContractors[key] = { id: key, name: p.contractor_name, tsCode: null };
+    }
   }
-  const mutedPackageIds = new Set(packages.filter((p) => !p.is_mine).map((p) => p.package_id));
+  const others = packages.filter((p) => !p.is_mine);
+  const mutedPackageIds = new Set(others.map((p) => p.package_id));
 
   // SnagListCard expects a ProjectPackage[] purely to resolve a snag's
   // package title — only the caller's own packages can have a snag
@@ -170,12 +179,35 @@ export function ContractorProjectPage({ projectId }: { projectId: string }) {
             targetEnd={summary.target_end}
             packages={timelinePackages}
             jobs={timelineJobs}
-            contractors={{}}
+            contractors={timelineContractors}
             mutedPackageIds={mutedPackageIds}
           />
         </div>
 
         <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="font-heading text-lg">Other trades</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {others.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No other trades on this project yet.</p>
+              ) : (
+                <ul className="divide-y rounded-md border text-sm">
+                  {others.map((p) => (
+                    <li key={p.package_id} className="p-3">
+                      <p className="font-medium">{p.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {p.contractor_name ?? "No contractor yet"}
+                        {p.trade && ` · ${p.trade}`}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
           <SnagListCard
             snags={projectSnags}
             packages={snagPackages}

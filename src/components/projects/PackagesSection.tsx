@@ -34,18 +34,22 @@ type Props = {
   loadAttachableJobs: () => Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }>;
   /** A completed project is read-only: no add, edit, delete, attach or detach. */
   readOnly?: boolean;
-  /** 'personal' (default) is unchanged. 'business' also shows each package's site. */
-  viewer?: "personal" | "business";
+  /** 'personal' (default) is unchanged. 'business' also shows each package's site. 'contractor' labels this card "Phases". */
+  viewer?: "personal" | "business" | "contractor";
   /** Where "Find a contractor" goes. Always required — no hard-coded default. */
   findContractorPath: string;
+  /** False hides the "Find a contractor" action entirely (a contractor's own project has no such step). Default true. */
+  showFindContractor?: boolean;
   /** Business only: site id -> name, for showing each package's site. */
   siteNames?: Record<string, string>;
   /** Business only: the project's own sites, offered in the package site picker. */
   projectSites?: { id: string; name: string }[];
+  /** Contractor only: job.customer_id -> display name (company name, else full name) — shown in place of the contractor's own name on a filled row. */
+  customerNames?: Record<string, string>;
 };
 
 export function PackagesSection(props: Props) {
-  const { packages, jobs, money, contractors, readOnly = false, viewer = "personal", findContractorPath, siteNames = {}, projectSites } = props;
+  const { packages, jobs, money, contractors, readOnly = false, viewer = "personal", findContractorPath, showFindContractor = true, siteNames = {}, projectSites, customerNames = {} } = props;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -86,23 +90,28 @@ export function PackagesSection(props: Props) {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-1">
-          <CardTitle className="font-heading text-lg">Packages of work</CardTitle>
+          <CardTitle className="font-heading text-lg">{viewer === "contractor" ? "Phases" : "Packages of work"}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {packages.length === 0 ? "No packages yet" : `${filled} of ${packages.length} have a contractor`}
+            {packages.length === 0
+              ? (viewer === "contractor" ? "No phases yet" : "No packages yet")
+              : viewer === "contractor"
+                ? `${filled} of ${packages.length} phases have a job`
+                : `${filled} of ${packages.length} have a contractor`}
           </p>
         </div>
         {!readOnly && (
           <Button size="sm" onClick={() => setAdding(true)}>
             <i className="ti ti-plus mr-2" aria-hidden="true" />
-            Add a package
+            {viewer === "contractor" ? "Add a phase" : "Add a package"}
           </Button>
         )}
       </CardHeader>
       <CardContent className="space-y-6">
         {packages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Split the work into packages, one for each contractor, such as the groundworks, the electrics and the
-            kitchen fit. Then attach the job for each one.
+            {viewer === "contractor"
+              ? "Split the work into phases, one for each job, such as the groundworks, the electrics and the kitchen fit. Then attach the job for each one."
+              : "Split the work into packages, one for each contractor, such as the groundworks, the electrics and the kitchen fit. Then attach the job for each one."}
           </p>
         ) : (
           groups.map((group) => (
@@ -117,6 +126,7 @@ export function PackagesSection(props: Props) {
                     pkg={pkg}
                     job={pkg.job_id ? jobs[pkg.job_id] : undefined}
                     contractor={pkg.job_id && jobs[pkg.job_id] ? contractors[jobs[pkg.job_id].contractor_id] : undefined}
+                    customerName={pkg.job_id && jobs[pkg.job_id]?.customer_id ? customerNames[jobs[pkg.job_id].customer_id!] : undefined}
                     money={money[pkg.id]}
                     readOnly={readOnly}
                     viewer={viewer}
@@ -125,7 +135,7 @@ export function PackagesSection(props: Props) {
                     onDelete={() => requestDelete(pkg)}
                     onDetach={() => { setConfirmError(null); setDetaching(pkg); }}
                     onAttach={() => setAttachingTo(pkg)}
-                    onFindContractor={() => navigate(findContractorPath)}
+                    onFindContractor={showFindContractor ? () => navigate(findContractorPath) : undefined}
                   />
                 ))}
               </ul>
@@ -138,6 +148,7 @@ export function PackagesSection(props: Props) {
         open={adding || !!editing}
         pkg={editing}
         sites={projectSites}
+        viewer={viewer}
         onClose={() => { setAdding(false); setEditing(null); }}
         onSave={async (values) => {
           if (editing) await props.updatePackage(editing.id, values);
@@ -211,21 +222,24 @@ export function PackagesSection(props: Props) {
 }
 
 function PackageRow({
-  pkg, job, contractor, money, readOnly, viewer, siteName, onEdit, onDelete, onDetach, onAttach, onFindContractor,
+  pkg, job, contractor, customerName, money, readOnly, viewer, siteName, onEdit, onDelete, onDetach, onAttach, onFindContractor,
 }: {
   pkg: ProjectPackage;
   job: ProjectJob | undefined;
   contractor: ContractorSummary | undefined;
+  /** Contractor viewer only — the job's customer, shown in place of the contractor's own name. */
+  customerName: string | undefined;
   money: PackageMoney | undefined;
   readOnly: boolean;
-  viewer: "personal" | "business";
+  viewer: "personal" | "business" | "contractor";
   /** Business only — the package's own site, if any. */
   siteName: string | undefined;
   onEdit: () => void;
   onDelete: () => void;
   onDetach: () => void;
   onAttach: () => void;
-  onFindContractor: () => void;
+  /** Undefined hides the "Find a contractor" action entirely. */
+  onFindContractor: (() => void) | undefined;
 }) {
   const manage = readOnly ? null : (
     <div className="flex shrink-0 flex-nowrap gap-1">
@@ -263,10 +277,12 @@ function PackageRow({
             edit/delete icons stay on one line. */}
         {!readOnly && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
-          <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onFindContractor}>
-            <i className="ti ti-search mr-2" aria-hidden="true" />
-            Find a contractor
-          </Button>
+          {onFindContractor && (
+            <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onFindContractor}>
+              <i className="ti ti-search mr-2" aria-hidden="true" />
+              Find a contractor
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={onAttach}>
             <i className="ti ti-link mr-2" aria-hidden="true" />
             Attach a job
@@ -325,8 +341,14 @@ function PackageRow({
           <Badge className={chip.className}>{chip.label}</Badge>
         </div>
         <p className="text-sm">
-          {contractor ? contractor.name : "Contractor"}
-          {contractor?.tsCode && <span className="font-mono text-muted-foreground"> · {contractor.tsCode}</span>}
+          {viewer === "contractor" ? (
+            customerName ?? "Customer"
+          ) : (
+            <>
+              {contractor ? contractor.name : "Contractor"}
+              {contractor?.tsCode && <span className="font-mono text-muted-foreground"> · {contractor.tsCode}</span>}
+            </>
+          )}
         </p>
         <p className="text-sm text-muted-foreground">
           <span className="font-mono">{reference}</span>

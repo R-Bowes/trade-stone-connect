@@ -19,13 +19,16 @@ type Props = {
    * choice ("All project sites" or one of these) and an allowance field.
    */
   sites?: { id: string; name: string }[];
+  /** 'personal' (default) is unchanged. 'contractor' calls this a "phase" throughout. */
+  viewer?: "personal" | "business" | "contractor";
   onSave: (values: PackageFormValues) => Promise<void>;
 };
 
 const NO_TRADE = "__none__";
 const ALL_SITES = "__all__";
 
-export function AddPackageDialog({ open, onClose, pkg, sites, onSave }: Props) {
+export function AddPackageDialog({ open, onClose, pkg, sites, viewer = "personal", onSave }: Props) {
+  const noun = viewer === "contractor" ? "phase" : "package";
   const [title, setTitle] = useState("");
   const [trade, setTrade] = useState<string>(NO_TRADE);
   const [neededFrom, setNeededFrom] = useState("");
@@ -56,7 +59,7 @@ export function AddPackageDialog({ open, onClose, pkg, sites, onSave }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError("Give the package a title.");
+      setError(`Give the ${noun} a title.`);
       return;
     }
     if (neededFrom && neededTo && neededTo < neededFrom) {
@@ -99,9 +102,11 @@ export function AddPackageDialog({ open, onClose, pkg, sites, onSave }: Props) {
     <Dialog open={open} onOpenChange={(v) => !v && !saving && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-heading">{isEdit ? "Edit package" : "Add a package"}</DialogTitle>
+          <DialogTitle className="font-heading">{isEdit ? `Edit ${noun}` : `Add a ${noun}`}</DialogTitle>
           <DialogDescription>
-            A package is one piece of the work, such as the electrics or the plastering, done by one contractor.
+            {viewer === "contractor"
+              ? "A phase is one piece of the work, done by one of your jobs."
+              : "A package is one piece of the work, such as the electrics or the plastering, done by one contractor."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -183,7 +188,7 @@ export function AddPackageDialog({ open, onClose, pkg, sites, onSave }: Props) {
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEdit ? "Save changes" : "Add package"}
+              {isEdit ? "Save changes" : `Add ${noun}`}
             </Button>
           </DialogFooter>
         </form>

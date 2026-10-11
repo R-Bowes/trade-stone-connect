@@ -32,6 +32,8 @@ export interface ProjectJob {
   issued_quote_id: string | null;
   project_id: string | null;
   site_id: string | null;
+  /** Fetched for every viewer, but only displayed in contractor mode (in place of the contractor's own name). */
+  customer_id: string | null;
 }
 
 export interface ProjectSite {
@@ -70,7 +72,7 @@ const PROJECT_SELECT =
 const PACKAGE_SELECT =
   "id, project_id, title, trade, sort_order, allowance, needed_from, needed_to, job_id, site_id, created_at" as const;
 const JOB_SELECT =
-  "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id, site_id" as const;
+  "id, job_number, title, status, start_date, end_date, contract_value, contractor_id, issued_quote_id, project_id, site_id, customer_id" as const;
 const SNAG_SELECT = "id, description, status, package_id, created_at, resolved_at" as const;
 const SIGN_OFF_SELECT = "id, stage, signed_at" as const;
 
@@ -100,8 +102,14 @@ export async function loadContractors(ids: string[]): Promise<Record<string, Con
 }
 
 export interface UseProjectDetailOptions {
-  /** 'personal' (default) is unchanged. 'business' loads project sites and scopes attachable jobs to the company. */
-  viewer?: "personal" | "business";
+  /**
+   * 'personal' (default) is unchanged. 'business' loads project sites
+   * and scopes attachable jobs to the company. 'contractor' is a
+   * contractor's OWN project (projects.account_type = 'contractor') —
+   * attachable jobs are the caller's own, same as 'personal' but keyed
+   * on contractor_id rather than customer_id; no sites, ever.
+   */
+  viewer?: "personal" | "business" | "contractor";
   /** Required when viewer is 'business'. */
   companyId?: string;
 }
@@ -136,6 +144,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
   const [signOffs, setSignOffs] = useState<ProjectSignOff[]>([]);
   const [projectSites, setProjectSites] = useState<ProjectSite[]>([]);
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
+  const [customerNames, setCustomerNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,6 +168,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
         setContractors({});
         setProjectSites([]);
         setSiteNames({});
+        setCustomerNames({});
         return;
       }
 
@@ -184,6 +194,28 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
       }
       setJobs(jobMap);
       setContractors(await loadContractors(Object.values(jobMap).map((j) => j.contractor_id)));
+
+      // Contractor mode only: the customer's display name for each job,
+      // in place of the contractor's own name (every job here is the
+      // caller's). Same profiles columns JobManagement.tsx already
+      // embeds off jobs.customer_id — not a new read path.
+      if (viewer === "contractor") {
+        const customerIds = [...new Set(Object.values(jobMap).map((j) => j.customer_id).filter((id): id is string => !!id))];
+        if (customerIds.length > 0) {
+          const { data: customerRows, error: customersError } = await supabase
+            .from("profiles")
+            .select("id, full_name, company_name")
+            .in("id", customerIds);
+          if (customersError) throw customersError;
+          setCustomerNames(
+            Object.fromEntries((customerRows ?? []).map((c) => [c.id, c.company_name || c.full_name || "Customer"]))
+          );
+        } else {
+          setCustomerNames({});
+        }
+      } else {
+        setCustomerNames({});
+      }
 
       // Server-computed money for every package the caller may see —
       // see project_money's own comment block for why this replaces a
@@ -334,8 +366,11 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
   /**
    * Personal mode: my jobs that can be attached — not in any project, not
    * cancelled. Business mode: the project's company's jobs, same two
-   * conditions; RLS narrows these by the caller's coverage.
-   * (attach_job_to_package re-checks this, and ownership, either way.)
+   * conditions; RLS narrows these by the caller's coverage. Contractor
+   * mode: the caller's own jobs as CONTRACTOR (not customer) — same two
+   * conditions again. (attach_job_to_package re-checks all of this, plus
+   * — for a contractor project — that the job's customer matches every
+   * other job already attached, in every mode.)
    */
   const loadAttachableJobs = useCallback(async (): Promise<{ jobs: ProjectJob[]; contractors: Record<string, ContractorSummary> }> => {
     let query = supabase
@@ -352,7 +387,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error("You are not signed in.");
-      query = query.eq("customer_id", user.id);
+      query = query.eq(viewer === "contractor" ? "contractor_id" : "customer_id", user.id);
     }
 
     const { data, error: jobsError } = await query;
@@ -428,7 +463,7 @@ export function useProjectDetail(projectId: string, options: UseProjectDetailOpt
 
   return {
     project, packages, jobs, money, contractors, snags, signOffs, attachedJobCount,
-    projectSites, siteNames,
+    projectSites, siteNames, customerNames,
     loading, error, refetch: load,
     addPackage, updatePackage, deletePackage, attachJob, detachJob, loadAttachableJobs,
     addSnag, resolveSnag, signOff, addSite, removeSite,

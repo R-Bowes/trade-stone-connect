@@ -10,8 +10,13 @@ type Props = {
   onEditProject: () => void;
   /** A completed project is read-only: no "Edit project" link. */
   readOnly?: boolean;
-  /** 'personal' (default) keeps the three-part band. 'business' adds allowances and splits "left to commit" into "allowed, not yet awarded" and "unallocated". */
-  viewer?: "personal" | "business";
+  /**
+   * 'personal' (default) keeps the three-part band. 'business' adds
+   * allowances and splits "left to commit" into "allowed, not yet
+   * awarded" and "unallocated". 'contractor' keeps the three-part shape
+   * but relabels it from the contractor's own point of view.
+   */
+  viewer?: "personal" | "business" | "contractor";
 };
 
 // Each segment has its own fill AND pattern, and is always named in the
@@ -86,9 +91,9 @@ export function BudgetBand({ budget, packages, money, onEditProject, readOnly = 
           ...(showLeft ? [{ key: "left", label: "Unallocated", amount: unallocated, ...SEGMENT_STYLE.left }] : []),
         ]
       : [
-          { key: "paid", label: "Paid", amount: paid, ...SEGMENT_STYLE.paid },
-          { key: "toPay", label: "Agreed, still to pay", amount: stillToPay, ...SEGMENT_STYLE.toPay },
-          ...(showLeft ? [{ key: "left", label: "Left to commit", amount: unallocated, ...SEGMENT_STYLE.left }] : []),
+          { key: "paid", label: viewer === "contractor" ? "Invoiced and paid to you" : "Paid", amount: paid, ...SEGMENT_STYLE.paid },
+          { key: "toPay", label: viewer === "contractor" ? "Agreed, still to be paid" : "Agreed, still to pay", amount: stillToPay, ...SEGMENT_STYLE.toPay },
+          ...(showLeft ? [{ key: "left", label: viewer === "contractor" ? "Left to plan" : "Left to commit", amount: unallocated, ...SEGMENT_STYLE.left }] : []),
         ];
 
   return (

@@ -12164,6 +12164,7 @@ export type Database = {
         Args: {
           p_account_type: string
           p_job_company: string
+          p_job_contractor: string
           p_job_customer: string
           p_job_site: string
           p_project_company: string
@@ -12396,6 +12397,7 @@ export type Database = {
       contractor_project_view: {
         Args: { p_project_id: string }
         Returns: {
+          contractor_name: string
           is_mine: boolean
           job_end_date: string
           job_id: string
@@ -12416,6 +12418,7 @@ export type Database = {
           my_package_count: number
           owner_name: string
           project_id: string
+          relationship: string
           status: string
           target_end: string
           target_start: string
