@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { useSubcontractDetail } from "@/hooks/useContractorProjectParticipation";
+import { YourSubcontractRamsCard } from "@/components/contractor/YourSubcontractRamsCard";
 import { formatDate } from "@/lib/formatDate";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
@@ -113,7 +114,7 @@ export function ContractorSubcontractPage({ subcontractId }: { subcontractId: st
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="font-heading text-lg">RAMS</CardTitle>
+              <CardTitle className="font-heading text-lg">Main contractor's RAMS</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {!detail.job_status ? (
@@ -136,6 +137,8 @@ export function ContractorSubcontractPage({ subcontractId }: { subcontractId: st
               )}
             </CardContent>
           </Card>
+
+          <YourSubcontractRamsCard subcontractId={subcontractId} mainContractorName={detail.main_contractor_name} />
         </div>
 
         <div className="min-w-0">

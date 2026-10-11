@@ -38,7 +38,7 @@ const SIGNER_ROLES = ["Site supervisor", "Project manager", "Client representati
 
 // ── Shared content section: hazards ─────────────────────────────────────────
 
-function HazardsSection({ hazards, onChange }: { hazards: Hazard[]; onChange: (h: Hazard[]) => void }) {
+export function HazardsSection({ hazards, onChange }: { hazards: Hazard[]; onChange: (h: Hazard[]) => void }) {
   const update = (i: number, patch: Partial<Hazard>) =>
     onChange(hazards.map((h, idx) => (idx === i ? { ...h, ...patch } : h)));
   const remove = (i: number) => onChange(hazards.filter((_, idx) => idx !== i));
@@ -106,7 +106,7 @@ function HazardsSection({ hazards, onChange }: { hazards: Hazard[]; onChange: (h
 
 // ── Shared content section: method statement ────────────────────────────────
 
-function MethodStepsSection({ steps, onChange }: { steps: MethodStep[]; onChange: (s: MethodStep[]) => void }) {
+export function MethodStepsSection({ steps, onChange }: { steps: MethodStep[]; onChange: (s: MethodStep[]) => void }) {
   const update = (i: number, patch: Partial<MethodStep>) =>
     onChange(steps.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const remove = (i: number) =>
@@ -152,7 +152,7 @@ function MethodStepsSection({ steps, onChange }: { steps: MethodStep[]; onChange
 
 // ── Shared content section: PPE ──────────────────────────────────────────────
 
-function PpeSection({ ppe, onChange }: { ppe: string[]; onChange: (p: string[]) => void }) {
+export function PpeSection({ ppe, onChange }: { ppe: string[]; onChange: (p: string[]) => void }) {
   const [custom, setCustom] = useState("");
   const toggle = (item: string, checked: boolean) =>
     onChange(checked ? [...ppe, item] : ppe.filter((p) => p !== item));

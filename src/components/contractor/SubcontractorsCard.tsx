@@ -14,8 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/AsyncState";
 import {
   usePackageSubcontractors,
+  usePackageSubcontractorRams,
   lookupContractorByTsCode,
+  fetchSubcontractRams,
+  reviewSubcontractRams,
   type PackageSubcontractorRow,
+  type SubcontractRamsRow,
 } from "@/hooks/useContractorProjectParticipation";
 import type { ProjectPackage } from "@/hooks/useProjectDetail";
 import { formatDate } from "@/lib/formatDate";
@@ -35,6 +39,12 @@ const STATUS_CHIP: Record<string, string> = {
   cancelled: "bg-muted text-muted-foreground",
 };
 
+const RAMS_LABEL: Record<string, string> = {
+  submitted: "RAMS submitted",
+  returned: "RAMS returned",
+  accepted: "RAMS accepted",
+};
+
 /**
  * Per-phase sub-contractor coordination on a project the caller owns:
  * who has been invited, who accepted, and a way to invite someone new
@@ -42,12 +52,14 @@ const STATUS_CHIP: Record<string, string> = {
  */
 export function SubcontractorsCard({ projectId, packages }: { projectId: string; packages: ProjectPackage[] }) {
   const { rows, loading, error, refetch, inviteSubcontractor, cancelSubcontract } = usePackageSubcontractors(projectId);
+  const { rows: ramsRows, loading: ramsLoading, refetch: refetchRams } = usePackageSubcontractorRams(projectId);
   const [inviteFor, setInviteFor] = useState<ProjectPackage | null>(null);
   const [cancelTarget, setCancelTarget] = useState<PackageSubcontractorRow | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [viewRamsFor, setViewRamsFor] = useState<PackageSubcontractorRow | null>(null);
 
-  if (loading) return null;
+  if (loading || ramsLoading) return null;
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
 
   const handleCancel = async () => {
@@ -88,31 +100,51 @@ export function SubcontractorsCard({ projectId, packages }: { projectId: string;
                 <p className="text-sm text-muted-foreground">No subcontractors on this phase.</p>
               ) : (
                 <ul className="divide-y rounded-md border text-sm">
-                  {subs.map((s) => (
-                    <li key={s.subcontract_id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium">{s.subcontractor_name ?? "Contractor"}</p>
-                          {s.subcontractor_ts_code && <span className="font-mono text-xs text-muted-foreground">{s.subcontractor_ts_code}</span>}
-                          <Badge className={STATUS_CHIP[s.status]}>{STATUS_LABEL[s.status] ?? s.status}</Badge>
+                  {subs.map((s) => {
+                    const ramsRow = ramsRows.find((r) => r.subcontract_id === s.subcontract_id);
+                    let ramsLabel = ramsRow?.rams_status ? (RAMS_LABEL[ramsRow.rams_status] ?? ramsRow.rams_status) : "RAMS not submitted";
+                    if (
+                      (ramsRow?.rams_status === "submitted" || ramsRow?.rams_status === "returned")
+                      && ramsRow.in_force_version != null
+                    ) {
+                      ramsLabel += `, version ${ramsRow.in_force_version} still in force`;
+                    }
+                    return (
+                      <li key={s.subcontract_id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{s.subcontractor_name ?? "Contractor"}</p>
+                            {s.subcontractor_ts_code && <span className="font-mono text-xs text-muted-foreground">{s.subcontractor_ts_code}</span>}
+                            <Badge className={STATUS_CHIP[s.status]}>{STATUS_LABEL[s.status] ?? s.status}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{s.scope}</p>
+                          {(s.starts_on || s.ends_on) && (
+                            <p className="text-xs text-muted-foreground">
+                              {s.starts_on ? formatDate(s.starts_on) : "Start not set"} – {s.ends_on ? formatDate(s.ends_on) : "end not set"}
+                            </p>
+                          )}
+                          {s.status === "declined" && s.response_note && (
+                            <p className="text-xs text-muted-foreground">Note: {s.response_note}</p>
+                          )}
+                          {(s.status === "invited" || s.status === "accepted") && (
+                            <p className="text-xs text-muted-foreground">{ramsLabel}</p>
+                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{s.scope}</p>
-                        {(s.starts_on || s.ends_on) && (
-                          <p className="text-xs text-muted-foreground">
-                            {s.starts_on ? formatDate(s.starts_on) : "Start not set"} – {s.ends_on ? formatDate(s.ends_on) : "end not set"}
-                          </p>
-                        )}
-                        {s.status === "declined" && s.response_note && (
-                          <p className="text-xs text-muted-foreground">Note: {s.response_note}</p>
-                        )}
-                      </div>
-                      {(s.status === "invited" || s.status === "accepted") && (
-                        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setCancelTarget(s)}>
-                          Cancel
-                        </Button>
-                      )}
-                    </li>
-                  ))}
+                        <div className="flex shrink-0 gap-2">
+                          {ramsRow?.rams_id && (
+                            <Button size="sm" variant="outline" onClick={() => setViewRamsFor(s)}>
+                              View RAMS
+                            </Button>
+                          )}
+                          {(s.status === "invited" || s.status === "accepted") && (
+                            <Button size="sm" variant="ghost" onClick={() => setCancelTarget(s)}>
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -121,6 +153,13 @@ export function SubcontractorsCard({ projectId, packages }: { projectId: string;
       </CardContent>
 
       <InviteSubcontractorDialog pkg={inviteFor} onClose={() => setInviteFor(null)} onInvite={inviteSubcontractor} />
+
+      <ViewRamsDialog
+        target={viewRamsFor}
+        ramsRow={viewRamsFor ? ramsRows.find((r) => r.subcontract_id === viewRamsFor.subcontract_id) ?? null : null}
+        onClose={() => setViewRamsFor(null)}
+        onReviewed={async () => { await refetchRams(); setViewRamsFor(null); }}
+      />
 
       <AlertDialog open={!!cancelTarget} onOpenChange={(v) => !cancelling && !v && setCancelTarget(null)}>
         <AlertDialogContent>
@@ -262,6 +301,157 @@ function InviteSubcontractorDialog({
             Send invite
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ViewRamsDialog({
+  target,
+  ramsRow,
+  onClose,
+  onReviewed,
+}: {
+  target: PackageSubcontractorRow | null;
+  ramsRow: { rams_id: string | null; rams_status: string | null } | null;
+  onClose: () => void;
+  onReviewed: () => Promise<void>;
+}) {
+  const [full, setFull] = useState<SubcontractRamsRow | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [returnNote, setReturnNote] = useState("");
+  const [showReturnNote, setShowReturnNote] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!target || !ramsRow?.rams_id) {
+      setFull(null);
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    setShowReturnNote(false);
+    setReturnNote("");
+    setActionError(null);
+    fetchSubcontractRams(ramsRow.rams_id)
+      .then(setFull)
+      .catch((err) => setLoadError(messageOf(err)))
+      .finally(() => setLoading(false));
+  }, [target, ramsRow?.rams_id]);
+
+  const handleAccept = async () => {
+    if (!full) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      await reviewSubcontractRams(full.id, true, null);
+      await onReviewed();
+    } catch (err) {
+      setActionError(messageOf(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSendBack = async () => {
+    if (!full || !returnNote.trim()) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      await reviewSubcontractRams(full.id, false, returnNote.trim());
+      await onReviewed();
+    } catch (err) {
+      setActionError(messageOf(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => !submitting && !v && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>RAMS — {target?.subcontractor_name ?? "Subcontractor"}</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : loadError ? (
+          <p className="text-sm text-destructive">{loadError}</p>
+        ) : !full ? (
+          <p className="text-sm text-muted-foreground">No RAMS to show.</p>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <Badge className={full.status === "accepted" ? "bg-emerald-100 text-emerald-900" : full.status === "returned" ? "bg-red-100 text-red-900" : "bg-amber-100 text-amber-900"}>
+              v{full.version} · {full.status}
+            </Badge>
+            {full.job_description && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Job description</p>
+                <p>{full.job_description}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hazards</p>
+              {full.hazards.length === 0 ? <p className="text-muted-foreground">None recorded.</p> : (
+                <ul className="list-disc pl-5 space-y-1">
+                  {full.hazards.map((h, i) => (
+                    <li key={i}>{h.hazard} — {h.control_measures}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Method statement</p>
+              {full.method_steps.length === 0 ? <p className="text-muted-foreground">None recorded.</p> : (
+                <ol className="list-decimal pl-5 space-y-1">
+                  {full.method_steps.map((s, i) => (
+                    <li key={i}>{s.description}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            {full.ppe_requirements.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">PPE</p>
+                <p>{full.ppe_requirements.join(", ")}</p>
+              </div>
+            )}
+            {full.submitted_by_name && (
+              <p className="text-xs text-muted-foreground">
+                Submitted by {full.submitted_by_name}{full.submitted_at ? ` on ${formatDate(full.submitted_at)}` : ""}
+              </p>
+            )}
+            {actionError && <p className="text-destructive">{actionError}</p>}
+
+            {full.status === "submitted" && (
+              <div className="space-y-2 border-t pt-3">
+                {showReturnNote ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="rams-return-note">Note for the subcontractor</Label>
+                    <Textarea id="rams-return-note" value={returnNote} onChange={(e) => setReturnNote(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setShowReturnNote(false)} disabled={submitting}>Cancel</Button>
+                      <Button size="sm" variant="destructive" onClick={() => void handleSendBack()} disabled={!returnNote.trim() || submitting}>
+                        {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Send back
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setShowReturnNote(true)} disabled={submitting}>Send back</Button>
+                    <Button size="sm" onClick={() => void handleAccept()} disabled={submitting}>
+                      {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Accept
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

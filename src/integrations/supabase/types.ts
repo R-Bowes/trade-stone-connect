@@ -9657,6 +9657,139 @@ export type Database = {
           },
         ]
       }
+      subcontract_rams: {
+        Row: {
+          additional_notes: string | null
+          author_id: string
+          created_at: string
+          emergency_procedures: string | null
+          hazards: Json
+          id: string
+          job_description: string | null
+          method_steps: Json
+          ppe_requirements: Json
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          subcontract_id: string
+          submitted_at: string | null
+          submitted_by_name: string | null
+          supersedes_id: string | null
+          template_id: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          additional_notes?: string | null
+          author_id: string
+          created_at?: string
+          emergency_procedures?: string | null
+          hazards?: Json
+          id?: string
+          job_description?: string | null
+          method_steps?: Json
+          ppe_requirements?: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          subcontract_id: string
+          submitted_at?: string | null
+          submitted_by_name?: string | null
+          supersedes_id?: string | null
+          template_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          additional_notes?: string | null
+          author_id?: string
+          created_at?: string
+          emergency_procedures?: string | null
+          hazards?: Json
+          id?: string
+          job_description?: string | null
+          method_steps?: Json
+          ppe_requirements?: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          subcontract_id?: string
+          submitted_at?: string | null
+          submitted_by_name?: string | null
+          supersedes_id?: string | null
+          template_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_rams_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_subcontract_id_fkey"
+            columns: ["subcontract_id"]
+            isOneToOne: false
+            referencedRelation: "project_subcontracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_rams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_rams_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "rams_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subcontracts: {
         Row: {
           contract_id: string
@@ -12754,6 +12887,17 @@ export type Database = {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
       }
+      package_subcontractor_rams: {
+        Args: { p_project_id: string }
+        Returns: {
+          in_force_version: number
+          rams_id: string
+          rams_status: string
+          rams_version: number
+          subcontract_id: string
+          submitted_at: string
+        }[]
+      }
       package_subcontractors: {
         Args: { p_project_id: string }
         Returns: {
@@ -12864,17 +13008,38 @@ export type Database = {
         Args: { p_accept: boolean; p_id: string; p_note: string }
         Returns: undefined
       }
+      review_subcontract_rams: {
+        Args: { p_accept: boolean; p_id: string; p_note: string }
+        Returns: undefined
+      }
       revise_job_rams: { Args: { p_job_rams_id: string }; Returns: string }
+      revise_subcontract_rams: { Args: { p_id: string }; Returns: string }
       run_compliance_watcher: { Args: never; Returns: undefined }
       run_expiry_radar: { Args: never; Returns: undefined }
       run_ppm_generator: { Args: never; Returns: undefined }
       run_tendering_scheduled_tasks: { Args: never; Returns: undefined }
       save_profile_sections: { Args: { p_sections: Json }; Returns: undefined }
+      save_subcontract_rams: {
+        Args: {
+          p_additional_notes: string
+          p_emergency_procedures: string
+          p_hazards: Json
+          p_id: string
+          p_job_description: string
+          p_method_steps: Json
+          p_ppe_requirements: Json
+        }
+        Returns: undefined
+      }
       shortlist_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
       }
       sign_off_project: { Args: { p_project_id: string }; Returns: undefined }
+      start_subcontract_rams: {
+        Args: { p_subcontract_id: string; p_template_id: string }
+        Returns: string
+      }
       subcontract_detail: {
         Args: { p_id: string }
         Returns: {
@@ -12916,6 +13081,10 @@ export type Database = {
           title: string
           trade: string
         }[]
+      }
+      submit_subcontract_rams: {
+        Args: { p_id: string; p_name: string }
+        Returns: undefined
       }
       submit_tender_application: {
         Args: { p_application_id: string }

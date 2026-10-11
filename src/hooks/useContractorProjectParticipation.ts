@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Hazard, MethodStep } from "@/hooks/useRams";
+import type { Json } from "@/integrations/supabase/types";
 
 // Deliberately NOT named useContractorProjects — that name is already
 // taken by src/hooks/useContractorProjects.ts, the unrelated public-
@@ -425,4 +427,179 @@ export function useSubcontractDetail(subcontractId: string) {
   }, [load]);
 
   return { detail, phases, loading, error, refetch: load };
+}
+
+// ============================================================
+// Slice 4 step 3b -- the subcontractor's own RAMS, submitted to the
+// main contractor. Never job_rams; a separate table and lifecycle.
+// ============================================================
+
+const SUBCONTRACT_RAMS_SELECT =
+  "id, subcontract_id, author_id, version, supersedes_id, template_id, job_description, hazards, method_steps, ppe_requirements, emergency_procedures, additional_notes, status, submitted_at, submitted_by_name, reviewed_at, reviewed_by, review_note, created_at, updated_at";
+
+export interface SubcontractRamsRow {
+  id: string;
+  subcontract_id: string;
+  author_id: string;
+  version: number;
+  supersedes_id: string | null;
+  template_id: string | null;
+  job_description: string | null;
+  hazards: Hazard[];
+  method_steps: MethodStep[];
+  ppe_requirements: string[];
+  emergency_procedures: string | null;
+  additional_notes: string | null;
+  status: string;
+  submitted_at: string | null;
+  submitted_by_name: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PackageSubcontractorRamsRow {
+  subcontract_id: string;
+  rams_id: string | null;
+  rams_status: string | null;
+  rams_version: number | null;
+  submitted_at: string | null;
+  /** The version currently in force (status 'accepted'), or null. An
+   * accepted version stays in force while a later revision is drafted
+   * or submitted, so this can be set alongside a 'submitted'/'returned' rams_status. */
+  in_force_version: number | null;
+}
+
+/**
+ * All RAMS versions for one sub-contract, readable by the author (any
+ * status) or the main contractor (non-draft only) -- the table's own
+ * RLS already enforces this, so this reads it directly, no RPC.
+ */
+export function useSubcontractRams(subcontractId: string) {
+  const [rows, setRows] = useState<SubcontractRamsRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: selectError } = await supabase
+        .from("subcontract_rams" as never)
+        .select(SUBCONTRACT_RAMS_SELECT)
+        .eq("subcontract_id", subcontractId)
+        .order("version", { ascending: false });
+      if (selectError) throw selectError;
+      setRows((data ?? []) as unknown as SubcontractRamsRow[]);
+    } catch (err) {
+      console.error("Error loading sub-contract RAMS:", err);
+      setError(err instanceof Error ? err.message : "Could not load this RAMS.");
+    } finally {
+      setLoading(false);
+    }
+  }, [subcontractId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // The newest version is always the live one -- older versions only
+  // ever move to 'superseded', never coexist non-superseded alongside a
+  // newer one (enforced by subcontract_rams_live_uidx).
+  const current = rows[0] ?? null;
+  const earlier = rows.slice(1);
+
+  const start = useCallback(async (templateId: string | null): Promise<void> => {
+    const { error: rpcError } = await supabase.rpc("start_subcontract_rams", {
+      p_subcontract_id: subcontractId,
+      p_template_id: templateId,
+    });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [subcontractId, load]);
+
+  const save = useCallback(async (fields: {
+    jobDescription: string | null;
+    hazards: Hazard[];
+    methodSteps: MethodStep[];
+    ppeRequirements: string[];
+    emergencyProcedures: string | null;
+    additionalNotes: string | null;
+  }): Promise<void> => {
+    if (!current) throw new Error("No draft to save.");
+    const { error: rpcError } = await supabase.rpc("save_subcontract_rams", {
+      p_id: current.id,
+      p_job_description: fields.jobDescription,
+      p_hazards: fields.hazards as unknown as Json,
+      p_method_steps: fields.methodSteps as unknown as Json,
+      p_ppe_requirements: fields.ppeRequirements as unknown as Json,
+      p_emergency_procedures: fields.emergencyProcedures,
+      p_additional_notes: fields.additionalNotes,
+    });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [current, load]);
+
+  const submit = useCallback(async (name: string): Promise<void> => {
+    if (!current) throw new Error("No draft to submit.");
+    const { error: rpcError } = await supabase.rpc("submit_subcontract_rams", { p_id: current.id, p_name: name });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [current, load]);
+
+  const revise = useCallback(async (): Promise<void> => {
+    if (!current) throw new Error("Nothing to revise.");
+    const { error: rpcError } = await supabase.rpc("revise_subcontract_rams", { p_id: current.id });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [current, load]);
+
+  return { current, earlier, loading, error, refetch: load, start, save, submit, revise };
+}
+
+/** Review (accept/return) a submitted subcontract RAMS. Main contractor side. */
+export async function reviewSubcontractRams(id: string, accept: boolean, note: string | null): Promise<void> {
+  const { error } = await supabase.rpc("review_subcontract_rams", { p_id: id, p_accept: accept, p_note: note });
+  if (error) throw new Error(error.message);
+}
+
+/** One subcontract RAMS row, read directly -- for the main contractor's "View RAMS" dialog. */
+export async function fetchSubcontractRams(id: string): Promise<SubcontractRamsRow | null> {
+  const { data, error } = await supabase
+    .from("subcontract_rams" as never)
+    .select(SUBCONTRACT_RAMS_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as SubcontractRamsRow) ?? null;
+}
+
+/** Per sub-contract RAMS status on every package of a project the caller owns. A draft is never reported. */
+export function usePackageSubcontractorRams(projectId: string) {
+  const [rows, setRows] = useState<PackageSubcontractorRamsRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("package_subcontractor_rams", { p_project_id: projectId });
+      if (rpcError) throw rpcError;
+      setRows((data ?? []) as PackageSubcontractorRamsRow[]);
+    } catch (err) {
+      console.error("Error loading package sub-contractor RAMS:", err);
+      setError(err instanceof Error ? err.message : "Could not load sub-contractor RAMS.");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { rows, loading, error, refetch: load };
 }

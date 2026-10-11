@@ -1742,6 +1742,10 @@ their existing jobs for one customer as phases (migration
   on: the invoice, quote and job locks in NOW.md; the accountant's
   written answers on CIS and the VAT reverse charge; TradeStone
   calculates and pays net, the contractor pays HMRC.
+- subcontractor RAMS has no PDF; the customer cannot see it (decide
+  with step 4).
+- subcontractor screens from steps 3a and 3b are not browser-checked:
+  no second contractor login was available on 11 Oct.
 - phased quotes (stage payments created from a project) after the
   quote lock.
 - expense and mileage project pickers still read
