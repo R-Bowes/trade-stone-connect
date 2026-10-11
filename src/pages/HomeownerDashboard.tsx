@@ -4,7 +4,7 @@ import HomeownerLayout from "@/components/layout/HomeownerLayout";
 import { HelpSystemProvider } from "@/components/help/HelpSystemProvider";
 import { ClientJobsView } from "@/components/management/ClientJobsView";
 import { ProjectsView } from "@/components/projects/ProjectsView";
-import { ProjectPage } from "@/components/projects/ProjectPage";
+import { HomeownerProjectRoute } from "@/components/homeowner/HomeownerProjectRoute";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { EnquiryList } from "@/components/personal/EnquiryList";
@@ -632,7 +632,7 @@ export default function HomeownerDashboard() {
       case "projects":
         return (
           <div className="p-6">
-            {projectId ? <ProjectPage key={projectId} projectId={projectId} /> : <ProjectsView />}
+            {projectId ? <HomeownerProjectRoute key={projectId} projectId={projectId} /> : <ProjectsView />}
           </div>
         );
 

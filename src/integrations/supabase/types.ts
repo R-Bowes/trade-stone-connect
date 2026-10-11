@@ -12455,6 +12455,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      _project_money_rows: {
+        Args: { p_project_id: string }
+        Returns: {
+          agreed: number
+          due_now: number
+          job_id: string
+          package_id: string
+          paid: number
+          still_to_pay: number
+        }[]
+      }
       _work_order_approval_threshold: {
         Args: { p_company_id: string; p_site_id: string }
         Returns: number
@@ -12747,6 +12758,48 @@ export type Database = {
         Args: { p_contractor_id: string }
         Returns: string
       }
+      customer_contractor_project_money: {
+        Args: { p_project_id: string }
+        Returns: {
+          agreed: number
+          due_now: number
+          job_id: string
+          package_id: string
+          paid: number
+          still_to_pay: number
+        }[]
+      }
+      customer_contractor_project_view: {
+        Args: { p_project_id: string }
+        Returns: {
+          contractor_name: string
+          contractor_ts_code: string
+          job_end_date: string
+          job_id: string
+          job_number: number
+          job_start_date: string
+          job_status: string
+          needed_from: string
+          needed_to: string
+          package_id: string
+          subcontractor_names: string
+          title: string
+          trade: string
+        }[]
+      }
+      customer_contractor_projects: {
+        Args: never
+        Returns: {
+          complete_phase_count: number
+          contractor_name: string
+          phase_count: number
+          project_id: string
+          status: string
+          target_end: string
+          target_start: string
+          title: string
+        }[]
+      }
       decline_quote: {
         Args: {
           p_quote_id: string
@@ -12887,6 +12940,10 @@ export type Database = {
       }
       is_company_member: { Args: { p_company_id: string }; Returns: boolean }
       is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
+      is_contractor_project_customer: {
+        Args: { p_project_id: string }
+        Returns: boolean
+      }
       is_conversation_party: {
         Args: { p_conversation_id: string }
         Returns: boolean
@@ -12982,6 +13039,10 @@ export type Database = {
         Returns: boolean
       }
       project_company_id: { Args: { p_project_id: string }; Returns: string }
+      project_is_contractor_type: {
+        Args: { p_project_id: string }
+        Returns: boolean
+      }
       project_money: {
         Args: { p_project_id: string }
         Returns: {
@@ -13026,6 +13087,14 @@ export type Database = {
           p_engagement_id: string
           p_site_id?: string
           p_title: string
+        }
+        Returns: string
+      }
+      raise_contractor_project_snag: {
+        Args: {
+          p_description: string
+          p_package_id: string
+          p_project_id: string
         }
         Returns: string
       }
@@ -13094,6 +13163,10 @@ export type Database = {
       send_subcontract_message: {
         Args: { p_content: string; p_subcontract_id: string }
         Returns: string
+      }
+      set_contractor_project_snag_status: {
+        Args: { p_resolved: boolean; p_snag_id: string }
+        Returns: undefined
       }
       shortlist_tender_application: {
         Args: { p_application_id: string }

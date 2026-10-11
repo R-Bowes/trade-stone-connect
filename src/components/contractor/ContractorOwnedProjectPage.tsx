@@ -19,6 +19,8 @@ import { BudgetBand } from "@/components/projects/BudgetBand";
 import { PackagesSection } from "@/components/projects/PackagesSection";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
 import { SubcontractorsCard } from "@/components/contractor/SubcontractorsCard";
+import { SnagListCard } from "@/components/projects/SnagListCard";
+import { SignOffCard } from "@/components/projects/SignOffCard";
 import { messageOf } from "@/components/projects/projectErrors";
 
 const LIST_PATH = "/dashboard/contractor?view=projects";
@@ -148,6 +150,9 @@ export function ContractorOwnedProjectPage({ projectId }: { projectId: string })
               <span className="font-mono">{project.budget != null ? formatGBP(project.budget) : "Not set"}</span>
             </span>
           </div>
+          {detail.attachedJobCount > 0 && (
+            <p className="text-sm text-muted-foreground">Your customer can see this project and signs it off.</p>
+          )}
         </div>
         {!readOnly && (
           <div className="flex gap-2">
@@ -204,6 +209,24 @@ export function ContractorOwnedProjectPage({ projectId }: { projectId: string })
         />
 
         <SubcontractorsCard projectId={project.id} packages={detail.packages} />
+
+        <SnagListCard
+          snags={detail.snags}
+          packages={detail.packages}
+          readOnly
+          addSnag={async () => { throw new Error("Only the customer can raise a snag."); }}
+          resolveSnag={async () => { throw new Error("Only the customer can resolve a snag."); }}
+        />
+
+        {project.status === "completed" && (
+          <SignOffCard
+            projectStatus="completed"
+            signOffs={detail.signOffs}
+            blockers={[]}
+            stillToPay={0}
+            onSignOff={async () => {}}
+          />
+        )}
       </div>
 
       <CreateProjectDialog

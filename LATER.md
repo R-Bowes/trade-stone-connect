@@ -1745,9 +1745,11 @@ tables are written only by server functions. The old subcontracts
 and contracts tables are untouched and unused by this.
 
 **Slice 4 still to build:**
-- step 4: the customer's view of a contractor-owned project, and
-  customer sign-off. Until then a job grouped by the contractor cannot
-  be added to the customer's own project.
+- step 4b: business customers of a contractor-owned project (view,
+  snags, sign-off, with site coverage). Until then such a project
+  cannot be signed off.
+- a contractor project is visible to its customer as soon as a job is
+  attached; there is no share switch.
 - step 5: subcontract payments with CIS (decision B, 10 Oct). Blocked
   on: the invoice, quote and job locks in NOW.md; the accountant's
   written answers on CIS and the VAT reverse charge; TradeStone

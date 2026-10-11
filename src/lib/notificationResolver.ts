@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, ShieldAlert, Users, type LucideIcon } from "lucide-react";
+import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, ShieldAlert, Users, CheckCircle, type LucideIcon } from "lucide-react";
 
 export type ViewerRole = "personal" | "business" | "contractor" | null;
 
@@ -63,6 +63,11 @@ export function notificationIcon(type: string): LucideIcon {
     case "subcontract_rams_reviewed":
     case "subcontract_message":
       return Users;
+    case "project_snag_raised":
+    case "project_snag_resolved":
+      return StickyNote;
+    case "project_signed_off":
+      return CheckCircle;
     default:
       return Bell;
   }
@@ -110,6 +115,13 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
 
     case "contractor_verification":
       return "/dashboard/contractor?view=verification";
+
+    case "project":
+      // project_snag_raised, project_snag_resolved and project_signed_off
+      // are only ever sent to the contractor who owns the project (the
+      // customer who raised/resolved the snag or signed off is the other
+      // party).
+      return refId ? `/dashboard/contractor?view=projects&project=${refId}` : "/dashboard/contractor?view=projects";
 
     case "project_subcontract":
       // Accepted-only detail page can't take an invite/cancelled row

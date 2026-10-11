@@ -19,12 +19,15 @@ type Props = {
   readOnly: boolean;
   addSnag: (description: string, packageId: string | null) => Promise<void>;
   resolveSnag: (snagId: string) => Promise<void>;
+  /** What "packages" are called in the add-snag dropdown. Contractor-run
+   * projects call them "phases" everywhere else on that page. */
+  packageNoun?: "Package" | "Phase";
 };
 
 const WHOLE_PROJECT = "__project__";
 
 /** A light snag list: open snags first, resolved ones folded away under a count. */
-export function SnagListCard({ snags, packages, readOnly, addSnag, resolveSnag }: Props) {
+export function SnagListCard({ snags, packages, readOnly, addSnag, resolveSnag, packageNoun = "Package" }: Props) {
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
@@ -114,16 +117,17 @@ export function SnagListCard({ snags, packages, readOnly, addSnag, resolveSnag }
         )}
       </CardContent>
 
-      <AddSnagDialog open={adding} packages={packages} onClose={() => setAdding(false)} onSave={addSnag} />
+      <AddSnagDialog open={adding} packages={packages} packageNoun={packageNoun} onClose={() => setAdding(false)} onSave={addSnag} />
     </Card>
   );
 }
 
 function AddSnagDialog({
-  open, packages, onClose, onSave,
+  open, packages, packageNoun, onClose, onSave,
 }: {
   open: boolean;
   packages: ProjectPackage[];
+  packageNoun: "Package" | "Phase";
   onClose: () => void;
   onSave: (description: string, packageId: string | null) => Promise<void>;
 }) {
@@ -177,7 +181,7 @@ function AddSnagDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label>Package (optional)</Label>
+            <Label>{packageNoun} (optional)</Label>
             <Select value={packageId} onValueChange={setPackageId}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
