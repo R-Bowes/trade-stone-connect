@@ -1694,7 +1694,7 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
-## Projects (slices 1 to 3 live; slice 4 and tender link to build)
+## Projects (slices 1 to 3 and slice 4 steps 1-2 live)
 
 **State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
 and their routes unregistered (c77bf32). Slice 1 foundations live
@@ -1721,6 +1721,31 @@ budget band, timeline, snags, sign-off and "Who can see this".
 Project money is computed server-side by project_money and
 project_money_totals (migration 20261009120000) for anyone with
 project access; they mirror src/lib/invoiceMoney.ts.
+
+**Slice 4 steps 1-2 (10-11 Oct 2026, commit 9c956d9):** contractors
+see projects their jobs are part of, read-only, with other trades'
+names and dates and no money (contractor_projects,
+contractor_project_view, contractor_project_snags; migration
+20261010120000). Contractors can create their own project and group
+their existing jobs for one customer as phases (migration
+20261010130000). The customer signs off, not the contractor.
+
+**Slice 4 still to build:**
+- step 3: sub-contracting, coordination only: invite a subcontractor
+  to a phase; they see dates, scope and RAMS. Link an existing
+  subcontractor job; no auto-minting. The subcontracts table exists
+  and is unused.
+- step 4: the customer's view of a contractor-owned project, and
+  customer sign-off. Until then a job grouped by the contractor cannot
+  be added to the customer's own project.
+- step 5: subcontract payments with CIS (decision B, 10 Oct). Blocked
+  on: the invoice, quote and job locks in NOW.md; the accountant's
+  written answers on CIS and the VAT reverse charge; TradeStone
+  calculates and pays net, the contractor pays HMRC.
+- phased quotes (stage payments created from a project) after the
+  quote lock.
+- expense and mileage project pickers still read
+  projects.lead_contractor_id and return nothing.
 
 **Slice 3 follow-ups:**
 - coverage not yet seen in the browser: needs a second site and a
