@@ -1694,7 +1694,7 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
-## Projects (slices 1 to 3 and slice 4 steps 1-2 live)
+## Projects (slices 1 to 3 and slice 4 steps 1-3 live)
 
 **State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
 and their routes unregistered (c77bf32). Slice 1 foundations live
@@ -1730,11 +1730,21 @@ contractor_project_view, contractor_project_snags; migration
 their existing jobs for one customer as phases (migration
 20261010130000). The customer signs off, not the contractor.
 
+**Slice 4 step 3 (11 Oct 2026, commits 95c3e6d, 09eade2, 59a9aff):**
+sub-contracting, coordination only, no money. A contractor who owns
+a project invites another contractor to a phase by TS-C code
+(project_subcontracts, migration 20261011120000). After accepting,
+the subcontractor sees scope, dates, site address, customer name,
+the other phases and the main contractor's signed RAMS. The
+subcontractor writes their own RAMS and submits it; the main
+contractor accepts it or returns it with a note, and an accepted
+version stays in force until its replacement is accepted
+(subcontract_rams, 20261011140000). One private message thread per
+sub-contract (subcontract_messages, 20261011160000). All three
+tables are written only by server functions. The old subcontracts
+and contracts tables are untouched and unused by this.
+
 **Slice 4 still to build:**
-- step 3: sub-contracting, coordination only: invite a subcontractor
-  to a phase; they see dates, scope and RAMS. Link an existing
-  subcontractor job; no auto-minting. The subcontracts table exists
-  and is unused.
 - step 4: the customer's view of a contractor-owned project, and
   customer sign-off. Until then a job grouped by the contractor cannot
   be added to the customer's own project.
@@ -1744,11 +1754,19 @@ their existing jobs for one customer as phases (migration
   calculates and pays net, the contractor pays HMRC.
 - subcontractor RAMS has no PDF; the customer cannot see it (decide
   with step 4).
-- subcontractor screens from steps 3a and 3b are not browser-checked:
-  no second contractor login was available on 11 Oct.
+- subcontractor screens from step 3 (invite, accept or decline,
+  phase page, own RAMS, messages) are not browser-checked: no second
+  contractor login was available on 11 Oct. Check before the first
+  real contractor.
 - sub-contract threads are not in the main Messages inbox; no email
   for them; no attachments; the contractor's team cannot use them.
-- step 3c subcontractor screens are not browser-checked.
+- sub-contracting works only on contractor-owned projects; a
+  contractor cannot yet bring a subcontractor onto a customer's or
+  business's project.
+- deleting a phase silently removes its sub-contracts, RAMS and
+  messages; no notification is sent.
+- no contact-detail filter exists on any message thread, customer
+  threads included.
 - phased quotes (stage payments created from a project) after the
   quote lock.
 - expense and mileage project pickers still read
@@ -1788,7 +1806,7 @@ their existing jobs for one customer as phases (migration
 **Still open:**
 - Confirm what contractor_projects / contractor_project_groups are.
 
-**Still parked:** Gantt detail, sub-contractor hiring, template schemas.
+**Still parked:** Gantt detail, sub-contractor payments (step 5), template schemas.
 
 ## Parked from 5–6 Oct 2026
 - Customer invoice PDF: suspected to show the customer's own details in the
