@@ -1746,6 +1746,9 @@ their existing jobs for one customer as phases (migration
   with step 4).
 - subcontractor screens from steps 3a and 3b are not browser-checked:
   no second contractor login was available on 11 Oct.
+- sub-contract threads are not in the main Messages inbox; no email
+  for them; no attachments; the contractor's team cannot use them.
+- step 3c subcontractor screens are not browser-checked.
 - phased quotes (stage payments created from a project) after the
   quote lock.
 - expense and mileage project pickers still read

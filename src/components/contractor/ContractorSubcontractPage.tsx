@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
 import { useSubcontractDetail } from "@/hooks/useContractorProjectParticipation";
 import { YourSubcontractRamsCard } from "@/components/contractor/YourSubcontractRamsCard";
+import { SubcontractThread } from "@/components/contractor/SubcontractThread";
 import { formatDate } from "@/lib/formatDate";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
@@ -141,7 +142,20 @@ export function ContractorSubcontractPage({ subcontractId }: { subcontractId: st
           <YourSubcontractRamsCard subcontractId={subcontractId} mainContractorName={detail.main_contractor_name} />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="font-heading text-lg">Messages</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[400px]">
+              <SubcontractThread
+                subcontractId={subcontractId}
+                status={detail.status}
+                otherPartyName={detail.main_contractor_name}
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="font-heading text-lg">Other phases</CardTitle>

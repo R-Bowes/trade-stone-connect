@@ -15,12 +15,14 @@ import { ErrorState } from "@/components/AsyncState";
 import {
   usePackageSubcontractors,
   usePackageSubcontractorRams,
+  useSubcontractUnreadCounts,
   lookupContractorByTsCode,
   fetchSubcontractRams,
   reviewSubcontractRams,
   type PackageSubcontractorRow,
   type SubcontractRamsRow,
 } from "@/hooks/useContractorProjectParticipation";
+import { SubcontractThread } from "@/components/contractor/SubcontractThread";
 import type { ProjectPackage } from "@/hooks/useProjectDetail";
 import { formatDate } from "@/lib/formatDate";
 import { messageOf } from "@/components/projects/projectErrors";
@@ -53,11 +55,13 @@ const RAMS_LABEL: Record<string, string> = {
 export function SubcontractorsCard({ projectId, packages }: { projectId: string; packages: ProjectPackage[] }) {
   const { rows, loading, error, refetch, inviteSubcontractor, cancelSubcontract } = usePackageSubcontractors(projectId);
   const { rows: ramsRows, loading: ramsLoading, refetch: refetchRams } = usePackageSubcontractorRams(projectId);
+  const { counts: unreadCounts, refetch: refetchUnread } = useSubcontractUnreadCounts();
   const [inviteFor, setInviteFor] = useState<ProjectPackage | null>(null);
   const [cancelTarget, setCancelTarget] = useState<PackageSubcontractorRow | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [viewRamsFor, setViewRamsFor] = useState<PackageSubcontractorRow | null>(null);
+  const [messagesFor, setMessagesFor] = useState<PackageSubcontractorRow | null>(null);
 
   if (loading || ramsLoading) return null;
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
@@ -131,6 +135,12 @@ export function SubcontractorsCard({ projectId, packages }: { projectId: string;
                           )}
                         </div>
                         <div className="flex shrink-0 gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setMessagesFor(s)}>
+                            Messages
+                            {!!unreadCounts[s.subcontract_id] && (
+                              <Badge className="ml-2 bg-destructive text-destructive-foreground">{unreadCounts[s.subcontract_id]}</Badge>
+                            )}
+                          </Button>
                           {ramsRow?.rams_id && (
                             <Button size="sm" variant="outline" onClick={() => setViewRamsFor(s)}>
                               View RAMS
@@ -160,6 +170,21 @@ export function SubcontractorsCard({ projectId, packages }: { projectId: string;
         onClose={() => setViewRamsFor(null)}
         onReviewed={async () => { await refetchRams(); setViewRamsFor(null); }}
       />
+
+      <Dialog open={!!messagesFor} onOpenChange={(v) => { if (!v) { setMessagesFor(null); void refetchUnread(); } }}>
+        <DialogContent className="flex h-[70vh] max-w-lg flex-col">
+          <DialogHeader>
+            <DialogTitle>Messages — {messagesFor?.subcontractor_name ?? "Subcontractor"}</DialogTitle>
+          </DialogHeader>
+          {messagesFor && (
+            <SubcontractThread
+              subcontractId={messagesFor.subcontract_id}
+              status={messagesFor.status}
+              otherPartyName={messagesFor.subcontractor_name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!cancelTarget} onOpenChange={(v) => !cancelling && !v && setCancelTarget(null)}>
         <AlertDialogContent>

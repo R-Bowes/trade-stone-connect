@@ -13,7 +13,9 @@ import { ErrorState, LoadingState } from "@/components/AsyncState";
 import {
   useContractorProjectsList, type ContractorProjectSummary,
   useMySubcontractWork, type SubcontractWorkRow,
+  useSubcontractUnreadCounts,
 } from "@/hooks/useContractorProjectParticipation";
+import { SubcontractThread } from "@/components/contractor/SubcontractThread";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
@@ -79,10 +81,12 @@ export function ContractorProjectsView() {
 function SubcontractWorkSection() {
   const navigate = useNavigate();
   const { rows, loading, error, refetch, respond } = useMySubcontractWork();
+  const { counts: unreadCounts, refetch: refetchUnread } = useSubcontractUnreadCounts();
   const [declineTarget, setDeclineTarget] = useState<SubcontractWorkRow | null>(null);
   const [declineNote, setDeclineNote] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [messagesFor, setMessagesFor] = useState<SubcontractWorkRow | null>(null);
 
   if (loading) return null;
   if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
@@ -133,6 +137,9 @@ function SubcontractWorkSection() {
                   <Badge className={row.status === "accepted" ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"}>
                     {row.status === "accepted" ? "Accepted" : "Invited"}
                   </Badge>
+                  {!!unreadCounts[row.id] && (
+                    <Badge className="bg-destructive text-destructive-foreground">{unreadCounts[row.id]} unread</Badge>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {row.project_title} · {row.main_contractor_name ?? "Main contractor"}
@@ -144,6 +151,9 @@ function SubcontractWorkSection() {
               <div className="flex shrink-0 gap-2">
                 {row.status === "invited" ? (
                   <>
+                    <Button size="sm" variant="outline" onClick={() => setMessagesFor(row)}>
+                      Message
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => setDeclineTarget(row)} disabled={busyId === row.id}>
                       Decline
                     </Button>
@@ -182,6 +192,21 @@ function SubcontractWorkSection() {
               Decline
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!messagesFor} onOpenChange={(v) => { if (!v) { setMessagesFor(null); void refetchUnread(); } }}>
+        <DialogContent className="flex h-[70vh] max-w-lg flex-col">
+          <DialogHeader>
+            <DialogTitle>Messages — {messagesFor?.main_contractor_name ?? "Main contractor"}</DialogTitle>
+          </DialogHeader>
+          {messagesFor && (
+            <SubcontractThread
+              subcontractId={messagesFor.id}
+              status={messagesFor.status}
+              otherPartyName={messagesFor.main_contractor_name}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </Card>

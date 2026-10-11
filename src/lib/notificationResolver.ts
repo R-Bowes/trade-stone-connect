@@ -61,6 +61,7 @@ export function notificationIcon(type: string): LucideIcon {
     case "subcontract_cancelled":
     case "subcontract_rams_submitted":
     case "subcontract_rams_reviewed":
+    case "subcontract_message":
       return Users;
     default:
       return Bell;
@@ -114,10 +115,10 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
       // Accepted-only detail page can't take an invite/cancelled row
       // (subcontract_detail raises unless status='accepted'), and a
       // response notification's reference_id is the subcontract, not
-      // the project -- the Projects list is always safe for all five
+      // the project -- the Projects list is always safe for all six
       // types that carry this reference_type (invite/response/cancelled
-      // from step 3a, rams_submitted/rams_reviewed from step 3b) and
-      // shows the right status itself.
+      // from step 3a, rams_submitted/rams_reviewed from step 3b,
+      // message from step 3c) and shows the right status itself.
       return "/dashboard/contractor?view=projects";
 
     default:

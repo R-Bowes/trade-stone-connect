@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Hazard, MethodStep } from "@/hooks/useRams";
 import type { Json } from "@/integrations/supabase/types";
@@ -602,4 +602,108 @@ export function usePackageSubcontractorRams(projectId: string) {
   }, [load]);
 
   return { rows, loading, error, refetch: load };
+}
+
+// ============================================================
+// Slice 4 step 3c -- messaging between the main contractor and the
+// subcontractor on a sub-contract. Deliberately separate from
+// job_conversations/job_messages.
+// ============================================================
+
+const SUBCONTRACT_MESSAGE_SELECT = "id, subcontract_id, sender_id, content, read_at, created_at";
+
+export interface SubcontractMessageRow {
+  id: string;
+  subcontract_id: string;
+  sender_id: string;
+  content: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+const THREAD_POLL_MS = 15000;
+
+/** A sub-contract's message thread. Marks it read on mount, refetches every 15s and on window focus. */
+export function useSubcontractThread(subcontractId: string, canSend: boolean) {
+  const [messages, setMessages] = useState<SubcontractMessageRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const { data, error: selectError } = await supabase
+        .from("subcontract_messages" as never)
+        .select(SUBCONTRACT_MESSAGE_SELECT)
+        .eq("subcontract_id", subcontractId)
+        .order("created_at", { ascending: true });
+      if (selectError) throw selectError;
+      setMessages((data ?? []) as unknown as SubcontractMessageRow[]);
+    } catch (err) {
+      console.error("Error loading sub-contract thread:", err);
+      setError(err instanceof Error ? err.message : "Could not load this thread.");
+    } finally {
+      setLoading(false);
+    }
+  }, [subcontractId]);
+
+  useEffect(() => {
+    void load();
+    void supabase.rpc("mark_subcontract_messages_read", { p_subcontract_id: subcontractId });
+
+    const interval = setInterval(() => void load(), THREAD_POLL_MS);
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [subcontractId, load]);
+
+  const send = useCallback(async (content: string): Promise<void> => {
+    if (!canSend) throw new Error("This thread is closed.");
+    setSending(true);
+    try {
+      const { error: rpcError } = await supabase.rpc("send_subcontract_message", {
+        p_subcontract_id: subcontractId,
+        p_content: content,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      await load();
+    } finally {
+      setSending(false);
+    }
+  }, [subcontractId, canSend, load]);
+
+  return { messages, loading, error, sending, send, refetch: load };
+}
+
+/** Unread message counts, keyed by subcontract_id, for every sub-contract the caller is a party to. */
+export function useSubcontractUnreadCounts() {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const mounted = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.rpc("subcontract_unread_counts");
+      if (error) throw error;
+      if (!mounted.current) return;
+      const rows = (data ?? []) as { subcontract_id: string; unread: number }[];
+      setCounts(Object.fromEntries(rows.map((r) => [r.subcontract_id, r.unread])));
+    } catch (err) {
+      console.error("Error loading sub-contract unread counts:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    return () => { mounted.current = false; };
+  }, [load]);
+
+  return { counts, loading, refetch: load };
 }

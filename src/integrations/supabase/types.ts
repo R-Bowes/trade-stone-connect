@@ -9657,6 +9657,62 @@ export type Database = {
           },
         ]
       }
+      subcontract_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_id: string
+          subcontract_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id: string
+          subcontract_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+          subcontract_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_messages_subcontract_id_fkey"
+            columns: ["subcontract_id"]
+            isOneToOne: false
+            referencedRelation: "project_subcontracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subcontract_rams: {
         Row: {
           additional_notes: string | null
@@ -12859,6 +12915,10 @@ export type Database = {
       }
       mark_elapsed_cooling_off: { Args: never; Returns: number }
       mark_overdue_visits: { Args: never; Returns: number }
+      mark_subcontract_messages_read: {
+        Args: { p_subcontract_id: string }
+        Returns: number
+      }
       mark_tender_invitation_viewed: {
         Args: { p_invitation_id: string }
         Returns: undefined
@@ -13031,6 +13091,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      send_subcontract_message: {
+        Args: { p_content: string; p_subcontract_id: string }
+        Returns: string
+      }
       shortlist_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined
@@ -13080,6 +13144,13 @@ export type Database = {
           subcontractor_names: string
           title: string
           trade: string
+        }[]
+      }
+      subcontract_unread_counts: {
+        Args: never
+        Returns: {
+          subcontract_id: string
+          unread: number
         }[]
       }
       submit_subcontract_rams: {
