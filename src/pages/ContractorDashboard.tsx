@@ -63,6 +63,7 @@ import { WorkItemsList } from "@/components/shared/work/WorkItemsList";
 import { CONTRACTOR_WORK_ITEM_STAGES } from "@/lib/workItems";
 import { ContractorProjectsView } from "@/components/contractor/ContractorProjectsView";
 import { ContractorProjectRoute } from "@/components/contractor/ContractorProjectRoute";
+import { ContractorSubcontractPage } from "@/components/contractor/ContractorSubcontractPage";
 
 type EnquiryForDialog = {
   id: string;
@@ -729,7 +730,9 @@ const ContractorDashboard = () => {
               takes part in, via contractor_projects()/contractor_project_view()
               (migration 20261010120000). Read-only: no create, no edit. */}
           <TabsContent value="projects" className="space-y-6">
-            {searchParams.get("project") ? (
+            {searchParams.get("subcontract") ? (
+              <ContractorSubcontractPage subcontractId={searchParams.get("subcontract")!} />
+            ) : searchParams.get("project") ? (
               <ContractorProjectRoute projectId={searchParams.get("project")!} />
             ) : (
               <ContractorProjectsView />

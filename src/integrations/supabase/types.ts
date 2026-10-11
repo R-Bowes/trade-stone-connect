@@ -7716,6 +7716,101 @@ export type Database = {
           },
         ]
       }
+      project_subcontracts: {
+        Row: {
+          created_at: string
+          ends_on: string | null
+          id: string
+          main_contractor_id: string
+          package_id: string
+          responded_at: string | null
+          response_note: string | null
+          scope: string
+          starts_on: string | null
+          status: string
+          subcontractor_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          main_contractor_id: string
+          package_id: string
+          responded_at?: string | null
+          response_note?: string | null
+          scope: string
+          starts_on?: string | null
+          status?: string
+          subcontractor_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          main_contractor_id?: string
+          package_id?: string
+          responded_at?: string | null
+          response_note?: string | null
+          scope?: string
+          starts_on?: string | null
+          status?: string
+          subcontractor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_subcontracts_main_contractor_id_fkey"
+            columns: ["main_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_main_contractor_id_fkey"
+            columns: ["main_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_main_contractor_id_fkey"
+            columns: ["main_contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "project_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_subcontracts_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_updates: {
         Row: {
           content: string | null
@@ -12361,6 +12456,7 @@ export type Database = {
       calculate_trade_averages: { Args: never; Returns: undefined }
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
+      cancel_project_subcontract: { Args: { p_id: string }; Returns: undefined }
       check_contractor_compliance: {
         Args: { p_contractor_id: string }
         Returns: Json
@@ -12527,6 +12623,13 @@ export type Database = {
         Args: { p_enquiry_id: string }
         Returns: boolean
       }
+      find_contractor_by_ts_code: {
+        Args: { p_ts_code: string }
+        Returns: {
+          display_name: string
+          ts_code: string
+        }[]
+      }
       generate_b2b_invoice: {
         Args: {
           p_company_id: string
@@ -12579,6 +12682,20 @@ export type Database = {
         Args: { p_engagement_id: string; p_notice_effective_date: string }
         Returns: undefined
       }
+      has_accepted_subcontract_on_job: {
+        Args: { p_job_id: string }
+        Returns: boolean
+      }
+      invite_subcontractor: {
+        Args: {
+          p_ends_on: string
+          p_package_id: string
+          p_scope: string
+          p_starts_on: string
+          p_ts_code: string
+        }
+        Returns: string
+      }
       is_company_member: { Args: { p_company_id: string }; Returns: boolean }
       is_company_owner: { Args: { p_company_id: string }; Returns: boolean }
       is_conversation_party: {
@@ -12614,6 +12731,20 @@ export type Database = {
         Returns: undefined
       }
       mint_job_from_quote: { Args: { p_quote_id: string }; Returns: string }
+      my_subcontract_work: {
+        Args: never
+        Returns: {
+          ends_on: string
+          id: string
+          main_contractor_name: string
+          phase_title: string
+          project_title: string
+          scope: string
+          starts_on: string
+          status: string
+          trade: string
+        }[]
+      }
       my_team_member_ids: { Args: never; Returns: string[] }
       next_business_document_number: {
         Args: { p_company_id: string; p_entity: string }
@@ -12622,6 +12753,20 @@ export type Database = {
       next_document_number: {
         Args: { p_contractor_id: string; p_entity: string }
         Returns: number
+      }
+      package_subcontractors: {
+        Args: { p_project_id: string }
+        Returns: {
+          ends_on: string
+          package_id: string
+          response_note: string
+          scope: string
+          starts_on: string
+          status: string
+          subcontract_id: string
+          subcontractor_name: string
+          subcontractor_ts_code: string
+        }[]
       }
       project_access_rule: {
         Args: {
@@ -12715,6 +12860,10 @@ export type Database = {
         Args: { p_invoice_id: string; p_response: string }
         Returns: undefined
       }
+      respond_to_subcontract_invite: {
+        Args: { p_accept: boolean; p_id: string; p_note: string }
+        Returns: undefined
+      }
       revise_job_rams: { Args: { p_job_rams_id: string }; Returns: string }
       run_compliance_watcher: { Args: never; Returns: undefined }
       run_expiry_radar: { Args: never; Returns: undefined }
@@ -12726,6 +12875,48 @@ export type Database = {
         Returns: undefined
       }
       sign_off_project: { Args: { p_project_id: string }; Returns: undefined }
+      subcontract_detail: {
+        Args: { p_id: string }
+        Returns: {
+          customer_name: string
+          ends_on: string
+          id: string
+          job_end_date: string
+          job_start_date: string
+          job_status: string
+          main_contractor_name: string
+          needed_from: string
+          needed_to: string
+          phase_title: string
+          project_title: string
+          rams_id: string
+          rams_signed_off_at: string
+          rams_version: number
+          scope: string
+          site_addr_city: string
+          site_addr_country: string
+          site_addr_line1: string
+          site_addr_line2: string
+          site_addr_postcode: string
+          site_addr_region: string
+          starts_on: string
+          status: string
+          trade: string
+        }[]
+      }
+      subcontract_project_phases: {
+        Args: { p_id: string }
+        Returns: {
+          job_status: string
+          main_contractor_name: string
+          needed_from: string
+          needed_to: string
+          package_id: string
+          subcontractor_names: string
+          title: string
+          trade: string
+        }[]
+      }
       submit_tender_application: {
         Args: { p_application_id: string }
         Returns: undefined

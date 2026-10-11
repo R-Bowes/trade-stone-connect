@@ -18,6 +18,7 @@ import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 import { BudgetBand } from "@/components/projects/BudgetBand";
 import { PackagesSection } from "@/components/projects/PackagesSection";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
+import { SubcontractorsCard } from "@/components/contractor/SubcontractorsCard";
 import { messageOf } from "@/components/projects/projectErrors";
 
 const LIST_PATH = "/dashboard/contractor?view=projects";
@@ -201,6 +202,8 @@ export function ContractorOwnedProjectPage({ projectId }: { projectId: string })
           jobs={detail.jobs}
           contractors={detail.contractors}
         />
+
+        <SubcontractorsCard projectId={project.id} packages={detail.packages} />
       </div>
 
       <CreateProjectDialog

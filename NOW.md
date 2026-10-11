@@ -48,6 +48,9 @@ Still open, holes NOT yet closed:
 - jobs SELECT for company members is not narrowed by site coverage: a
   site-only member can read every job in the company ("Company members
   can view company jobs" checks is_company_member only). Found 9 Oct.
+- project_sign_offs allows a direct client insert outside sign_off_project. Found 11 Oct.
+- notifications INSERT is WITH CHECK (true) for any logged-in user. Found 11 Oct.
+- subcontracts and contracts are client-writable with no WITH CHECK; the old Contracts screen is reachable by typed URL. Found 11 Oct.
 
 Parked defects:
 - VAT charged by non-registered contractors.

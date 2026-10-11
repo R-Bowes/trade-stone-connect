@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Briefcase, StickyNote, FileText, MessageCircle, CalendarClock, Bell, ShieldAlert, Users, type LucideIcon } from "lucide-react";
 
 export type ViewerRole = "personal" | "business" | "contractor" | null;
 
@@ -56,6 +56,10 @@ export function notificationIcon(type: string): LucideIcon {
     case "schedule_proposed":
     case "slots_proposed":
       return CalendarClock;
+    case "subcontract_invite":
+    case "subcontract_response":
+    case "subcontract_cancelled":
+      return Users;
     default:
       return Bell;
   }
@@ -103,6 +107,14 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
 
     case "contractor_verification":
       return "/dashboard/contractor?view=verification";
+
+    case "project_subcontract":
+      // Accepted-only detail page can't take an invite/cancelled row
+      // (subcontract_detail raises unless status='accepted'), and a
+      // response notification's reference_id is the subcontract, not
+      // the project -- the Projects list is always safe for all three
+      // of invite/response/cancelled and shows the right status itself.
+      return "/dashboard/contractor?view=projects";
 
     default:
       if (notif.type === "schedule_proposed" || notif.type === "job_confirmed") {

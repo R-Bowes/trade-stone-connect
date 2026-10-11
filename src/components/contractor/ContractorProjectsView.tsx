@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState, LoadingState } from "@/components/AsyncState";
-import { useContractorProjectsList, type ContractorProjectSummary } from "@/hooks/useContractorProjectParticipation";
+import {
+  useContractorProjectsList, type ContractorProjectSummary,
+  useMySubcontractWork, type SubcontractWorkRow,
+} from "@/hooks/useContractorProjectParticipation";
 import { projectDisplayStatus, PROJECT_STATUS_CHIP } from "@/lib/projectStatus";
 import { formatDate } from "@/lib/formatDate";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { messageOf } from "@/components/projects/projectErrors";
+
+const subcontractPath = (id: string) => `/dashboard/contractor?view=projects&subcontract=${id}`;
 
 const projectPath = (id: string) => `/dashboard/contractor?view=projects&project=${id}`;
 
@@ -50,6 +61,8 @@ export function ContractorProjectsView() {
         </div>
       )}
 
+      <SubcontractWorkSection />
+
       <CreateProjectDialog
         open={creating}
         onClose={() => setCreating(false)}
@@ -59,6 +72,119 @@ export function ContractorProjectsView() {
         }}
       />
     </div>
+  );
+}
+
+/** Sub-contract work this contractor has been invited to, or has accepted, elsewhere. */
+function SubcontractWorkSection() {
+  const navigate = useNavigate();
+  const { rows, loading, error, refetch, respond } = useMySubcontractWork();
+  const [declineTarget, setDeclineTarget] = useState<SubcontractWorkRow | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (loading) return null;
+  if (error) return <ErrorState message={error} onRetry={() => void refetch()} />;
+  if (rows.length === 0) return null;
+
+  const handleAccept = async (row: SubcontractWorkRow) => {
+    setBusyId(row.id);
+    setActionError(null);
+    try {
+      await respond(row.id, true, null);
+      navigate(subcontractPath(row.id));
+    } catch (err) {
+      setActionError(messageOf(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!declineTarget) return;
+    setBusyId(declineTarget.id);
+    setActionError(null);
+    try {
+      await respond(declineTarget.id, false, declineNote.trim() || null);
+      setDeclineTarget(null);
+      setDeclineNote("");
+    } catch (err) {
+      setActionError(messageOf(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="font-heading text-lg">Sub-contract work</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        <ul className="divide-y rounded-md border text-sm">
+          {rows.map((row) => (
+            <li key={row.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{row.phase_title}</p>
+                  {row.trade && <span className="text-xs text-muted-foreground">{row.trade}</span>}
+                  <Badge className={row.status === "accepted" ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"}>
+                    {row.status === "accepted" ? "Accepted" : "Invited"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {row.project_title} · {row.main_contractor_name ?? "Main contractor"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {row.starts_on ? formatDate(row.starts_on) : "Start not set"} – {row.ends_on ? formatDate(row.ends_on) : "end not set"}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                {row.status === "invited" ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setDeclineTarget(row)} disabled={busyId === row.id}>
+                      Decline
+                    </Button>
+                    <Button size="sm" onClick={() => void handleAccept(row)} disabled={busyId === row.id}>
+                      {busyId === row.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Accept
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => navigate(subcontractPath(row.id))}>
+                    Open
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+
+      <Dialog open={!!declineTarget} onOpenChange={(v) => !v && setDeclineTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline this invite?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              placeholder="Optional note for the main contractor"
+              value={declineNote}
+              onChange={(e) => setDeclineNote(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeclineTarget(null)}>Back</Button>
+            <Button variant="destructive" onClick={() => void handleDecline()} disabled={busyId === declineTarget?.id}>
+              {busyId === declineTarget?.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Decline
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 

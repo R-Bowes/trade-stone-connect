@@ -230,3 +230,199 @@ export function useContractorProjectDetail(projectId: string) {
 
   return { packages, snags, loading, error, refetch: load };
 }
+
+// ============================================================
+// Slice 4 step 3a -- sub-contracting (coordination only)
+// ============================================================
+
+export interface PackageSubcontractorRow {
+  package_id: string;
+  subcontract_id: string;
+  subcontractor_name: string | null;
+  subcontractor_ts_code: string | null;
+  scope: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  status: string;
+  response_note: string | null;
+}
+
+export interface SubcontractWorkRow {
+  id: string;
+  status: string;
+  project_title: string;
+  phase_title: string;
+  trade: string | null;
+  main_contractor_name: string | null;
+  scope: string;
+  starts_on: string | null;
+  ends_on: string | null;
+}
+
+export interface SubcontractDetail {
+  id: string;
+  status: string;
+  project_title: string;
+  phase_title: string;
+  trade: string | null;
+  main_contractor_name: string | null;
+  scope: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  needed_from: string | null;
+  needed_to: string | null;
+  job_status: string | null;
+  job_start_date: string | null;
+  job_end_date: string | null;
+  site_addr_line1: string | null;
+  site_addr_line2: string | null;
+  site_addr_city: string | null;
+  site_addr_region: string | null;
+  site_addr_postcode: string | null;
+  site_addr_country: string | null;
+  customer_name: string | null;
+  rams_id: string | null;
+  rams_version: number | null;
+  rams_signed_off_at: string | null;
+}
+
+export interface SubcontractProjectPhaseRow {
+  package_id: string;
+  title: string;
+  trade: string | null;
+  needed_from: string | null;
+  needed_to: string | null;
+  job_status: string | null;
+  main_contractor_name: string | null;
+  subcontractor_names: string | null;
+}
+
+/** Sub-contractors invited/accepted/declined/cancelled on each package of a project the caller owns. */
+export function usePackageSubcontractors(projectId: string) {
+  const [rows, setRows] = useState<PackageSubcontractorRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("package_subcontractors", { p_project_id: projectId });
+      if (rpcError) throw rpcError;
+      setRows((data ?? []) as PackageSubcontractorRow[]);
+    } catch (err) {
+      console.error("Error loading package subcontractors:", err);
+      setError(err instanceof Error ? err.message : "Could not load sub-contractors.");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const inviteSubcontractor = useCallback(async (
+    packageId: string,
+    tsCode: string,
+    scope: string,
+    startsOn: string | null,
+    endsOn: string | null
+  ): Promise<void> => {
+    const { error: rpcError } = await supabase.rpc("invite_subcontractor", {
+      p_package_id: packageId,
+      p_ts_code: tsCode,
+      p_scope: scope,
+      p_starts_on: startsOn,
+      p_ends_on: endsOn,
+    });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [load]);
+
+  const cancelSubcontract = useCallback(async (id: string): Promise<void> => {
+    const { error: rpcError } = await supabase.rpc("cancel_project_subcontract", { p_id: id });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [load]);
+
+  return { rows, loading, error, refetch: load, inviteSubcontractor, cancelSubcontract };
+}
+
+/** Looks up a contractor's display name by TS-C code, for the invite dialog's confirm step. Returns null if not found. */
+export async function lookupContractorByTsCode(tsCode: string): Promise<{ name: string } | null> {
+  const { data, error } = await supabase.rpc("find_contractor_by_ts_code", { p_ts_code: tsCode.trim() });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { display_name: string; ts_code: string }[];
+  const row = rows[0];
+  return row ? { name: row.display_name } : null;
+}
+
+/** Sub-contract work invited to, or accepted by, the caller. */
+export function useMySubcontractWork() {
+  const [rows, setRows] = useState<SubcontractWorkRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("my_subcontract_work");
+      if (rpcError) throw rpcError;
+      setRows((data ?? []) as SubcontractWorkRow[]);
+    } catch (err) {
+      console.error("Error loading sub-contract work:", err);
+      setError(err instanceof Error ? err.message : "Could not load your sub-contract work.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const respond = useCallback(async (id: string, accept: boolean, note: string | null): Promise<void> => {
+    const { error: rpcError } = await supabase.rpc("respond_to_subcontract_invite", { p_id: id, p_accept: accept, p_note: note });
+    if (rpcError) throw new Error(rpcError.message);
+    await load();
+  }, [load]);
+
+  return { rows, loading, error, refetch: load, respond };
+}
+
+/** One accepted sub-contract's detail, plus the other phases on its project. Accepted-only; the RPC raises otherwise. */
+export function useSubcontractDetail(subcontractId: string) {
+  const [detail, setDetail] = useState<SubcontractDetail | null>(null);
+  const [phases, setPhases] = useState<SubcontractProjectPhaseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [detailRes, phasesRes] = await Promise.all([
+        supabase.rpc("subcontract_detail", { p_id: subcontractId }),
+        supabase.rpc("subcontract_project_phases", { p_id: subcontractId }),
+      ]);
+      if (detailRes.error) throw detailRes.error;
+      if (phasesRes.error) throw phasesRes.error;
+      const detailRows = (detailRes.data ?? []) as SubcontractDetail[];
+      setDetail(detailRows[0] ?? null);
+      setPhases((phasesRes.data ?? []) as SubcontractProjectPhaseRow[]);
+    } catch (err) {
+      console.error("Error loading sub-contract detail:", err);
+      setError(err instanceof Error ? err.message : "Could not load this sub-contract.");
+    } finally {
+      setLoading(false);
+    }
+  }, [subcontractId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { detail, phases, loading, error, refetch: load };
+}
