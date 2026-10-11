@@ -1694,7 +1694,7 @@ only once a job row exists. Fix is a quote-based arm on the policy
 alongside the existing jobs arm) — needs its own decision on exactly which
 quote states qualify, so not done here. Sits alongside the profiles-snapshot
 entry above as outstanding access-model work on the profile/quote side.
-## Projects (slices 1 to 3 and slice 4 steps 1-3 live)
+## Projects (slices 1 to 3 and slice 4 steps 1-4 live)
 
 **State (6 Oct 2026):** Old bidding and delivery pages deleted (fc482fc)
 and their routes unregistered (c77bf32). Slice 1 foundations live
@@ -1743,6 +1743,15 @@ version stays in force until its replacement is accepted
 sub-contract (subcontract_messages, 20261011160000). All three
 tables are written only by server functions. The old subcontracts
 and contracts tables are untouched and unused by this.
+
+**Slice 4 step 4 (11 Oct 2026, commit c0196ef):** a personal
+customer sees projects their contractor runs for them (phases,
+contractor and accepted subcontractor names, dates, their own
+money), raises and resolves snags, and is the only one who can sign
+off (migration 20261011180000). Snags and sign-off on a
+contractor-owned project go through server functions only.
+project_money, and the customer's money view, share one internal
+function, _project_money_rows.
 
 **Slice 4 still to build:**
 - step 4b: business customers of a contractor-owned project (view,
