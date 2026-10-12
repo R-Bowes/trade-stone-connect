@@ -161,6 +161,92 @@ async function fetchChargeLedger(paymentIntent: Stripe.PaymentIntent): Promise<C
   }
 }
 
+// A payment that lands after an invoice has been voided (e.g. a card
+// payment that was already in flight when the contractor voided it) must
+// never flip status back to 'paid' -- void is a terminal, locked state
+// (invoices_issue_lock_guard). The money still moved, so the contractor is
+// told about it explicitly rather than the payment silently vanishing.
+async function notifyPaidAfterVoid(
+  supabase: ReturnType<typeof createClient>,
+  invoice: { id: string; contractor_id: string | null; invoice_number: number | null },
+) {
+  if (!invoice.contractor_id) return;
+  const invoiceRef = invoice.invoice_number != null
+    ? `INV-${String(invoice.invoice_number).padStart(4, "0")}`
+    : invoice.id;
+
+  const { error: notifError } = await supabase.from("notifications").insert({
+    user_id:        invoice.contractor_id,
+    title:          "Payment received on a voided invoice",
+    message:        `A payment for ${invoiceRef} was received after it was voided. It has not been marked paid -- check it manually.`,
+    type:           "invoice_paid_after_void",
+    reference_type: "invoice",
+    reference_id:   invoice.id,
+  });
+  if (notifError) {
+    console.error("Failed to insert invoice_paid_after_void notification", notifError);
+  }
+}
+
+/**
+ * Records a payments row for a succeeded card payment against an invoice --
+ * idempotent on stripe_payment_intent_id. Shared by the live
+ * payment_intent.succeeded/"invoice" path and checkout.session.completed's
+ * void-invoice path, so the two can never diverge on how a payment is
+ * recorded.
+ */
+async function recordPaymentForPaymentIntent(
+  supabase: ReturnType<typeof createClient>,
+  paymentIntent: Stripe.PaymentIntent,
+  invoice: { id: string; job_id: string | null; recipient_id: string | null; contractor_id: string | null },
+) {
+  const { data: existingPayment } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntent.id)
+    .maybeSingle();
+
+  if (existingPayment) return;
+
+  const applicationFeePence = paymentIntent.application_fee_amount ?? 0;
+  const ledger = await fetchChargeLedger(paymentIntent);
+
+  const { error: paymentError } = await supabase.from("payments").insert({
+    job_id: invoice.job_id,
+    invoice_id: invoice.id,
+    payer_id: paymentIntent.metadata.clientId || invoice.recipient_id || null,
+    payee_id: paymentIntent.metadata.contractorId || invoice.contractor_id || null,
+    amount: paymentIntent.amount / 100,
+    platform_fee: applicationFeePence / 100,
+    stripe_payment_intent_id: paymentIntent.id,
+    stripe_charge_id: ledger?.chargeId ?? null,
+    stripe_transfer_id: ledger?.transferId ?? null,
+    stripe_balance_transaction_id: ledger?.balanceTransactionId ?? null,
+    stripe_fee: ledger ? ledger.stripeFeePence / 100 : null,
+    net_platform_revenue: ledger ? netPlatformRevenue(applicationFeePence, ledger.stripeFeePence) : null,
+    status: "released",
+    type: "invoice",
+  });
+  if (paymentError) {
+    console.error("Failed to record payments row for invoice payment", paymentError);
+  }
+}
+
+/** Resolves a checkout.session.completed session's payment_intent (id or
+ * expanded object) to the full PaymentIntent, retrieving it if needed. */
+async function resolveSessionPaymentIntent(
+  sessionPaymentIntent: string | Stripe.PaymentIntent | null,
+): Promise<Stripe.PaymentIntent | null> {
+  if (!sessionPaymentIntent) return null;
+  if (typeof sessionPaymentIntent !== "string") return sessionPaymentIntent;
+  try {
+    return await stripe.paymentIntents.retrieve(sessionPaymentIntent);
+  } catch (err) {
+    console.error("Failed to retrieve PaymentIntent for checkout session", sessionPaymentIntent, err);
+    return null;
+  }
+}
+
 async function handleCheckoutSessionCompleted(
   supabase: ReturnType<typeof createClient>,
   session: Stripe.Checkout.Session,
@@ -177,13 +263,26 @@ async function handleCheckoutSessionCompleted(
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id, contractor_id, invoice_number, total")
+    .select("id, contractor_id, recipient_id, job_id, invoice_number, total, status")
     .eq("id", invoiceId)
     .single();
 
   if (invoiceError || !invoice) {
     console.error("Invoice not found", invoiceId, invoiceError);
     return jsonResponse(400, { success: false, error: "Invoice not found" });
+  }
+
+  if (invoice.status === "void") {
+    await notifyPaidAfterVoid(supabase, invoice);
+    // Still record the payment -- the money did move -- exactly as the
+    // payment_intent.succeeded branch does; just never flip status.
+    const sessionPi = await resolveSessionPaymentIntent(session.payment_intent);
+    if (sessionPi) {
+      await recordPaymentForPaymentIntent(supabase, sessionPi, invoice);
+    } else {
+      console.error("checkout.session.completed on a void invoice had no resolvable PaymentIntent", session.id);
+    }
+    return jsonResponse(200, { success: true, received: true });
   }
 
   const { error: updateError } = await supabase
@@ -273,7 +372,7 @@ async function handleInvoicePaymentIntentSucceeded(
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id, status, contractor_id, recipient_id, job_id")
+    .select("id, status, contractor_id, recipient_id, job_id, invoice_number")
     .eq("id", invoiceId)
     .maybeSingle();
 
@@ -282,11 +381,16 @@ async function handleInvoicePaymentIntentSucceeded(
     return jsonResponse(400, { success: false, error: "Invoice not found" });
   }
 
-  // Idempotent: only flip to paid if it isn't already. Setting
-  // recipient_response fires notify_invoice_response, which notifies both
-  // the contractor and the client — do not also hand-insert notifications
-  // here, that would duplicate what the trigger now does.
-  if (invoice.status !== "paid") {
+  if (invoice.status === "void") {
+    await notifyPaidAfterVoid(supabase, invoice);
+    // Fall through to the payments-row insert below -- the money did move,
+    // so it is still recorded, just without flipping the (locked) invoice
+    // back out of void.
+  } else if (invoice.status !== "paid") {
+    // Idempotent: only flip to paid if it isn't already. Setting
+    // recipient_response fires notify_invoice_response, which notifies both
+    // the contractor and the client — do not also hand-insert notifications
+    // here, that would duplicate what the trigger now does.
     const { error: updateError } = await supabase
       .from("invoices")
       .update({
@@ -302,36 +406,7 @@ async function handleInvoicePaymentIntentSucceeded(
   }
 
   // payments row — idempotent on stripe_payment_intent_id.
-  const { data: existingPayment } = await supabase
-    .from("payments")
-    .select("id")
-    .eq("stripe_payment_intent_id", paymentIntent.id)
-    .maybeSingle();
-
-  if (!existingPayment) {
-    const applicationFeePence = paymentIntent.application_fee_amount ?? 0;
-    const ledger = await fetchChargeLedger(paymentIntent);
-
-    const { error: paymentError } = await supabase.from("payments").insert({
-      job_id: invoice.job_id,
-      invoice_id: invoiceId,
-      payer_id: paymentIntent.metadata.clientId || invoice.recipient_id || null,
-      payee_id: paymentIntent.metadata.contractorId || invoice.contractor_id || null,
-      amount: paymentIntent.amount / 100,
-      platform_fee: applicationFeePence / 100,
-      stripe_payment_intent_id: paymentIntent.id,
-      stripe_charge_id: ledger?.chargeId ?? null,
-      stripe_transfer_id: ledger?.transferId ?? null,
-      stripe_balance_transaction_id: ledger?.balanceTransactionId ?? null,
-      stripe_fee: ledger ? ledger.stripeFeePence / 100 : null,
-      net_platform_revenue: ledger ? netPlatformRevenue(applicationFeePence, ledger.stripeFeePence) : null,
-      status: "released",
-      type: "invoice",
-    });
-    if (paymentError) {
-      console.error("Failed to record payments row for invoice payment", paymentError);
-    }
-  }
+  await recordPaymentForPaymentIntent(supabase, paymentIntent, invoice);
 
   console.log(`Invoice ${invoiceId} marked paid via PaymentIntent ${paymentIntent.id}`);
 

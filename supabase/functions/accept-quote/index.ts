@@ -26,12 +26,10 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2025-08-27.basil",
 });
 
-// The invoice raised here goes overdue this many days after quote
-// acceptance (mark-overdue-invoices then emails the customer a pay link).
-// Was previously `new Date()` — today — so the invoice went overdue the very
-// next day regardless of any real payment term. FLAGGED: confirm 30 is the
-// right figure before relying on it.
-const DEPOSIT_INVOICE_DUE_DAYS = 30;
+// The invoice's due date, when the contractor has no finance_settings row
+// yet (default_payment_terms_days unset). Matches the default used
+// elsewhere (CLAUDE.md invoice conventions).
+const DEFAULT_PAYMENT_TERMS_DAYS = 14;
 
 const ALLOWED_ORIGINS = [
   "https://tradesltd.co.uk",
@@ -90,6 +88,35 @@ serve(async (req) => {
       return json(400, { error: "quote_id and event_id are required" });
     }
 
+    // A deposit-bearing quote that could never be issued as an invoice (bad
+    // figures, or 20%+ VAT from a contractor who isn't registered) must be
+    // caught BEFORE acceptance — not after the slot is confirmed and the
+    // quote is already marked accepted. Non-deposit quotes don't mint an
+    // invoice at acceptance time at all, so they skip this check entirely.
+    const { data: depositQuote, error: depositQuoteError } = await serviceClient
+      .from("issued_quotes")
+      .select("deposit_required")
+      .eq("id", quote_id)
+      .maybeSingle();
+    if (depositQuoteError) {
+      console.error("Failed to read quote deposit_required before acceptance", depositQuoteError);
+      return json(500, { error: "Could not check this quote before accepting it" });
+    }
+    if (depositQuote?.deposit_required) {
+      const { data: problem, error: problemError } = await serviceClient.rpc("_quote_invoice_problem", {
+        p_quote_id: quote_id,
+      });
+      if (problemError) {
+        console.error("_quote_invoice_problem failed", problemError);
+        return json(500, { error: "Could not check this quote before accepting it" });
+      }
+      if (problem) {
+        return json(409, {
+          error: `This quote can't be accepted yet: ${problem} Ask the contractor to send a revised quote.`,
+        });
+      }
+    }
+
     const { data: rpcResult, error: rpcError } = await userClient.rpc("accept_quote_with_slot", {
       p_quote_id: quote_id,
       p_event_id: event_id,
@@ -120,7 +147,7 @@ serve(async (req) => {
     const { data: quote, error: quoteError } = await serviceClient
       .from("issued_quotes")
       .select(
-        "id, contractor_id, recipient_id, title, description, client_name, client_email, client_phone, client_address, total",
+        "id, contractor_id, recipient_id, title, description, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total",
       )
       .eq("id", quote_id)
       .single();
@@ -155,77 +182,118 @@ serve(async (req) => {
       return json(500, { error: "Deposit amount could not be resolved" });
     }
 
-    // Idempotency: a retried pay-button click (e.g. after a failed Payment
-    // Element load, or a page refresh) must reuse the existing unpaid
-    // invoice/PaymentIntent rather than minting a new one every time.
+    // One live invoice per quote (DB-enforced: invoices_one_live_per_quote).
+    // A retried pay-button click (e.g. after a failed Payment Element load,
+    // or a page refresh) must reuse that invoice, not try to mint a second
+    // one for the same quote.
     const { data: existingInvoices } = await serviceClient
       .from("invoices")
-      .select("id, stripe_payment_intent_id")
+      .select("id, status, stripe_payment_intent_id")
       .eq("quote_id", quote.id)
-      .eq("status", "sent")
-      .not("stripe_payment_intent_id", "is", null)
+      .neq("status", "void")
       .order("created_at", { ascending: false })
       .limit(1);
 
-    const existingInvoice = existingInvoices?.[0];
-    if (existingInvoice?.stripe_payment_intent_id) {
+    let invoice = existingInvoices?.[0] as { id: string; status: string; stripe_payment_intent_id: string | null } | undefined;
+
+    // A found invoice that is still 'draft' (e.g. a retry after a previous
+    // issue attempt failed) must be issued before any PaymentIntent is
+    // created or reused for it — never mint or reuse a PI against a draft.
+    if (invoice && invoice.status === "draft") {
+      const { error: issueError } = await serviceClient.rpc("_issue_invoice", { p_invoice_id: invoice.id });
+      if (issueError) {
+        console.error("_issue_invoice failed for existing draft deposit invoice", issueError);
+        return json(500, { error: issueError.message });
+      }
+      invoice = { ...invoice, status: "sent" };
+    }
+
+    if (invoice?.stripe_payment_intent_id) {
       try {
-        const existingPi = await stripe.paymentIntents.retrieve(existingInvoice.stripe_payment_intent_id);
+        const existingPi = await stripe.paymentIntents.retrieve(invoice.stripe_payment_intent_id);
         if (["requires_payment_method", "requires_action", "requires_confirmation"].includes(existingPi.status)) {
           return json(200, {
             deposit_required: true,
             client_secret: existingPi.client_secret,
-            invoice_id: existingInvoice.id,
+            invoice_id: invoice.id,
             deposit_amount: depositAmount,
             confirmed_start: result.confirmed_start,
           });
         }
-        // Otherwise (canceled/succeeded/processing) fall through and mint a fresh invoice + PI.
+        // Otherwise (canceled/succeeded/processing) fall through and mint a fresh PI on the same invoice.
       } catch (piErr) {
         console.error("Failed to retrieve existing PaymentIntent, creating a new one", piErr);
-        // Fall through and mint a fresh invoice + PI.
+        // Fall through and mint a fresh PI on the same invoice.
       }
+    }
+
+    if (!invoice) {
+      // The invoice carries the FULL quote value (invoices.total is always
+      // gross -- CLAUDE.md) and mirrors the quote's own items/subtotal/
+      // tax_rate/tax_amount exactly; deposit_amount is tracked separately as
+      // a payment against that total, not a smaller "total".
+      const { data: financeSettings } = await serviceClient
+        .from("finance_settings")
+        .select("default_payment_terms_days")
+        .eq("contractor_id", quote.contractor_id)
+        .maybeSingle();
+      const termsDays = financeSettings?.default_payment_terms_days ?? DEFAULT_PAYMENT_TERMS_DAYS;
+      const dueDate = (() => {
+        const due = new Date();
+        due.setDate(due.getDate() + termsDays);
+        return due.toISOString().slice(0, 10);
+      })();
+
+      const { data: draftInvoice, error: draftError } = await serviceClient
+        .from("invoices")
+        .insert({
+          contractor_id: quote.contractor_id,
+          recipient_id: quote.recipient_id,
+          quote_id: quote.id,
+          client_name: quote.client_name,
+          client_email: quote.client_email,
+          client_phone: quote.client_phone,
+          client_address: quote.client_address,
+          items: quote.items,
+          subtotal: quote.subtotal,
+          tax_rate: quote.tax_rate,
+          tax_amount: quote.tax_amount,
+          total: quote.total,
+          deposit_amount: depositAmount,
+          due_date: dueDate,
+        })
+        .select("id")
+        .single();
+
+      if (draftError || !draftInvoice) {
+        console.error("Draft invoice creation failed", draftError);
+        return json(500, { error: "Failed to create invoice" });
+      }
+
+      // _issue_invoice is service_role only -- call it on serviceClient, not
+      // the caller's JWT. If it refuses (e.g. 20% tax from an unregistered
+      // contractor), surface its message rather than swallowing it: the
+      // deposit flow cannot proceed with an invoice that was never issued.
+      const { error: issueError } = await serviceClient.rpc("_issue_invoice", { p_invoice_id: draftInvoice.id });
+      if (issueError) {
+        console.error("_issue_invoice failed for deposit invoice", issueError);
+        return json(500, { error: issueError.message });
+      }
+
+      const { data: issuedInvoice, error: reloadError } = await serviceClient
+        .from("invoices")
+        .select("id, status, stripe_payment_intent_id")
+        .eq("id", draftInvoice.id)
+        .single();
+      if (reloadError || !issuedInvoice) {
+        console.error("Failed to reload invoice after issuing", reloadError);
+        return json(500, { error: "Invoice issued but could not be reloaded for payment setup" });
+      }
+      invoice = issuedInvoice;
     }
 
     const depositPence = Math.round(depositAmount * 100);
     const platformFee = Math.round(depositPence * PLATFORM_FEE_PERCENT);
-
-    const { data: invoice, error: invoiceError } = await serviceClient
-      .from("invoices")
-      .insert({
-        contractor_id: quote.contractor_id,
-        recipient_id: quote.recipient_id,
-        quote_id: quote.id,
-        client_name: quote.client_name,
-        client_email: quote.client_email,
-        client_phone: quote.client_phone,
-        client_address: quote.client_address,
-        subtotal: Number(quote.total),
-        tax_amount: 0,
-        total: Number(quote.total),
-        deposit_amount: depositAmount,
-        due_date: (() => {
-          const due = new Date();
-          due.setDate(due.getDate() + DEPOSIT_INVOICE_DUE_DAYS);
-          return due.toISOString().slice(0, 10);
-        })(),
-        status: "sent",
-        items: [
-          {
-            description: quote.description ?? quote.title ?? "Works as quoted",
-            quantity: 1,
-            unit_price: Number(quote.total),
-            total: Number(quote.total),
-          },
-        ],
-      })
-      .select()
-      .single();
-
-    if (invoiceError || !invoice) {
-      console.error("Invoice creation failed", invoiceError);
-      return json(500, { error: "Failed to create invoice" });
-    }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: depositPence,

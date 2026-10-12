@@ -158,7 +158,17 @@ export function useInvoices() {
     }
 
     if (sendNow) {
-      await sendInvoice(data.id);
+      try {
+        await sendInvoice(data.id);
+      } catch (sendError) {
+        toast({
+          title: "Invoice created but not sent",
+          description: sendError instanceof Error ? sendError.message : "Could not send this invoice.",
+          variant: "destructive",
+        });
+        await fetchInvoices();
+        throw sendError;
+      }
       toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
     } else {
       toast({ title: "Invoice Created", description: "Your invoice has been created successfully." });
@@ -182,7 +192,17 @@ export function useInvoices() {
     }
 
     if (sendNow) {
-      await sendInvoice(id);
+      try {
+        await sendInvoice(id);
+      } catch (sendError) {
+        toast({
+          title: "Invoice updated but not sent",
+          description: sendError instanceof Error ? sendError.message : "Could not send this invoice.",
+          variant: "destructive",
+        });
+        await fetchInvoices();
+        throw sendError;
+      }
       toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
     } else {
       toast({ title: "Invoice Updated", description: "Invoice has been updated." });
@@ -240,7 +260,16 @@ export function useInvoices() {
   };
 
   const markAsSent = async (id: string) => {
-    await sendInvoice(id);
+    try {
+      await sendInvoice(id);
+    } catch (error) {
+      toast({
+        title: "Invoice not sent",
+        description: error instanceof Error ? error.message : "Could not send this invoice.",
+        variant: "destructive",
+      });
+      throw error;
+    }
     toast({ title: "Invoice Sent", description: "Invoice sent. The client can open it in their TradeStone dashboard and pay it there." });
   };
 

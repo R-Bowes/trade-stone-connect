@@ -88,7 +88,7 @@ export function ReceivedInvoices() {
   const isOpenInvoice = (inv: ReceivedInvoice) => inv.status === "sent" || inv.status === "viewed";
 
   const renderActions = (inv: ReceivedInvoice) =>
-    !isOpenInvoice(inv) ? (
+    inv.status === "void" ? null : !isOpenInvoice(inv) ? (
       <Button
         size="sm"
         variant="outline"

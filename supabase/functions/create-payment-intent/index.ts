@@ -62,10 +62,8 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("ADMIN_SECRET_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabase = createClient(supabaseUrl, Deno.env.get("ADMIN_SECRET_KEY")!);
 
     const { action = "create_client_secret", invoiceId }: RequestBody = await req.json();
 
@@ -143,6 +141,7 @@ serve(async (req) => {
       return jsonResponse(400, { success: false, error: "Contractor's payment account cannot currently receive payments — please contact them directly." });
     }
 
+    let sendInvoiceToken: string | undefined;
     if (action === "send_invoice") {
       const authHeader = req.headers.get("Authorization");
       const token = authHeader?.replace("Bearer ", "");
@@ -154,6 +153,7 @@ serve(async (req) => {
       if (authError || !authData.user || authData.user.id !== contractorProfile?.user_id) {
         return jsonResponse(401, { success: false, error: "Unauthorized" });
       }
+      sendInvoiceToken = token;
     }
 
     if (action === "create_client_secret") {
@@ -284,13 +284,17 @@ serve(async (req) => {
     }
 
     if (action === "send_invoice") {
-      const { error: sendUpdateError } = await supabase
-        .from("invoices")
-        .update({ status: "sent" })
-        .eq("id", invoice.id);
+      // issue_invoice derives the caller from auth.uid(), so this MUST run
+      // on a client bound to the caller's own JWT, not the admin client
+      // used for everything else here (mirrors accept-quote's userClient).
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        auth: { persistSession: false },
+        global: { headers: { Authorization: `Bearer ${sendInvoiceToken}` } },
+      });
 
-      if (sendUpdateError) {
-        throw sendUpdateError;
+      const { error: issueError } = await userClient.rpc("issue_invoice", { p_invoice_id: invoice.id });
+      if (issueError) {
+        throw issueError;
       }
     }
 

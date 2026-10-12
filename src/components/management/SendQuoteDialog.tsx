@@ -13,6 +13,7 @@ import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { unitsForCountry } from "@/constants/units";
+import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
 // allocator) — never generated client-side, hence the Omit here.
@@ -91,7 +92,6 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setDescription(enquiry.job_description ?? "");
     setItems([blankItem()]);
     setCompletionTime("");
-    setTaxRate(20);
     setValidUntil("");
     setNotes("");
     setTerms("");
@@ -108,6 +108,13 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         .then(({ data }) => setCustomerTsCode(data?.ts_profile_code ?? null));
     } else {
       setCustomerTsCode(null);
+    }
+
+    // Default tax rate from the contractor's own VAT status, not a flat 20%
+    // (JobManagement's invoice-from-job flow already does this correctly).
+    setTaxRate(20);
+    if (enquiry.contractor_id) {
+      void fetchDefaultTaxRate(enquiry.contractor_id).then(setTaxRate);
     }
   }, [open, enquiry]);
 

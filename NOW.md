@@ -33,7 +33,7 @@ out to block validation, move it here — don't build it in place.
 ## BLOCKING VALIDATION
 
 ### Write-path hardening (authorised 6 Oct 2026) — Phase 0 blocker
-Order: invoices, issued_quotes, jobs, payments/refunds/stages,
+Order: issued_quotes, jobs, payments/refunds/stages,
 contractor_panel, tender awards and invitations, job_reviews.
 Projects slice 2 is paused until the money tables are done.
 
@@ -41,8 +41,13 @@ Done 7 Oct: migration 20261006120000 live; void-invoice and
 create-payment-intent deployed; new invoice screens.
 
 Still open, holes NOT yet closed:
-- accept-quote invoice reuse and stripe-webhook void handling.
-- Migration B (the lock) and checks a to j, parked in scratchpad/pending.
+- Invoices step 1 (lock and issue) drafted 12 Oct 2026:
+  `supabase/migrations/20261012120000_invoice_issue_lock.sql` (invoice_number
+  nullable for drafts, `_issue_invoice`/`issue_invoice`, supplier/customer
+  snapshots, the universal content-lock guard), `accept-quote`,
+  `create-payment-intent` and `stripe-webhook` edited, screens updated.
+  Proved in a rolled-back transaction (scenarios a-j, all pass). NOT pushed,
+  NOT deployed, NOT committed — closes nothing below until it is.
 - Then issued_quotes, jobs, payments, refunds, contractor_panel, tenders,
   job_reviews.
 - jobs SELECT for company members is not narrowed by site coverage: a
@@ -53,11 +58,16 @@ Still open, holes NOT yet closed:
 - sign-off of a contractor-owned project trusts jobs.customer_id, which the contractor can still edit; closes with the jobs lock. Found 11 Oct.
 
 Parked defects:
-- VAT charged by non-registered contractors.
+- VAT charged by non-registered contractors: blocked for new invoices from 12
+  Oct; INV-0012 (20% from an unregistered contractor) was issued before and
+  needs a credit note (step 2).
 - Invoice form should identify the customer by TS code.
 - Refund icon on manually paid invoices.
-- Customers can download void invoices.
 - Quote form not browser-checked.
+- Invoices linked to the customer by email can silently stay unlinked
+  (INV-0013, 12 Oct). Replaced by the customer search.
+- Supplier and customer addresses are incomplete on profiles; invoices print
+  a postcode only. Step 3 should refuse to issue without a full address.
 
 ### Mobile quote acceptance missing
 **Priority: highest. Blocks end-to-end validation.**
@@ -133,24 +143,6 @@ has a legitimate complaint. One-line fix.
 
 Sweep for the same stale figure elsewhere while in there:
 `Select-String -Path src\**\*.ts,src\**\*.tsx,supabase\functions\**\*.ts -Pattern "3\.5%|0\.035"`
-
-### Zero-day payment terms
-`accept-quote` writes `due_date: new Date().toISOString().slice(0, 10)` — every
-invoice raised by quote acceptance is due the day it is issued, and reads as
-overdue the following morning. Makes "overdue" meaningless as a signal.
-
-Fix: payment terms from `finance_settings`, defaulting to 14 or 30 days.
-Step-0 required: confirm whether `finance_settings` already has a terms column.
-
-Note: payment reliability warnings (`LATER.md`) depend on this being right —
-flagging clients as late payers off a same-day due date would be defamatory
-nonsense.
-
-### `tax_amount: 0` hardcoded on invoice creation
-`accept-quote` sets `subtotal: Number(quote.total)` and `tax_amount: 0`
-regardless of the quote's VAT. On a £100 + £20 VAT quote the invoice records
-£120 total with zero tax. Harmless while not VAT-registered; wrong the moment
-the VAT position page has real data to report.
 
 ### Contractor sidebar "Projects" tab is a mislabeled jobs re-slice
 Not the real Projects feature (unbuilt — see `LATER.md`). Rename or remove

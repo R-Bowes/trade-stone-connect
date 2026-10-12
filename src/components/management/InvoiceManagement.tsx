@@ -26,6 +26,7 @@ import { RequestRefundDialog } from "@/components/management/RequestRefundDialog
 import { TransactionFeeNotice } from "@/components/TransactionFeeNotice";
 import { format } from "date-fns";
 import { lookupTsCodesByEmail } from "@/lib/lookupTsCodes";
+import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 
 export function InvoiceManagement() {
   const {
@@ -42,12 +43,23 @@ export function InvoiceManagement() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientTsCodeMap, setClientTsCodeMap] = useState<Record<string, string>>({});
+  const [blankInvoiceDefaultTaxRate, setBlankInvoiceDefaultTaxRate] = useState(0);
 
   useEffect(() => {
     if (invoices.length === 0) return;
     const emails = [...new Set(invoices.map(inv => inv.client_email).filter(Boolean))];
     void lookupTsCodesByEmail(emails).then(setClientTsCodeMap);
   }, [invoices]);
+
+  useEffect(() => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profileRow } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      if (!profileRow) return;
+      setBlankInvoiceDefaultTaxRate(await fetchDefaultTaxRate(profileRow.id));
+    })();
+  }, []);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
@@ -261,6 +273,7 @@ export function InvoiceManagement() {
         onClose={() => { setDialogOpen(false); setEditingInvoice(null); }}
         onSave={handleSave}
         invoice={editingInvoice}
+        initialData={editingInvoice ? null : { defaultTaxRate: blankInvoiceDefaultTaxRate }}
       />
 
       {/* Record Payment Dialog */}

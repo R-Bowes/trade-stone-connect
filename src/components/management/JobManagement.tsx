@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { markRecentAction } from "@/lib/recentActions";
 import { useInvoices, type InvoiceItem } from "@/hooks/useInvoices";
+import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -802,12 +803,7 @@ export function JobManagement() {
     // vat_registered on profiles is deprecated — finance_settings.vat_status
     // is now canonical (FINANCE-AUDIT.md Landmine L1). 'not_registered' is
     // the correct default when no finance_settings row exists yet.
-    const { data: financeSettings } = await supabase
-      .from("finance_settings")
-      .select("vat_status")
-      .eq("contractor_id", fullJob.contractor_id)
-      .maybeSingle() as { data: { vat_status?: string } | null };
-    const contractorVatRegistered = financeSettings?.vat_status === "standard" || financeSettings?.vat_status === "flat_rate";
+    const defaultTaxRate = await fetchDefaultTaxRate(fullJob.contractor_id);
 
     const jobTimesheets = timesheetsByJob[fullJob.id] || [];
     let labourItems: InvoiceItem[] = [];
@@ -847,7 +843,7 @@ export function JobManagement() {
       notes: `Generated from completed job: ${job.title}`,
       items: [...quoteItems, ...expenseItems, ...labourItems],
       defaultDueDate: dueDate.toISOString().slice(0, 10),
-      defaultTaxRate: contractorVatRegistered ? 20 : 0,
+      defaultTaxRate,
       contractorId: fullJob.contractor_id,
       clientId: fullJob.customer_id,
       quoteId: fullJob.issued_quote_id,

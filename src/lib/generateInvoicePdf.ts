@@ -4,6 +4,8 @@ import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { format } from "date-fns";
 import { formatInvoiceRef, contractorCodeSuffix } from "@/lib/documentRefs";
 import { depositSettled } from "@/lib/invoiceMoney";
+import { formatCurrency } from "@/lib/formatGBP";
+import { isVatRegistered } from "@/lib/vatDefaultTaxRate";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ContractorProfile {
@@ -16,6 +18,28 @@ export interface ContractorProfile {
   logo_url: string | null;
   /** Base64 data URL, set by fetchContractorProfileForPdf() when logo_url resolves. */
   _logoBase64?: string;
+}
+
+type SupplierSnapshot = {
+  legal_name: string | null;
+  trading_name: string | null;
+  address: { line1: string | null; line2: string | null; city: string | null; region: string | null; postcode: string | null; country: string | null; legacy_address: string | null } | null;
+  ts_profile_code: string | null;
+  vat_status: string | null;
+  vat_number: string | null;
+};
+
+type CustomerSnapshot = {
+  client_name: string | null;
+  address: { line1: string | null; line2: string | null; city: string | null; region: string | null; postcode: string | null; country: string | null; legacy_address: string | null } | null;
+  ts_profile_code: string | null;
+};
+
+function snapshotAddressLines(addr: SupplierSnapshot["address"]): string[] {
+  if (!addr) return [];
+  const structured = [addr.line1, addr.line2, addr.city, addr.region, addr.postcode, addr.country].filter(Boolean) as string[];
+  if (structured.length > 0) return structured;
+  return addr.legacy_address ? [addr.legacy_address] : [];
 }
 
 /**
@@ -64,50 +88,70 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
     ? (invoice.items as unknown as InvoiceItem[])
     : [];
 
+  // A row issued before the invoice-lock migration has neither snapshot --
+  // fall back to the live contractor profile / the invoice's own client_*
+  // columns, same as before, but still never printing a phone or email
+  // either way (CLAUDE.md: no phone numbers or email addresses on the
+  // invoice or its PDF, for either party).
+  const supplierSnapshot = invoice.supplier_snapshot as unknown as SupplierSnapshot | null;
+  const customerSnapshot = invoice.customer_snapshot as unknown as CustomerSnapshot | null;
+  const currency = invoice.currency ?? "GBP";
+  const money = (value: number | string | null | undefined) => formatCurrency(value, currency);
+
+  const supplierName = supplierSnapshot
+    ? (supplierSnapshot.trading_name || supplierSnapshot.legal_name || "Contractor")
+    : (contractor?.company_name || contractor?.full_name || "Contractor");
+  const supplierTsCode = supplierSnapshot?.ts_profile_code ?? contractor?.ts_profile_code ?? null;
+  const supplierAddressLines = supplierSnapshot
+    ? snapshotAddressLines(supplierSnapshot.address)
+    : (contractor?.address ? [contractor.address] : []);
+  const supplierVatRegistered = supplierSnapshot
+    ? isVatRegistered(supplierSnapshot.vat_status)
+    : Number(invoice.tax_rate) > 0;
+  const supplierVatNumber = supplierSnapshot?.vat_number ?? null;
+
+  const customerName = customerSnapshot?.client_name ?? invoice.client_name;
+  const customerTsCode = customerSnapshot?.ts_profile_code ?? clientTsCode ?? null;
+  const customerAddressLines = customerSnapshot
+    ? snapshotAddressLines(customerSnapshot.address)
+    : (invoice.client_address ? [invoice.client_address] : []);
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
 
   // ── Contractor header (left) ──────────────────────────────────────────────
-  // ── Contractor header (left) ──────────────────────────────────────────────
   let yLeft = 20;
-  if (contractor) {
-    if (contractor._logoBase64) {
-      try {
-        doc.addImage(contractor._logoBase64, "PNG", margin, yLeft, 24, 24);
-        yLeft += 28;
-      } catch {
-        // logo failed to render — skip silently
-      }
+  if (contractor?._logoBase64) {
+    try {
+      doc.addImage(contractor._logoBase64, "PNG", margin, yLeft, 24, 24);
+      yLeft += 28;
+    } catch {
+      // logo failed to render — skip silently
     }
-    const contractorName = contractor.company_name || contractor.full_name || "Contractor";
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(contractorName, margin, yLeft);
-    yLeft += 6;
+  }
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text(supplierName, margin, yLeft);
+  yLeft += 6;
 
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(80, 80, 80);
 
-    if (contractor.ts_profile_code) {
-      doc.text(contractor.ts_profile_code, margin, yLeft);
-      yLeft += 5;
-    }
-    if (contractor.address) {
-      const addressLines = doc.splitTextToSize(contractor.address, 80);
-      doc.text(addressLines, margin, yLeft);
-      yLeft += addressLines.length * 4.5;
-    }
-    if (contractor.email) {
-      doc.text(contractor.email, margin, yLeft);
-      yLeft += 5;
-    }
-    if (contractor.phone) {
-      doc.text(contractor.phone, margin, yLeft);
-      yLeft += 5;
-    }
+  if (supplierTsCode) {
+    doc.text(supplierTsCode, margin, yLeft);
+    yLeft += 5;
+  }
+  if (supplierAddressLines.length > 0) {
+    const addressLines = doc.splitTextToSize(supplierAddressLines.join(", "), 80);
+    doc.text(addressLines, margin, yLeft);
+    yLeft += addressLines.length * 4.5;
+  }
+  if (supplierVatRegistered && supplierVatNumber) {
+    doc.text(`VAT No. ${supplierVatNumber}`, margin, yLeft);
+    yLeft += 5;
   }
 
   // ── INVOICE title + number (right) ───────────────────────────────────────
@@ -121,7 +165,7 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setTextColor(100, 100, 100);
   doc.text(
     formatInvoiceRef(invoice.invoice_number, {
-      contractorCode: contractor?.ts_profile_code ?? undefined,
+      contractorCode: supplierTsCode ?? undefined,
     }),
     pageWidth - margin, 28, { align: "right" }
   );
@@ -171,16 +215,14 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(invoice.client_name, margin, yPos);
+  doc.text(customerName, margin, yPos);
   yPos += 5;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  if (clientTsCode) { doc.text(clientTsCode, margin, yPos); yPos += 5; }
-  else if (invoice.client_email) { doc.text(invoice.client_email, margin, yPos); yPos += 5; }
-  if (invoice.client_phone) { doc.text(invoice.client_phone, margin, yPos); yPos += 5; }
-  if (invoice.client_address) { doc.text(invoice.client_address, margin, yPos); yPos += 5; }
+  if (customerTsCode) { doc.text(customerTsCode, margin, yPos); yPos += 5; }
+  for (const line of customerAddressLines) { doc.text(line, margin, yPos); yPos += 5; }
 
   // ── Items table ───────────────────────────────────────────────────────────
   const startY = yPos + 6;
@@ -190,8 +232,8 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
     body: items.map(item => [
       item.description,
       String(item.quantity),
-      `£${Number(item.unit_price).toFixed(2)}`,
-      `£${(item.quantity * item.unit_price).toFixed(2)}`,
+      money(item.unit_price),
+      money(item.quantity * item.unit_price),
     ]),
     theme: "striped",
     headStyles: { fillColor: [30, 58, 95], fontSize: 9, fontStyle: "bold" },
@@ -213,16 +255,21 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(80, 80, 80);
-  doc.text("Subtotal", totalsX - 50, tY);
-  doc.text(`£${Number(invoice.subtotal).toFixed(2)}`, totalsX, tY, { align: "right" });
 
-  tY += 6;
-  doc.text(`Tax (${Number(invoice.tax_rate)}%)`, totalsX - 50, tY);
-  doc.text(`£${Number(invoice.tax_amount).toFixed(2)}`, totalsX, tY, { align: "right" });
+  // No VAT lines at all for a non-VAT-registered supplier -- not even
+  // "Tax (0%)" (CLAUDE.md copy rule: no implied VAT handling that isn't real).
+  if (supplierVatRegistered) {
+    doc.text("Subtotal", totalsX - 50, tY);
+    doc.text(money(invoice.subtotal), totalsX, tY, { align: "right" });
 
-  tY += 3;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(totalsX - 55, tY, totalsX, tY);
+    tY += 6;
+    doc.text(`Tax (${Number(invoice.tax_rate)}%)`, totalsX - 50, tY);
+    doc.text(money(invoice.tax_amount), totalsX, tY, { align: "right" });
+
+    tY += 3;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(totalsX - 55, tY, totalsX, tY);
+  }
 
   tY += 7;
   doc.setFontSize(12);
@@ -232,14 +279,14 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   const deposit = depositSettled(invoice);
   if (deposit > 0) {
     doc.text("Total for works", totalsX - 50, tY);
-    doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
+    doc.text(money(invoice.total), totalsX, tY, { align: "right" });
 
     tY += 6;
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
     doc.text("Deposit paid", totalsX - 50, tY);
-    doc.text(`-£${deposit.toFixed(2)}`, totalsX, tY, { align: "right" });
+    doc.text(`-${money(deposit)}`, totalsX, tY, { align: "right" });
 
     tY += 3;
     doc.setDrawColor(200, 200, 200);
@@ -251,10 +298,10 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
     doc.setTextColor(0, 0, 0);
     const amountDue = Number(invoice.total) - deposit;
     doc.text("Amount due", totalsX - 50, tY);
-    doc.text(`£${amountDue.toFixed(2)}`, totalsX, tY, { align: "right" });
+    doc.text(money(amountDue), totalsX, tY, { align: "right" });
   } else {
     doc.text("Total", totalsX - 50, tY);
-    doc.text(`£${Number(invoice.total).toFixed(2)}`, totalsX, tY, { align: "right" });
+    doc.text(money(invoice.total), totalsX, tY, { align: "right" });
   }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
@@ -282,6 +329,6 @@ export function generateInvoicePdf(invoice: Invoice, contractor?: ContractorProf
   );
 
   doc.save(
-    `${formatInvoiceRef(invoice.invoice_number, { contractorCode: contractor?.ts_profile_code ?? undefined })}.pdf`
+    `${formatInvoiceRef(invoice.invoice_number, { contractorCode: supplierTsCode ?? undefined })}.pdf`
   );
 }

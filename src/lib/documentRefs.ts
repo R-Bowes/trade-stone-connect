@@ -24,9 +24,12 @@ export function formatJobRef(
 }
 
 export function formatInvoiceRef(
-  invoiceNumber: number,
+  invoiceNumber: number | null,
   opts?: { contractorCode?: string }
 ): string {
+  // A draft has no number at all -- issuing is the only thing that assigns
+  // one (CLAUDE.md invoice invariants).
+  if (invoiceNumber == null) return "Draft";
   const num = String(invoiceNumber).padStart(4, "0");
   return opts?.contractorCode
     ? `INV-${contractorCodeSuffix(opts.contractorCode)}-${num}`

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -3369,6 +3369,7 @@ export type Database = {
           country_code: string
           created_at: string
           currency: string
+          customer_snapshot: Json | null
           deposit_amount: number | null
           deposit_deducted: number | null
           deposit_paid: boolean | null
@@ -3376,7 +3377,8 @@ export type Database = {
           due_date: string
           engagement_id: string | null
           id: string
-          invoice_number: number
+          invoice_number: number | null
+          issued_at: string | null
           issued_date: string
           items: Json
           job_id: string | null
@@ -3393,6 +3395,7 @@ export type Database = {
           status: string
           stripe_payment_intent_id: string | null
           subtotal: number
+          supplier_snapshot: Json | null
           tax_amount: number
           tax_rate: number
           total: number
@@ -3422,6 +3425,7 @@ export type Database = {
           country_code?: string
           created_at?: string
           currency?: string
+          customer_snapshot?: Json | null
           deposit_amount?: number | null
           deposit_deducted?: number | null
           deposit_paid?: boolean | null
@@ -3429,7 +3433,8 @@ export type Database = {
           due_date: string
           engagement_id?: string | null
           id?: string
-          invoice_number: number
+          invoice_number?: number | null
+          issued_at?: string | null
           issued_date?: string
           items?: Json
           job_id?: string | null
@@ -3446,6 +3451,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           subtotal?: number
+          supplier_snapshot?: Json | null
           tax_amount?: number
           tax_rate?: number
           total?: number
@@ -3475,6 +3481,7 @@ export type Database = {
           country_code?: string
           created_at?: string
           currency?: string
+          customer_snapshot?: Json | null
           deposit_amount?: number | null
           deposit_deducted?: number | null
           deposit_paid?: boolean | null
@@ -3482,7 +3489,8 @@ export type Database = {
           due_date?: string
           engagement_id?: string | null
           id?: string
-          invoice_number?: number
+          invoice_number?: number | null
+          issued_at?: string | null
           issued_date?: string
           items?: Json
           job_id?: string | null
@@ -3499,6 +3507,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           subtotal?: number
+          supplier_snapshot?: Json | null
           tax_amount?: number
           tax_rate?: number
           total?: number
@@ -12435,6 +12444,18 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string }
         Returns: boolean
       }
+      _invoice_figures_problem: {
+        Args: {
+          p_contractor_id: string
+          p_items: Json
+          p_subtotal: number
+          p_tax_amount: number
+          p_tax_rate: number
+          p_total: number
+        }
+        Returns: string
+      }
+      _issue_invoice: { Args: { p_invoice_id: string }; Returns: number }
       _price_cost_line: {
         Args: {
           p_kind: string
@@ -12466,6 +12487,7 @@ export type Database = {
           still_to_pay: number
         }[]
       }
+      _quote_invoice_problem: { Args: { p_quote_id: string }; Returns: string }
       _work_order_approval_threshold: {
         Args: { p_company_id: string; p_site_id: string }
         Returns: number
@@ -12955,6 +12977,7 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string }
         Returns: boolean
       }
+      issue_invoice: { Args: { p_invoice_id: string }; Returns: number }
       log_material_usage: {
         Args: { p_job_id: string; p_material_id: string; p_quantity: number }
         Returns: string

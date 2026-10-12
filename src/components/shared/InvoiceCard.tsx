@@ -8,7 +8,7 @@ import { depositSettled, isOverdue, daysOverdue, type InvoiceMoneyFields } from 
 
 export interface InvoiceCardInvoice extends InvoiceMoneyFields {
   id: string;
-  invoice_number: number;
+  invoice_number: number | null;
   issued_date: string;
   paid_date: string | null;
   subtotal: number | string;
