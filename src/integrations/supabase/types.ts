@@ -13183,6 +13183,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      search_customers: {
+        Args: { p_query: string }
+        Returns: {
+          account_type: string
+          addr_city: string
+          addr_country: string
+          addr_line1: string
+          addr_line2: string
+          addr_postcode: string
+          addr_region: string
+          company_id: string
+          display_name: string
+          has_relationship: boolean
+          legacy_address: string
+          profile_id: string
+          ts_code: string
+        }[]
+      }
       send_subcontract_message: {
         Args: { p_content: string; p_subcontract_id: string }
         Returns: string

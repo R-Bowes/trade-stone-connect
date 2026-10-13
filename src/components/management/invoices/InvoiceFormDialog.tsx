@@ -9,10 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import type { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { useSubmitGuard } from "@/hooks/useSubmitGuard";
+import { CustomerPickerField, composeCustomerAddress, type PickedCustomer } from "@/components/shared/CustomerPicker";
 
 export type InvoiceFormInitialData = {
   client_name?: string;
   client_email?: string;
+  /** Carried through silently from a job/quote when already known -- never a visible, editable field on this form (CLAUDE.md: no phone field on the invoice form). */
   client_phone?: string;
   client_address?: string;
   notes?: string;
@@ -56,10 +58,18 @@ type InvoiceFormDialogProps = {
 };
 
 export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData }: InvoiceFormDialogProps) {
+  // Only the truly blank Create Invoice flow gets the customer search --
+  // a job-linked invoice (initialData.clientId) already has its recipient
+  // fixed, and editing an existing draft doesn't re-pick its customer.
+  const showPicker = !invoice && !initialData?.clientId;
+
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
+  const [pickedCustomer, setPickedCustomer] = useState<PickedCustomer | null>(null);
+  // Never a visible, editable field on this form -- carried through
+  // silently from a job/quote when already known.
+  const clientPhone = invoice?.client_phone || initialData?.client_phone || undefined;
   const [dueDate, setDueDate] = useState("");
   const [taxRate, setTaxRate] = useState(20);
   const [notes, setNotes] = useState("");
@@ -79,7 +89,6 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
     if (invoice) {
       setClientName(invoice.client_name);
       setClientEmail(invoice.client_email);
-      setClientPhone(invoice.client_phone || "");
       setClientAddress(invoice.client_address || "");
       setDueDate(invoice.due_date);
       setTaxRate(Number(invoice.tax_rate));
@@ -89,8 +98,8 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
     } else {
       setClientName(initialData?.client_name || "");
       setClientEmail(initialData?.client_email || "");
-      setClientPhone(initialData?.client_phone || "");
       setClientAddress(initialData?.client_address || "");
+      setPickedCustomer(null);
       const due = new Date();
       due.setDate(due.getDate() + 30);
       setDueDate(initialData?.defaultDueDate || due.toISOString().split("T")[0]);
@@ -127,6 +136,28 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
     setItems(prev => [...prev, { ...template, total: template.quantity * template.unit_price }]);
   };
 
+  const handlePickCustomer = (picked: PickedCustomer) => {
+    setPickedCustomer(picked);
+    if (picked.kind === "on_platform") {
+      setClientName(picked.result.display_name ?? "");
+      setClientEmail("");
+      // Address stays editable when empty -- only fill it in if the
+      // contractor hasn't already typed something here.
+      if (!clientAddress.trim()) {
+        setClientAddress(composeCustomerAddress(picked.result));
+      }
+    } else {
+      setClientName("");
+      setClientEmail("");
+    }
+  };
+
+  const handleClearCustomer = () => {
+    setPickedCustomer(null);
+    setClientName("");
+    setClientEmail("");
+  };
+
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0), [items]);
   const taxAmount = useMemo(() => subtotal * (taxRate / 100), [subtotal, taxRate]);
   const total = useMemo(() => subtotal + taxAmount, [subtotal, taxAmount]);
@@ -137,12 +168,26 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
   }, [items, total, dueDate]);
 
   const canSubmit = useMemo(() => {
-    if (!clientName.trim() || !clientEmail.trim() || !dueDate) {
-      return { valid: false, message: "Add client name, client email, and due date." };
+    if (showPicker) {
+      if (!pickedCustomer) {
+        return { valid: false, message: "Pick a customer, or choose \"Not on TradeStone\"." };
+      }
+      if (pickedCustomer.kind === "not_on_tradestone") {
+        if (!clientName.trim() || !clientEmail.trim()) {
+          return { valid: false, message: "Add the client's name and email." };
+        }
+        if (!clientEmail.includes("@")) {
+          return { valid: false, message: "Client email must be valid." };
+        }
+      }
+    } else if (!clientName.trim() || !clientEmail.trim()) {
+      return { valid: false, message: "Add client name and client email." };
+    } else if (!clientEmail.includes("@")) {
+      return { valid: false, message: "Client email must be valid." };
     }
 
-    if (!clientEmail.includes("@")) {
-      return { valid: false, message: "Client email must be valid." };
+    if (!dueDate) {
+      return { valid: false, message: "Add a due date." };
     }
 
     if (items.some(i => !i.description.trim())) {
@@ -154,7 +199,7 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
     }
 
     return { valid: true, message: null };
-  }, [clientName, clientEmail, dueDate, items]);
+  }, [showPicker, pickedCustomer, clientName, clientEmail, dueDate, items]);
 
   const handleSubmit = guard(async (asDraft: boolean) => {
     if (!canSubmit.valid) {
@@ -164,14 +209,21 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
 
     setValidationMessage(null);
 
+    const recipientId = showPicker
+      ? (pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.profile_id : undefined)
+      : initialData?.clientId;
+
     try {
       await onSave({
         client_name: clientName,
-        client_email: clientEmail,
-        client_phone: clientPhone || undefined,
+        // An on-platform customer is identified by recipient_id, not email
+        // -- no email was ever collected for them (CLAUDE.md: never link a
+        // TradeStone customer by email guesswork).
+        client_email: showPicker && pickedCustomer?.kind === "on_platform" ? "" : clientEmail,
+        client_phone: clientPhone,
         client_address: clientAddress || undefined,
         contractor_id: initialData?.contractorId,
-        recipient_id: initialData?.clientId,
+        recipient_id: recipientId,
         quote_id: initialData?.quoteId,
         due_date: dueDate,
         items: items.map(i => ({ ...i, total: i.quantity * i.unit_price })),
@@ -211,23 +263,31 @@ export function InvoiceFormDialog({ open, onClose, onSave, invoice, initialData 
 
         <div className="space-y-6">
           {/* Client Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Client Name *</Label>
-              <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client name" />
-            </div>
-            <div className="space-y-2">
-              <Label>Client Email *</Label>
-              <Input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@example.com" />
-            </div>
-            <div className="space-y-2">
-              <Label>Client Phone</Label>
-              <Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Phone number" />
-            </div>
-            <div className="space-y-2">
-              <Label>Client Address</Label>
-              <Input value={clientAddress} onChange={e => setClientAddress(e.target.value)} placeholder="Address" />
-            </div>
+          <div className="space-y-4">
+            {showPicker && (
+              <CustomerPickerField picked={pickedCustomer} onPick={handlePickCustomer} onClear={handleClearCustomer} />
+            )}
+
+            {(!showPicker || pickedCustomer) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(!showPicker || pickedCustomer?.kind === "not_on_tradestone") && (
+                  <div className="space-y-2">
+                    <Label>Client Name *</Label>
+                    <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client name" />
+                  </div>
+                )}
+                {(!showPicker || pickedCustomer?.kind === "not_on_tradestone") && (
+                  <div className="space-y-2">
+                    <Label>Client Email *</Label>
+                    <Input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@example.com" />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Client Address</Label>
+                  <Input value={clientAddress} onChange={e => setClientAddress(e.target.value)} placeholder="Address" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Due Date & Tax */}

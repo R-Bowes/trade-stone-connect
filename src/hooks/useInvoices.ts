@@ -40,34 +40,6 @@ function pickColumns(source: Record<string, unknown>, columns: readonly string[]
   return out;
 }
 
-// Resolves a client email to their profile id: email -> TS code through
-// lookup_ts_codes_by_email (profiles.email is not client-readable), then
-// TS code -> profiles.id. Returns null when there is no single match, so the
-// invoice simply stays unlinked rather than being sent to the wrong person.
-async function resolveRecipientId(email: string | null | undefined): Promise<string | null> {
-  const trimmed = email?.trim();
-  if (!trimmed) return null;
-
-  const { data: codes, error: codeError } = await supabase.rpc("lookup_ts_codes_by_email", { p_emails: [trimmed] });
-  if (codeError) {
-    console.error("lookup_ts_codes_by_email failed:", codeError);
-    return null;
-  }
-  const tsCodes = [...new Set((codes ?? []).map((row) => row.ts_profile_code).filter(Boolean))];
-  if (tsCodes.length !== 1) return null;
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("ts_profile_code", tsCodes[0])
-    .maybeSingle();
-  if (profileError) {
-    console.error("Recipient profile lookup failed:", profileError);
-    return null;
-  }
-  return profile?.id ?? null;
-}
-
 /** Form data for an invoice. `status: "sent"` means "send it once saved". */
 export type InvoiceFormData = Partial<InvoiceInsert> & { status?: string };
 
@@ -136,17 +108,13 @@ export function useInvoices() {
     // separate server step through create-payment-intent.
     const sendNow = invoice.status === "sent";
 
-    // The job-based paths pass recipient_id (clientId). The blank Create
-    // Invoice form does not, and without it the invoice never reaches the
-    // client's Received Invoices list, so link it by email when the client
-    // is on TradeStone. No match leaves it NULL (an off-platform client).
-    const recipientId = invoice.recipient_id ?? await resolveRecipientId(invoice.client_email);
-
+    // recipient_id now comes from the caller explicitly -- either the
+    // job-linked path's clientId, or the blank form's CustomerPicker. No
+    // more resolving it by email guesswork (CLAUDE.md, the INV-0013 bug).
     const { data, error } = await supabase
       .from("invoices")
       .insert({
         ...pickColumns(invoice, INSERT_COLUMNS),
-        recipient_id: recipientId,
         contractor_id: profileRow?.id,
       } as InvoiceInsert)
       .select("id")

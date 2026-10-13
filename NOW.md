@@ -61,13 +61,17 @@ Parked defects:
 - VAT charged by non-registered contractors: blocked for new invoices from 12
   Oct; INV-0012 (20% from an unregistered contractor) was issued before and
   needs a credit note (step 2).
-- Invoice form should identify the customer by TS code.
 - Refund icon on manually paid invoices.
 - Quote form not browser-checked.
 - Invoices linked to the customer by email can silently stay unlinked
-  (INV-0013, 12 Oct). Replaced by the customer search.
+  (INV-0013, 12 Oct). Replaced by the customer search, drafted 13 Oct
+  (`supabase/migrations/20261012140000_customer_search.sql`) -- closes once
+  that migration is pushed.
 - Supplier and customer addresses are incomplete on profiles; invoices print
   a postcode only. Step 3 should refuse to issue without a full address.
+- Invoices to a business customer from the invoice form link to the owner's
+  account only; other company members cannot see them. A proper company
+  link needs the generate_b2b_invoice route. Found 13 Oct.
 
 ### Mobile quote acceptance missing
 **Priority: highest. Blocks end-to-end validation.**
@@ -151,11 +155,6 @@ the platform doesn't meet.
 
 Related: top-bar public nav exposes `/projects` and `/contracts`. Confirm
 these are not half-built routes visible to real visitors.
-
-### Send-quote modal identifies the recipient by TS code only
-Modal header reads "Create a quote for TS-B-57B38C" with no client name or
-address. Two quotes were sent to the wrong account during testing for exactly
-this reason. The enquiry detail panel shows the name; the send modal drops it.
 
 ### Stripe Connect `charges_enabled` tracking
 `StripeConnect.tsx`'s status badge is derived purely from whether

@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { unitsForCountry } from "@/constants/units";
 import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
+import { CustomerPickerField, type PickedCustomer } from "@/components/shared/CustomerPicker";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
 // allocator) — never generated client-side, hence the Omit here.
@@ -82,7 +83,11 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(25);
   const [submitting, setSubmitting] = useState(false);
-  const [customerTsCode, setCustomerTsCode] = useState<string | null>(null);
+  // Enquiry-fixed recipient: name + TS code for the header. Not fixed (a
+  // guest enquiry with no customer_id): the contractor picks one via
+  // CustomerPicker instead.
+  const [customerDisplay, setCustomerDisplay] = useState<{ name: string | null; tsCode: string | null } | null>(null);
+  const [pickedCustomer, setPickedCustomer] = useState<PickedCustomer | null>(null);
   const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
 
   useEffect(() => {
@@ -102,13 +107,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     if (enquiry.customer_id) {
       supabase
         .from("profiles")
-        .select("ts_profile_code")
+        .select("full_name, ts_profile_code")
         .eq("id", enquiry.customer_id)
         .maybeSingle()
-        .then(({ data }) => setCustomerTsCode(data?.ts_profile_code ?? null));
+        .then(({ data }) => setCustomerDisplay(data ? { name: data.full_name, tsCode: data.ts_profile_code } : null));
     } else {
-      setCustomerTsCode(null);
+      setCustomerDisplay(null);
     }
+    setPickedCustomer(null);
 
     // Default tax rate from the contractor's own VAT status, not a flat 20%
     // (JobManagement's invoice-from-job flow already does this correctly).
@@ -178,8 +184,12 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       if (contractorError) throw contractorError;
       if (!contractorProfile) throw new Error("Contractor profile not found");
 
-      // enquiry.customer_id is already a profiles.id; null for guest enquiries.
-      const recipientId: string | null = enquiry.customer_id ?? null;
+      // enquiry.customer_id is already a profiles.id; null for guest
+      // enquiries, unless the contractor has since picked an on-platform
+      // account for this guest via the customer search.
+      const recipientId: string | null = enquiry.customer_id
+        ?? (pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.profile_id : null);
+      const pickedName = pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.display_name : null;
 
       const lineItems = filledItems.map(({ description, quantity, unit_price, unit }) => ({
         description: description.trim(),
@@ -197,7 +207,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         enquiry_id: enquiry.id,
         // client_* fields are required by NOT NULL constraints — written to DB only,
         // never rendered in any UI component. Contact reveal governed by 48hr rule.
-        client_name: enquiry.customer_name ?? "",
+        client_name: pickedName ?? enquiry.customer_name ?? "",
         client_email: enquiry.customer_email ?? "",
         client_phone: enquiry.customer_phone ?? null,
         // Carried from the enquiry so the quote — a customer-facing document —
@@ -291,8 +301,21 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         <DialogHeader>
           <DialogTitle>Send Quote</DialogTitle>
           <DialogDescription>
-            {/* Never fall back to customer name — use TS code or generic label */}
-            Create a quote for {customerTsCode ?? "this customer"}.
+            {customerDisplay ? (
+              <>
+                Create a quote for {customerDisplay.name ?? "this customer"}
+                {customerDisplay.tsCode && <span className="ml-1 font-mono text-xs">{customerDisplay.tsCode}</span>}
+                .
+              </>
+            ) : pickedCustomer?.kind === "on_platform" ? (
+              <>
+                Create a quote for {pickedCustomer.result.display_name ?? "this customer"}
+                {pickedCustomer.result.ts_code && <span className="ml-1 font-mono text-xs">{pickedCustomer.result.ts_code}</span>}
+                .
+              </>
+            ) : (
+              "Create a quote for this customer."
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -320,6 +343,15 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
             )}
           </div>
+
+          {!enquiry.customer_id && (
+            <CustomerPickerField
+              picked={pickedCustomer}
+              onPick={setPickedCustomer}
+              onClear={() => setPickedCustomer(null)}
+              disabled={submitting}
+            />
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="quote-title">Title</Label>
