@@ -527,6 +527,27 @@ is needed. Do not add `active | archived` values — the conflict is closed.
   `net.http_post` call are caught and `RAISE WARNING`'d, never allowed to
   raise past the calling function).
 
+## Design principle: one system, every size
+
+TradeStone is one product for a one-person business and a large multi-site
+operator alike. Never build a "simple mode", a "lite" version, plan-gated
+screens, or a separate enterprise workflow.
+
+1. One record, one workflow. Same tables, same RPCs, same pages for every
+   business. Size changes the data, never the code path.
+2. Show what exists, not what's possible. A block, menu item or field
+   appears only when the business has something for it (a second site,
+   a team member, a pending approval, a linked asset). Empty sections are
+   hidden, not shown empty.
+3. Plain words first. "Job", "Approved: £155", "Who can approve". Trade
+   terms (PO number, NTE, SLA, PPM) appear only where the business uses
+   them.
+4. Enterprise extras bolt on (SSO, finance-system export, reporting) —
+   they never change the core workflow.
+
+Every brief that adds UI must state which condition makes each new block
+appear.
+
 ## Critical Rules (read every session)
 - No emojis in UI
 - No fake placeholder data anywhere
