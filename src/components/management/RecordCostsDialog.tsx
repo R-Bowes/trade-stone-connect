@@ -30,12 +30,18 @@ export function RecordCostsDialog({
   onOpenChange,
   workOrderTitle,
   rateSnapshot,
+  approvedValue = null,
+  recordedTotal = 0,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workOrderTitle: string;
   rateSnapshot: Record<string, unknown> | null;
+  /** The work order's PO value; null on legacy work orders. */
+  approvedValue?: number | null;
+  /** Lines already recorded and not rejected — what auto-approval is measured against. */
+  recordedTotal?: number;
   /** Records one component; resolves true on success. Called once per component, in order. */
   onSubmit: (input: CostInput) => Promise<boolean>;
 }) {
@@ -78,7 +84,7 @@ export function RecordCostsDialog({
     if (h != null) {
       if (h <= 0) issue = "Hours must be greater than zero.";
       else if (rates.hourlyRate != null) {
-        lines.push({ label: `Labour: ${h} hrs × ${formatGBP(rates.hourlyRate)}`, amount: round2(h * rates.hourlyRate) });
+        lines.push({ label: `Labour: ${h} ${h === 1 ? "hr" : "hrs"} × ${formatGBP(rates.hourlyRate)}`, amount: round2(h * rates.hourlyRate) });
         comps.push({ kind: "hours", quantity: h });
       }
     }
@@ -187,9 +193,7 @@ export function RecordCostsDialog({
             )}
             {problem && <p className="text-destructive">{problem}</p>}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Each line goes to the business for approval unless it falls under their approval limit.
-          </p>
+          <PoHeadroom approvedValue={approvedValue} recordedTotal={recordedTotal} adding={total} />
         </div>
 
         <DialogFooter>
@@ -205,6 +209,33 @@ export function RecordCostsDialog({
 }
 
 // ── Amend / resubmit one line ───────────────────────────────────────────────
+
+/**
+ * Lines auto-approve while the running total stays within the PO
+ * (submit_work_order_cost); over it, the business has to approve.
+ */
+function PoHeadroom({ approvedValue, recordedTotal, adding }: { approvedValue: number | null; recordedTotal: number; adding: number }) {
+  if (approvedValue == null) {
+    return <p className="text-xs text-muted-foreground">Each line goes to the business for approval.</p>;
+  }
+  const after = round2(recordedTotal + adding);
+  const over = round2(after - approvedValue);
+  return (
+    <p className="text-xs text-muted-foreground">
+      Approved to spend <span className="font-mono">{formatGBP(approvedValue)}</span>
+      {adding > 0 ? (
+        <>
+          {" · "}this takes you to <span className="font-mono">{formatGBP(after)}</span>
+          {over > 0
+            ? <> — <span className="font-mono">{formatGBP(over)}</span> over, will need the client's approval</>
+            : " — within the PO"}
+        </>
+      ) : (
+        <>{" · "}<span className="font-mono">{formatGBP(recordedTotal)}</span> recorded so far</>
+      )}
+    </p>
+  );
+}
 
 export function AmendCostDialog({
   line,

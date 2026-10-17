@@ -7,6 +7,7 @@ import {
   toInvoiceState,
   toWorkOrderState,
   toCostLineState,
+  toPoRequestState,
   toEngagementRateState,
   toQuoteState,
   toSchedulingState,
@@ -16,6 +17,7 @@ import {
 import { displayStatus, isOverdue, type InvoiceMoneyFields } from "@/lib/invoiceMoney";
 import { formatJobRef, formatInvoiceRef } from "@/lib/documentRefs";
 import { formatWoNumber } from "@/hooks/useWorkOrders";
+import { formatGBP } from "@/lib/formatGBP";
 
 /**
  * The unified work list's item shape (Step 0) and the two adapters that
@@ -58,7 +60,7 @@ export const STAGE_LABEL: Record<WorkItemStage, string> = {
 
 export interface WorkItem {
   key: string;
-  kind: "enquiry" | "quote" | "work_order" | "job" | "invoice" | "cost_line" | "engagement_rate" | "service_request";
+  kind: "enquiry" | "quote" | "work_order" | "job" | "invoice" | "cost_line" | "po_request" | "engagement_rate" | "service_request";
   /** null only for engagement_rate — stage-less, shown outside the stage filter. */
   stage: WorkItemStage | null;
   reference: string | null;
@@ -67,6 +69,8 @@ export interface WorkItem {
   counterparty: { name: string; code?: string | null } | null;
   site: string | null;
   amount: number | null;
+  /** Replaces the generic "Value" field when the amount needs its context (e.g. against a PO). */
+  amountField?: { label: string; value: string };
   sinceIso: string;
   dueIso: string | null;
   overdue: boolean;
@@ -525,13 +529,16 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
   } else {
     const rows = woRes.data ?? [];
     // A draft waiting for its PO goes to the approval stage. Whether it is
-    // this viewer's to sign off is the server's call (owner, or a member
-    // covering the site), asked once per waiting work order. Fails closed:
-    // an error reads as someone else's to sign off.
+    // this viewer's to sign off is the server's call (the owner, or a member
+    // covering the site whose approval limit covers the value), asked once
+    // per waiting work order. Fails closed: an error reads as someone else's.
     const waiting = rows.filter((wo) => wo.status === "draft" && wo.approved_value != null && wo.po_issued_at == null);
     const signOffById = new Map<string, boolean>(
       await Promise.all(waiting.map(async (wo) => {
-        const { data, error } = await supabase.rpc("can_sign_off_work_order", { p_work_order_id: wo.id });
+        const { data, error } = await supabase.rpc("can_sign_off_work_order_amount", {
+          p_work_order_id: wo.id,
+          p_amount: Number(wo.approved_value),
+        });
         return [wo.id, !error && data === true] as [string, boolean];
       })),
     );
@@ -566,33 +573,92 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
     }
   }
 
-  // ---- Approval: cost lines pending ----
-  const PENDING_COST_SELECT = "id, work_order_id, line_total, created_at, work_order:work_orders(id, wo_number, title, contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code))" as const;
-  const pendingCostsRes = await supabase.from("work_order_costs").select(PENDING_COST_SELECT).eq("company_id", companyId).eq("status", "pending");
+  // ---- Approval: cost lines pending, and PO increase requests ----
+  // A pending line that would take the approved total past the PO amends the
+  // PO when approved, so it needs an approval limit covering the new total;
+  // within the PO, covering the site is enough. Same split for requests:
+  // the new PO total decides who can approve. Each check is the server's,
+  // asked per item, failing closed to "someone else's".
+  const PENDING_COST_SELECT = "id, work_order_id, line_total, created_at, work_order:work_orders(id, wo_number, title, approved_value, contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code))" as const;
+  const PO_REQUEST_SELECT = "id, work_order_id, increase_amount, created_at, work_order:work_orders(id, wo_number, title, approved_value, contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code))" as const;
+  const [pendingCostsRes, poRequestsRes] = await Promise.all([
+    supabase.from("work_order_costs").select(PENDING_COST_SELECT).eq("company_id", companyId).eq("status", "pending"),
+    supabase.from("work_order_po_requests").select(PO_REQUEST_SELECT).eq("company_id", companyId).eq("status", "pending"),
+  ]);
+
+  const canSignAmount = async (workOrderId: string, amount: number) => {
+    const { data, error } = await supabase.rpc("can_sign_off_work_order_amount", { p_work_order_id: workOrderId, p_amount: amount });
+    return !error && data === true;
+  };
+
   if (pendingCostsRes.error) {
     console.error("workItems: error loading pending cost lines", pendingCostsRes.error);
   } else {
-    const state = toCostLineState("pending");
-    const result = state ? presentState(state, "recipient") : null;
-    if (result) {
-      for (const line of pendingCostsRes.data ?? []) {
-        items.push({
-          key: `cost_line:${line.id}`,
-          kind: "cost_line",
-          stage: "approval",
-          reference: line.work_order ? formatWoNumber(companyCode, line.work_order.wo_number) : null,
-          title: line.work_order?.title ?? "Cost line",
-          counterparty: { name: line.work_order?.contractor?.full_name ?? "Contractor", code: line.work_order?.contractor?.ts_profile_code ?? null },
-          site: null,
-          amount: line.line_total,
-          sinceIso: line.created_at,
-          dueIso: null,
-          overdue: false,
-          band: bandFrom(result),
-          actionLabel: result.label,
-          actionTarget: { tab: "work-orders", recordId: line.work_order_id },
-        });
-      }
+    const lines = pendingCostsRes.data ?? [];
+    const woIds = [...new Set(lines.map((l) => l.work_order_id))];
+    const approvedByWo = new Map<string, number>();
+    if (woIds.length > 0) {
+      const approvedRes = await supabase.from("work_order_costs").select("work_order_id, line_total").in("work_order_id", woIds).eq("status", "approved");
+      if (approvedRes.error) console.error("workItems: error loading approved cost totals", approvedRes.error);
+      for (const a of approvedRes.data ?? []) approvedByWo.set(a.work_order_id, (approvedByWo.get(a.work_order_id) ?? 0) + Number(a.line_total));
+    }
+    for (const line of lines) {
+      const poValue = line.work_order?.approved_value != null ? Number(line.work_order.approved_value) : null;
+      const newTotal = Math.round(((approvedByWo.get(line.work_order_id) ?? 0) + Number(line.line_total)) * 100) / 100;
+      const overPo = poValue != null && newTotal > poValue;
+      const signOff = overPo ? ((await canSignAmount(line.work_order_id, newTotal)) ? "you" : "someone_else") : undefined;
+      const state = toCostLineState("pending", signOff);
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      items.push({
+        key: `cost_line:${line.id}`,
+        kind: "cost_line",
+        stage: "approval",
+        reference: line.work_order ? formatWoNumber(companyCode, line.work_order.wo_number) : null,
+        title: line.work_order?.title ?? "Cost line",
+        counterparty: { name: line.work_order?.contractor?.full_name ?? "Contractor", code: line.work_order?.contractor?.ts_profile_code ?? null },
+        site: null,
+        amount: line.line_total,
+        amountField: poValue != null
+          ? { label: "Cost line", value: `${formatGBP(line.line_total)} ${overPo ? "over" : "within"} PO ${formatGBP(poValue)}` }
+          : undefined,
+        sinceIso: line.created_at,
+        dueIso: null,
+        overdue: false,
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "work-orders", recordId: line.work_order_id },
+      });
+    }
+  }
+
+  if (poRequestsRes.error) {
+    console.error("workItems: error loading PO increase requests", poRequestsRes.error);
+  } else {
+    for (const req of poRequestsRes.data ?? []) {
+      const poValue = req.work_order?.approved_value != null ? Number(req.work_order.approved_value) : null;
+      if (poValue == null) continue;
+      const newTotal = Math.round((poValue + Number(req.increase_amount)) * 100) / 100;
+      const state = toPoRequestState("pending", (await canSignAmount(req.work_order_id, newTotal)) ? "you" : "someone_else");
+      if (!state) continue;
+      const result = presentState(state, "recipient");
+      items.push({
+        key: `po_request:${req.id}`,
+        kind: "po_request",
+        stage: "approval",
+        reference: req.work_order ? formatWoNumber(companyCode, req.work_order.wo_number) : null,
+        title: req.work_order?.title ?? "PO increase",
+        counterparty: { name: req.work_order?.contractor?.full_name ?? "Contractor", code: req.work_order?.contractor?.ts_profile_code ?? null },
+        site: null,
+        amount: req.increase_amount,
+        amountField: { label: "Request", value: `PO increase +${formatGBP(req.increase_amount)}` },
+        sinceIso: req.created_at,
+        dueIso: null,
+        overdue: false,
+        band: bandFrom(result),
+        actionLabel: result.label,
+        actionTarget: { tab: "work-orders", recordId: req.work_order_id },
+      });
     }
   }
 

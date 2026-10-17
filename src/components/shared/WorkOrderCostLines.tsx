@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -19,6 +19,10 @@ interface WorkOrderCostLinesProps {
   /** The work order's approved value; null on legacy work orders, which have no PO. */
   approvedValue?: number | null;
   viewer?: "business" | "contractor";
+  /** Replaces the default total/approved header with the caller's one money summary. */
+  summary?: ReactNode;
+  /** Opens the breakdown when something in it needs the viewer. */
+  autoExpand?: boolean;
 }
 
 /**
@@ -28,8 +32,9 @@ interface WorkOrderCostLinesProps {
  * value, and a pending line that would take the approved total past it is
  * flagged: approving it amends the PO.
  */
-export function WorkOrderCostLines({ lines, renderLineActions, approvedValue = null, viewer = "business" }: WorkOrderCostLinesProps) {
-  const [open, setOpen] = useState(false);
+export function WorkOrderCostLines({ lines, renderLineActions, approvedValue = null, viewer = "business", summary, autoExpand = false }: WorkOrderCostLinesProps) {
+  const [open, setOpen] = useState(autoExpand);
+  useEffect(() => { if (autoExpand) setOpen(true); }, [autoExpand]);
   const totals = totalCostLines(lines);
   const overLimitNote = viewer === "business"
     ? "Over approved value — approving amends the PO"
@@ -48,7 +53,7 @@ export function WorkOrderCostLines({ lines, renderLineActions, approvedValue = n
   return (
     <div className="border-t pt-3 space-y-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
+        {summary ?? <div>
           <p className="text-sm font-medium">Costs</p>
           <p className="text-2xl font-semibold font-mono">
             {formatGBP(totals.total)}
@@ -62,7 +67,7 @@ export function WorkOrderCostLines({ lines, renderLineActions, approvedValue = n
             {totals.queried > 0 && ` · ${formatGBP(totals.queried)} queried`}
             {overCount > 0 && ` · ${overCount} over approved value`}
           </p>
-        </div>
+        </div>}
         <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
           {open ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
           {open ? "Hide breakdown" : `Show breakdown (${lines.length})`}

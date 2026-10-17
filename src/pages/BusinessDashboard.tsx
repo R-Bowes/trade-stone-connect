@@ -17,6 +17,7 @@ import { SiteContactManager } from "@/components/business/SiteContactManager";
 import { PpmComplianceDashboard } from "@/components/business/PpmComplianceDashboard";
 import { BusinessSpendView } from "@/components/business/BusinessSpendView";
 import { BusinessTeamView } from "@/components/business/BusinessTeamView";
+import { WorkOrderApprovals } from "@/components/business/WorkOrderApprovals";
 import { SiteGroupsView } from "@/components/business/SiteGroupsView";
 import { ReceivedInvoices } from "@/components/recipient/ReceivedInvoices";
 import { ReceivedQuotes } from "@/components/recipient/ReceivedQuotes";
@@ -329,7 +330,8 @@ const BusinessDashboard = () => {
 
       case "approvals":
         return (
-          <div className="p-6">
+          <div className="p-6 space-y-6">
+            <WorkOrderApprovals companyId={companyId!} profileId={profileId} />
             <ReceivedQuotes />
           </div>
         );

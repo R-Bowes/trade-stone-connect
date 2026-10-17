@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from "@/lib/formatDate";
 import { formatGBP } from "@/lib/formatGBP";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { formatPoNumber, formatWoNumber, isAwaitingSignOff, type WorkOrder, type WorkOrderPriority } from "@/hooks/useWorkOrders";
+import { isJobStarted } from "@/lib/workOrderValue";
 
 export const WORK_ORDER_PHOTO_BUCKET = "work-order-photos";
 
@@ -24,10 +25,12 @@ export const PRIORITY_COLOR: Record<WorkOrderPriority, string> = {
  * WorkOrderDashboard's summary tiles derive "awaiting response" and "in
  * progress" — no status values beyond the live CHECK set are invented. A
  * draft splits three ways on the PO columns: waiting for sign-off (value set,
- * no PO), ready to dispatch (PO issued), or a legacy draft with neither.
+ * no PO), ready to dispatch (PO issued), or a legacy draft with neither. An
+ * accepted work order is "In progress" only once its job is started (the job
+ * embedded through work_orders.job_id); before that, "Accepted — not started".
  */
 export function deriveWorkOrderStatus(
-  wo: Pick<WorkOrder, "status" | "response" | "job_id" | "approved_value" | "po_issued_at">,
+  wo: Pick<WorkOrder, "status" | "response" | "job_id" | "approved_value" | "po_issued_at" | "job">,
 ): { label: string; className: string } {
   switch (wo.status) {
     case "draft":
@@ -39,8 +42,9 @@ export function deriveWorkOrderStatus(
         ? { label: "Awaiting response", className: "bg-amber-100 text-amber-800" }
         : { label: "Dispatched", className: "bg-blue-100 text-blue-800" };
     case "accepted":
+      if (isJobStarted(wo.job?.status)) return { label: "In progress", className: "bg-green-100 text-green-800" };
       return wo.job_id
-        ? { label: "In progress", className: "bg-green-100 text-green-800" }
+        ? { label: "Accepted — not started", className: "bg-blue-100 text-blue-800" }
         : { label: "Accepted", className: "bg-green-100 text-green-800" };
     case "declined":
       return { label: "Declined", className: "bg-red-100 text-red-800" };
@@ -94,6 +98,8 @@ interface WorkOrderCardProps {
   actions?: ReactNode;
   /** Cost lines block, rendered between the rates and the photos. */
   costs?: ReactNode;
+  /** First block inside the card, above the description (e.g. a pending PO increase). */
+  notice?: ReactNode;
   /** Compact only: replaces the third field (Dispatched) with a fact more relevant to the section showing this card. */
   compactFact?: RecordCardField;
 }
@@ -116,6 +122,7 @@ export function WorkOrderCard({
   density = "full",
   actions,
   costs,
+  notice,
   compactFact,
 }: WorkOrderCardProps) {
   const compact = density === "compact";
@@ -167,7 +174,12 @@ export function WorkOrderCard({
           <Badge className={status.className}>{status.label}</Badge>
         </>
       }
-      lead={workOrder.description ? <p className="text-sm">{workOrder.description}</p> : undefined}
+      lead={notice || workOrder.description ? (
+        <div className="space-y-3">
+          {notice}
+          {workOrder.description && <p className="text-sm">{workOrder.description}</p>}
+        </div>
+      ) : undefined}
       fields={fields}
       actions={actions}
       density={density}

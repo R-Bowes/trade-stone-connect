@@ -36,6 +36,8 @@ interface JobCardProps {
   origin: string | null;
   /** Engagement-origin jobs only. */
   costSummary?: JobCostSummary | null;
+  /** The linked work order's PO value, shown in place of "No costs" for a work-order job. */
+  poValue?: number | null;
   density?: "full" | "compact";
   actions?: ReactNode;
   /** Viewer-specific markers shown before the status badge (e.g. the contractor's RAMS marker). */
@@ -80,6 +82,7 @@ export function JobCard({
   workers,
   origin,
   costSummary,
+  poValue = null,
   density = "full",
   actions,
   extraBadges,
@@ -99,7 +102,7 @@ export function JobCard({
     ? [
         { label: "Site", value: site?.name ?? "—" },
         { label: "Scheduled", value: job.start_date ? formatDate(job.start_date) : "Not scheduled" },
-        { label: "Value", value: formatJobValue(job, costSummary) },
+        { label: "Value", value: formatJobValue(job, costSummary, poValue) },
       ]
     : [
         { label: viewer === "contractor" ? "Client" : "Contractor", value: counterparty ?? "—" },
@@ -112,7 +115,7 @@ export function JobCard({
         ...(job.sla_response_due ? [{ label: "SLA response due", value: formatDate(job.sla_response_due) }] : []),
         ...(resolutionDue ? [{ label: "SLA resolution due", value: formatDate(resolutionDue) }] : []),
         { label: "Origin", value: origin ? <OriginRefs value={origin} /> : "—" },
-        { label: "Value", value: formatJobValue(job, costSummary) },
+        { label: "Value", value: formatJobValue(job, costSummary, poValue) },
       ];
 
   return (

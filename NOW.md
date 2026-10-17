@@ -56,7 +56,6 @@ Still open, holes NOT yet closed:
 - notifications INSERT is WITH CHECK (true) for any logged-in user. Found 11 Oct.
 - subcontracts and contracts are client-writable with no WITH CHECK; the old Contracts screen is reachable by typed URL. Found 11 Oct.
 - sign-off of a contractor-owned project trusts jobs.customer_id, which the contractor can still edit; closes with the jobs lock. Found 11 Oct.
-- work_orders SELECT lets site-only members read every work order in the company (is_company_member ignores coverage) — same class as the jobs coverage gap. Found 13 Oct.
 
 Parked defects:
 - VAT charged by non-registered contractors: blocked for new invoices from 12
@@ -148,30 +147,17 @@ Invoiced·matched → Paid.
    dispatch, contractor accept, cost lines, over-PO line approved → PO
    amended £155 → £200).
 
-   Step 1 follow-ups (next brief):
-   a. Cost lines only once the job is under way: submit_work_order_cost
-      refuses unless the WO is accepted and its job is in_progress or later
-      (becomes "after check-in" in step 5).
-   b. "Request a PO increase" for the contractor, any time after accepting:
-      amount + reason → business Needs you → approving amends the PO.
-      (Pulls the variation path forward from step 3.)
-   c. Approval limits per person (step 1b): business_members.approval_limit;
-      over your limit → someone whose limit covers it, or the owner.
-   d. Record-costs form: replace "unless it falls under their approval
-      limit" with live PO headroom ("Approved to spend £155.00 · this takes
-      you to £200.00 — £45.00 over, will need the client's approval").
-   e. Work-order detail: one money summary (approved · waiting · PO), not
-      two contradictory ones; breakdown auto-expanded when a line needs
-      approval.
-   f. Dashboard "Review and approve" opens that work order directly, not
-      the list; the row reads "£135.00 over PO £155.00", not "Value".
-   g. Approvals page lists pending cost lines first, ahead of quotes.
-   h. Work-order jobs: hide "Raise variation" (old job_variations path,
-      unanswerable for business jobs); show PO value instead of "Value:
-      No costs" on the job card.
-2. Full work order page with timeline, for both sides.
-3. One thread on the work order and one variation path. job_variations is
-   switched off for work-order jobs (jobs.work_order_id NOT NULL) here.
+   Step 1 follow-ups a–h DONE: cost lines only once the job is started, PO
+   increase requests, per-member approval limits, coverage-scoped SELECT on
+   work orders, cost lines and PO requests, no job_variations on work-order
+   jobs, and the screen polish. Migration 20261017120000 live 17 Oct;
+   browser-checked 17 Oct. The cost-line gate is soft until the step 5
+   check-in: it reads jobs.status, which is still client-writable (the jobs
+   lock is on the write-path list).
+2. Full work order page with timeline, for both sides. Also: drop the
+   can_sign_off_work_order shim (left by 20261017120000 for the live client).
+3. One thread on the work order. The one variation path is done: PO increase
+   requests, with job_variations refused on work-order jobs (17 Oct).
 4. Certificates → asset compliance, compliance by site, and an expiry books
    the next visit.
 5. Location-stamped check-in, and the SLA measured from it.

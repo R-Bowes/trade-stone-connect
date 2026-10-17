@@ -316,6 +316,7 @@ function ClientJobDetail({ job, refLine, onBack }: { job: Job; refLine: string; 
 
       <PaymentProgress jobId={job.id} isContractor={false} />
 
+      {!job.work_order_id && (
       <VariationsSection
         jobId={job.id}
         contractorId={job.contractor_id}
@@ -323,6 +324,7 @@ function ClientJobDetail({ job, refLine, onBack }: { job: Job; refLine: string; 
         currentContractValue={Number(job.contract_value)}
         isContractor={false}
       />
+      )}
 
       <CustomerJobDocuments jobId={job.id} />
 

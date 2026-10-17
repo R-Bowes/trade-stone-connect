@@ -6,6 +6,8 @@ export interface Job {
   id: string;
   contractor_id: string;
   customer_id: string;
+  /** Set on a work-order (call-out) job; the job is billed through the work order, not variations. */
+  work_order_id: string | null;
   issued_quote_id: string | null;
   engagement_id: string | null;
   job_number: number;

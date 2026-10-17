@@ -1,5 +1,6 @@
 import type { WorkOrderCost } from "@/lib/costLines";
 import { round2 } from "@/lib/costLines";
+import { formatGBP } from "@/lib/formatGBP";
 
 export interface DefaultValueRates {
   callout_standard: number | string | null;
@@ -69,4 +70,27 @@ export function isOverApprovedValue(
   if (approvedValue == null || line.status !== "pending") return false;
   const { approvedTotal } = poSpend(approvedValue, lines);
   return round2(approvedTotal + Number(line.line_total)) > approvedValue;
+}
+
+/**
+ * Cost lines can only be recorded once the work order is accepted and its
+ * job is under way. Mirrors _work_order_job_started in
+ * 20261017120000_work_order_limits_and_po_requests.sql. A soft gate until
+ * the step 5 check-in: jobs.status is still client-writable.
+ */
+export const JOB_STARTED_STATUSES = ["in_progress", "snagging", "complete"] as const;
+
+export function isJobStarted(jobStatus: string | null | undefined): boolean {
+  return !!jobStatus && (JOB_STARTED_STATUSES as readonly string[]).includes(jobStatus);
+}
+
+export function canRecordWorkOrderCosts(workOrderStatus: string, jobStatus: string | null | undefined): boolean {
+  return workOrderStatus === "accepted" && isJobStarted(jobStatus);
+}
+
+/** Why Record costs is unavailable, for the disabled button's explanation. */
+export function recordCostsBlockedReason(approvedValue: number | null): string {
+  return approvedValue != null
+    ? `Start the job before recording costs. If you expect it to cost more than ${formatGBP(approvedValue)}, request a PO increase instead.`
+    : "Start the job before recording costs.";
 }

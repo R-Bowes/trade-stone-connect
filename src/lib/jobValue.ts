@@ -19,7 +19,7 @@ interface JobValueInput {
  * Engagement-origin jobs are always 0 there — they bill through the cost lines
  * recorded on their work order — so contract_value is never used for them.
  */
-export function formatJobValue(job: JobValueInput, summary: JobCostSummary | null | undefined): string {
+export function formatJobValue(job: JobValueInput, summary: JobCostSummary | null | undefined, poValue: number | null = null): string {
   if (!job.engagement_id) {
     return job.contract_value != null ? formatGBP(job.contract_value) : "—";
   }
@@ -29,7 +29,16 @@ export function formatJobValue(job: JobValueInput, summary: JobCostSummary | nul
     if (job.status === "cancelled") return "—";
     return "No work order — costs can't be recorded yet";
   }
-  if (!summary) return "—";
-  if (summary.lineCount === 0) return "No costs recorded yet";
+  // A work order with a PO: the PO is the job's value until costs come in.
+  const po = poValue != null ? `PO ${formatGBP(poValue)}` : null;
+  if (!summary) return po ?? "—";
+  if (summary.lineCount === 0) return po ?? "No costs recorded yet";
+  if (po) {
+    // Approved against the PO; anything still waiting is shown only when there is some.
+    const waiting = summary.total - summary.approved;
+    return [`${formatGBP(summary.approved)} approved`, waiting > 0 ? `${formatGBP(waiting)} waiting` : null, po]
+      .filter(Boolean)
+      .join(" · ");
+  }
   return `${formatGBP(summary.total)} — ${formatGBP(summary.approved)} approved`;
 }

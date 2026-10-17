@@ -14,13 +14,20 @@ import { WorkOrderCard } from "@/components/shared/WorkOrderCard";
 import { WorkOrderCostLines } from "@/components/shared/WorkOrderCostLines";
 import { RecordCostsDialog, AmendCostDialog } from "@/components/management/RecordCostsDialog";
 import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
-import type { WorkOrderCost } from "@/lib/costLines";
+import { PoIncreasePanel } from "@/components/shared/PoIncreasePanel";
+import { totalCostLines, type WorkOrderCost } from "@/lib/costLines";
+import { canRecordWorkOrderCosts, recordCostsBlockedReason } from "@/lib/workOrderValue";
 
 const DECLINE_REASONS = ["Unavailable", "Too far", "Outside expertise", "Capacity full", "Other"];
 
-const INBOX_SELECT = "*, company:companies(name, company_code), site:sites(id, name), asset:assets(id, name)" as const;
+// The job is embedded through work_orders.job_id (two FKs join these tables,
+// so the hint is needed): cost lines open only once it is under way.
+const INBOX_SELECT = "*, company:companies(name, company_code), site:sites(id, name), asset:assets(id, name), job:jobs!work_orders_job_id_fkey(id, status)" as const;
 
-type InboxWorkOrder = WorkOrder & { company?: { name: string | null; company_code: string | null } | null };
+type InboxWorkOrder = WorkOrder & {
+  company?: { name: string | null; company_code: string | null } | null;
+  job?: { id: string; status: string } | null;
+};
 
 export function WorkOrderInbox() {
   const { respondToWorkOrder } = useWorkOrders();
@@ -168,23 +175,42 @@ export function WorkOrderInbox() {
                 companyCode={wo.company?.company_code ?? null}
                 viewer="contractor"
                 costs={
-                  <WorkOrderCostLines
-                    lines={costsByWorkOrder[wo.id] ?? []}
-                    approvedValue={wo.approved_value}
-                    viewer="contractor"
-                    renderLineActions={(line) =>
-                      line.status === "pending" || line.status === "queried" ? (
-                        <Button size="sm" variant="outline" onClick={() => setAmending(line)}>
-                          {line.status === "queried" ? "Amend and resubmit" : "Amend"}
-                        </Button>
-                      ) : null
-                    }
-                  />
+                  <>
+                    <div className="border-t pt-3">
+                      <PoIncreasePanel
+                        workOrder={wo}
+                        companyCode={wo.company?.company_code ?? null}
+                        viewer="contractor"
+                        onChanged={() => void load()}
+                      />
+                    </div>
+                    <WorkOrderCostLines
+                      lines={costsByWorkOrder[wo.id] ?? []}
+                      approvedValue={wo.approved_value}
+                      viewer="contractor"
+                      renderLineActions={(line) =>
+                        (line.status === "pending" || line.status === "queried") && canRecordWorkOrderCosts(wo.status, wo.job?.status) ? (
+                          <Button size="sm" variant="outline" onClick={() => setAmending(line)}>
+                            {line.status === "queried" ? "Amend and resubmit" : "Amend"}
+                          </Button>
+                        ) : null
+                      }
+                    />
+                  </>
                 }
                 actions={
-                  <Button size="sm" onClick={() => setRecordingFor(wo)}>
-                    <Plus className="h-4 w-4 mr-1" />Record costs
-                  </Button>
+                  canRecordWorkOrderCosts(wo.status, wo.job?.status) ? (
+                    <Button size="sm" onClick={() => setRecordingFor(wo)}>
+                      <Plus className="h-4 w-4 mr-1" />Record costs
+                    </Button>
+                  ) : (
+                    <div className="space-y-1">
+                      <Button size="sm" disabled>
+                        <Plus className="h-4 w-4 mr-1" />Record costs
+                      </Button>
+                      <p className="text-xs text-muted-foreground max-w-xs">{recordCostsBlockedReason(wo.approved_value)}</p>
+                    </div>
+                  )
                 }
               />
             ))}
@@ -203,6 +229,8 @@ export function WorkOrderInbox() {
         }}
         workOrderTitle={recordingFor?.title ?? ""}
         rateSnapshot={recordingFor?.rate_snapshot ?? null}
+        approvedValue={recordingFor?.approved_value ?? null}
+        recordedTotal={recordingFor ? totalCostLines(costsByWorkOrder[recordingFor.id] ?? []).total : 0}
         onSubmit={(input) => (recordingFor ? submitCost(recordingFor.id, input) : Promise.resolve(false))}
       />
 

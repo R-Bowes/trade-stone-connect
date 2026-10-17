@@ -279,7 +279,7 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
     return (
       <JobDetail
         job={selected}
-        valueText={formatJobValue(selected, costFor(selected))}
+        valueText={formatJobValue(selected, costFor(selected), selected.work_order_id ? jobCtx.workOrders[selected.work_order_id]?.approved_value ?? null : null)}
         onBack={() => setSelected(null)}
       />
     );
@@ -402,6 +402,7 @@ export function BusinessJobsView({ companyId, profileId: _profileId }: Props) {
                   asset={resolveJobAsset(jobCtx, job)}
                   origin={originLabel(job)}
                   costSummary={costFor(job)}
+                  poValue={job.work_order_id ? jobCtx.workOrders[job.work_order_id]?.approved_value ?? null : null}
                   actions={<Button size="sm" variant="outline" onClick={() => setSelected(job)}>View</Button>}
                 />
               </div>

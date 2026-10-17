@@ -87,9 +87,21 @@ export type WorkOrderState = {
 
 // work_order_costs.status. Rejected lines never invoice (see costLines.ts)
 // so there is nothing further for either side to do once rejected.
+// signOff is set only on a pending line that would take the PO past its
+// approved value: approving it amends the PO, which needs an approval limit
+// covering the new total ("you") or someone else's ("someone_else").
 export type CostLineState = {
   kind: "cost_line";
   status: "pending" | "approved" | "queried" | "rejected";
+  signOff?: "you" | "someone_else";
+};
+
+// work_order_po_requests.status — a contractor's request to increase a PO.
+// signOff on a pending request: can this viewer sign off the new PO total?
+export type PoRequestState = {
+  kind: "po_request";
+  status: "pending" | "approved" | "declined" | "withdrawn";
+  signOff?: "you" | "someone_else";
 };
 
 // engagement_rates has no single "status" column — agreement is two
@@ -120,6 +132,7 @@ export type EntityState =
   | InvoiceState
   | WorkOrderState
   | CostLineState
+  | PoRequestState
   | EngagementRateState
   | ServiceRequestState;
 
@@ -272,13 +285,33 @@ export function toWorkOrderState(
   }
 }
 
-export function toCostLineState(status: string | null | undefined): CostLineState | null {
+export function toCostLineState(
+  status: string | null | undefined,
+  signOff?: CostLineState["signOff"],
+): CostLineState | null {
   switch (status) {
     case "pending":
+      return signOff ? { kind: "cost_line", status, signOff } : { kind: "cost_line", status };
     case "approved":
     case "queried":
     case "rejected":
       return { kind: "cost_line", status };
+    default:
+      return null;
+  }
+}
+
+export function toPoRequestState(
+  status: string | null | undefined,
+  signOff?: PoRequestState["signOff"],
+): PoRequestState | null {
+  switch (status) {
+    case "pending":
+      return signOff ? { kind: "po_request", status, signOff } : { kind: "po_request", status };
+    case "approved":
+    case "declined":
+    case "withdrawn":
+      return { kind: "po_request", status };
     default:
       return null;
   }
@@ -557,6 +590,13 @@ function presentWorkOrder(state: WorkOrderState, viewer: Viewer): PresenterResul
 function presentCostLine(state: CostLineState, viewer: Viewer): PresenterResult {
   switch (state.status) {
     case "pending":
+      if (state.signOff === "someone_else") {
+        return perspective(
+          viewer,
+          chip("Awaiting approval", "waiting", "them"),
+          chip("Waiting for sign-off", "waiting", "them"),
+        );
+      }
       return perspective(
         viewer,
         chip("Awaiting approval", "waiting", "them"),
@@ -573,6 +613,27 @@ function presentCostLine(state: CostLineState, viewer: Viewer): PresenterResult 
     case "rejected":
       // Never invoices (costLines.ts) — nothing further for either side.
       return chip("Rejected", "neutral", null);
+    default:
+      return assertNever(state.status);
+  }
+}
+
+function presentPoRequest(state: PoRequestState, viewer: Viewer): PresenterResult {
+  switch (state.status) {
+    case "pending":
+      return perspective(
+        viewer,
+        chip("PO increase requested", "waiting", "them"),
+        state.signOff === "someone_else"
+          ? chip("Waiting for sign-off", "waiting", "them")
+          : chip("Review PO increase", "action", "you"),
+      );
+    case "approved":
+      return chip("PO increased", "done", null);
+    case "declined":
+      return chip("Declined", "neutral", null);
+    case "withdrawn":
+      return chip("Withdrawn", "neutral", null);
     default:
       return assertNever(state.status);
   }
@@ -644,6 +705,8 @@ export function presentState(state: EntityState, viewer: Viewer): PresenterResul
       return presentWorkOrder(state, viewer);
     case "cost_line":
       return presentCostLine(state, viewer);
+    case "po_request":
+      return presentPoRequest(state, viewer);
     case "engagement_rate":
       return presentEngagementRate(state, viewer);
     case "service_request":

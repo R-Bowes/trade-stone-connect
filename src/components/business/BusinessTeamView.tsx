@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { formatGBP } from "@/lib/formatGBP";
 
 interface Props {
   companyId: string;
@@ -20,6 +21,8 @@ interface Coverage {
 
 interface ActiveMember {
   id: string;
+  /** Highest PO total this member may sign off; null = can't approve. */
+  approval_limit: number | null;
   coverage_kind: string;
   coverage_group_id: string | null;
   coverage_site_id: string | null;
@@ -211,6 +214,10 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<Coverage>(DEFAULT_COVERAGE);
 
+  // Approval limit edit state (owner only — one row at a time)
+  const [limitEditingId, setLimitEditingId] = useState<string | null>(null);
+  const [limitText, setLimitText] = useState("");
+
   // Invite form state
   const [inviteMode, setInviteMode] = useState<"none" | "link" | "code">("none");
   const [inviteCoverage, setInviteCoverage] = useState<Coverage>(DEFAULT_COVERAGE);
@@ -232,7 +239,7 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
     const [activeRes, contactsRes, pendingRes, groupsRes, sitesRes] = await Promise.all([
       supabase
         .from("business_members")
-        .select("id, coverage_kind, coverage_group_id, coverage_site_id, profile_id, invited_email")
+        .select("id, approval_limit, coverage_kind, coverage_group_id, coverage_site_id, profile_id, invited_email")
         .eq("company_id", companyId)
         .eq("status", "active")
         .order("created_at"),
@@ -300,6 +307,30 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ variant: "destructive", title: "Coverage update failed", description: msg });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // approval_limit is not client-writable (20261017120000): the owner sets it
+  // through set_member_approval_limit. Empty clears it — that member then
+  // can't sign off anything.
+  const handleSaveLimit = async (memberId: string) => {
+    const trimmed = limitText.trim();
+    const value = trimmed === "" ? null : Math.round(Number(trimmed) * 100) / 100;
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      toast({ variant: "destructive", title: "Invalid limit", description: "Enter an amount of £0 or more, or leave it empty." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("set_member_approval_limit", { p_member_id: memberId, p_limit: value });
+      if (error) throw error;
+      setLimitEditingId(null);
+      await loadMembers();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ variant: "destructive", title: "Approval limit update failed", description: msg });
     } finally {
       setBusy(false);
     }
@@ -469,6 +500,10 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
           <CardTitle className="text-base">Team members</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="flex items-center justify-between gap-4 px-6 py-3 border-b">
+            <p className="text-sm font-medium">{isOwner ? "You (owner)" : "Company owner"}</p>
+            <span className="text-xs text-muted-foreground">Approval limit: No limit</span>
+          </div>
           {activeMembers.length === 0 ? (
             <p className="px-6 py-4 text-sm text-muted-foreground">No active members found.</p>
           ) : (
@@ -498,6 +533,26 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-muted-foreground">
+                          {m.approval_limit == null ? (
+                            "Can't approve"
+                          ) : (
+                            <>Approval limit <span style={{ fontFamily: "'Roboto Mono', monospace" }}>{formatGBP(m.approval_limit)}</span></>
+                          )}
+                        </span>
+                        {isOwner && limitEditingId !== m.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs px-2"
+                            onClick={() => {
+                              setLimitEditingId(m.id);
+                              setLimitText(m.approval_limit == null ? "" : Number(m.approval_limit).toFixed(2));
+                            }}
+                          >
+                            Set limit
+                          </Button>
+                        )}
                         <CoverageBadge
                           kind={m.coverage_kind}
                           groupId={m.coverage_group_id}
@@ -535,6 +590,34 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                         )}
                       </div>
                     </div>
+                    {isOwner && limitEditingId === m.id && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" style={{ fontFamily: "'Roboto Mono', monospace" }}>£</span>
+                          <Input
+                            aria-label="Approval limit"
+                            className="h-7 w-32 pl-5 text-xs"
+                            style={{ fontFamily: "'Roboto Mono', monospace" }}
+                            inputMode="decimal"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="No approvals"
+                            value={limitText}
+                            onChange={(e) => setLimitText(e.target.value)}
+                          />
+                        </div>
+                        <Button size="sm" className="h-7 text-xs" onClick={() => handleSaveLimit(m.id)} disabled={busy}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setLimitEditingId(null)}>
+                          Cancel
+                        </Button>
+                        <p className="w-full text-xs text-muted-foreground">
+                          The highest PO total they can sign off at the sites they cover. Leave empty and they can't approve.
+                        </p>
+                      </div>
+                    )}
                     {isEditing && (
                       <div className="flex flex-wrap items-center gap-2">
                         <CoveragePicker

@@ -13,6 +13,7 @@ const KIND_ICON: Record<WorkItem["kind"], string> = {
   job: "ti-briefcase",
   invoice: "ti-file-invoice",
   cost_line: "ti-receipt",
+  po_request: "ti-trending-up",
   engagement_rate: "ti-building",
   service_request: "ti-tool",
 };
@@ -59,7 +60,9 @@ export function WorkItemCard({ item, showStage = true, onAction }: WorkItemCardP
     item.dueIso
       ? { label: "Due", value: `${formatDate(item.dueIso)}${item.overdue ? " — overdue" : ""}` }
       : { label: "Since", value: formatDate(item.sinceIso) },
-    ...(item.amount != null ? [{ label: "Value", value: formatGBP(item.amount) }] : item.site ? [{ label: "Site", value: item.site }] : []),
+    ...(item.amountField
+      ? [item.amountField]
+      : item.amount != null ? [{ label: "Value", value: formatGBP(item.amount) }] : item.site ? [{ label: "Site", value: item.site }] : []),
   ];
 
   return (

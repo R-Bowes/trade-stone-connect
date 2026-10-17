@@ -16,6 +16,11 @@ export interface JobWorkOrderInfo {
   title: string;
   status: string;
   rate_snapshot: Record<string, unknown> | null;
+  wo_number: number;
+  companyCode: string | null;
+  /** Not-to-exceed value; null on work orders raised before 13 Oct 2026. */
+  approved_value: number | null;
+  po_issued_at: string | null;
   /** The work order's own site/asset — call-out jobs are minted without an asset_id. */
   site: { id: string; name: string } | null;
   asset: { id: string; name: string } | null;
@@ -52,7 +57,7 @@ export function useJobCardContext(jobs: JobRefs[]) {
       siteIds.length ? supabase.from("sites").select("id, name").in("id", siteIds) : Promise.resolve(null),
       assetIds.length ? supabase.from("assets").select("id, name").in("id", assetIds) : Promise.resolve(null),
       woIds.length
-        ? supabase.from("work_orders").select("id, wo_number, title, status, rate_snapshot, company:companies(company_code), site:sites(id, name), asset:assets(id, name)").in("id", woIds)
+        ? supabase.from("work_orders").select("id, wo_number, title, status, rate_snapshot, approved_value, po_issued_at, company:companies(company_code), site:sites(id, name), asset:assets(id, name)").in("id", woIds)
         : Promise.resolve(null),
       engagementIds.length
         ? supabase.from("term_engagements").select("id, engagement_number").in("id", engagementIds)
@@ -76,6 +81,10 @@ export function useJobCardContext(jobs: JobRefs[]) {
         title: w.title,
         status: w.status,
         rate_snapshot: (w.rate_snapshot as Record<string, unknown> | null) ?? null,
+        wo_number: w.wo_number,
+        companyCode: w.company?.company_code ?? null,
+        approved_value: w.approved_value != null ? Number(w.approved_value) : null,
+        po_issued_at: w.po_issued_at,
         site: w.site ?? null,
         asset: w.asset ?? null,
       };

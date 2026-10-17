@@ -16,7 +16,8 @@ interface WorkItemsListProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onNavigate: (tab: string) => void;
+  /** recordId opens that record where the tab supports it (work orders). */
+  onNavigate: (tab: string, recordId?: string) => void;
   /** This viewer's stage list, in filter-row order — contractor and business each pass their own six. */
   stages: WorkItemStage[];
   /** Which stage shows the "due today" toggle — omit if this viewer has none. */
@@ -78,7 +79,7 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate, stag
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{stagelessHeading}</h3>
           <div className="grid gap-3">
             {stagelessItems.map((item) => (
-              <WorkItemCard key={item.key} item={item} showStage={false} onAction={(i) => onNavigate(i.actionTarget.tab)} />
+              <WorkItemCard key={item.key} item={item} showStage={false} onAction={(i) => onNavigate(i.actionTarget.tab, i.actionTarget.recordId)} />
             ))}
           </div>
         </div>
@@ -127,7 +128,7 @@ export function WorkItemsList({ items, loading, error, onRetry, onNavigate, stag
         <>
           <div className="grid gap-3">
             {visible.map((item) => (
-              <WorkItemCard key={item.key} item={item} showStage={selectedStage === "all"} onAction={(i) => onNavigate(i.actionTarget.tab)} />
+              <WorkItemCard key={item.key} item={item} showStage={selectedStage === "all"} onAction={(i) => onNavigate(i.actionTarget.tab, i.actionTarget.recordId)} />
             ))}
           </div>
           {!showAll && visibleAfterFilters.length > VISIBLE_CAP && (

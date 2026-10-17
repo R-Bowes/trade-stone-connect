@@ -356,6 +356,7 @@ text, an old doc paragraph, or a stale report describing `role`, it is wrong
 | invited_email | display only — NOT used for matching |
 | invite_token | single-use UUID; NULL after acceptance |
 | invite_expires_at | 7-day window from creation |
+| approval_limit | numeric(12,2), NULL = can't sign off. Highest PO total this member may sign off at the sites they cover (`_can_sign_off_amount`). The owner has no row and no limit. Set only via `set_member_approval_limit` (owner only); column INSERT/UPDATE is revoked from authenticated (20261017120000) |
 
 **The owner has NO row in `business_members` at all.** Owner identity is
 exclusively `companies.owner_id`. The coverage migration deleted every

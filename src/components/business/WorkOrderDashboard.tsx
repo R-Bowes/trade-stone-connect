@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +20,12 @@ import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { useToast } from "@/hooks/use-toast";
 import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
 import { formatGBP } from "@/lib/formatGBP";
-import { poSpend } from "@/lib/workOrderValue";
+import { poSpend, isOverApprovedValue, isJobStarted } from "@/lib/workOrderValue";
+import { totalCostLines } from "@/lib/costLines";
 import { WorkOrderCostLines } from "@/components/shared/WorkOrderCostLines";
 import { CostReviewActions } from "@/components/business/CostReviewActions";
 import { ApprovedValueField, useApprovedValueInput } from "@/components/business/ApprovedValueField";
+import { PoIncreasePanel } from "@/components/shared/PoIncreasePanel";
 import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
 import {
   WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET, deriveWorkOrderStatus,
@@ -72,6 +75,26 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [detailWo, setDetailWo] = useState<WorkOrder | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedWorkOrderId = searchParams.get("workOrderId");
+
+  // ?workOrderId= (from the dashboard's Needs you / Approvals) opens that
+  // work order's detail directly.
+  useEffect(() => {
+    if (!linkedWorkOrderId) return;
+    let live = true;
+    void fetchWorkOrder(linkedWorkOrderId).then((wo) => { if (live && wo) setDetailWo(wo); });
+    return () => { live = false; };
+  }, [linkedWorkOrderId, fetchWorkOrder]);
+
+  const closeDetail = () => {
+    setDetailWo(null);
+    if (linkedWorkOrderId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("workOrderId");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const reload = () => fetchWorkOrders(companyId, {
     status: statusFilter === "all" ? undefined : statusFilter,
@@ -91,7 +114,7 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
   const summary = useMemo(() => {
     const open = workOrders.filter((w) => w.status === "draft" || w.status === "dispatched").length;
     const awaiting = workOrders.filter((w) => w.status === "dispatched" && w.response === "pending").length;
-    const inProgress = workOrders.filter((w) => w.status === "accepted" && w.job_id).length;
+    const inProgress = workOrders.filter((w) => w.status === "accepted" && isJobStarted(w.job?.status)).length;
     const now = new Date();
     const completedThisMonth = workOrders.filter((w) => {
       if (w.status !== "completed") return false;
@@ -233,7 +256,7 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
         <WorkOrderDetailDialog
           wo={detailWo}
           companyCode={companyCode}
-          onClose={() => setDetailWo(null)}
+          onClose={closeDetail}
           onChanged={() => handleDetailChanged(detailWo.id)}
         />
       )}
@@ -626,13 +649,19 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
 }) {
   const {
     fetchAvailableContractors, approveWorkOrder, dispatchWorkOrder, reassignWorkOrder,
-    cancelWorkOrder, amendWorkOrderValue, canSignOff,
+    cancelWorkOrder, amendWorkOrderValue, canAct, canSignOffAmount,
   } = useWorkOrders();
   const [pickMode, setPickMode] = useState<"dispatch" | "reassign" | null>(null);
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [pickingId, setPickingId] = useState<string | null>(null);
-  const [canSign, setCanSign] = useState(false);
+  // Operational (dispatch, reassign, cancel, review within the PO) vs
+  // sign-off of the current PO value (approve a waiting work order).
+  const [canAct_, setCanAct] = useState(false);
+  const [canSignValue, setCanSignValue] = useState(false);
+  // Over-PO pending lines need a limit covering the highest new total.
+  const [canSignOverLines, setCanSignOverLines] = useState(false);
+  const [poRequestNeedsMe, setPoRequestNeedsMe] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editingValue, setEditingValue] = useState(false);
   const [valueText, setValueText] = useState("");
@@ -641,19 +670,49 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
   useEffect(() => { void loadCosts([wo.id]); }, [wo.id, loadCosts]);
   useEffect(() => {
     let live = true;
-    canSignOff(wo.id).then((ok) => { if (live) setCanSign(ok); });
+    void canAct(wo.id).then((ok) => { if (live) setCanAct(ok); });
+    if (wo.approved_value != null) {
+      void canSignOffAmount(wo.id, Number(wo.approved_value)).then((ok) => { if (live) setCanSignValue(ok); });
+    } else {
+      setCanSignValue(false);
+    }
     return () => { live = false; };
-  }, [wo.id, canSignOff]);
+  }, [wo.id, wo.approved_value, canAct, canSignOffAmount]);
 
   const lines = costsByWorkOrder[wo.id] ?? [];
   const spend = wo.approved_value != null ? poSpend(wo.approved_value, lines) : null;
+  const totals = totalCostLines(lines);
+  const overLines = lines.filter((l) => isOverApprovedValue(l, lines, wo.approved_value));
+  const highestOverTotal = spend && overLines.length > 0
+    ? Math.max(...overLines.map((l) => Math.round((spend.approvedTotal + Number(l.line_total)) * 100) / 100))
+    : null;
+
+  useEffect(() => {
+    let live = true;
+    if (highestOverTotal == null) { setCanSignOverLines(true); return; }
+    void canSignOffAmount(wo.id, highestOverTotal).then((ok) => { if (live) setCanSignOverLines(ok); });
+    return () => { live = false; };
+  }, [wo.id, highestOverTotal, canSignOffAmount]);
+
+  // Pending lines are the viewer's when they can act on the work order and,
+  // for any line over the PO, their limit covers it.
+  const linesNeedMe = totals.pending > 0 && canAct_ && canSignOverLines;
+  const moneySummary = (
+    <p className="text-sm">
+      <span className="font-mono">{formatGBP(totals.approved)}</span> approved
+      {totals.pending > 0 && (
+        <> · <span className="font-mono">{formatGBP(totals.pending)}</span> {linesNeedMe ? "waiting for you" : "waiting for sign-off"}</>
+      )}
+      {totals.queried > 0 && <> · <span className="font-mono">{formatGBP(totals.queried)}</span> queried</>}
+      {wo.approved_value != null && <> · PO <span className="font-mono">{formatGBP(wo.approved_value)}</span></>}
+    </p>
+  );
   const awaiting = isAwaitingSignOff(wo);
   const readyToDispatch = wo.status === "draft" && !!wo.po_issued_at;
-  const canCancel = canSign && (wo.status === "draft" || wo.status === "dispatched" || wo.status === "declined");
-  // An issued PO can only be changed by someone with sign-off; before the PO
-  // is issued, any member covering the site may set the value (server-checked).
-  const canEditValue = ["draft", "dispatched", "accepted", "declined"].includes(wo.status)
-    && (!wo.po_issued_at || canSign);
+  const canCancel = canAct_ && (wo.status === "draft" || wo.status === "dispatched" || wo.status === "declined");
+  // Any covering member may propose a value; whether it issues or amends the
+  // PO depends on their approval limit for the new value (server-checked).
+  const canEditValue = ["draft", "dispatched", "accepted", "declined"].includes(wo.status) && canAct_;
 
   const run = useCallback(async (action: () => Promise<void>) => {
     setBusy(true);
@@ -715,23 +774,15 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
           counterparty={wo.contractor?.full_name ?? null}
           companyCode={companyCode}
           viewer="business"
+          notice={<PoIncreasePanel workOrder={wo} companyCode={companyCode} viewer="business" onChanged={onChanged} onNeedsViewer={setPoRequestNeedsMe} />}
           costs={
             <>
-              {spend && lines.length > 0 && (
-                <div className="border-t pt-3 text-sm">
-                  <span className="text-muted-foreground">Approved so far </span>
-                  <span className="font-mono">{formatGBP(spend.approvedTotal)}</span>
-                  <span className="text-muted-foreground"> of </span>
-                  <span className="font-mono">{formatGBP(spend.approvedValue)}</span>
-                  <span className="text-muted-foreground"> · </span>
-                  <span className="font-mono">{formatGBP(spend.remaining)}</span>
-                  <span className="text-muted-foreground"> left on the PO</span>
-                </div>
-              )}
               <WorkOrderCostLines
                 lines={lines}
                 approvedValue={wo.approved_value}
                 viewer="business"
+                summary={lines.length > 0 ? moneySummary : undefined}
+                autoExpand={linesNeedMe || poRequestNeedsMe}
                 renderLineActions={(line) => (
                   <CostReviewActions
                     line={line}
@@ -748,16 +799,16 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
           }
           actions={
             <>
-              {awaiting && canSign && (
+              {awaiting && canSignValue && (
                 <Button size="sm" disabled={busy} onClick={() => run(() => approveWorkOrder(wo.id))}>
                   {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
                   Approve and issue PO
                 </Button>
               )}
-              {readyToDispatch && canSign && (
+              {readyToDispatch && canAct_ && (
                 <Button size="sm" onClick={() => openPicker("dispatch")}>Dispatch</Button>
               )}
-              {wo.status === "declined" && canSign && (
+              {wo.status === "declined" && canAct_ && (
                 <Button size="sm" onClick={() => openPicker("reassign")}>Reassign</Button>
               )}
               {canEditValue && !editingValue && (
@@ -779,10 +830,10 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
           }
         />
 
-        {awaiting && !canSign && (
+        {awaiting && !canSignValue && wo.approved_value != null && (
           <Card>
             <CardContent className="p-4 text-sm text-muted-foreground">
-              Waiting for sign-off from the owner or a manager covering this site.
+              Waiting for sign-off from someone with a <span className="font-mono">{formatGBP(wo.approved_value)}</span> limit.
             </CardContent>
           </Card>
         )}

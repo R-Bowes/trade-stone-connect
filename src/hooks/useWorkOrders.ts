@@ -47,6 +47,8 @@ export interface WorkOrder {
   site?: { id: string; name: string } | null;
   asset?: { id: string; name: string } | null;
   contractor?: { id: string; full_name: string | null; ts_profile_code: string | null } | null;
+  /** The job minted on acceptance, via work_orders.job_id. */
+  job?: { id: string; status: string } | null;
 }
 
 export interface WorkOrderFilters {
@@ -70,7 +72,7 @@ export interface SuggestedValue {
   basis: { contractorName: string; value: number }[];
 }
 
-const WORK_ORDER_SELECT = "*, site:sites(id, name), asset:assets(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
+const WORK_ORDER_SELECT = "*, site:sites(id, name), asset:assets(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code), job:jobs!work_orders_job_id_fkey(id, status)" as const;
 
 export function formatWoNumber(companyCode: string | null | undefined, woNumber: number): string {
   const num = String(woNumber).padStart(4, "0");
@@ -327,10 +329,26 @@ export function useWorkOrders() {
     toast({ title: "Approved value updated" });
   };
 
-  // Mirrors the server's sign-off rule so buttons only show for people the
-  // RPCs will accept. Fails closed: an error reads as "cannot sign off".
-  const canSignOff = useCallback(async (workOrderId: string): Promise<boolean> => {
-    const { data, error } = await supabase.rpc("can_sign_off_work_order", { p_work_order_id: workOrderId });
+  // Mirror the server's two rules so buttons only show for people the RPCs
+  // will accept. Both fail closed: an error reads as "cannot".
+  // Operational (dispatch, reassign, cancel, decline a request, review costs
+  // within the PO): the owner, or any active member covering the site.
+  const canAct = useCallback(async (workOrderId: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc("can_act_on_work_order", { p_work_order_id: workOrderId });
+    if (error) {
+      console.error("Error checking work order access:", error);
+      return false;
+    }
+    return data === true;
+  }, []);
+
+  // Sign-off of a PO total (always the total after the change, never the
+  // increment): the owner, or a covering member whose approval limit covers it.
+  const canSignOffAmount = useCallback(async (workOrderId: string, amount: number): Promise<boolean> => {
+    const { data, error } = await supabase.rpc("can_sign_off_work_order_amount", {
+      p_work_order_id: workOrderId,
+      p_amount: amount,
+    });
     if (error) {
       console.error("Error checking sign-off:", error);
       return false;
@@ -352,6 +370,7 @@ export function useWorkOrders() {
     reassignWorkOrder,
     cancelWorkOrder,
     amendWorkOrderValue,
-    canSignOff,
+    canAct,
+    canSignOffAmount,
   };
 }

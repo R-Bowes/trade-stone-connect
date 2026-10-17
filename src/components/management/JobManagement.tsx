@@ -56,6 +56,9 @@ import { RecordCostsDialog } from "@/components/management/RecordCostsDialog";
 import { useJobCardContext, resolveJobAsset, resolveJobSite } from "@/hooks/useJobCardContext";
 import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
 import { formatJobValue } from "@/lib/jobValue";
+import { canRecordWorkOrderCosts, recordCostsBlockedReason } from "@/lib/workOrderValue";
+import { PoIncreasePanel } from "@/components/shared/PoIncreasePanel";
+import type { WorkOrderStatus } from "@/hooks/useWorkOrders";
 import { useCoolingOff, isConsumerJob } from "@/hooks/useCoolingOff";
 import { PaymentProgress } from "@/components/management/payments/PaymentProgress";
 import { VariationsSection } from "@/components/management/variations/VariationsSection";
@@ -885,10 +888,19 @@ export function JobManagement() {
     return null;
   };
 
+  // A work-order job whose costs aren't open yet (accepted, job not started):
+  // Record costs shows disabled with the reason, rather than disappearing.
+  const recordCostsBlocked = (job: JobCardData): string | null => {
+    if (!job.engagement_id || !job.work_order_id || job.status === "cancelled") return null;
+    const workOrder = jobCtx.workOrders[job.work_order_id];
+    if (!workOrder || workOrder.status !== "accepted" || canRecordWorkOrderCosts(workOrder.status, job.status)) return null;
+    return recordCostsBlockedReason(workOrder.approved_value);
+  };
+
   const canRecordCosts = (job: JobCardData): boolean => {
     if (!job.engagement_id || !job.work_order_id || job.status === "cancelled") return false;
     const workOrder = jobCtx.workOrders[job.work_order_id];
-    return !!workOrder && (workOrder.status === "accepted" || workOrder.status === "dispatched");
+    return !!workOrder && canRecordWorkOrderCosts(workOrder.status, job.status);
   };
 
   const workerNames = (job: JobCardData): string[] =>
@@ -907,12 +919,16 @@ export function JobManagement() {
         workers={workerNames(job)}
         origin={originLabel(job)}
         costSummary={job.work_order_id ? jobCtx.costs[job.work_order_id] ?? null : null}
+        poValue={job.work_order_id ? jobCtx.workOrders[job.work_order_id]?.approved_value ?? null : null}
         extraBadges={ramsMarker(job.id)}
         actions={
           <>
             <Button size="sm" variant="outline" onClick={() => setSelectedJobId(job.id)}>View</Button>
             {canRecordCosts(job) && (
               <Button size="sm" onClick={() => setRecordingJob(job)}>Record costs</Button>
+            )}
+            {recordCostsBlocked(job) && (
+              <Button size="sm" disabled title={recordCostsBlocked(job) ?? undefined}>Record costs</Button>
             )}
           </>
         }
@@ -1029,6 +1045,22 @@ export function JobManagement() {
                     onRecordCosts={canRecordCosts(selectedJob) ? () => setRecordingJob(selectedJob) : undefined}
                   />
                 )}
+                {recordCostsBlocked(selectedJob) && (
+                  <p className="text-xs text-muted-foreground">{recordCostsBlocked(selectedJob)}</p>
+                )}
+
+                {/* The work order's one variation path: a PO increase request. */}
+                {selectedJob.work_order_id && jobCtx.workOrders[selectedJob.work_order_id] && (() => {
+                  const wo = jobCtx.workOrders[selectedJob.work_order_id];
+                  return (
+                    <PoIncreasePanel
+                      workOrder={{ id: wo.id, wo_number: wo.wo_number, status: wo.status as WorkOrderStatus, approved_value: wo.approved_value, po_issued_at: wo.po_issued_at }}
+                      companyCode={wo.companyCode}
+                      viewer="contractor"
+                      onChanged={() => void reloadJobCtx()}
+                    />
+                  );
+                })()}
 
                 {/* Key facts grid: 3 cols × 2 rows */}
                 {(() => {
@@ -1057,7 +1089,7 @@ export function JobManagement() {
                       <div>
                         <div className="text-xs text-muted-foreground">Value</div>
                         <div className="font-medium font-mono">
-                          {formatJobValue(selectedJob, selectedJob.work_order_id ? jobCtx.costs[selectedJob.work_order_id] : null)}
+                          {formatJobValue(selectedJob, selectedJob.work_order_id ? jobCtx.costs[selectedJob.work_order_id] : null, selectedJob.work_order_id ? jobCtx.workOrders[selectedJob.work_order_id]?.approved_value ?? null : null)}
                         </div>
                       </div>
                       <div>
@@ -1229,7 +1261,7 @@ export function JobManagement() {
 
                 <PaymentProgress jobId={selectedJob.id} isContractor={true} />
 
-                {contractorProfileId && (
+                {contractorProfileId && !selectedJob.work_order_id && (
                   <VariationsSection
                     jobId={selectedJob.id}
                     contractorId={contractorProfileId}
@@ -1622,6 +1654,8 @@ export function JobManagement() {
         }}
         workOrderTitle={recordingJob?.work_order_id ? jobCtx.workOrders[recordingJob.work_order_id]?.title ?? recordingJob.title : ""}
         rateSnapshot={recordingJob?.work_order_id ? jobCtx.workOrders[recordingJob.work_order_id]?.rate_snapshot ?? null : null}
+        approvedValue={recordingJob?.work_order_id ? jobCtx.workOrders[recordingJob.work_order_id]?.approved_value ?? null : null}
+        recordedTotal={recordingJob?.work_order_id ? jobCtx.costs[recordingJob.work_order_id]?.total ?? 0 : 0}
         onSubmit={(input) => (recordingJob?.work_order_id ? submitCost(recordingJob.work_order_id, input) : Promise.resolve(false))}
       />
 

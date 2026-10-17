@@ -32,7 +32,7 @@ export function describeCostLine(
       case "callout_ooh":
         return COST_KIND_LABEL[line.kind];
       case "hours":
-        return `Labour: ${Number(line.quantity)} hrs × ${formatGBP(line.unit_rate)}`;
+        return `Labour: ${Number(line.quantity)} ${Number(line.quantity) === 1 ? "hr" : "hrs"} × ${formatGBP(line.unit_rate)}`;
       case "materials": {
         const cost = Number(line.quantity) === 1
           ? formatGBP(line.unit_rate)

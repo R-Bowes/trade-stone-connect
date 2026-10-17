@@ -1582,6 +1582,8 @@ accept_work_order, or add an internal variant that takes a
 - Fixed price vs time & materials on a work order — fixed price completes
   and invoices at the PO value with no cost lines (default for PPM); T&M
   keeps cost lines (default for reactive). Parked 17 Oct.
+- Read-only business member (finance/auditor) — parked 17 Oct; would need a
+  role or a permissions flag, reversing the June removal of role.
 
 
 ## Schema drift: timesheet-seeding trigger on jobs is in migrations but not live
