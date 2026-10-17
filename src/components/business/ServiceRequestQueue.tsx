@@ -17,7 +17,8 @@ import { RecordCard } from "@/components/shared/RecordCard";
 import {
   useServiceRequests, type ServiceRequest, type ServiceRequestStatus,
 } from "@/hooks/useServiceRequests";
-import { useWorkOrders, type AvailableContractor, type WorkOrderPriority } from "@/hooks/useWorkOrders";
+import { useWorkOrders, type AvailableContractor, type SuggestedValue, type WorkOrderPriority } from "@/hooks/useWorkOrders";
+import { ApprovedValueField, useApprovedValueInput } from "@/components/business/ApprovedValueField";
 
 const PRIORITY_LABEL: Record<WorkOrderPriority, string> = {
   emergency: "Emergency", urgent: "Urgent", routine: "Routine", planned: "Planned",
@@ -235,11 +236,12 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
   onWorkOrderCreated: () => void;
 }) {
   const { toast } = useToast();
-  const { fetchAvailableContractors, createWorkOrder, dispatchWorkOrder } = useWorkOrders();
-  const { linkWorkOrder } = useServiceRequests();
+  const { fetchAvailableContractors, fetchSuggestedValue, createWorkOrder, dispatchWorkOrder } = useWorkOrders();
   const [showDispatch, setShowDispatch] = useState(false);
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [suggestion, setSuggestion] = useState<SuggestedValue | null>(null);
+  const valueInput = useApprovedValueInput(suggestion);
   const [dispatchingId, setDispatchingId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -250,6 +252,7 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
     setLoadingCandidates(true);
     const found = await fetchAvailableContractors(companyId, request.site_id, request.category?.trade ?? undefined);
     setCandidates(found);
+    setSuggestion(await fetchSuggestedValue(found, request.priority));
     setLoadingCandidates(false);
   };
 
@@ -268,25 +271,31 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
     }
   };
 
+  // create_work_order links the request to the new work order; dispatch then
+  // marks the request dispatched. If the value needs someone else's sign-off,
+  // the work order waits and the request stays linked to it.
   const handleDispatch = async (contractor: AvailableContractor) => {
+    if (valueInput.value == null) return;
     setDispatchingId(contractor.contractor_id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const wo = await createWorkOrder({
         company_id: companyId,
-        raised_by: user!.id,
-        raised_by_name: request.requested_by_name,
         site_id: request.site_id,
         title: request.title,
         description: request.description,
         trade_required: request.category?.trade ?? null,
         priority: request.priority,
         photos: request.photos,
+        approved_value: valueInput.value,
+        service_request_id: request.id,
       });
       if (!wo) return;
-      await dispatchWorkOrder(wo.id, contractor.contractor_id, contractor.engagement_id);
-      await linkWorkOrder(request.id, wo.id);
-      toast({ title: "Work order created and dispatched" });
+      if (wo.po_issued_at) {
+        await dispatchWorkOrder(wo.id, contractor.engagement_id);
+        toast({ title: "Work order created and dispatched" });
+      } else {
+        toast({ title: "Work order raised — waiting for sign-off", description: "It can be dispatched once the PO is approved." });
+      }
       onWorkOrderCreated();
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to create work order", variant: "destructive" });
@@ -357,6 +366,14 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
 
               {showDispatch && (
                 <div className="space-y-2 pt-2">
+                  <ApprovedValueField
+                    id={`sr-approved-value-${request.id}`}
+                    text={valueInput.text}
+                    onChange={valueInput.setText}
+                    suggestion={suggestion}
+                    loadingSuggestion={loadingCandidates}
+                    ready
+                  />
                   <div className="text-xs font-semibold uppercase text-muted-foreground">Dispatch to</div>
                   {loadingCandidates ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -364,7 +381,13 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
                     <p className="text-sm text-muted-foreground">No panel contractors cover this site{request.category?.trade ? ` for ${request.category.trade}` : ""}.</p>
                   ) : (
                     candidates.map((c) => (
-                      <ContractorRow key={c.contractor_id} contractor={c} onDispatch={() => handleDispatch(c)} dispatching={dispatchingId === c.contractor_id} />
+                      <ContractorRow
+                        key={c.contractor_id}
+                        contractor={c}
+                        onDispatch={() => handleDispatch(c)}
+                        dispatching={dispatchingId === c.contractor_id}
+                        disabled={valueInput.value == null || dispatchingId !== null}
+                      />
                     ))
                   )}
                 </div>
@@ -377,10 +400,11 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
   );
 }
 
-function ContractorRow({ contractor, onDispatch, dispatching }: {
+function ContractorRow({ contractor, onDispatch, dispatching, disabled }: {
   contractor: AvailableContractor;
   onDispatch: () => void;
   dispatching: boolean;
+  disabled: boolean;
 }) {
   const [tier, setTier] = useState(1);
   useEffect(() => {
@@ -394,7 +418,7 @@ function ContractorRow({ contractor, onDispatch, dispatching }: {
         <span className="text-sm">{contractor.full_name}</span>
         {tier >= 2 && <VerificationBadge tier={tier} size="sm" />}
       </div>
-      <Button size="sm" disabled={dispatching} onClick={onDispatch}>
+      <Button size="sm" disabled={dispatching || disabled} onClick={onDispatch}>
         {dispatching && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
         Dispatch
       </Button>

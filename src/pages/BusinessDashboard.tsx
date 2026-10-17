@@ -284,7 +284,7 @@ const BusinessDashboard = () => {
       }
 
       case "work-orders":
-        return <WorkOrderDashboard companyId={companyId!} profileId={profileId} />;
+        return <WorkOrderDashboard companyId={companyId!} />;
 
       case "billing":
         return <BusinessBillingView companyId={companyId!} />;

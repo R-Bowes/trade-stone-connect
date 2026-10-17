@@ -170,6 +170,8 @@ export function WorkOrderInbox() {
                 costs={
                   <WorkOrderCostLines
                     lines={costsByWorkOrder[wo.id] ?? []}
+                    approvedValue={wo.approved_value}
+                    viewer="contractor"
                     renderLineActions={(line) =>
                       line.status === "pending" || line.status === "queried" ? (
                         <Button size="sm" variant="outline" onClick={() => setAmending(line)}>

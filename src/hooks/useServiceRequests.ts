@@ -124,12 +124,19 @@ export function useServiceRequests() {
       toast({ title: "Error", description: "Failed to submit request", variant: "destructive" });
       throw error;
     }
-    // The auto-dispatch trigger may have already flipped this row to
-    // 'dispatched' with a work_order_id set before the INSERT even returns.
+    // The auto-dispatch trigger runs AFTER INSERT (20261014140000), so the
+    // row the insert returns predates it. Re-read to see whether it was
+    // auto-dispatched; the requester can always read their own request.
+    const { data: settled } = await (supabase as any)
+      .from("service_requests")
+      .select(REQUEST_SELECT)
+      .eq("id", (inserted as ServiceRequest).id)
+      .maybeSingle();
+    const request = ((settled ?? inserted) as ServiceRequest);
     toast({
-      title: (inserted as ServiceRequest).status === "dispatched" ? "Request submitted — auto-dispatched" : "Request submitted",
+      title: request.status === "dispatched" ? "Request submitted — auto-dispatched" : "Request submitted",
     });
-    return inserted as ServiceRequest;
+    return request;
   };
 
   // Acknowledge without dispatching yet.
@@ -152,25 +159,6 @@ export function useServiceRequests() {
       throw error;
     }
     setRequests((cur) => cur.map((r) => (r.id === id ? (data as ServiceRequest) : r)));
-    return data as ServiceRequest;
-  };
-
-  // Links a freshly created work order back to the request and marks it
-  // dispatched — called by the FM triage view's "Create Work Order" action
-  // after useWorkOrders().createWorkOrder()/dispatchWorkOrder() succeed.
-  const linkWorkOrder = async (requestId: string, workOrderId: string) => {
-    const { data, error } = await (supabase as any)
-      .from("service_requests")
-      .update({ work_order_id: workOrderId, status: "dispatched" })
-      .eq("id", requestId)
-      .select(REQUEST_SELECT)
-      .single();
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to link work order to request", variant: "destructive" });
-      throw error;
-    }
-    setRequests((cur) => cur.map((r) => (r.id === requestId ? (data as ServiceRequest) : r)));
     return data as ServiceRequest;
   };
 
@@ -198,7 +186,6 @@ export function useServiceRequests() {
     fetchMyRequests,
     createRequest,
     triageRequest,
-    linkWorkOrder,
     cancelRequest,
   };
 }

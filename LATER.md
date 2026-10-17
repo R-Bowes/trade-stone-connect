@@ -1577,6 +1577,12 @@ depend on it) — e.g. delete the just-inserted notification inside
 accept_work_order, or add an internal variant that takes a
 "notify" flag and have both callers use it.
 
+## Work orders
+
+- Fixed price vs time & materials on a work order — fixed price completes
+  and invoices at the PO value with no cost lines (default for PPM); T&M
+  keeps cost lines (default for reactive). Parked 17 Oct.
+
 
 ## Schema drift: timesheet-seeding trigger on jobs is in migrations but not live
 

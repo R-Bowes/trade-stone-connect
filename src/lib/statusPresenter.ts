@@ -75,9 +75,14 @@ export type InvoiceState =
 // "response pending": once a response is recorded the status itself moves
 // off 'dispatched' (see respondToWorkOrder), so there is no reachable
 // dispatched+already-responded combination to model separately.
+// signOff is set only on a draft whose PO is not yet issued (approved_value
+// set, po_issued_at NULL): "you" when the viewer can sign it off
+// (can_sign_off_work_order), "someone_else" when they can't. Not a status —
+// the work order stays 'draft' until the PO is issued and it is dispatched.
 export type WorkOrderState = {
   kind: "work_order";
   status: "draft" | "dispatched" | "accepted" | "declined" | "reassigned" | "cancelled" | "completed";
+  signOff?: "you" | "someone_else";
 };
 
 // work_order_costs.status. Rejected lines never invoice (see costLines.ts)
@@ -248,9 +253,13 @@ export function toInvoiceState(status: string | null | undefined): InvoiceState 
   }
 }
 
-export function toWorkOrderState(status: string | null | undefined): WorkOrderState | null {
+export function toWorkOrderState(
+  status: string | null | undefined,
+  signOff?: WorkOrderState["signOff"],
+): WorkOrderState | null {
   switch (status) {
     case "draft":
+      return signOff ? { kind: "work_order", status, signOff } : { kind: "work_order", status };
     case "dispatched":
     case "accepted":
     case "declined":
@@ -494,6 +503,20 @@ function presentWorkOrder(state: WorkOrderState, viewer: Viewer): PresenterResul
       // Contractor never actually sees a draft (RLS scopes work_orders to
       // dispatched_to) — the contractor branch is a harmless fallback, not
       // a reachable case in practice.
+      if (state.signOff === "you") {
+        return perspective(
+          viewer,
+          chip("Not yet dispatched", "neutral", null),
+          chip("Sign off PO", "action", "you"),
+        );
+      }
+      if (state.signOff === "someone_else") {
+        return perspective(
+          viewer,
+          chip("Not yet dispatched", "neutral", null),
+          chip("Waiting for sign-off", "waiting", "them"),
+        );
+      }
       return perspective(
         viewer,
         chip("Not yet dispatched", "neutral", null),

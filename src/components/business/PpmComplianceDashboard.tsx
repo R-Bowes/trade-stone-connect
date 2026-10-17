@@ -15,7 +15,8 @@ import {
   ASSET_CATEGORY_LABELS, ASSET_CATEGORY_TRADE_MAP,
   type AssetCategory, type ServiceVisitStatus,
 } from "@/components/business/maintenance-types";
-import { useWorkOrders, type AvailableContractor } from "@/hooks/useWorkOrders";
+import { useWorkOrders, type AvailableContractor, type SuggestedValue } from "@/hooks/useWorkOrders";
+import { ApprovedValueField, useApprovedValueInput } from "@/components/business/ApprovedValueField";
 
 type VisitRow = {
   id: string;
@@ -390,42 +391,52 @@ function CreateWorkOrderFromVisitDialog({ visit, companyId, profileId, onClose, 
   onCreated: () => void;
 }) {
   const { toast } = useToast();
-  const { fetchAvailableContractors, createWorkOrder, dispatchWorkOrder } = useWorkOrders();
+  const { fetchAvailableContractors, fetchSuggestedValue, createWorkOrder, dispatchWorkOrder } = useWorkOrders();
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<SuggestedValue | null>(null);
+  const valueInput = useApprovedValueInput(suggestion);
 
   const trade = visit.asset_category ? ASSET_CATEGORY_TRADE_MAP[visit.asset_category] : undefined;
   const title = `PPM: ${visit.asset_name ?? "Asset"} — ${visit.frequency_label ?? ""} service`;
   const description = `Planned preventative maintenance for ${visit.asset_name ?? "asset"}${visit.site_name ? ` at ${visit.site_name}` : ""}. Originally due ${format(new Date(visit.scheduled_window_end), "d MMM yyyy")}.`;
+  const priority = visit.status === "overdue" ? "urgent" : "planned";
 
   useEffect(() => {
     (async () => {
       if (!visit.site_id) { setLoadingCandidates(false); return; }
       const found = await fetchAvailableContractors(companyId, visit.site_id, trade);
       setCandidates(found);
+      setSuggestion(await fetchSuggestedValue(found, priority));
       setLoadingCandidates(false);
     })();
   }, [visit.site_id]);
 
+  // The visit is linked whether the work order is dispatched now or waits
+  // for sign-off, so it can't be raised twice.
   const handleDispatch = async (contractor: AvailableContractor) => {
+    if (valueInput.value == null) return;
     setDispatchingId(contractor.contractor_id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const wo = await createWorkOrder({
         company_id: companyId,
-        raised_by: user!.id,
         site_id: visit.site_id ?? null,
         asset_id: visit.asset_id,
         title,
         description,
         trade_required: trade ?? null,
-        priority: visit.status === "overdue" ? "urgent" : "planned",
+        priority,
+        approved_value: valueInput.value,
       });
       if (!wo) return;
-      await dispatchWorkOrder(wo.id, contractor.contractor_id, contractor.engagement_id);
       await (supabase as any).from("service_visits").update({ work_order_id: wo.id }).eq("id", visit.id);
-      toast({ title: "Work order created and dispatched" });
+      if (wo.po_issued_at) {
+        await dispatchWorkOrder(wo.id, contractor.engagement_id);
+        toast({ title: "Work order created and dispatched" });
+      } else {
+        toast({ title: "Work order raised — waiting for sign-off", description: "It can be dispatched once the PO is approved." });
+      }
       onCreated();
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to create work order", variant: "destructive" });
@@ -443,6 +454,14 @@ function CreateWorkOrderFromVisitDialog({ visit, companyId, profileId, onClose, 
           <div className="text-muted-foreground">{description}</div>
           {trade && <div><span className="text-muted-foreground">Trade:</span> {trade}</div>}
           <div className="pt-2 border-t space-y-2">
+            <ApprovedValueField
+              id={`ppm-approved-value-${visit.id}`}
+              text={valueInput.text}
+              onChange={valueInput.setText}
+              suggestion={suggestion}
+              loadingSuggestion={loadingCandidates}
+              ready={!!visit.site_id}
+            />
             <div className="text-xs font-semibold uppercase text-muted-foreground">Dispatch to</div>
             {loadingCandidates ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -452,7 +471,11 @@ function CreateWorkOrderFromVisitDialog({ visit, companyId, profileId, onClose, 
               candidates.map((c) => (
                 <div key={c.contractor_id} className="flex items-center justify-between rounded-md border p-2">
                   <span>{c.full_name}</span>
-                  <Button size="sm" disabled={dispatchingId === c.contractor_id} onClick={() => handleDispatch(c)}>
+                  <Button
+                    size="sm"
+                    disabled={dispatchingId !== null || valueInput.value == null}
+                    onClick={() => handleDispatch(c)}
+                  >
                     {dispatchingId === c.contractor_id && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
                     Dispatch
                   </Button>

@@ -11,10 +11,9 @@ import { Loader2, ArrowLeft, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import ContractorDirectory from "@/components/ContractorDirectory";
 import { useServiceRequests, type ServiceRequest, type ServiceRequestStatus } from "@/hooks/useServiceRequests";
-import { useWorkOrders, type AvailableContractor, type WorkOrderPriority } from "@/hooks/useWorkOrders";
+import type { WorkOrderPriority } from "@/hooks/useWorkOrders";
 
 type SiteContactRow = {
   id: string;
@@ -68,7 +67,6 @@ export default function SitePortal() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { createRequest, fetchMyRequests } = useServiceRequests();
-  const { fetchAvailableContractors, dispatchWorkOrder } = useWorkOrders();
 
   const [loading, setLoading] = useState(true);
   const [myContacts, setMyContacts] = useState<SiteContactRow[]>([]);
@@ -89,11 +87,8 @@ export default function SitePortal() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [locationInSite, setLocationInSite] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
-  const [selectedContractor, setSelectedContractor] = useState<AvailableContractor | null>(null);
   const [showDirectory, setShowDirectory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -159,76 +154,26 @@ export default function SitePortal() {
     return rule ? "This will be automatically assigned to the pre-agreed contractor." : null;
   })();
 
-  useEffect(() => {
-    if (level < 3 || !activeContact) { setCandidates([]); return; }
-    const cat = categories.find((c) => c.id === categoryId);
-    fetchAvailableContractors(activeContact.company_id, activeContact.site_id, cat?.trade ?? undefined).then(setCandidates);
-  }, [level, categoryId, activeContact, categories]);
-
   const resetForm = () => {
     setTitle(""); setDescription(""); setPriority("routine"); setCategoryId("");
-    setLocationInSite(""); setFiles([]); setSelectedContractor(null); setShowDirectory(false); setBlockedMessage(null);
-  };
-
-  const checkSpendLimits = async (): Promise<string | null> => {
-    if (level < 4 || !autonomy) return null;
-    if (!autonomy.max_wo_value && !autonomy.max_monthly_spend) return null;
-    // No estimated-cost input exists in this simple form — the site's
-    // standard call-out rate for the selected contractor's engagement is
-    // used as the spend estimate, since that's the only figure available
-    // at request time.
-    if (!selectedContractor) return null;
-    // A limit is configured, so a cost that cannot be established must block,
-    // never fall back to £0 and let the request through.
-    const { data: rate, error: rateError } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: selectedContractor.engagement_id });
-    if (rateError) {
-      console.error("Spend check: could not read agreed rates", rateError);
-      return "We couldn't check this request against your spending limit. Please try again, or contact your facilities manager.";
-    }
-    if (!rate) {
-      return "Rates haven't been agreed with this contractor yet, so this request can't be checked against your spending limit. Please contact your facilities manager.";
-    }
-    const estimatedCost = Number(rate.callout_standard);
-
-    if (autonomy.max_wo_value && estimatedCost > autonomy.max_wo_value) {
-      return `This exceeds your spending limit of £${autonomy.max_wo_value.toFixed(2)}. Please contact your facilities manager.`;
-    }
-    if (autonomy.max_monthly_spend) {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const { data: monthWos, error: monthError } = await supabase
-        .from("work_orders")
-        .select("estimated_cost")
-        .eq("site_id", activeContact!.site_id)
-        .gte("created_at", monthStart.toISOString());
-      if (monthError) {
-        console.error("Spend check: could not read this month's work orders", monthError);
-        return "We couldn't check this request against your monthly spending limit. Please try again, or contact your facilities manager.";
-      }
-      const spent = (monthWos ?? []).reduce((sum, w) => sum + Number(w.estimated_cost ?? 0), 0);
-      if (spent + estimatedCost > autonomy.max_monthly_spend) {
-        return `This exceeds your monthly spending limit of £${autonomy.max_monthly_spend.toFixed(2)}. Please contact your facilities manager.`;
-      }
-    }
-    return null;
+    setLocationInSite(""); setFiles([]); setShowDirectory(false);
   };
 
   const handleSubmit = async () => {
     if (!activeContact || !title.trim()) return;
     setSubmitting(true);
-    setBlockedMessage(null);
     try {
-      const blocked = await checkSpendLimits();
-      if (blocked) { setBlockedMessage(blocked); return; }
-
       const photoPaths: string[] = [];
       for (const file of files) {
         try { photoPaths.push(await uploadPortalPhoto(file)); }
         catch { /* individual upload failures are non-fatal */ }
       }
 
-      const created = await createRequest({
+      // Requests go to the FM queue (or the auto-dispatch trigger). A site
+      // contact never writes work_orders: every work order write is an RPC
+      // since 20261014140000. createRequest shows its own toast, including
+      // whether the request was auto-dispatched.
+      await createRequest({
         company_id: activeContact.company_id,
         site_id: activeContact.site_id,
         requested_by: (await supabase.auth.getUser()).data.user!.id,
@@ -242,34 +187,6 @@ export default function SitePortal() {
         photos: photoPaths,
       });
 
-      // Level 3+: if the contact picked a contractor and the request wasn't
-      // already auto-dispatched, dispatch it directly (approval threshold
-      // is enforced by requires_approval on the work order rather than
-      // blocking submission — FM sees it in the queue either way).
-      if (created && level >= 3 && selectedContractor && created.status === "open") {
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: wo, error: woErr } = await (supabase as any)
-          .from("work_orders")
-          .insert({
-            company_id: activeContact.company_id,
-            raised_by: user!.id,
-            raised_by_name: activeContact.full_name,
-            service_request_id: created.id,
-            site_id: activeContact.site_id,
-            title: title.trim(),
-            description: description || null,
-            priority,
-            status: "draft",
-          })
-          .select("id")
-          .single();
-        if (!woErr && wo) {
-          await dispatchWorkOrder(wo.id, selectedContractor.contractor_id, selectedContractor.engagement_id);
-          await (supabase as any).from("service_requests").update({ work_order_id: wo.id, status: "dispatched" }).eq("id", created.id);
-        }
-      }
-
-      toast({ title: "Request submitted" });
       resetForm();
       setView("list");
       const requests = await fetchMyRequests();
@@ -408,32 +325,6 @@ export default function SitePortal() {
               <Input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
             </div>
 
-            {/* Level 3+: contractor selection */}
-            {level >= 3 && activeContact.can_select_contractor && (
-              <div className="space-y-2 rounded-md border p-3">
-                <Label>Assign Contractor</Label>
-                {candidates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No panel contractors cover this site{categoryId ? " for this category" : ""} yet.</p>
-                ) : (
-                  <div className="grid gap-2">
-                    {candidates.map((c) => (
-                      <ContractorPickCard
-                        key={c.contractor_id}
-                        contractor={c}
-                        selected={selectedContractor?.contractor_id === c.contractor_id}
-                        onSelect={() => setSelectedContractor(c)}
-                      />
-                    ))}
-                  </div>
-                )}
-                {autonomy?.approval_threshold != null && (
-                  <p className="text-xs text-muted-foreground">
-                    Requests estimated above £{autonomy.approval_threshold.toFixed(2)} require FM approval before dispatch.
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* Level 4: full marketplace search */}
             {level >= 4 && activeContact.can_search_marketplace && (
               <div className="space-y-2">
@@ -448,10 +339,6 @@ export default function SitePortal() {
               </div>
             )}
 
-            {blockedMessage && (
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{blockedMessage}</p>
-            )}
-
             <Button onClick={handleSubmit} disabled={submitting || !title.trim()} className="w-full">
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Submit
@@ -464,32 +351,6 @@ export default function SitePortal() {
         <RequestDetailSheet request={selectedRequest} onClose={() => setSelectedRequest(null)} />
       )}
     </div>
-  );
-}
-
-function ContractorPickCard({ contractor, selected, onSelect }: {
-  contractor: AvailableContractor;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const [tier, setTier] = useState(1);
-  useEffect(() => {
-    supabase.from("contractor_verification_public").select("current_tier").eq("contractor_id", contractor.contractor_id).maybeSingle()
-      .then(({ data }) => setTier(data?.current_tier ?? 1));
-  }, [contractor.contractor_id]);
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`flex items-center justify-between rounded-md border p-2 text-left ${selected ? "border-[#f07820] bg-orange-50" : ""}`}
-    >
-      <div>
-        <div className="font-medium text-sm">{contractor.full_name}</div>
-        <div className="text-xs font-mono text-muted-foreground">{contractor.ts_profile_code}</div>
-      </div>
-      {tier >= 2 && <VerificationBadge tier={tier} size="sm" />}
-    </button>
   );
 }
 

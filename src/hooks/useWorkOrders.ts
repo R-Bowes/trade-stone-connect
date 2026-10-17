@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { defaultApprovedValue } from "@/lib/workOrderValue";
 
 export type WorkOrderPriority = "emergency" | "urgent" | "routine" | "planned";
 export type WorkOrderStatus = "draft" | "dispatched" | "accepted" | "declined" | "reassigned" | "cancelled" | "completed";
@@ -32,6 +33,13 @@ export interface WorkOrder {
   requires_approval: boolean;
   approved_by: string | null;
   approved_at: string | null;
+  /** Not-to-exceed value. NULL only on work orders raised before 13 Oct 2026. */
+  approved_value: number | null;
+  /** Set when the PO is issued; dispatch is refused until it is. */
+  po_issued_at: string | null;
+  client_po_ref: string | null;
+  value_amended_at: string | null;
+  value_amended_by: string | null;
   photos: string[];
   created_at: string;
   updated_at: string;
@@ -56,6 +64,12 @@ export interface AvailableContractor {
   trades: string[] | null;
 }
 
+export interface SuggestedValue {
+  value: number;
+  /** One entry per contractor whose agreed rates gave a value. */
+  basis: { contractorName: string; value: number }[];
+}
+
 const WORK_ORDER_SELECT = "*, site:sites(id, name), asset:assets(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
 
 export function formatWoNumber(companyCode: string | null | undefined, woNumber: number): string {
@@ -64,10 +78,29 @@ export function formatWoNumber(companyCode: string | null | undefined, woNumber:
   return code ? `WO-${code}-${num}` : `WO-${num}`;
 }
 
+/** TradeStone issues the PO; its number is the work order's own number. */
+export function formatPoNumber(companyCode: string | null | undefined, woNumber: number): string {
+  return formatWoNumber(companyCode, woNumber).replace(/^WO-/, "PO-");
+}
+
+/** Approved value set, PO not yet issued: waiting for someone with sign-off. */
+export function isAwaitingSignOff(wo: Pick<WorkOrder, "approved_value" | "po_issued_at" | "status">): boolean {
+  return wo.approved_value != null && wo.po_issued_at == null && wo.status !== "cancelled" && wo.status !== "completed";
+}
+
+// Every write goes through a SECURITY DEFINER RPC (20261014140000):
+// authenticated has no INSERT/UPDATE/DELETE on work_orders. The server sets
+// raised_by, the approval, the rate snapshot and the contractor notification —
+// none of them is ever sent from here. RPC errors are written for the user,
+// so they are shown as they come back.
 export function useWorkOrders() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const fail = (title: string, error: { message?: string } | null) => {
+    toast({ title, description: error?.message ?? "Please try again.", variant: "destructive" });
+  };
 
   const fetchWorkOrders = useCallback(async (companyId: string, filters?: WorkOrderFilters) => {
     setLoading(true);
@@ -149,98 +182,82 @@ export function useWorkOrders() {
       .filter((c) => !trade || (c.trades ?? []).includes(trade));
   }, []);
 
+  // Pre-fill for the approved value: the highest defaultApprovedValue across
+  // the given contractors' agreed rates, so the PO covers whichever of them is
+  // dispatched. null when none of them has agreed rates — the field is then
+  // left blank for the user to fill, never a made-up figure.
+  const fetchSuggestedValue = useCallback(async (
+    candidates: AvailableContractor[], priority: WorkOrderPriority,
+  ): Promise<SuggestedValue | null> => {
+    const results = await Promise.all(candidates.map(async (c) => {
+      const { data, error } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: c.engagement_id });
+      if (error || !data) return null;
+      const value = defaultApprovedValue(data, priority);
+      return value == null ? null : { contractorName: c.full_name ?? "Contractor", value };
+    }));
+    const basis = results.filter((r): r is { contractorName: string; value: number } => r !== null);
+    if (basis.length === 0) return null;
+    return { value: Math.max(...basis.map((b) => b.value)), basis };
+  }, []);
+
   const createWorkOrder = async (data: {
     // Supplied by the caller when photos were uploaded ahead of the insert,
     // since their storage path embeds the work order id.
     id?: string;
     company_id: string;
-    raised_by: string;
-    raised_by_name?: string | null;
-    site_id?: string | null;
+    site_id: string | null;
     asset_id?: string | null;
     title: string;
     description?: string | null;
     trade_required?: string | null;
     priority: WorkOrderPriority;
     photos?: string[];
+    approved_value: number;
+    client_po_ref?: string | null;
+    service_request_id?: string | null;
   }): Promise<WorkOrder | null> => {
-    const { data: inserted, error } = await supabase
-      .from("work_orders")
-      .insert({ ...data, status: "draft" })
-      .select(WORK_ORDER_SELECT)
-      .single();
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to create work order", variant: "destructive" });
-      throw error;
-    }
-    toast({ title: "Work order created" });
-    return inserted as WorkOrder;
-  };
-
-  // Throws on a genuine RPC failure rather than swallowing it — a failed
-  // lookup and "no rate is agreed yet" must not look identical to the
-  // caller, since only one of them should block dispatch.
-  const snapshotRates = async (engagementId: string) => {
-    const { data, error } = await supabase.rpc("effective_engagement_rates", { p_engagement_id: engagementId });
-    if (error) throw error;
-    return data ?? null;
-  };
-
-  const dispatchWorkOrder = async (workOrderId: string, contractorProfileId: string, engagementId: string) => {
-    let rateSnapshot;
-    try {
-      rateSnapshot = await snapshotRates(engagementId);
-    } catch (err) {
-      toast({ title: "Error", description: "Could not check agreed rates. Please try again.", variant: "destructive" });
-      throw err;
-    }
-
-    // effective_engagement_rates returns nothing until both parties have
-    // agreed a rate version (see accept_engagement_rate_version) — a real,
-    // ongoing state for a direct-origin engagement between creation and
-    // acceptance, not just a transient/error condition. Dispatching anyway
-    // used to silently write a null rate_snapshot and proceed; both
-    // WorkOrderInbox.tsx and WorkOrderDashboard.tsx would then just omit
-    // the rate info box with no indication anything was wrong.
-    if (!rateSnapshot) {
-      toast({
-        title: "Cannot dispatch",
-        description: "Rates must be agreed with the contractor before a work order can be dispatched.",
-        variant: "destructive",
-      });
-      throw new Error("Rates must be agreed with the contractor before a work order can be dispatched.");
-    }
-
-    const { data: wo, error } = await supabase
-      .from("work_orders")
-      .update({
-        dispatched_to: contractorProfileId,
-        engagement_id: engagementId,
-        dispatched_at: new Date().toISOString(),
-        status: "dispatched",
-        response: "pending",
-        rate_snapshot: rateSnapshot,
-      })
-      .eq("id", workOrderId)
-      .select("id, title, site:sites(name)")
-      .single();
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to dispatch work order", variant: "destructive" });
-      throw error;
-    }
-
-    const siteName = wo?.site?.name ?? "site";
-    await supabase.from("notifications").insert({
-      user_id: contractorProfileId,
-      title: "New work order",
-      message: `New work order: ${wo.title} at ${siteName}`,
-      type: "work_order_dispatched",
-      reference_type: "work_order",
-      reference_id: workOrderId,
+    const { data: id, error } = await supabase.rpc("create_work_order", {
+      p_company_id: data.company_id,
+      p_site_id: data.site_id,
+      p_title: data.title,
+      p_approved_value: data.approved_value,
+      p_priority: data.priority,
+      p_description: data.description ?? undefined,
+      p_trade_required: data.trade_required ?? undefined,
+      p_asset_id: data.asset_id ?? undefined,
+      p_photos: data.photos ?? [],
+      p_client_po_ref: data.client_po_ref ?? undefined,
+      p_service_request_id: data.service_request_id ?? undefined,
+      p_id: data.id,
     });
+    if (error || !id) {
+      fail("Could not raise work order", error);
+      throw error ?? new Error("create_work_order returned no id");
+    }
+    return fetchWorkOrder(id);
+  };
 
+  const approveWorkOrder = async (workOrderId: string) => {
+    const { error } = await supabase.rpc("approve_work_order", { p_work_order_id: workOrderId });
+    if (error) {
+      fail("Could not approve work order", error);
+      throw error;
+    }
+    toast({ title: "Approved", description: "PO issued." });
+  };
+
+  // The engagement decides the contractor; the server snapshots its agreed
+  // rates, refuses if none are agreed or the PO isn't issued, and notifies
+  // the contractor.
+  const dispatchWorkOrder = async (workOrderId: string, engagementId: string) => {
+    const { error } = await supabase.rpc("dispatch_work_order", {
+      p_work_order_id: workOrderId,
+      p_engagement_id: engagementId,
+    });
+    if (error) {
+      fail("Cannot dispatch", error);
+      throw error;
+    }
     toast({ title: "Work order dispatched" });
   };
 
@@ -248,8 +265,7 @@ export function useWorkOrders() {
   // work order, checks it is still awaiting this contractor's response, and does
   // the job creation / status change / business notification in one transaction,
   // so a failure leaves nothing half-done and a second call raises instead of
-  // minting a second job. (Contractors cannot write work_orders.status directly;
-  // work_orders_update only lets them update a row that stays 'dispatched'.)
+  // minting a second job.
   const respondToWorkOrder = async (workOrderId: string, accept: boolean, declineReason?: string) => {
     if (accept) {
       const { data: jobId, error } = await supabase.rpc("accept_work_order", { p_work_order_id: workOrderId });
@@ -273,31 +289,54 @@ export function useWorkOrders() {
     return null;
   };
 
-  const reassignWorkOrder = async (workOrderId: string, newContractorId: string, newEngagementId: string) => {
-    // status = 'reassigned' then 'dispatched', per the brief — two explicit
-    // transitions rather than jumping straight to 'dispatched'.
-    await supabase
-      .from("work_orders")
-      .update({ status: "reassigned", response: null })
-      .eq("id", workOrderId);
-
-    await dispatchWorkOrder(workOrderId, newContractorId, newEngagementId);
+  // One transaction server-side: the previous contractor's open cost lines are
+  // rejected, then the work order is dispatched to the new engagement.
+  const reassignWorkOrder = async (workOrderId: string, newEngagementId: string) => {
+    const { error } = await supabase.rpc("reassign_work_order", {
+      p_work_order_id: workOrderId,
+      p_engagement_id: newEngagementId,
+    });
+    if (error) {
+      fail("Could not reassign work order", error);
+      throw error;
+    }
+    toast({ title: "Work order reassigned" });
   };
 
   const cancelWorkOrder = async (workOrderId: string, reason?: string) => {
-    // No dedicated cancel-reason column on work_orders — decline_reason is
-    // reused as the general "why this stopped" field since it's the only
-    // free-text status-reason column the schema provides.
-    const { error } = await supabase
-      .from("work_orders")
-      .update({ status: "cancelled", decline_reason: reason ?? null })
-      .eq("id", workOrderId);
+    const { error } = await supabase.rpc("cancel_work_order", {
+      p_work_order_id: workOrderId,
+      p_reason: reason ?? undefined,
+    });
     if (error) {
-      toast({ title: "Error", description: "Failed to cancel work order", variant: "destructive" });
+      fail("Could not cancel work order", error);
       throw error;
     }
     toast({ title: "Work order cancelled" });
   };
+
+  const amendWorkOrderValue = async (workOrderId: string, newValue: number) => {
+    const { error } = await supabase.rpc("amend_work_order_value", {
+      p_work_order_id: workOrderId,
+      p_new_value: newValue,
+    });
+    if (error) {
+      fail("Could not change the approved value", error);
+      throw error;
+    }
+    toast({ title: "Approved value updated" });
+  };
+
+  // Mirrors the server's sign-off rule so buttons only show for people the
+  // RPCs will accept. Fails closed: an error reads as "cannot sign off".
+  const canSignOff = useCallback(async (workOrderId: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc("can_sign_off_work_order", { p_work_order_id: workOrderId });
+    if (error) {
+      console.error("Error checking sign-off:", error);
+      return false;
+    }
+    return data === true;
+  }, []);
 
   return {
     workOrders,
@@ -305,10 +344,14 @@ export function useWorkOrders() {
     fetchWorkOrders,
     fetchWorkOrder,
     fetchAvailableContractors,
+    fetchSuggestedValue,
     createWorkOrder,
+    approveWorkOrder,
     dispatchWorkOrder,
     respondToWorkOrder,
     reassignWorkOrder,
     cancelWorkOrder,
+    amendWorkOrderValue,
+    canSignOff,
   };
 }

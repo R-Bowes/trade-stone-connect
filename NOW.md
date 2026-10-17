@@ -56,6 +56,7 @@ Still open, holes NOT yet closed:
 - notifications INSERT is WITH CHECK (true) for any logged-in user. Found 11 Oct.
 - subcontracts and contracts are client-writable with no WITH CHECK; the old Contracts screen is reachable by typed URL. Found 11 Oct.
 - sign-off of a contractor-owned project trusts jobs.customer_id, which the contractor can still edit; closes with the jobs lock. Found 11 Oct.
+- work_orders SELECT lets site-only members read every work order in the company (is_company_member ignores coverage) — same class as the jobs coverage gap. Found 13 Oct.
 
 Parked defects:
 - VAT charged by non-registered contractors: blocked for new invoices from 12
@@ -134,6 +135,59 @@ confirming a new `invoices` row lands with `status = 'sent'`.
 4. Site checks (point-of-work RA with sign-on)
 5. System template expansion to the trade list
 6. Business-required RAMS and checklists per site
+
+---
+
+## Work orders: one record (authorised 13 Oct 2026, ahead of Phase 0 close)
+The business work order is the one record from request to payment. Stage bar:
+Raised → Approved·PO issued → Dispatched → On site → Complete·cert in →
+Invoiced·matched → Paid.
+
+1. Step 1 DONE: PO + approved value + write lock. Migration
+   20261014140000 live 14 Oct; browser-checked 17 Oct (raise → PO issued,
+   dispatch, contractor accept, cost lines, over-PO line approved → PO
+   amended £155 → £200).
+
+   Step 1 follow-ups (next brief):
+   a. Cost lines only once the job is under way: submit_work_order_cost
+      refuses unless the WO is accepted and its job is in_progress or later
+      (becomes "after check-in" in step 5).
+   b. "Request a PO increase" for the contractor, any time after accepting:
+      amount + reason → business Needs you → approving amends the PO.
+      (Pulls the variation path forward from step 3.)
+   c. Approval limits per person (step 1b): business_members.approval_limit;
+      over your limit → someone whose limit covers it, or the owner.
+   d. Record-costs form: replace "unless it falls under their approval
+      limit" with live PO headroom ("Approved to spend £155.00 · this takes
+      you to £200.00 — £45.00 over, will need the client's approval").
+   e. Work-order detail: one money summary (approved · waiting · PO), not
+      two contradictory ones; breakdown auto-expanded when a line needs
+      approval.
+   f. Dashboard "Review and approve" opens that work order directly, not
+      the list; the row reads "£135.00 over PO £155.00", not "Value".
+   g. Approvals page lists pending cost lines first, ahead of quotes.
+   h. Work-order jobs: hide "Raise variation" (old job_variations path,
+      unanswerable for business jobs); show PO value instead of "Value:
+      No costs" on the job card.
+2. Full work order page with timeline, for both sides.
+3. One thread on the work order and one variation path. job_variations is
+   switched off for work-order jobs (jobs.work_order_id NOT NULL) here.
+4. Certificates → asset compliance, compliance by site, and an expiry books
+   the next visit.
+5. Location-stamped check-in, and the SLA measured from it.
+6. Email replies filed to the record.
+
+Known gaps:
+- max_monthly_spend is not enforced anywhere — to be enforced server-side in a
+  later step. The Site Portal check read work_orders.estimated_cost, which
+  nothing writes and site contacts cannot read, so it always passed; removed
+  13 Oct.
+- max_wo_value is not enforced either. Its Site Portal check only ran when the
+  site contact picked a contractor (level 3), and that picker was removed with
+  the portal's direct work order insert: the choice had nowhere to go
+  (service_requests has no column for it). A site contact's request now goes
+  to the FM queue, or to auto-dispatch. Both come back with a server-side
+  raise-from-request RPC.
 
 ---
 
@@ -241,6 +295,17 @@ Three columns exist and are never written by anything:
 
 `invoiceMoney.ts` currently falls back to `deposit_amount` because
 `deposit_deducted` is dead. Once the webhook writes it, the fallback can go.
+
+### Dead columns on `work_orders`
+Left in place by 20261014140000; nothing writes either:
+
+- `estimated_cost` — NULL on every row. The approved value
+  (`approved_value`) is the figure that matters now.
+- `requires_approval` — false on every row. Approval is `po_issued_at` /
+  `approved_by` now.
+
+Also dead: the `wo_number` column default (`nextval('work_orders_wo_number_seq')`).
+`assign_wo_number_trigger` always overwrites it with the per-company counter.
 
 ### `payments.contractor_payout` never populated
 NULL on the only payment row. Nothing records what the contractor actually

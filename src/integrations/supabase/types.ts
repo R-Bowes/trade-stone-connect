@@ -11698,7 +11698,9 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          approved_value: number | null
           asset_id: string | null
+          client_po_ref: string | null
           company_id: string
           created_at: string
           decline_reason: string | null
@@ -11710,6 +11712,7 @@ export type Database = {
           id: string
           job_id: string | null
           photos: Json | null
+          po_issued_at: string | null
           priority: string
           raised_by: string
           raised_by_name: string | null
@@ -11723,12 +11726,16 @@ export type Database = {
           title: string
           trade_required: string | null
           updated_at: string
+          value_amended_at: string | null
+          value_amended_by: string | null
           wo_number: number
         }
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          approved_value?: number | null
           asset_id?: string | null
+          client_po_ref?: string | null
           company_id: string
           created_at?: string
           decline_reason?: string | null
@@ -11740,6 +11747,7 @@ export type Database = {
           id?: string
           job_id?: string | null
           photos?: Json | null
+          po_issued_at?: string | null
           priority?: string
           raised_by: string
           raised_by_name?: string | null
@@ -11753,12 +11761,16 @@ export type Database = {
           title: string
           trade_required?: string | null
           updated_at?: string
+          value_amended_at?: string | null
+          value_amended_by?: string | null
           wo_number?: number
         }
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          approved_value?: number | null
           asset_id?: string | null
+          client_po_ref?: string | null
           company_id?: string
           created_at?: string
           decline_reason?: string | null
@@ -11770,6 +11782,7 @@ export type Database = {
           id?: string
           job_id?: string | null
           photos?: Json | null
+          po_issued_at?: string | null
           priority?: string
           raised_by?: string
           raised_by_name?: string | null
@@ -11783,6 +11796,8 @@ export type Database = {
           title?: string
           trade_required?: string | null
           updated_at?: string
+          value_amended_at?: string | null
+          value_amended_by?: string | null
           wo_number?: number
         }
         Relationships: [
@@ -12444,6 +12459,10 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string }
         Returns: boolean
       }
+      _dispatch_work_order: {
+        Args: { p_engagement_id: string; p_work_order_id: string }
+        Returns: undefined
+      }
       _invoice_figures_problem: {
         Args: {
           p_contractor_id: string
@@ -12492,7 +12511,20 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string }
         Returns: number
       }
+      _work_order_default_value: {
+        Args: { p_priority: string; p_snapshot: Json }
+        Returns: number
+      }
+      _work_order_po_ref: { Args: { p_work_order_id: string }; Returns: string }
+      _work_order_rate_snapshot: {
+        Args: { p_engagement_id: string }
+        Returns: Json
+      }
       _work_order_ref: { Args: { p_work_order_id: string }; Returns: string }
+      _work_order_value_signed_off: {
+        Args: { p_company_id: string; p_site_id: string; p_value: number }
+        Returns: boolean
+      }
       accept_business_invite: {
         Args: { p_invite_id?: string; p_token?: string }
         Returns: string
@@ -12636,12 +12668,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      amend_work_order_value: {
+        Args: { p_new_value: number; p_work_order_id: string }
+        Returns: undefined
+      }
       anonymise_user: { Args: { target_user_id: string }; Returns: undefined }
       application_is_draft: {
         Args: { p_application_id: string }
         Returns: boolean
       }
       approve_refund: { Args: { p_refund_id: string }; Returns: string }
+      approve_work_order: {
+        Args: { p_work_order_id: string }
+        Returns: undefined
+      }
       approve_work_order_cost: {
         Args: { p_cost_id: string }
         Returns: undefined
@@ -12678,7 +12718,15 @@ export type Database = {
       calculate_trade_averages: { Args: never; Returns: undefined }
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
+      can_sign_off_work_order: {
+        Args: { p_work_order_id: string }
+        Returns: boolean
+      }
       cancel_project_subcontract: { Args: { p_id: string }; Returns: undefined }
+      cancel_work_order: {
+        Args: { p_reason?: string; p_work_order_id: string }
+        Returns: undefined
+      }
       check_contractor_compliance: {
         Args: { p_contractor_id: string }
         Returns: Json
@@ -12776,6 +12824,23 @@ export type Database = {
         Args: { p_tender_id: string }
         Returns: string
       }
+      create_work_order: {
+        Args: {
+          p_approved_value: number
+          p_asset_id?: string
+          p_client_po_ref?: string
+          p_company_id: string
+          p_description?: string
+          p_id?: string
+          p_photos?: Json
+          p_priority?: string
+          p_service_request_id?: string
+          p_site_id: string
+          p_title: string
+          p_trade_required?: string
+        }
+        Returns: string
+      }
       current_insurance_credential_id: {
         Args: { p_contractor_id: string }
         Returns: string
@@ -12840,6 +12905,10 @@ export type Database = {
       }
       detach_job_from_package: {
         Args: { p_package_id: string }
+        Returns: undefined
+      }
+      dispatch_work_order: {
+        Args: { p_engagement_id: string; p_work_order_id: string }
         Returns: undefined
       }
       effective_engagement_rates: {
@@ -13120,6 +13189,10 @@ export type Database = {
           p_project_id: string
         }
         Returns: string
+      }
+      reassign_work_order: {
+        Args: { p_engagement_id: string; p_work_order_id: string }
+        Returns: undefined
       }
       recalculate_all_scores: { Args: never; Returns: undefined }
       recalculate_contractor_tier: {

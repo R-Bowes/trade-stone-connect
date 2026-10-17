@@ -2,10 +2,10 @@ import { useMemo, type ReactNode } from "react";
 import { RecordCard, RecordSection, type RecordCardField } from "@/components/shared/RecordCard";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, MapPin, Wrench } from "lucide-react";
-import { formatDateTime } from "@/lib/formatDate";
+import { formatDate, formatDateTime } from "@/lib/formatDate";
 import { formatGBP } from "@/lib/formatGBP";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
-import { formatWoNumber, type WorkOrder, type WorkOrderPriority } from "@/hooks/useWorkOrders";
+import { formatPoNumber, formatWoNumber, isAwaitingSignOff, type WorkOrder, type WorkOrderPriority } from "@/hooks/useWorkOrders";
 
 export const WORK_ORDER_PHOTO_BUCKET = "work-order-photos";
 
@@ -22,11 +22,17 @@ export const PRIORITY_COLOR: Record<WorkOrderPriority, string> = {
 /**
  * The badge label is derived from status + response + job_id, exactly as
  * WorkOrderDashboard's summary tiles derive "awaiting response" and "in
- * progress" — no status values beyond the live CHECK set are invented.
+ * progress" — no status values beyond the live CHECK set are invented. A
+ * draft splits three ways on the PO columns: waiting for sign-off (value set,
+ * no PO), ready to dispatch (PO issued), or a legacy draft with neither.
  */
-export function deriveWorkOrderStatus(wo: Pick<WorkOrder, "status" | "response" | "job_id">): { label: string; className: string } {
+export function deriveWorkOrderStatus(
+  wo: Pick<WorkOrder, "status" | "response" | "job_id" | "approved_value" | "po_issued_at">,
+): { label: string; className: string } {
   switch (wo.status) {
     case "draft":
+      if (isAwaitingSignOff(wo)) return { label: "Waiting for sign-off", className: "bg-amber-100 text-amber-800" };
+      if (wo.po_issued_at) return { label: "PO issued", className: "bg-blue-100 text-blue-800" };
       return { label: "Draft", className: "bg-slate-100 text-slate-700" };
     case "dispatched":
       return wo.response === "pending"
@@ -166,6 +172,30 @@ export function WorkOrderCard({
       actions={actions}
       density={density}
     >
+      {workOrder.approved_value != null && (
+        <RecordSection>
+          <p className="text-sm font-medium">Purchase order</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+            <Field label="PO number">
+              {workOrder.po_issued_at
+                ? <span className="font-mono">{formatPoNumber(companyCode, workOrder.wo_number)}</span>
+                : "Not issued — waiting for sign-off"}
+            </Field>
+            <Field label={viewer === "contractor" ? "Approved to spend" : "Approved value"}>
+              <span className="font-mono">{formatGBP(workOrder.approved_value)}</span>
+            </Field>
+            {workOrder.client_po_ref && (
+              <Field label={viewer === "contractor" ? "Client reference" : "Your PO reference"}>
+                <span className="font-mono">{workOrder.client_po_ref}</span>
+              </Field>
+            )}
+          </div>
+          {workOrder.value_amended_at && (
+            <p className="text-xs text-muted-foreground">PO amended {formatDate(workOrder.value_amended_at)}.</p>
+          )}
+        </RecordSection>
+      )}
+
       <RecordSection>
         <p className="text-sm font-medium">Agreed rates</p>
         {rate ? (

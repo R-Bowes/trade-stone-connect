@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,34 +11,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, ArrowLeft, ArrowRight, Camera, X } from "lucide-react";
+import { Loader2, Plus, Camera, X } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { CONTRACTOR_TRADES } from "@/constants/trades";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { useToast } from "@/hooks/use-toast";
 import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
+import { formatGBP } from "@/lib/formatGBP";
+import { poSpend } from "@/lib/workOrderValue";
 import { WorkOrderCostLines } from "@/components/shared/WorkOrderCostLines";
 import { CostReviewActions } from "@/components/business/CostReviewActions";
+import { ApprovedValueField, useApprovedValueInput } from "@/components/business/ApprovedValueField";
 import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
-import { WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET } from "@/components/shared/WorkOrderCard";
 import {
-  useWorkOrders, formatWoNumber,
-  type WorkOrder, type WorkOrderPriority, type WorkOrderStatus, type AvailableContractor,
+  WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET, deriveWorkOrderStatus,
+} from "@/components/shared/WorkOrderCard";
+import {
+  useWorkOrders, formatWoNumber, formatPoNumber, isAwaitingSignOff,
+  type WorkOrder, type WorkOrderPriority, type WorkOrderStatus, type AvailableContractor, type SuggestedValue,
 } from "@/hooks/useWorkOrders";
 
 const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   draft: "Draft", dispatched: "Dispatched", accepted: "Accepted", declined: "Declined",
   reassigned: "Reassigned", cancelled: "Cancelled", completed: "Completed",
-};
-const STATUS_COLOR: Record<WorkOrderStatus, string> = {
-  draft: "bg-slate-100 text-slate-700",
-  dispatched: "bg-blue-100 text-blue-800",
-  accepted: "bg-green-100 text-green-800",
-  declined: "bg-red-100 text-red-800",
-  reassigned: "bg-amber-100 text-amber-800",
-  cancelled: "bg-slate-200 text-slate-500",
-  completed: "bg-green-100 text-green-800",
 };
 
 const MAX_PHOTOS = 6;
@@ -54,19 +50,19 @@ interface CreateForm {
   description: string;
   trade_required: string;
   priority: WorkOrderPriority;
+  client_po_ref: string;
 }
 
 const BLANK_CREATE_FORM: CreateForm = {
-  site_id: "", asset_id: "", title: "", description: "", trade_required: "", priority: "routine",
+  site_id: "", asset_id: "", title: "", description: "", trade_required: "", priority: "routine", client_po_ref: "",
 };
 
 interface WorkOrderDashboardProps {
   companyId: string;
-  profileId: string;
 }
 
-export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardProps) {
-  const { workOrders, loading, fetchWorkOrders, createWorkOrder, dispatchWorkOrder, reassignWorkOrder, cancelWorkOrder } = useWorkOrders();
+export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
+  const { workOrders, loading, fetchWorkOrders, fetchWorkOrder } = useWorkOrders();
 
   const [companyCode, setCompanyCode] = useState<string | null>(null);
   const [sites, setSites] = useState<SiteOption[]>([]);
@@ -105,10 +101,12 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
     return { open, awaiting, inProgress, completedThisMonth };
   }, [workOrders]);
 
-  const handleCancel = async (id: string) => {
-    await cancelWorkOrder(id);
-    setDetailWo(null);
+  // After any action on the open work order: refresh the list and the dialog
+  // from the server, since approval, the PO and the value are all server-set.
+  const handleDetailChanged = async (id: string) => {
     reload();
+    const fresh = await fetchWorkOrder(id);
+    setDetailWo(fresh);
   };
 
   return (
@@ -194,23 +192,28 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
                     <TableHead>Site</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Priority</TableHead>
+                    <TableHead>Approved value</TableHead>
                     <TableHead>Dispatched To</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {workOrders.map((wo) => (
-                    <TableRow key={wo.id} className="cursor-pointer" onClick={() => setDetailWo(wo)}>
-                      <TableCell className="font-mono text-xs">{formatWoNumber(companyCode, wo.wo_number)}</TableCell>
-                      <TableCell>{wo.site?.name ?? "—"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{wo.title}</TableCell>
-                      <TableCell><Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge></TableCell>
-                      <TableCell>{wo.contractor?.full_name ?? "—"}</TableCell>
-                      <TableCell><Badge className={STATUS_COLOR[wo.status]}>{STATUS_LABEL[wo.status]}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "d MMM yyyy")}</TableCell>
-                    </TableRow>
-                  ))}
+                  {workOrders.map((wo) => {
+                    const status = deriveWorkOrderStatus(wo);
+                    return (
+                      <TableRow key={wo.id} className="cursor-pointer" onClick={() => setDetailWo(wo)}>
+                        <TableCell className="font-mono text-xs">{formatWoNumber(companyCode, wo.wo_number)}</TableCell>
+                        <TableCell>{wo.site?.name ?? "—"}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{wo.title}</TableCell>
+                        <TableCell><Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge></TableCell>
+                        <TableCell className="font-mono text-xs">{wo.approved_value != null ? formatGBP(wo.approved_value) : "—"}</TableCell>
+                        <TableCell>{wo.contractor?.full_name ?? "—"}</TableCell>
+                        <TableCell><Badge className={status.className}>{status.label}</Badge></TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{format(new Date(wo.created_at), "d MMM yyyy")}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -220,13 +223,10 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
 
       <CreateWorkOrderDialog
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => { setCreateOpen(false); reload(); }}
         companyId={companyId}
-        profileId={profileId}
+        companyCode={companyCode}
         sites={sites}
-        createWorkOrder={createWorkOrder}
-        dispatchWorkOrder={dispatchWorkOrder}
-        onDone={() => { setCreateOpen(false); reload(); }}
       />
 
       {detailWo && (
@@ -234,9 +234,7 @@ export function WorkOrderDashboard({ companyId, profileId }: WorkOrderDashboardP
           wo={detailWo}
           companyCode={companyCode}
           onClose={() => setDetailWo(null)}
-          onCancel={handleCancel}
-          onReassigned={() => { setDetailWo(null); reload(); }}
-          reassignWorkOrder={reassignWorkOrder}
+          onChanged={() => handleDetailChanged(detailWo.id)}
         />
       )}
     </div>
@@ -285,31 +283,36 @@ function ContractorDispatchCard({ contractor, engagementId, onDispatch, dispatch
   );
 }
 
-// ── Create Work Order dialog (3-step) ────────────────────────────────────────
+// ── Create Work Order dialog ─────────────────────────────────────────────────
+// Step 1 raises the work order with its approved value. The server approves it
+// at once (PO issued) when the raiser can sign off for the site or the value is
+// under the approval threshold; otherwise it waits for sign-off. Step 2 shows
+// which, and offers dispatch only when the PO is issued.
 
 function CreateWorkOrderDialog({
-  open, onClose, companyId, profileId, sites, createWorkOrder, dispatchWorkOrder, onDone,
+  open, onClose, companyId, companyCode, sites,
 }: {
   open: boolean;
   onClose: () => void;
   companyId: string;
-  profileId: string;
+  companyCode: string | null;
   sites: SiteOption[];
-  createWorkOrder: ReturnType<typeof useWorkOrders>["createWorkOrder"];
-  dispatchWorkOrder: ReturnType<typeof useWorkOrders>["dispatchWorkOrder"];
-  onDone: () => void;
 }) {
-  const { fetchAvailableContractors } = useWorkOrders();
+  const { fetchAvailableContractors, fetchSuggestedValue, createWorkOrder, dispatchWorkOrder } = useWorkOrders();
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState<CreateForm>(BLANK_CREATE_FORM);
   const [assets, setAssets] = useState<AssetOption[]>([]);
   const [saving, setSaving] = useState(false);
-  const [createdWo, setCreatedWo] = useState<{ id: string; site_id: string | null } | null>(null);
+  const [createdWo, setCreatedWo] = useState<WorkOrder | null>(null);
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState<SuggestedValue | null>(null);
   const [dispatchingId, setDispatchingId] = useState<string | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const lookupRef = useRef(0);
+  const valueInput = useApprovedValueInput(suggestion);
+  const resetValue = valueInput.reset;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -318,9 +321,28 @@ function CreateWorkOrderDialog({
       setForm(BLANK_CREATE_FORM);
       setCreatedWo(null);
       setCandidates([]);
+      setSuggestion(null);
       setPhotoFiles([]);
+      resetValue();
     }
-  }, [open]);
+  }, [open, resetValue]);
+
+  // Candidates and the suggested value follow site, trade and priority. Only
+  // the latest lookup is applied, so a slow earlier one can't overwrite it.
+  useEffect(() => {
+    if (!open || step !== 1) return;
+    if (!form.site_id) { setCandidates([]); setSuggestion(null); return; }
+    const ticket = ++lookupRef.current;
+    setCandidatesLoading(true);
+    (async () => {
+      const found = await fetchAvailableContractors(companyId, form.site_id, form.trade_required || undefined);
+      const suggested = await fetchSuggestedValue(found, form.priority);
+      if (ticket !== lookupRef.current) return;
+      setCandidates(found);
+      setSuggestion(suggested);
+      setCandidatesLoading(false);
+    })();
+  }, [open, step, companyId, form.site_id, form.trade_required, form.priority, fetchAvailableContractors, fetchSuggestedValue]);
 
   const handlePhotosPicked = (picked: FileList | null) => {
     if (!picked) return;
@@ -361,39 +383,50 @@ function CreateWorkOrderDialog({
     }
   };
 
-  const createFromForm = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", profileId).maybeSingle();
-    const workOrderId = crypto.randomUUID();
+  const canRaise = !!form.title.trim() && !!form.site_id && valueInput.value != null;
 
-    let photos: string[] = [];
-    if (photoFiles.length > 0) {
-      try {
-        photos = await uploadPhotos(workOrderId, user!.id);
-      } catch (err) {
-        console.error("Work order photo upload failed:", err);
-        toast({ title: "Photos didn't upload", description: "Nothing was saved. Check your connection and try again.", variant: "destructive" });
-        return null;
-      }
-    }
-
+  const handleRaise = async () => {
+    if (!canRaise || valueInput.value == null) return;
+    setSaving(true);
     try {
-      return await createWorkOrder({
-        id: workOrderId,
-        company_id: companyId,
-        raised_by: user!.id,
-        raised_by_name: profile?.full_name ?? null,
-        site_id: form.site_id,
-        asset_id: form.asset_id || null,
-        title: form.title.trim(),
-        description: form.description || null,
-        trade_required: form.trade_required || null,
-        priority: form.priority,
-        photos,
-      });
-    } catch (err) {
-      if (photos.length > 0) await supabase.storage.from(WORK_ORDER_PHOTO_BUCKET).remove(photos);
-      throw err;
+      const { data: { user } } = await supabase.auth.getUser();
+      const workOrderId = crypto.randomUUID();
+
+      let photos: string[] = [];
+      if (photoFiles.length > 0) {
+        try {
+          photos = await uploadPhotos(workOrderId, user!.id);
+        } catch (err) {
+          console.error("Work order photo upload failed:", err);
+          toast({ title: "Photos didn't upload", description: "Nothing was saved. Check your connection and try again.", variant: "destructive" });
+          return;
+        }
+      }
+
+      let wo: WorkOrder | null;
+      try {
+        wo = await createWorkOrder({
+          id: workOrderId,
+          company_id: companyId,
+          site_id: form.site_id,
+          asset_id: form.asset_id || null,
+          title: form.title.trim(),
+          description: form.description || null,
+          trade_required: form.trade_required || null,
+          priority: form.priority,
+          photos,
+          approved_value: valueInput.value,
+          client_po_ref: form.client_po_ref.trim() || null,
+        });
+      } catch {
+        if (photos.length > 0) await supabase.storage.from(WORK_ORDER_PHOTO_BUCKET).remove(photos);
+        return;
+      }
+      if (!wo) return;
+      setCreatedWo(wo);
+      setStep(2);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -403,51 +436,26 @@ function CreateWorkOrderDialog({
       .then(({ data }) => setAssets(data ?? []));
   }, [form.site_id]);
 
-  const handleSaveDraft = async () => {
-    if (!form.title.trim() || !form.site_id) return;
-    setSaving(true);
-    try {
-      const wo = await createFromForm();
-      if (!wo) return;
-      onDone();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleContinueToDispatch = async () => {
-    if (!form.title.trim() || !form.site_id) return;
-    setSaving(true);
-    try {
-      const wo = await createFromForm();
-      if (!wo) return;
-      setCreatedWo({ id: wo.id, site_id: form.site_id });
-      setStep(2);
-      setCandidatesLoading(true);
-      const found = await fetchAvailableContractors(companyId, form.site_id, form.trade_required || undefined);
-      setCandidates(found);
-      setCandidatesLoading(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDispatch = async (contractor: AvailableContractor) => {
     if (!createdWo) return;
     setDispatchingId(contractor.contractor_id);
     try {
-      await dispatchWorkOrder(createdWo.id, contractor.contractor_id, contractor.engagement_id);
-      onDone();
+      await dispatchWorkOrder(createdWo.id, contractor.engagement_id);
+      onClose();
+    } catch {
+      // dispatchWorkOrder has already shown the server's reason.
     } finally {
       setDispatchingId(null);
     }
   };
 
+  const approved = !!createdWo?.po_issued_at;
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{step === 1 ? "Create Work Order" : "Dispatch to a Contractor"}</DialogTitle>
+          <DialogTitle>{step === 1 ? "Create Work Order" : createdWo ? formatWoNumber(companyCode, createdWo.wo_number) : "Work order"}</DialogTitle>
         </DialogHeader>
 
         {step === 1 && (
@@ -501,6 +509,26 @@ function CreateWorkOrderDialog({
               </RadioGroup>
             </div>
 
+            <ApprovedValueField
+              id="create-wo-approved-value"
+              text={valueInput.text}
+              onChange={valueInput.setText}
+              suggestion={suggestion}
+              loadingSuggestion={candidatesLoading}
+              ready={!!form.site_id}
+            />
+
+            <div className="space-y-1">
+              <Label htmlFor="create-wo-client-po">Your PO reference (optional)</Label>
+              <Input
+                id="create-wo-client-po"
+                className="font-mono"
+                value={form.client_po_ref}
+                onChange={(e) => setForm((f) => ({ ...f, client_po_ref: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">Your own finance reference, shown next to the TradeStone PO number.</p>
+            </div>
+
             <div className="space-y-1">
               <Label>Photos (optional)</Label>
               <div className="flex flex-wrap gap-2">
@@ -532,42 +560,55 @@ function CreateWorkOrderDialog({
               />
             </div>
 
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={handleSaveDraft} disabled={saving || !form.title.trim() || !form.site_id}>
+            <DialogFooter>
+              <Button onClick={handleRaise} disabled={saving || !canRaise}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save as Draft
-              </Button>
-              <Button onClick={handleContinueToDispatch} disabled={saving || !form.title.trim() || !form.site_id}>
-                Continue to Dispatch <ArrowRight className="h-4 w-4 ml-1" />
+                Raise work order
               </Button>
             </DialogFooter>
           </div>
         )}
 
-        {step === 2 && (
+        {step === 2 && createdWo && (
           <div className="space-y-3">
-            <Button variant="ghost" size="sm" onClick={onDone}>
-              <ArrowLeft className="h-4 w-4 mr-1" />Saved as draft — dispatch later
-            </Button>
-            {candidatesLoading ? (
-              <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : candidates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No panel contractors cover this site{form.trade_required ? ` for ${form.trade_required}` : ""}. The work order has been saved as a draft — you can assign it later.
-              </p>
+            {approved ? (
+              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                Approved — <span className="font-mono">{formatPoNumber(companyCode, createdWo.wo_number)}</span> issued
+                for <span className="font-mono">{formatGBP(createdWo.approved_value)}</span>.
+              </div>
             ) : (
-              <div className="grid gap-2">
-                {candidates.map((c) => (
-                  <ContractorDispatchCard
-                    key={c.contractor_id}
-                    contractor={c}
-                    engagementId={c.engagement_id}
-                    onDispatch={() => handleDispatch(c)}
-                    dispatching={dispatchingId === c.contractor_id}
-                  />
-                ))}
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Waiting for sign-off. The owner or a manager covering this site needs to approve
+                {" "}<span className="font-mono">{formatGBP(createdWo.approved_value)}</span> before this work order can be dispatched.
               </div>
             )}
+
+            {approved && (
+              <>
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Dispatch to</div>
+                {candidates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No panel contractors cover this site{form.trade_required ? ` for ${form.trade_required}` : ""}. You can dispatch it later from the work order.
+                  </p>
+                ) : (
+                  <div className="grid gap-2">
+                    {candidates.map((c) => (
+                      <ContractorDispatchCard
+                        key={c.contractor_id}
+                        contractor={c}
+                        engagementId={c.engagement_id}
+                        onDispatch={() => handleDispatch(c)}
+                        dispatching={dispatchingId === c.contractor_id}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>{approved ? "Dispatch later" : "Close"}</Button>
+            </DialogFooter>
           </div>
         )}
       </DialogContent>
@@ -577,42 +618,90 @@ function CreateWorkOrderDialog({
 
 // ── Detail dialog ─────────────────────────────────────────────────────────────
 
-function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigned, reassignWorkOrder }: {
+function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
   wo: WorkOrder;
   companyCode: string | null;
   onClose: () => void;
-  onCancel: (id: string) => void;
-  onReassigned: () => void;
-  reassignWorkOrder: ReturnType<typeof useWorkOrders>["reassignWorkOrder"];
+  onChanged: () => void;
 }) {
-  const { fetchAvailableContractors } = useWorkOrders();
-  const [reassignOpen, setReassignOpen] = useState(false);
+  const {
+    fetchAvailableContractors, approveWorkOrder, dispatchWorkOrder, reassignWorkOrder,
+    cancelWorkOrder, amendWorkOrderValue, canSignOff,
+  } = useWorkOrders();
+  const [pickMode, setPickMode] = useState<"dispatch" | "reassign" | null>(null);
   const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
-  const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [pickingId, setPickingId] = useState<string | null>(null);
+  const [canSign, setCanSign] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editingValue, setEditingValue] = useState(false);
+  const [valueText, setValueText] = useState("");
   const { costsByWorkOrder, loadCosts, approveCost, queryCost, rejectCost } = useWorkOrderCosts();
 
   useEffect(() => { void loadCosts([wo.id]); }, [wo.id, loadCosts]);
+  useEffect(() => {
+    let live = true;
+    canSignOff(wo.id).then((ok) => { if (live) setCanSign(ok); });
+    return () => { live = false; };
+  }, [wo.id, canSignOff]);
 
-  const openReassign = async () => {
-    setReassignOpen(true);
+  const lines = costsByWorkOrder[wo.id] ?? [];
+  const spend = wo.approved_value != null ? poSpend(wo.approved_value, lines) : null;
+  const awaiting = isAwaitingSignOff(wo);
+  const readyToDispatch = wo.status === "draft" && !!wo.po_issued_at;
+  const canCancel = canSign && (wo.status === "draft" || wo.status === "dispatched" || wo.status === "declined");
+  // An issued PO can only be changed by someone with sign-off; before the PO
+  // is issued, any member covering the site may set the value (server-checked).
+  const canEditValue = ["draft", "dispatched", "accepted", "declined"].includes(wo.status)
+    && (!wo.po_issued_at || canSign);
+
+  const run = useCallback(async (action: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await action();
+      onChanged();
+    } catch {
+      // The hook has already shown the server's reason.
+    } finally {
+      setBusy(false);
+    }
+  }, [onChanged]);
+
+  const openPicker = async (mode: "dispatch" | "reassign") => {
+    setPickMode(mode);
     setLoadingCandidates(true);
     const found = await fetchAvailableContractors(wo.company_id, wo.site_id ?? "", wo.trade_required ?? undefined);
     setCandidates(found);
     setLoadingCandidates(false);
   };
 
-  const handleReassign = async (c: AvailableContractor) => {
-    setReassigningId(c.contractor_id);
+  const handlePick = async (c: AvailableContractor) => {
+    setPickingId(c.contractor_id);
     try {
-      await reassignWorkOrder(wo.id, c.contractor_id, c.engagement_id);
-      onReassigned();
+      if (pickMode === "reassign") await reassignWorkOrder(wo.id, c.engagement_id);
+      else await dispatchWorkOrder(wo.id, c.engagement_id);
+      setPickMode(null);
+      onChanged();
+    } catch {
+      // Shown by the hook.
     } finally {
-      setReassigningId(null);
+      setPickingId(null);
     }
   };
 
-  const canCancel = wo.status === "draft" || wo.status === "dispatched";
+  const startEditValue = () => {
+    setValueText(wo.approved_value != null ? Number(wo.approved_value).toFixed(2) : "");
+    setEditingValue(true);
+  };
+
+  const saveValue = () => {
+    const n = Math.round(Number(valueText) * 100) / 100;
+    if (!Number.isFinite(n) || n <= 0) return;
+    void run(async () => {
+      await amendWorkOrderValue(wo.id, n);
+      setEditingValue(false);
+    });
+  };
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -627,25 +716,60 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
           companyCode={companyCode}
           viewer="business"
           costs={
-            <WorkOrderCostLines
-              lines={costsByWorkOrder[wo.id] ?? []}
-              renderLineActions={(line) => (
-                <CostReviewActions
-                  line={line}
-                  approve={approveCost}
-                  query={queryCost}
-                  reject={rejectCost}
-                  onChanged={() => void loadCosts([wo.id])}
-                />
+            <>
+              {spend && lines.length > 0 && (
+                <div className="border-t pt-3 text-sm">
+                  <span className="text-muted-foreground">Approved so far </span>
+                  <span className="font-mono">{formatGBP(spend.approvedTotal)}</span>
+                  <span className="text-muted-foreground"> of </span>
+                  <span className="font-mono">{formatGBP(spend.approvedValue)}</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <span className="font-mono">{formatGBP(spend.remaining)}</span>
+                  <span className="text-muted-foreground"> left on the PO</span>
+                </div>
               )}
-            />
+              <WorkOrderCostLines
+                lines={lines}
+                approvedValue={wo.approved_value}
+                viewer="business"
+                renderLineActions={(line) => (
+                  <CostReviewActions
+                    line={line}
+                    approve={approveCost}
+                    query={queryCost}
+                    reject={rejectCost}
+                    // Approving an over-limit line amends the PO, so the work
+                    // order is re-read along with the lines.
+                    onChanged={() => { void loadCosts([wo.id]); onChanged(); }}
+                  />
+                )}
+              />
+            </>
           }
           actions={
             <>
-              {canCancel && (
-                <Button size="sm" variant="outline" onClick={() => onCancel(wo.id)}>Cancel work order</Button>
+              {awaiting && canSign && (
+                <Button size="sm" disabled={busy} onClick={() => run(() => approveWorkOrder(wo.id))}>
+                  {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                  Approve and issue PO
+                </Button>
               )}
-              {wo.status === "declined" && <Button size="sm" onClick={openReassign}>Reassign</Button>}
+              {readyToDispatch && canSign && (
+                <Button size="sm" onClick={() => openPicker("dispatch")}>Dispatch</Button>
+              )}
+              {wo.status === "declined" && canSign && (
+                <Button size="sm" onClick={() => openPicker("reassign")}>Reassign</Button>
+              )}
+              {canEditValue && !editingValue && (
+                <Button size="sm" variant="outline" onClick={startEditValue}>
+                  {wo.approved_value == null ? "Set approved value" : "Change approved value"}
+                </Button>
+              )}
+              {canCancel && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => cancelWorkOrder(wo.id))}>
+                  Cancel work order
+                </Button>
+              )}
               {wo.status === "accepted" && wo.job_id && (
                 <Button size="sm" variant="outline" asChild>
                   <a href={`/dashboard/business?view=jobs&jobId=${wo.job_id}`}>View linked job</a>
@@ -655,20 +779,71 @@ function WorkOrderDetailDialog({ wo, companyCode, onClose, onCancel, onReassigne
           }
         />
 
-        {reassignOpen && (
+        {awaiting && !canSign && (
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Waiting for sign-off from the owner or a manager covering this site.
+            </CardContent>
+          </Card>
+        )}
+
+        {editingValue && (
           <Card>
             <CardContent className="p-4 space-y-2">
-              <div className="text-xs font-semibold uppercase text-muted-foreground">Reassign to</div>
+              <Label htmlFor="wo-approved-value-edit">Approved value</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">£</span>
+                <Input
+                  id="wo-approved-value-edit"
+                  className="pl-7 font-mono"
+                  inputMode="decimal"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={valueText}
+                  onChange={(e) => setValueText(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {spend && spend.approvedTotal > 0
+                  ? `It can't go below the ${formatGBP(spend.approvedTotal)} already approved. `
+                  : ""}
+                {wo.po_issued_at
+                  ? "This amends the issued PO."
+                  : "If you can sign off this value, the PO is issued when you save."}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={busy || !(Number(valueText) > 0)} onClick={saveValue}>
+                  {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                  Save
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingValue(false)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {pickMode && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">
+                {pickMode === "reassign" ? "Reassign to" : "Dispatch to"}
+              </div>
+              {pickMode === "reassign" && (
+                <p className="text-xs text-muted-foreground">
+                  Any cost lines the previous contractor left pending or queried are rejected when the work order moves.
+                </p>
+              )}
               {loadingCandidates ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : candidates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No other panel contractors cover this site.</p>
+                <p className="text-sm text-muted-foreground">No panel contractors cover this site.</p>
               ) : (
                 candidates.map((c) => (
                   <div key={c.contractor_id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span>{c.full_name}</span>
-                    <Button size="sm" disabled={reassigningId === c.contractor_id} onClick={() => handleReassign(c)}>
-                      {reassigningId === c.contractor_id && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                    <Button size="sm" disabled={pickingId === c.contractor_id} onClick={() => handlePick(c)}>
+                      {pickingId === c.contractor_id && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
                       Dispatch
                     </Button>
                   </div>

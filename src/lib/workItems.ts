@@ -518,16 +518,29 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
     }
   }
 
-  const BIZ_WO_SELECT = "id, wo_number, title, status, response, dispatched_at, created_at, site:sites(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
+  const BIZ_WO_SELECT = "id, wo_number, title, status, response, dispatched_at, created_at, approved_value, po_issued_at, site:sites(id, name), contractor:profiles!work_orders_dispatched_to_fkey(id, full_name, ts_profile_code)" as const;
   const woRes = await supabase.from("work_orders").select(BIZ_WO_SELECT).eq("company_id", companyId).in("status", ["draft", "dispatched", "declined", "accepted"]);
   if (woRes.error) {
     console.error("workItems: error loading business work orders", woRes.error);
   } else {
-    for (const wo of woRes.data ?? []) {
-      const state = toWorkOrderState(wo.status);
+    const rows = woRes.data ?? [];
+    // A draft waiting for its PO goes to the approval stage. Whether it is
+    // this viewer's to sign off is the server's call (owner, or a member
+    // covering the site), asked once per waiting work order. Fails closed:
+    // an error reads as someone else's to sign off.
+    const waiting = rows.filter((wo) => wo.status === "draft" && wo.approved_value != null && wo.po_issued_at == null);
+    const signOffById = new Map<string, boolean>(
+      await Promise.all(waiting.map(async (wo) => {
+        const { data, error } = await supabase.rpc("can_sign_off_work_order", { p_work_order_id: wo.id });
+        return [wo.id, !error && data === true] as [string, boolean];
+      })),
+    );
+    for (const wo of rows) {
+      const awaitingSignOff = signOffById.has(wo.id);
+      const state = toWorkOrderState(wo.status, awaitingSignOff ? (signOffById.get(wo.id) ? "you" : "someone_else") : undefined);
       if (!state) continue;
       const result = presentState(state, "recipient");
-      const stage = wo.status === "accepted" ? "work" : "dispatch";
+      const stage = wo.status === "accepted" ? "work" : awaitingSignOff ? "approval" : "dispatch";
       items.push({
         key: `work_order:${wo.id}`,
         kind: "work_order",
@@ -538,7 +551,8 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
         // — omit the field rather than filling it with a placeholder name.
         counterparty: wo.contractor ? { name: wo.contractor.full_name ?? "Contractor", code: wo.contractor.ts_profile_code } : null,
         site: wo.site?.name ?? null,
-        amount: null,
+        // The sum being signed off, for a work order waiting on its PO.
+        amount: awaitingSignOff ? wo.approved_value : null,
         // dispatched_at is null for a draft — created_at instead, so it
         // neither renders as "1 Jan 1970" nor sorts as the oldest item in
         // the age tiebreak.
