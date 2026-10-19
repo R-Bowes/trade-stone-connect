@@ -97,6 +97,7 @@ export default function HelpModal() {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 360,
+          maxWidth: "100vw",
           height: "100%",
           background: "#fff",
           borderLeft: "1px solid #e6e9ef",

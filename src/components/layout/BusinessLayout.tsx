@@ -189,7 +189,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
 
   return (
     <>
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
       {/* Mobile backdrop */}
       {isMobile && mobileOpen && (
         <div
@@ -211,7 +211,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
                 position: "fixed",
                 top: 0,
                 left: 0,
-                height: "100vh",
+                height: "100dvh",
                 width: 280,
                 zIndex: 50,
                 transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
@@ -455,7 +455,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
         {/* Topbar: current view title */}
         <div
           style={{
-            padding: "10px 24px",
+            padding: isMobile ? "10px 16px" : "10px 24px",
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
@@ -469,8 +469,8 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 background: "none",
                 border: "none",
                 cursor: "pointer",
@@ -492,7 +492,7 @@ const BusinessLayout = ({ children }: BusinessLayoutProps) => {
             {currentTitle}
           </h1>
         </div>
-        <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
+        <main style={{ flex: 1, minWidth: 0, overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom)" }}>{children}</main>
       </div>
     </div>
     <TutorialModal />

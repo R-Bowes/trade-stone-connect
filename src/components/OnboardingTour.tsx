@@ -146,7 +146,7 @@ export function OnboardingTour({
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="fixed z-[10000] w-[340px] bg-card border border-border rounded-xl shadow-2xl p-5 animate-in fade-in-0 zoom-in-95 duration-200"
+        className="fixed z-[10000] w-[min(340px,calc(100vw-2rem))] bg-card border border-border rounded-xl shadow-2xl p-5 animate-in fade-in-0 zoom-in-95 duration-200"
         style={{ top: position.top, left: position.left }}
         onClick={(e) => e.stopPropagation()}
       >

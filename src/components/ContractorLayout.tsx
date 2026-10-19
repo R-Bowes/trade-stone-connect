@@ -274,8 +274,8 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
     <div
       style={{
         display: "flex",
-        minHeight: "100vh",
-        height: isBoundedView(activeView) ? "100vh" : undefined,
+        minHeight: "100dvh",
+        height: isBoundedView(activeView) ? "100dvh" : undefined,
         overflow: isBoundedView(activeView) ? "hidden" : "visible",
       }}
     >
@@ -300,7 +300,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 position: "fixed",
                 top: 0,
                 left: 0,
-                height: "100vh",
+                height: "100dvh",
                 width: 280,
                 zIndex: 50,
                 transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
@@ -319,7 +319,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 flexShrink: 0,
                 position: "sticky",
                 top: 0,
-                height: "100vh",
+                height: "100dvh",
                 overflowY: "auto",
               }
         }
@@ -601,7 +601,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
         </div>
         <div
           style={{
-            padding: "10px 24px",
+            padding: isMobile ? "10px 16px" : "10px 24px",
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
@@ -612,7 +612,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
-            <div>
+            <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
               <h1
                 className="font-heading text-2xl font-bold"
                 data-tour="dashboard-header"
@@ -642,8 +642,8 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 onClick={() => navigate("/")}
                 aria-label="Home"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 44,
+                  height: 44,
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -661,8 +661,8 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
                 onClick={() => navigate("/contractors")}
                 aria-label="Hire"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 44,
+                  height: 44,
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -687,7 +687,8 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
             minWidth: 0,
             overflowX: "hidden",
             overflowY: isBoundedView(activeView) ? "auto" : undefined,
-            paddingBottom: isMobile ? 72 : undefined,
+            // Clears the fixed bottom tab bar (56px + home-indicator inset) with room to spare.
+            paddingBottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : undefined,
           }}
         >
           {children}
@@ -704,7 +705,7 @@ const ContractorLayout = ({ children }: ContractorLayoutProps) => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: 56,
+          height: "calc(56px + env(safe-area-inset-bottom))",
           paddingBottom: "env(safe-area-inset-bottom)",
           background: "white",
           borderTop: "1px solid #e5e7eb",

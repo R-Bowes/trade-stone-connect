@@ -134,7 +134,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
 
   return (
     <>
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
       {/* Mobile backdrop */}
       {isMobile && mobileOpen && (
         <div
@@ -156,7 +156,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
                 position: "fixed",
                 top: 0,
                 left: 0,
-                height: "100vh",
+                height: "100dvh",
                 width: 280,
                 zIndex: 50,
                 transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
@@ -379,7 +379,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
         {/* Topbar: current view title */}
         <div
           style={{
-            padding: "10px 24px",
+            padding: isMobile ? "10px 16px" : "10px 24px",
             borderBottom: "1px solid #e5e7eb",
             background: "white",
             flexShrink: 0,
@@ -393,8 +393,8 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 background: "none",
                 border: "none",
                 cursor: "pointer",
@@ -420,7 +420,8 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
           style={{
             flex: 1,
             overflowY: "auto",
-            paddingBottom: isMobile ? 72 : undefined,
+            // Clears the fixed bottom tab bar (56px + home-indicator inset) with room to spare.
+            paddingBottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : undefined,
           }}
         >
           {children}
@@ -436,7 +437,7 @@ const HomeownerLayout = ({ children }: HomeownerLayoutProps) => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: 56,
+          height: "calc(56px + env(safe-area-inset-bottom))",
           paddingBottom: "env(safe-area-inset-bottom)",
           background: "white",
           borderTop: "1px solid #e5e7eb",
