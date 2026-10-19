@@ -1851,3 +1851,53 @@ function, _project_money_rows.
   mileage project pickers return nothing until contractor access exists.
 - Profiles: optionally restrict which profile rows a user can see
   (column locks done 5 and 6 Oct).
+
+## From mobile layout audit (19 Oct 2026)
+
+### Invoice query visibility and email idempotency — PAYMENT FLOW, consider for NOW before first real contractor payout
+- A customer's query (`invoices.recipient_response = 'queried'`) is not shown to the contractor anywhere on the invoice list or the invoice itself; only the customer's list shows "Queried".
+- The "Invoice Queried" notification links to the invoice list, which still shows "Sent", so the contractor sees no sign of the query there.
+- `notify-invoice-quote-action` sends contractor + customer emails on every Query/Stall click, with no "already queried" check (the DB trigger only notifies on change; the edge function does not).
+- Test data: INV-4AE203-0004 was set to queried by the first audit run (was stalled from 7 Oct test). Left as is.
+
+### Pay page calls create-payment-intent on load
+- `/pay/` invokes `create-payment-intent` as soon as the page opens. Check whether it reuses an existing open PaymentIntent for the invoice; if not, every page view creates a new live Stripe PaymentIntent.
+
+### Read RPCs declared VOLATILE (mark STABLE)
+- `get_contractor_availability(uuid, date, date)` — latest def `20260727130000_contractor_working_patterns_and_absences.sql`
+- `check_contractor_compliance(uuid)` — latest def `20260730120000_compliance_gate_function.sql`
+- Neither body writes (per migration text). Once marked STABLE, remove both from `EXPECTED_BLOCKS` in `scripts/mobile-audit/audit.mjs`.
+
+Check live volatility first (DO NOT RUN):
+```sql
+-- DO NOT RUN
+SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args, p.provolatile
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN ('get_contractor_availability', 'check_contractor_compliance');
+```
+
+Migration body (DO NOT RUN):
+```sql
+-- DO NOT RUN
+ALTER FUNCTION public.get_contractor_availability(uuid, date, date) STABLE;
+ALTER FUNCTION public.check_contractor_compliance(uuid) STABLE;
+```
+
+### Pre-existing layout issues at tablet/desktop (out of scope of mobile fix)
+- Logged-in Header right cluster (`Header.tsx` ~line 127) overflows 4–5px at 768 on contractor and personal pages beside the 220px sidebar.
+- Canvas editor "Save section" bar overflows at 768 and 1280.
+- Finance settings tab row too wide at 768.
+
+### Inputs under 16px (iOS zooms on focus)
+- `/admin/login`, business card editor, business Site groups — hand-styled inputs not using the shared Input component.
+
+### Value field wording on job detail
+- Reads "£491.25 — £290.00 approved" (non-rejected work-order cost lines vs approved portion). Option: "Costs £491.25 · Approved £290.00".
+
+### Lint baseline
+- 1002 ESLint errors repo-wide, all pre-existing before 19 Oct. Mobile work added none.
+
+### Search appearance counts, 18 Oct
+- Unguarded audit runs loaded `/contractors` about 30 times on 18 Oct, inflating `search_appearance_daily` for listed contractors that day. Test-period noise; not corrected.
