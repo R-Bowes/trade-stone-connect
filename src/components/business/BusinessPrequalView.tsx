@@ -431,7 +431,7 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
               <span className="text-sm font-medium">Panel Compliance</span>
             </button>
           </div>
-          <div className="p-6">
+          <div className="px-4 py-6 sm:p-6">
           {activeContractor && (
             <>
               <SheetHeader>

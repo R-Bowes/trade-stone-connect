@@ -257,7 +257,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
               <span className="text-sm font-medium">Enquiries</span>
             </button>
           </div>
-          <div className="sticky top-12 z-10 bg-background border-b p-6">
+          <div className="sticky top-12 z-10 bg-background border-b px-4 py-6 sm:p-6">
             <SheetHeader className="text-left space-y-1">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -311,7 +311,7 @@ export function EnquiryDetailSheet({ enquiry, open, onOpenChange, onSendQuote, o
             </SheetHeader>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="px-4 py-6 sm:p-6 space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Client section */}
               <div className="space-y-3">

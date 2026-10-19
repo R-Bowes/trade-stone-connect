@@ -198,7 +198,7 @@ export function EngagementThread({
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="p-6 space-y-6">
+          <div className="px-4 py-6 sm:p-6 space-y-6">
             {/* Header */}
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
