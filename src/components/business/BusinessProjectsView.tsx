@@ -282,7 +282,7 @@ function ProjectCard({ project, status, money, onOpen }: { project: BusinessProj
         <p className="text-sm text-muted-foreground">
           {project.siteNames.length > 0 ? project.siteNames.join(", ") : "No sites"}
         </p>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Start</dt>
           <dd>{project.target_start ? formatDate(project.target_start) : "Not set"}</dd>
           <dt className="text-muted-foreground">Finish</dt>

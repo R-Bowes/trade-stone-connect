@@ -252,7 +252,7 @@ export function ContractManagement() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="client_name">Client Name</Label>
                   <Input
@@ -295,7 +295,7 @@ export function ContractManagement() {
                   onChange={(e) => setFormData({ ...formData, project_description: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="contract_value">Contract Value (£)</Label>
                   <Input
@@ -324,7 +324,7 @@ export function ContractManagement() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start_date">Start Date</Label>
                   <Input
@@ -397,7 +397,7 @@ export function ContractManagement() {
             <CardContent>
               <div className="space-y-2 text-sm">
                 <p><strong>Description:</strong> {contract.project_description}</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-muted-foreground">Start Date</p>
                     <p>{formatDate(contract.start_date)}</p>

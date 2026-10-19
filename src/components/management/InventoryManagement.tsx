@@ -576,7 +576,7 @@ function ToolDetailDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div><p className="text-xs text-muted-foreground">Brand / model</p><p>{[tool.brand, tool.model].filter(Boolean).join(" ") || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Serial number</p><p>{tool.serial_number ?? "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Condition</p><p className="capitalize">{tool.condition}</p></div>
@@ -900,7 +900,7 @@ function AddEditToolDialog({
             <Label htmlFor="tool_name">Name</Label>
             <Input id="tool_name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. SDS Drill" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="tool_category">Category</Label>
               <Select value={form.category} onValueChange={(v) => set("category", v)}>
@@ -920,7 +920,7 @@ function AddEditToolDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="tool_brand">Brand</Label>
               <Input id="tool_brand" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
@@ -934,7 +934,7 @@ function AddEditToolDialog({
             <Label htmlFor="tool_serial">Serial number</Label>
             <Input id="tool_serial" value={form.serial_number} onChange={(e) => set("serial_number", e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="tool_purchase_date">Purchase date</Label>
               <Input id="tool_purchase_date" type="date" value={form.purchase_date} onChange={(e) => set("purchase_date", e.target.value)} />
@@ -944,7 +944,7 @@ function AddEditToolDialog({
               <Input id="tool_purchase_cost" type="number" step="0.01" min="0" value={form.purchase_cost} onChange={(e) => set("purchase_cost", e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="tool_warranty">Warranty expiry</Label>
               <Input id="tool_warranty" type="date" value={form.warranty_expiry} onChange={(e) => set("warranty_expiry", e.target.value)} />
@@ -1089,7 +1089,7 @@ function AddEditMaterialDialog({
             <Label htmlFor="material_name">Name</Label>
             <Input id="material_name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. 15mm copper pipe" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="material_category">Category</Label>
               <Input id="material_category" value={form.category} onChange={(e) => set("category", e.target.value)} placeholder="e.g. Plumbing" />
@@ -1104,7 +1104,7 @@ function AddEditMaterialDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="material_quantity">Quantity on hand</Label>
               <Input id="material_quantity" type="number" step="0.01" min="0" value={form.quantity_on_hand} onChange={(e) => set("quantity_on_hand", e.target.value)} />
@@ -1114,7 +1114,7 @@ function AddEditMaterialDialog({
               <Input id="material_reorder" type="number" step="0.01" min="0" value={form.reorder_level} onChange={(e) => set("reorder_level", e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="material_unit_cost">Unit cost (£)</Label>
               <Input id="material_unit_cost" type="number" step="0.01" min="0" value={form.unit_cost} onChange={(e) => set("unit_cost", e.target.value)} />

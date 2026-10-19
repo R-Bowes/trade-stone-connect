@@ -90,7 +90,7 @@ export function ContractorSubcontractPage({ subcontractId }: { subcontractId: st
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-muted-foreground">{detail.scope}</p>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                 <dt className="text-muted-foreground">Trade</dt>
                 <dd>{detail.trade ?? "Not set"}</dd>
                 <dt className="text-muted-foreground">Dates</dt>

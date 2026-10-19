@@ -76,7 +76,7 @@ export function CustomerContractorProjectPage({ projectId }: { projectId: string
               <CardTitle className="font-heading text-lg">Money</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-2 gap-4 text-sm">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Paid</dt>
                   <dd className="font-mono text-lg">{formatGBP(paid)}</dd>

@@ -105,7 +105,7 @@ export function EventFormDialog({ open, onClose, onSave, editingEvent, defaultDa
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Kitchen renovation at Smith's" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Type</Label>
               <Select value={eventType} onValueChange={setEventType}>
@@ -131,7 +131,7 @@ export function EventFormDialog({ open, onClose, onSave, editingEvent, defaultDa
             <Label>All Day Event</Label>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Start {allDay ? "Date" : "Date & Time"} *</Label>
               <Input type={allDay ? "date" : "datetime-local"} value={allDay ? startTime.slice(0, 10) : startTime} onChange={e => setStartTime(allDay ? e.target.value + "T09:00" : e.target.value)} />
@@ -142,7 +142,7 @@ export function EventFormDialog({ open, onClose, onSave, editingEvent, defaultDa
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Client Name</Label>
               <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client name" />

@@ -483,7 +483,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
                         onChange={(e) => updateReferenceRow(r.id, { clientName: e.target.value })}
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Contact name</Label>
                         <Input value={r.contactName} onChange={(e) => updateReferenceRow(r.id, { contactName: e.target.value })} />

@@ -889,7 +889,7 @@ function PatternDialog({
           </label>
 
           {isWorking && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="pattern_start">Start time</Label>
                 <Input id="pattern_start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
@@ -1018,7 +1018,7 @@ function LogAbsenceDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="absence_start">Start date</Label>
               <Input id="absence_start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />

@@ -67,7 +67,7 @@ export function ActivityLog({ activities, clientId, onAdd, onDelete }: Props) {
       <CardContent className="space-y-3">
         {showForm && (
           <form onSubmit={handleSubmit} className="space-y-3 p-3 border rounded-lg bg-muted/30">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Type</Label>
                 <Select value={form.activity_type} onValueChange={v => setForm(f => ({ ...f, activity_type: v }))}>

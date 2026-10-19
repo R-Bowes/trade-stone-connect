@@ -304,13 +304,13 @@ const AssetsTab = ({
                   ))}
                 </SelectContent>
               </Select></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2"><label className="text-sm font-medium">Make</label>
                 <Input placeholder="Manufacturer" value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))} /></div>
               <div className="space-y-2"><label className="text-sm font-medium">Model</label>
                 <Input placeholder="Model number" value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2"><label className="text-sm font-medium">Serial Number</label>
                 <Input placeholder="Serial / ID" value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} /></div>
               <div className="space-y-2"><label className="text-sm font-medium">Install Date</label>
@@ -455,7 +455,7 @@ const ContractsTab = ({
                   {sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2"><label className="text-sm font-medium">Start Date</label>
                 <Input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
               <div className="space-y-2"><label className="text-sm font-medium">End Date</label>

@@ -809,7 +809,7 @@ function EntryDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="arrived_at">Arrived</Label>
               <Input id="arrived_at" type="time" value={arrivedAt} onChange={(e) => setArrivedAt(e.target.value)} />
@@ -820,7 +820,7 @@ function EntryDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="break_minutes">Break (minutes)</Label>
               <Input

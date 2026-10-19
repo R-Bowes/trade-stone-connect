@@ -426,7 +426,7 @@ export function MileageTracking() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>From *</Label>
                   <Input value={form.from_location} onChange={(e) => setForm((f) => ({ ...f, from_location: e.target.value }))} required />
@@ -463,7 +463,7 @@ export function MileageTracking() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Job (optional)</Label>
                   <Select value={form.job_id || "none"} onValueChange={(v) => handleJobChange(v === "none" ? "" : v)}>

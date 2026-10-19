@@ -354,7 +354,7 @@ export function FinanceSettings() {
           </RadioGroup>
 
           {settings.business_type === "limited_company" && (
-            <div className="grid grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div className="space-y-1.5">
                 <Label>Financial year end — month</Label>
                 <Select
@@ -445,7 +445,7 @@ export function FinanceSettings() {
           )}
 
           {settings.vat_status === "flat_rate" && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Flat rate percentage</Label>
                 <Input

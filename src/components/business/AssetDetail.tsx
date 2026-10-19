@@ -145,7 +145,7 @@ export function AssetDetail({ asset, onBack }: Props) {
               {compliance.headline}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="font-sans font-medium text-muted-foreground text-xs mb-0.5">Next service due</p>
               <p className="font-mono">{asset.next_service_due ? fmtDate(asset.next_service_due) : "Not recorded"}</p>

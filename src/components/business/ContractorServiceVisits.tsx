@@ -365,7 +365,7 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
           <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${counts.overdue > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
             {counts.overdue > 0 ? <AlertTriangle className="h-5 w-5 text-red-700" /> : <CheckCircle2 className="h-5 w-5 text-green-700" />}
@@ -460,7 +460,7 @@ export const ContractorServiceVisits = ({ profileId }: ContractorServiceVisitsPr
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div><p className="text-xs text-muted-foreground">Client</p><p>{selected.company_name ?? '—'}</p></div>
                   <div><p className="text-xs text-muted-foreground">Site</p><p>{selected.site_name ?? '—'}</p></div>
                   <div><p className="text-xs text-muted-foreground">Contract</p><p>{selected.contract_title ?? '—'}</p></div>

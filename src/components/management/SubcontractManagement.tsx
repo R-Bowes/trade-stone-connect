@@ -292,7 +292,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
                   placeholder="Describe the work being subcontracted"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="subcontract_value">Value (£)</Label>
                   <Input
@@ -321,7 +321,7 @@ export function SubcontractManagement({ contractId, contractTitle }: Subcontract
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sub_start_date">Start Date</Label>
                   <Input

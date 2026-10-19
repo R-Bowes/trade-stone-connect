@@ -306,7 +306,7 @@ function InviteSubcontractorDialog({
             <Textarea id="sub-scope" value={scope} onChange={(e) => setScope(e.target.value)} placeholder="What this subcontractor is doing" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="sub-starts">Starts</Label>
               <Input id="sub-starts" type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />

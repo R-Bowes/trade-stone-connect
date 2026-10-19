@@ -360,7 +360,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
             <Input value={description} onChange={e => setDescription(e.target.value)} required />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Amount (£) *</Label>
               <Input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} required />
@@ -427,7 +427,7 @@ export function ExpenseFormDialog({ open, onClose, onSave, onUploadReceipt, expe
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Job (optional)</Label>
               <Select value={jobId || "none"} onValueChange={(v) => handleJobChange(v === "none" ? "" : v)}>

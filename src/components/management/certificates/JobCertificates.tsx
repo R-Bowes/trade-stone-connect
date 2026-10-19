@@ -290,7 +290,7 @@ export function JobCertificates({ jobId, contractorId, isContractor, onChanged }
               <Input value={form.certificate_name} onChange={(e) => setForm((f) => ({ ...f, certificate_name: e.target.value }))} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Certificate number</Label>
                 <Input value={form.certificate_number} onChange={(e) => setForm((f) => ({ ...f, certificate_number: e.target.value }))} />
@@ -301,7 +301,7 @@ export function JobCertificates({ jobId, contractorId, isContractor, onChanged }
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Issued date</Label>
                 <Input type="date" value={form.issued_date} onChange={(e) => setForm((f) => ({ ...f, issued_date: e.target.value }))} />

@@ -116,7 +116,7 @@ function JobDetail({ job, valueText, onBack }: { job: JobRow; valueText: string;
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
         {job.site_name && (
           <div>
             <p className="text-muted-foreground text-xs mb-0.5">Site</p>

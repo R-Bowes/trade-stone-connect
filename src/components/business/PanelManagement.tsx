@@ -802,7 +802,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center">
@@ -1298,7 +1298,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               <>
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Engagement</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">Start date</label>
                       <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -1372,7 +1372,7 @@ export const PanelManagement = ({ profileId, userId }: PanelManagementProps) => 
               <p className="text-xs text-muted-foreground">
                 What you'll pay for work under this engagement. Every field is required except minimum charge.
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">Standard call-out fee (£)</label>
                   <Input type="number" min={0} step="0.01" value={calloutStandard} onChange={(e) => setCalloutStandard(e.target.value)} />

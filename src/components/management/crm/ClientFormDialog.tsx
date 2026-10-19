@@ -65,7 +65,7 @@ export function ClientFormDialog({ open, onOpenChange, onSubmit, client }: Props
             <Label htmlFor="full_name">Full Name *</Label>
             <Input id="full_name" required value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
@@ -83,7 +83,7 @@ export function ClientFormDialog({ open, onOpenChange, onSubmit, client }: Props
             <Label htmlFor="address">Address</Label>
             <Input id="address" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Status</Label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>

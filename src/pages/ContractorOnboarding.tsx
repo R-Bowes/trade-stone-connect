@@ -374,7 +374,7 @@ const ContractorOnboarding = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs font-bold tracking-wide text-[#1a2744] uppercase mb-1.5 block">Hourly rate (£)</Label>
                   <Input value={form.hourly_rate} onChange={(e) => update("hourly_rate", e.target.value)} placeholder="65" type="number" />

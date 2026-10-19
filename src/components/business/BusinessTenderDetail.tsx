@@ -466,7 +466,7 @@ export function BusinessTenderDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           {slaRule ? (
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">SLA rule</p>
                 <p className="font-medium">{slaRule.name} ({slaRule.priority.toUpperCase()})</p>

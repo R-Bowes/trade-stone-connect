@@ -111,7 +111,7 @@ function ProjectCard({ project, attachedJobCount, onOpen }: { project: Homeowner
           <h3 className="font-heading text-lg font-semibold leading-tight">{project.title}</h3>
           <Badge className={PROJECT_STATUS_CHIP[status]}>{status}</Badge>
         </div>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Start</dt>
           <dd>{project.target_start ? formatDate(project.target_start) : "Not set"}</dd>
           <dt className="text-muted-foreground">Finish</dt>
@@ -145,7 +145,7 @@ function ContractorRunProjectCard({ project, onOpen }: { project: CustomerContra
           <Badge className={PROJECT_STATUS_CHIP[status]}>{status}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">Run by {project.contractor_name ?? "your contractor"}</p>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Start</dt>
           <dd>{project.target_start ? formatDate(project.target_start) : "Not set"}</dd>
           <dt className="text-muted-foreground">Finish</dt>

@@ -174,7 +174,7 @@ export function SiteAutonomySettings({ companyId }: { companyId: string }) {
             ))}
           </RadioGroup>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Max WO value (£)</Label>
               <Input type="number" min="0" value={defaultForm.max_wo_value} onChange={(e) => setDefaultForm((f) => ({ ...f, max_wo_value: e.target.value }))} />
