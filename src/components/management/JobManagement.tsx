@@ -995,7 +995,7 @@ export function JobManagement() {
               <DialogHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-1">
-                    <p className="text-xs font-mono text-muted-foreground">
+                    <p className="text-xs font-mono text-muted-foreground break-words">
                       {selectedJob.job_number != null ? formatJobRef(selectedJob.job_number) : selectedJob.id.slice(0, 8)}
                       {selectedJob.quote_number != null
                         ? ` · from quote ${formatQuoteRef(selectedJob.quote_number, { version: selectedJob.quote_version ?? undefined })}`
@@ -1010,8 +1010,8 @@ export function JobManagement() {
                         <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{selectedJob.client_ts_code}</span>
                       )}
                       {selectedJob.location && (
-                        <span className="flex items-center gap-1 text-xs">
-                          <MapPin className="h-3 w-3" />{selectedJob.location}
+                        <span className="flex min-w-0 items-center gap-1 text-xs break-words">
+                          <MapPin className="h-3 w-3 shrink-0" />{selectedJob.location}
                         </span>
                       )}
                     </div>
@@ -1067,7 +1067,7 @@ export function JobManagement() {
                   const entries = timesheetsByJob[selectedJob.id] || [];
                   const totalHours = entries.reduce((sum, t) => sum + Number(t.hours ?? 0), 0);
                   return (
-                    <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                    <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm [&>*]:min-w-0">
                       <div>
                         <div className="text-xs text-muted-foreground">Scheduled for</div>
                         <div className="font-medium">
@@ -1088,7 +1088,7 @@ export function JobManagement() {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Value</div>
-                        <div className="font-medium font-mono">
+                        <div className="font-medium font-mono break-words">
                           {formatJobValue(selectedJob, selectedJob.work_order_id ? jobCtx.costs[selectedJob.work_order_id] : null, selectedJob.work_order_id ? jobCtx.workOrders[selectedJob.work_order_id]?.approved_value ?? null : null)}
                         </div>
                       </div>
@@ -1108,10 +1108,10 @@ export function JobManagement() {
                         {selectedJob.quote_number != null || selectedJob.engagement_id ? (
                           <button
                             type="button"
-                            className="font-medium font-mono inline-flex items-center gap-1 hover:underline"
+                            className="font-medium font-mono inline-flex max-w-full items-center gap-1 text-left hover:underline"
                             onClick={() => setOriginOpen((v) => !v)}
                           >
-                            <span><OriginRefs value={originLabel(selectedJob) ?? "Call-out"} /></span>
+                            <span className="min-w-0 break-words"><OriginRefs value={originLabel(selectedJob) ?? "Call-out"} /></span>
                             {originOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           </button>
                         ) : (
@@ -1387,7 +1387,7 @@ export function JobManagement() {
                 {/* Footer */}
                 <div className="border-t pt-4 mt-4 flex items-center justify-between gap-2 flex-wrap">
                   {/* Left: quiet utility actions */}
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {selectedJob.status !== "cancelled" && (
                       <Button
                         variant="ghost"

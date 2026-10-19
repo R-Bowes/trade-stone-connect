@@ -125,7 +125,7 @@ export function BusinessSpendView({ profileId }: Props) {
         <CardHeader>
           <CardTitle className="text-base">Last 6 months</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-muted-foreground text-xs">
@@ -153,7 +153,7 @@ export function BusinessSpendView({ profileId }: Props) {
           <CardHeader>
             <CardTitle className="text-base">By contractor</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground text-xs">

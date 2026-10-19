@@ -1626,7 +1626,7 @@ export default function AdminDashboard() {
       {profileSlideOver && (
         <div style={overlay} onClick={() => setProfileSlideOver(null)}>
           <div
-            style={{ ...modal, position: 'fixed', right: 0, top: 0, bottom: 0, borderRadius: '12px 0 0 12px', maxHeight: '100vh', minWidth: 380 }}
+            style={{ ...modal, position: 'fixed', right: 0, top: 0, bottom: 0, borderRadius: '12px 0 0 12px', maxHeight: '100vh', minWidth: 'min(380px, 100vw)' }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
