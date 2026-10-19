@@ -123,6 +123,21 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
       // party).
       return refId ? `/dashboard/contractor?view=projects&project=${refId}` : "/dashboard/contractor?view=projects";
 
+    case "work_order":
+      if (role === "contractor") {
+        return refId ? `/dashboard/contractor?view=work-orders&workOrder=${refId}` : "/dashboard/contractor?view=work-orders";
+      }
+      return refId ? `/dashboard/business?view=work-orders&workOrder=${refId}` : "/dashboard/business?view=work-orders";
+
+    case "work_order_costs": {
+      // Queried / rejected cost lines reference the line, not the work order.
+      if (!refId) return `${base}?view=work-orders`;
+      const { data } = await supabase.from("work_order_costs").select("work_order_id").eq("id", refId).maybeSingle();
+      return data?.work_order_id
+        ? `${base}?view=work-orders&workOrder=${data.work_order_id}`
+        : `${base}?view=work-orders`;
+    }
+
     case "project_subcontract":
       // Accepted-only detail page can't take an invite/cancelled row
       // (subcontract_detail raises unless status='accepted'), and a

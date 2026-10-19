@@ -34,8 +34,8 @@ export function deriveWorkOrderStatus(
 ): { label: string; className: string } {
   switch (wo.status) {
     case "draft":
-      if (isAwaitingSignOff(wo)) return { label: "Waiting for sign-off", className: "bg-amber-100 text-amber-800" };
-      if (wo.po_issued_at) return { label: "PO issued", className: "bg-blue-100 text-blue-800" };
+      if (isAwaitingSignOff(wo)) return { label: "Waiting for approval", className: "bg-amber-100 text-amber-800" };
+      if (wo.po_issued_at) return { label: "Approved — not sent", className: "bg-blue-100 text-blue-800" };
       return { label: "Draft", className: "bg-slate-100 text-slate-700" };
     case "dispatched":
       return wo.response === "pending"
@@ -191,13 +191,13 @@ export function WorkOrderCard({
             <Field label="PO number">
               {workOrder.po_issued_at
                 ? <span className="font-mono">{formatPoNumber(companyCode, workOrder.wo_number)}</span>
-                : "Not issued — waiting for sign-off"}
+                : "Not issued — waiting for approval"}
             </Field>
             <Field label={viewer === "contractor" ? "Approved to spend" : "Approved value"}>
               <span className="font-mono">{formatGBP(workOrder.approved_value)}</span>
             </Field>
             {workOrder.client_po_ref && (
-              <Field label={viewer === "contractor" ? "Client reference" : "Your PO reference"}>
+              <Field label={viewer === "contractor" ? "Client reference" : "Your reference"}>
                 <span className="font-mono">{workOrder.client_po_ref}</span>
               </Field>
             )}

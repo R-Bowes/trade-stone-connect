@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -280,7 +281,9 @@ export function PpmComplianceDashboard({ companyId, profileId }: { companyId: st
                     <TableCell>
                       <div className="flex gap-1">
                         {v.work_order_id ? (
-                          <Badge variant="outline">WO raised</Badge>
+                          <Button size="sm" variant="outline" asChild>
+                            <Link to={`/dashboard/business?view=work-orders&workOrder=${v.work_order_id}`}>View work order</Link>
+                          </Button>
                         ) : (
                           <Button size="sm" variant="outline" onClick={() => setWoVisit(v)}>
                             <Wrench className="h-3.5 w-3.5 mr-1" />Create Work Order
@@ -435,7 +438,7 @@ function CreateWorkOrderFromVisitDialog({ visit, companyId, profileId, onClose, 
         await dispatchWorkOrder(wo.id, contractor.engagement_id);
         toast({ title: "Work order created and dispatched" });
       } else {
-        toast({ title: "Work order raised — waiting for sign-off", description: "It can be dispatched once the PO is approved." });
+        toast({ title: "Work order raised — waiting for approval", description: "It can be sent once it's approved." });
       }
       onCreated();
     } catch (err) {

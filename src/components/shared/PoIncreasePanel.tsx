@@ -8,13 +8,13 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Camera, Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { formatGBP } from "@/lib/formatGBP";
 import { formatDate } from "@/lib/formatDate";
 import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
 import { useSignedPhotoUrls } from "@/hooks/useSignedPhotoUrls";
 import { useWorkOrders, formatPoNumber, type WorkOrder } from "@/hooks/useWorkOrders";
 import { useWorkOrderPoRequests, type PoRequest } from "@/hooks/useWorkOrderPoRequests";
 import { WORK_ORDER_PHOTO_BUCKET } from "@/components/shared/WorkOrderCard";
+import { money, workOrderWords } from "@/lib/workOrderCopy";
 
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -27,8 +27,16 @@ interface PoIncreasePanelProps {
   viewer: "business" | "contractor";
   /** After any change — the work order's approved value may have moved. */
   onChanged?: () => void;
-  /** Reports whether a request is waiting on this viewer (business: can act on it). */
+  /**
+   * Reports whether a request is waiting on this viewer. Business: a pending
+   * request they can approve. Contractor: their newest request was declined
+   * and they haven't asked again.
+   */
   onNeedsViewer?: (needs: boolean) => void;
+  /** PO wording only where the business uses PO numbers; plain words otherwise. */
+  showPo?: boolean;
+  /** Money figures carry "+ VAT" when the contractor is VAT-registered. */
+  vat?: boolean;
 }
 
 const OUTCOME_LABEL: Record<string, { label: string; className: string }> = {
@@ -44,7 +52,9 @@ const OUTCOME_LABEL: Record<string, { label: string; className: string }> = {
  * covers the new PO total approves it, which amends the PO. Loads its own
  * requests; all writes are RPCs.
  */
-export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onNeedsViewer }: PoIncreasePanelProps) {
+export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onNeedsViewer, showPo = false, vat = false }: PoIncreasePanelProps) {
+  const words = workOrderWords(showPo);
+  const fmt = (n: number | string | null) => money(n, vat);
   const { requestsByWorkOrder, loadRequests, requestIncrease, approveRequest, declineRequest, withdrawRequest } = useWorkOrderPoRequests();
   const { canAct, canSignOffAmount } = useWorkOrders();
   const [canApprovePending, setCanApprovePending] = useState(false);
@@ -62,9 +72,21 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
   const currentValue = workOrder.approved_value != null ? Number(workOrder.approved_value) : null;
   const newTotal = pending && currentValue != null ? Math.round((currentValue + Number(pending.increase_amount)) * 100) / 100 : null;
 
+  const newestDeclined = requests[0]?.status === "declined";
+
+  useEffect(() => {
+    if (viewer === "contractor") onNeedsViewer?.(newestDeclined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer, newestDeclined]);
+
   useEffect(() => {
     let live = true;
-    if (viewer !== "business" || !pending || newTotal == null) {
+    if (viewer !== "business") {
+      setCanApprovePending(false);
+      setCanDecline(false);
+      return;
+    }
+    if (!pending || newTotal == null) {
       setCanApprovePending(false);
       setCanDecline(false);
       onNeedsViewer?.(false);
@@ -109,8 +131,7 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2 text-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="font-medium">PO increase requested</p>
-              <p className="font-mono text-lg">+{formatGBP(pending.increase_amount)}</p>
+              <p className="font-medium">{words.wantsMore(fmt(pending.increase_amount))}</p>
             </div>
             <Badge className={canApprovePending ? "bg-[#f07820] text-white" : OUTCOME_LABEL.pending.className}>
               {canApprovePending ? "Needs you" : "Waiting"}
@@ -120,13 +141,13 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
           <RequestPhotos paths={pending.photos} />
           {newTotal != null && currentValue != null && (
             <p className="text-muted-foreground">
-              New PO total <span className="font-mono text-foreground">{formatGBP(newTotal)}</span>
-              {" "}(now <span className="font-mono">{formatGBP(currentValue)}</span>)
+              {words.newTotal} <span className="font-mono text-foreground">{fmt(newTotal)}</span>
+              {" "}(now <span className="font-mono">{fmt(currentValue)}</span>)
             </p>
           )}
           {!canApprovePending && newTotal != null && (
             <p className="text-muted-foreground">
-              Waiting for sign-off from someone with a <span className="font-mono">{formatGBP(newTotal)}</span> limit.
+              Waiting for someone who can approve <span className="font-mono">{fmt(newTotal)}</span>.
             </p>
           )}
           {declining ? (
@@ -145,7 +166,7 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
               {canApprovePending && (
                 <Button size="sm" disabled={busy} onClick={() => run(() => approveRequest(pending.id))}>
                   {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-                  Approve and amend {formatPoNumber(companyCode, workOrder.wo_number)}
+                  {words.approveMore(formatPoNumber(companyCode, workOrder.wo_number))}
                 </Button>
               )}
               {canDecline && (
@@ -160,7 +181,7 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
         <div className="rounded-md border p-3 space-y-2 text-sm">
           <div className="flex items-start justify-between gap-2">
             <p>
-              PO increase requested <span className="font-mono">+{formatGBP(pending.increase_amount)}</span> — waiting for the business.
+              {showPo ? "PO increase requested" : "Asked to spend"} <span className="font-mono">{showPo ? "+" : ""}{fmt(pending.increase_amount)}</span>{showPo ? "" : " more"} — waiting for the business.
             </p>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => withdrawRequest(pending.id))}>Withdraw</Button>
           </div>
@@ -170,7 +191,7 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
 
       {!pending && latestDecided && (
         <p className={`text-xs text-muted-foreground ${viewer === "business" ? "rounded-md border bg-background px-3 py-2" : ""}`}>
-          Last PO increase request (<span className="font-mono">+{formatGBP(latestDecided.increase_amount)}</span>):{" "}
+          {showPo ? "Last PO increase request" : "Last request to spend more"} (<span className="font-mono">+{fmt(latestDecided.increase_amount)}</span>):{" "}
           <Badge className={OUTCOME_LABEL[latestDecided.status]?.className}>{OUTCOME_LABEL[latestDecided.status]?.label ?? latestDecided.status}</Badge>
           {latestDecided.decided_at && ` ${formatDate(latestDecided.decided_at)}`}
           {latestDecided.status === "declined" && latestDecided.decline_reason && ` — ${latestDecided.decline_reason}`}
@@ -178,7 +199,7 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
       )}
 
       {canRequest && (
-        <Button size="sm" variant="outline" onClick={() => setRequestOpen(true)}>Request PO increase</Button>
+        <Button size="sm" variant="outline" onClick={() => setRequestOpen(true)}>{words.askMore}</Button>
       )}
 
       {viewer === "contractor" && (
@@ -187,6 +208,8 @@ export function PoIncreasePanel({ workOrder, companyCode, viewer, onChanged, onN
           onClose={() => setRequestOpen(false)}
           workOrder={workOrder}
           companyCode={companyCode}
+          showPo={showPo}
+          vat={vat}
           onSubmit={async (amount, reason, photos) => {
             const ok = await requestIncrease(workOrder.id, amount, reason, photos);
             if (ok) {
@@ -216,11 +239,13 @@ function RequestPhotos({ paths }: { paths: PoRequest["photos"] }) {
   );
 }
 
-function RequestIncreaseDialog({ open, onClose, workOrder, companyCode, onSubmit }: {
+function RequestIncreaseDialog({ open, onClose, workOrder, companyCode, showPo, vat, onSubmit }: {
   open: boolean;
   onClose: () => void;
   workOrder: PanelWorkOrder;
   companyCode: string | null;
+  showPo: boolean;
+  vat: boolean;
   onSubmit: (amount: number, reason: string, photos: string[]) => Promise<boolean>;
 }) {
   const { toast } = useToast();
@@ -277,11 +302,11 @@ function RequestIncreaseDialog({ open, onClose, workOrder, companyCode, onSubmit
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Request PO increase</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{workOrderWords(showPo).askMore}</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
           <p className="text-muted-foreground">
-            {formatPoNumber(companyCode, workOrder.wo_number)} is approved to <span className="font-mono">{formatGBP(current)}</span>.
-            The business approves the increase before you go over it.
+            {showPo ? `${formatPoNumber(companyCode, workOrder.wo_number)} is approved to` : "Approved to spend"} <span className="font-mono">{money(current, vat)}</span>.
+            The business approves the extra before you go over it.
           </p>
           <div className="space-y-1">
             <Label htmlFor="po-increase-amount">Increase by</Label>
@@ -291,7 +316,7 @@ function RequestIncreaseDialog({ open, onClose, workOrder, companyCode, onSubmit
                 value={amountText} onChange={(e) => setAmountText(e.target.value)} />
             </div>
             {amount > 0 && (
-              <p className="text-xs text-muted-foreground">New PO total <span className="font-mono">{formatGBP(current + amount)}</span></p>
+              <p className="text-xs text-muted-foreground">{workOrderWords(showPo).newTotal} <span className="font-mono">{money(current + amount, vat)}</span></p>
             )}
           </div>
           <div className="space-y-1">

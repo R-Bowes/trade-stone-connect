@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,18 +20,14 @@ import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { useToast } from "@/hooks/use-toast";
 import { prepareImageForUpload, isHeic } from "@/lib/imageUpload";
 import { formatGBP } from "@/lib/formatGBP";
-import { poSpend, isOverApprovedValue, isJobStarted } from "@/lib/workOrderValue";
-import { totalCostLines } from "@/lib/costLines";
-import { WorkOrderCostLines } from "@/components/shared/WorkOrderCostLines";
-import { CostReviewActions } from "@/components/business/CostReviewActions";
+import { isJobStarted } from "@/lib/workOrderValue";
 import { ApprovedValueField, useApprovedValueInput } from "@/components/business/ApprovedValueField";
-import { PoIncreasePanel } from "@/components/shared/PoIncreasePanel";
-import { useWorkOrderCosts } from "@/hooks/useWorkOrderCosts";
+import { WorkOrderPage } from "@/components/workorders/WorkOrderPage";
 import {
   WorkOrderCard, PRIORITY_LABEL, PRIORITY_COLOR, WORK_ORDER_PHOTO_BUCKET, deriveWorkOrderStatus,
 } from "@/components/shared/WorkOrderCard";
 import {
-  useWorkOrders, formatWoNumber, formatPoNumber, isAwaitingSignOff,
+  useWorkOrders, formatWoNumber, formatPoNumber,
   type WorkOrder, type WorkOrderPriority, type WorkOrderStatus, type AvailableContractor, type SuggestedValue,
 } from "@/hooks/useWorkOrders";
 
@@ -65,36 +61,39 @@ interface WorkOrderDashboardProps {
 }
 
 export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
-  const { workOrders, loading, fetchWorkOrders, fetchWorkOrder } = useWorkOrders();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?workOrder= opens that work order's page (the Projects convention). The
+  // step 1b ?workOrderId= links still in old notifications/bookmarks work too.
+  const openId = searchParams.get("workOrder") ?? searchParams.get("workOrderId");
+
+  const openWorkOrder = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("workOrderId");
+    next.set("workOrder", id);
+    setSearchParams(next);
+  };
+  const closeWorkOrder = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("workOrder");
+    next.delete("workOrderId");
+    setSearchParams(next);
+  };
+
+  if (openId) {
+    return <WorkOrderPage workOrderId={openId} viewer="business" onBack={closeWorkOrder} />;
+  }
+  return <WorkOrderList companyId={companyId} onOpen={openWorkOrder} />;
+}
+
+function WorkOrderList({ companyId, onOpen }: { companyId: string; onOpen: (id: string) => void }) {
+  const { workOrders, loading, fetchWorkOrders } = useWorkOrders();
 
   const [companyCode, setCompanyCode] = useState<string | null>(null);
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | "all">("all");
   const [siteFilter, setSiteFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<WorkOrderPriority | "all">("all");
-
   const [createOpen, setCreateOpen] = useState(false);
-  const [detailWo, setDetailWo] = useState<WorkOrder | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const linkedWorkOrderId = searchParams.get("workOrderId");
-
-  // ?workOrderId= (from the dashboard's Needs you / Approvals) opens that
-  // work order's detail directly.
-  useEffect(() => {
-    if (!linkedWorkOrderId) return;
-    let live = true;
-    void fetchWorkOrder(linkedWorkOrderId).then((wo) => { if (live && wo) setDetailWo(wo); });
-    return () => { live = false; };
-  }, [linkedWorkOrderId, fetchWorkOrder]);
-
-  const closeDetail = () => {
-    setDetailWo(null);
-    if (linkedWorkOrderId) {
-      const next = new URLSearchParams(searchParams);
-      next.delete("workOrderId");
-      setSearchParams(next, { replace: true });
-    }
-  };
 
   const reload = () => fetchWorkOrders(companyId, {
     status: statusFilter === "all" ? undefined : statusFilter,
@@ -124,14 +123,6 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
     return { open, awaiting, inProgress, completedThisMonth };
   }, [workOrders]);
 
-  // After any action on the open work order: refresh the list and the dialog
-  // from the server, since approval, the PO and the value are all server-set.
-  const handleDetailChanged = async (id: string) => {
-    reload();
-    const fresh = await fetchWorkOrder(id);
-    setDetailWo(fresh);
-  };
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
@@ -158,7 +149,7 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
         ))}
       </div>
 
-      {/* Filters */}
+      {/* Filters: the site filter only when there is more than one site. */}
       <div className="flex flex-wrap gap-2">
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as WorkOrderStatus | "all")}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -167,13 +158,15 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
             {(Object.keys(STATUS_LABEL) as WorkOrderStatus[]).map((s) => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={siteFilter} onValueChange={setSiteFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Site" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sites</SelectItem>
-            {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {sites.length > 1 && (
+          <Select value={siteFilter} onValueChange={setSiteFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Site" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sites</SelectItem>
+              {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as WorkOrderPriority | "all")}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priority" /></SelectTrigger>
           <SelectContent>
@@ -201,7 +194,7 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
                 companyCode={companyCode}
                 viewer="business"
                 density="compact"
-                actions={<Button size="sm" variant="outline" onClick={() => setDetailWo(wo)}>View</Button>}
+                actions={<Button size="sm" variant="outline" onClick={() => onOpen(wo.id)}>Open</Button>}
               />
             ))}
           </div>
@@ -212,11 +205,11 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>WO #</TableHead>
-                    <TableHead>Site</TableHead>
+                    {sites.length > 1 && <TableHead>Site</TableHead>}
                     <TableHead>Title</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead>Approved value</TableHead>
-                    <TableHead>Dispatched To</TableHead>
+                    <TableHead>Approved</TableHead>
+                    <TableHead>Sent to</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
@@ -225,9 +218,9 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
                   {workOrders.map((wo) => {
                     const status = deriveWorkOrderStatus(wo);
                     return (
-                      <TableRow key={wo.id} className="cursor-pointer" onClick={() => setDetailWo(wo)}>
+                      <TableRow key={wo.id} className="cursor-pointer" onClick={() => onOpen(wo.id)}>
                         <TableCell className="font-mono text-xs">{formatWoNumber(companyCode, wo.wo_number)}</TableCell>
-                        <TableCell>{wo.site?.name ?? "—"}</TableCell>
+                        {sites.length > 1 && <TableCell>{wo.site?.name ?? "—"}</TableCell>}
                         <TableCell className="max-w-[200px] truncate">{wo.title}</TableCell>
                         <TableCell><Badge variant="outline" className={PRIORITY_COLOR[wo.priority]}>{PRIORITY_LABEL[wo.priority]}</Badge></TableCell>
                         <TableCell className="font-mono text-xs">{wo.approved_value != null ? formatGBP(wo.approved_value) : "—"}</TableCell>
@@ -251,15 +244,6 @@ export function WorkOrderDashboard({ companyId }: WorkOrderDashboardProps) {
         companyCode={companyCode}
         sites={sites}
       />
-
-      {detailWo && (
-        <WorkOrderDetailDialog
-          wo={detailWo}
-          companyCode={companyCode}
-          onClose={closeDetail}
-          onChanged={() => handleDetailChanged(detailWo.id)}
-        />
-      )}
     </div>
   );
 }
@@ -299,7 +283,7 @@ function ContractorDispatchCard({ contractor, engagementId, onDispatch, dispatch
         )}
         <Button size="sm" onClick={onDispatch} disabled={dispatching} className="w-full">
           {dispatching ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-          Dispatch
+          Send
         </Button>
       </CardContent>
     </Card>
@@ -308,9 +292,9 @@ function ContractorDispatchCard({ contractor, engagementId, onDispatch, dispatch
 
 // ── Create Work Order dialog ─────────────────────────────────────────────────
 // Step 1 raises the work order with its approved value. The server approves it
-// at once (PO issued) when the raiser can sign off for the site or the value is
-// under the approval threshold; otherwise it waits for sign-off. Step 2 shows
-// which, and offers dispatch only when the PO is issued.
+// at once when the raiser's approval limit covers the value (or they are the
+// owner); otherwise it waits for someone whose does. Step 2 shows which, and
+// offers sending only once approved.
 
 function CreateWorkOrderDialog({
   open, onClose, companyId, companyCode, sites,
@@ -337,6 +321,23 @@ function CreateWorkOrderDialog({
   const valueInput = useApprovedValueInput(suggestion);
   const resetValue = valueInput.reset;
   const { toast } = useToast();
+  // Company flags: show_po (PO wording) and whether the company has used its
+  // own PO reference before (the reference field then starts open).
+  const [flags, setFlags] = useState<{ show_po: boolean; used_client_po_ref: boolean } | null>(null);
+  const [refOpen, setRefOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void supabase.rpc("work_order_company_flags", { p_company_id: companyId }).then(({ data, error }) => {
+      if (!live) return;
+      if (error) console.error("work_order_company_flags failed:", error);
+      const f = (data ?? null) as { show_po: boolean; used_client_po_ref: boolean } | null;
+      setFlags(f);
+      setRefOpen(!!f?.used_client_po_ref);
+    });
+    return () => { live = false; };
+  }, [open, companyId]);
 
   useEffect(() => {
     if (!open) {
@@ -541,16 +542,23 @@ function CreateWorkOrderDialog({
               ready={!!form.site_id}
             />
 
-            <div className="space-y-1">
-              <Label htmlFor="create-wo-client-po">Your PO reference (optional)</Label>
-              <Input
-                id="create-wo-client-po"
-                className="font-mono"
-                value={form.client_po_ref}
-                onChange={(e) => setForm((f) => ({ ...f, client_po_ref: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground">Your own finance reference, shown next to the TradeStone PO number.</p>
-            </div>
+            {/* Your reference: behind "+ Add your reference"; open from the start if the company has used one before. */}
+            {refOpen ? (
+              <div className="space-y-1">
+                <Label htmlFor="create-wo-client-po">Your reference (optional)</Label>
+                <Input
+                  id="create-wo-client-po"
+                  className="font-mono"
+                  value={form.client_po_ref}
+                  onChange={(e) => setForm((f) => ({ ...f, client_po_ref: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">Your own order or finance reference. It appears on the invoice.</p>
+              </div>
+            ) : (
+              <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={() => setRefOpen(true)}>
+                + Add your reference
+              </Button>
+            )}
 
             <div className="space-y-1">
               <Label>Photos (optional)</Label>
@@ -596,22 +604,22 @@ function CreateWorkOrderDialog({
           <div className="space-y-3">
             {approved ? (
               <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                Approved — <span className="font-mono">{formatPoNumber(companyCode, createdWo.wo_number)}</span> issued
-                for <span className="font-mono">{formatGBP(createdWo.approved_value)}</span>.
+                Approved: <span className="font-mono">{formatGBP(createdWo.approved_value)}</span>
+                {flags?.show_po && <> · <span className="font-mono">{formatPoNumber(companyCode, createdWo.wo_number)}</span></>}
               </div>
             ) : (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                Waiting for sign-off. The owner or a manager covering this site needs to approve
-                {" "}<span className="font-mono">{formatGBP(createdWo.approved_value)}</span> before this work order can be dispatched.
+                Waiting for approval. Someone who can approve
+                {" "}<span className="font-mono">{formatGBP(createdWo.approved_value)}</span> needs to before it can be sent.
               </div>
             )}
 
             {approved && (
               <>
-                <div className="text-xs font-semibold uppercase text-muted-foreground">Dispatch to</div>
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Send to</div>
                 {candidates.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No panel contractors cover this site{form.trade_required ? ` for ${form.trade_required}` : ""}. You can dispatch it later from the work order.
+                    No contractors on your panel cover this site{form.trade_required ? ` for ${form.trade_required}` : ""}. You can send it later from the work order.
                   </p>
                 ) : (
                   <div className="grid gap-2">
@@ -630,278 +638,9 @@ function CreateWorkOrderDialog({
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>{approved ? "Dispatch later" : "Close"}</Button>
+              <Button variant="outline" onClick={onClose}>{approved ? "Send later" : "Close"}</Button>
             </DialogFooter>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Detail dialog ─────────────────────────────────────────────────────────────
-
-function WorkOrderDetailDialog({ wo, companyCode, onClose, onChanged }: {
-  wo: WorkOrder;
-  companyCode: string | null;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const {
-    fetchAvailableContractors, approveWorkOrder, dispatchWorkOrder, reassignWorkOrder,
-    cancelWorkOrder, amendWorkOrderValue, canAct, canSignOffAmount,
-  } = useWorkOrders();
-  const [pickMode, setPickMode] = useState<"dispatch" | "reassign" | null>(null);
-  const [candidates, setCandidates] = useState<AvailableContractor[]>([]);
-  const [loadingCandidates, setLoadingCandidates] = useState(false);
-  const [pickingId, setPickingId] = useState<string | null>(null);
-  // Operational (dispatch, reassign, cancel, review within the PO) vs
-  // sign-off of the current PO value (approve a waiting work order).
-  const [canAct_, setCanAct] = useState(false);
-  const [canSignValue, setCanSignValue] = useState(false);
-  // Over-PO pending lines need a limit covering the highest new total.
-  const [canSignOverLines, setCanSignOverLines] = useState(false);
-  const [poRequestNeedsMe, setPoRequestNeedsMe] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [editingValue, setEditingValue] = useState(false);
-  const [valueText, setValueText] = useState("");
-  const { costsByWorkOrder, loadCosts, approveCost, queryCost, rejectCost } = useWorkOrderCosts();
-
-  useEffect(() => { void loadCosts([wo.id]); }, [wo.id, loadCosts]);
-  useEffect(() => {
-    let live = true;
-    void canAct(wo.id).then((ok) => { if (live) setCanAct(ok); });
-    if (wo.approved_value != null) {
-      void canSignOffAmount(wo.id, Number(wo.approved_value)).then((ok) => { if (live) setCanSignValue(ok); });
-    } else {
-      setCanSignValue(false);
-    }
-    return () => { live = false; };
-  }, [wo.id, wo.approved_value, canAct, canSignOffAmount]);
-
-  const lines = costsByWorkOrder[wo.id] ?? [];
-  const spend = wo.approved_value != null ? poSpend(wo.approved_value, lines) : null;
-  const totals = totalCostLines(lines);
-  const overLines = lines.filter((l) => isOverApprovedValue(l, lines, wo.approved_value));
-  const highestOverTotal = spend && overLines.length > 0
-    ? Math.max(...overLines.map((l) => Math.round((spend.approvedTotal + Number(l.line_total)) * 100) / 100))
-    : null;
-
-  useEffect(() => {
-    let live = true;
-    if (highestOverTotal == null) { setCanSignOverLines(true); return; }
-    void canSignOffAmount(wo.id, highestOverTotal).then((ok) => { if (live) setCanSignOverLines(ok); });
-    return () => { live = false; };
-  }, [wo.id, highestOverTotal, canSignOffAmount]);
-
-  // Pending lines are the viewer's when they can act on the work order and,
-  // for any line over the PO, their limit covers it.
-  const linesNeedMe = totals.pending > 0 && canAct_ && canSignOverLines;
-  const moneySummary = (
-    <p className="text-sm">
-      <span className="font-mono">{formatGBP(totals.approved)}</span> approved
-      {totals.pending > 0 && (
-        <> · <span className="font-mono">{formatGBP(totals.pending)}</span> {linesNeedMe ? "waiting for you" : "waiting for sign-off"}</>
-      )}
-      {totals.queried > 0 && <> · <span className="font-mono">{formatGBP(totals.queried)}</span> queried</>}
-      {wo.approved_value != null && <> · PO <span className="font-mono">{formatGBP(wo.approved_value)}</span></>}
-    </p>
-  );
-  const awaiting = isAwaitingSignOff(wo);
-  const readyToDispatch = wo.status === "draft" && !!wo.po_issued_at;
-  const canCancel = canAct_ && (wo.status === "draft" || wo.status === "dispatched" || wo.status === "declined");
-  // Any covering member may propose a value; whether it issues or amends the
-  // PO depends on their approval limit for the new value (server-checked).
-  const canEditValue = ["draft", "dispatched", "accepted", "declined"].includes(wo.status) && canAct_;
-
-  const run = useCallback(async (action: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await action();
-      onChanged();
-    } catch {
-      // The hook has already shown the server's reason.
-    } finally {
-      setBusy(false);
-    }
-  }, [onChanged]);
-
-  const openPicker = async (mode: "dispatch" | "reassign") => {
-    setPickMode(mode);
-    setLoadingCandidates(true);
-    const found = await fetchAvailableContractors(wo.company_id, wo.site_id ?? "", wo.trade_required ?? undefined);
-    setCandidates(found);
-    setLoadingCandidates(false);
-  };
-
-  const handlePick = async (c: AvailableContractor) => {
-    setPickingId(c.contractor_id);
-    try {
-      if (pickMode === "reassign") await reassignWorkOrder(wo.id, c.engagement_id);
-      else await dispatchWorkOrder(wo.id, c.engagement_id);
-      setPickMode(null);
-      onChanged();
-    } catch {
-      // Shown by the hook.
-    } finally {
-      setPickingId(null);
-    }
-  };
-
-  const startEditValue = () => {
-    setValueText(wo.approved_value != null ? Number(wo.approved_value).toFixed(2) : "");
-    setEditingValue(true);
-  };
-
-  const saveValue = () => {
-    const n = Math.round(Number(valueText) * 100) / 100;
-    if (!Number.isFinite(n) || n <= 0) return;
-    void run(async () => {
-      await amendWorkOrderValue(wo.id, n);
-      setEditingValue(false);
-    });
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
-        <DialogHeader className="sr-only">
-          <DialogTitle>{formatWoNumber(companyCode, wo.wo_number)} — {wo.title}</DialogTitle>
-        </DialogHeader>
-        <WorkOrderCard
-          workOrder={wo}
-          site={wo.site ?? null}
-          counterparty={wo.contractor?.full_name ?? null}
-          companyCode={companyCode}
-          viewer="business"
-          notice={<PoIncreasePanel workOrder={wo} companyCode={companyCode} viewer="business" onChanged={onChanged} onNeedsViewer={setPoRequestNeedsMe} />}
-          costs={
-            <>
-              <WorkOrderCostLines
-                lines={lines}
-                approvedValue={wo.approved_value}
-                viewer="business"
-                summary={lines.length > 0 ? moneySummary : undefined}
-                autoExpand={linesNeedMe || poRequestNeedsMe}
-                renderLineActions={(line) => (
-                  <CostReviewActions
-                    line={line}
-                    approve={approveCost}
-                    query={queryCost}
-                    reject={rejectCost}
-                    // Approving an over-limit line amends the PO, so the work
-                    // order is re-read along with the lines.
-                    onChanged={() => { void loadCosts([wo.id]); onChanged(); }}
-                  />
-                )}
-              />
-            </>
-          }
-          actions={
-            <>
-              {awaiting && canSignValue && (
-                <Button size="sm" disabled={busy} onClick={() => run(() => approveWorkOrder(wo.id))}>
-                  {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-                  Approve and issue PO
-                </Button>
-              )}
-              {readyToDispatch && canAct_ && (
-                <Button size="sm" onClick={() => openPicker("dispatch")}>Dispatch</Button>
-              )}
-              {wo.status === "declined" && canAct_ && (
-                <Button size="sm" onClick={() => openPicker("reassign")}>Reassign</Button>
-              )}
-              {canEditValue && !editingValue && (
-                <Button size="sm" variant="outline" onClick={startEditValue}>
-                  {wo.approved_value == null ? "Set approved value" : "Change approved value"}
-                </Button>
-              )}
-              {canCancel && (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => cancelWorkOrder(wo.id))}>
-                  Cancel work order
-                </Button>
-              )}
-              {wo.status === "accepted" && wo.job_id && (
-                <Button size="sm" variant="outline" asChild>
-                  <a href={`/dashboard/business?view=jobs&jobId=${wo.job_id}`}>View linked job</a>
-                </Button>
-              )}
-            </>
-          }
-        />
-
-        {awaiting && !canSignValue && wo.approved_value != null && (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">
-              Waiting for sign-off from someone with a <span className="font-mono">{formatGBP(wo.approved_value)}</span> limit.
-            </CardContent>
-          </Card>
-        )}
-
-        {editingValue && (
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <Label htmlFor="wo-approved-value-edit">Approved value</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">£</span>
-                <Input
-                  id="wo-approved-value-edit"
-                  className="pl-7 font-mono"
-                  inputMode="decimal"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={valueText}
-                  onChange={(e) => setValueText(e.target.value)}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {spend && spend.approvedTotal > 0
-                  ? `It can't go below the ${formatGBP(spend.approvedTotal)} already approved. `
-                  : ""}
-                {wo.po_issued_at
-                  ? "This amends the issued PO."
-                  : "If you can sign off this value, the PO is issued when you save."}
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" disabled={busy || !(Number(valueText) > 0)} onClick={saveValue}>
-                  {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-                  Save
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setEditingValue(false)}>Cancel</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {pickMode && (
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <div className="text-xs font-semibold uppercase text-muted-foreground">
-                {pickMode === "reassign" ? "Reassign to" : "Dispatch to"}
-              </div>
-              {pickMode === "reassign" && (
-                <p className="text-xs text-muted-foreground">
-                  Any cost lines the previous contractor left pending or queried are rejected when the work order moves.
-                </p>
-              )}
-              {loadingCandidates ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : candidates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No panel contractors cover this site.</p>
-              ) : (
-                candidates.map((c) => (
-                  <div key={c.contractor_id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-                    <span>{c.full_name}</span>
-                    <Button size="sm" disabled={pickingId === c.contractor_id} onClick={() => handlePick(c)}>
-                      {pickingId === c.contractor_id && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-                      Dispatch
-                    </Button>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
         )}
       </DialogContent>
     </Dialog>

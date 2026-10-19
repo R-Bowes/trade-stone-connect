@@ -44,21 +44,21 @@ export function useWorkOrderPoRequests() {
       p_photos: photos,
     });
     if (error) { fail("Could not send the request", error); return false; }
-    toast({ title: "PO increase requested" });
+    toast({ title: "Request sent" });
     return true;
   };
 
   const approveRequest = async (requestId: string): Promise<boolean> => {
     const { error } = await supabase.rpc("approve_po_increase", { p_request_id: requestId });
     if (error) { fail("Could not approve the increase", error); return false; }
-    toast({ title: "PO increased" });
+    toast({ title: "Approved" });
     return true;
   };
 
   const declineRequest = async (requestId: string, reason: string): Promise<boolean> => {
     const { error } = await supabase.rpc("decline_po_increase", { p_request_id: requestId, p_reason: reason });
     if (error) { fail("Could not decline the increase", error); return false; }
-    toast({ title: "PO increase declined" });
+    toast({ title: "Request turned down" });
     return true;
   };
 

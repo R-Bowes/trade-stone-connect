@@ -39,7 +39,7 @@ export function WorkOrderApprovals({ companyId, profileId }: WorkOrderApprovalsP
           <WorkItemCard
             key={item.key}
             item={item}
-            onAction={(i) => navigate(`/dashboard/business?view=work-orders&workOrderId=${i.actionTarget.recordId ?? ""}`)}
+            onAction={(i) => navigate(`/dashboard/business?view=work-orders&workOrder=${i.actionTarget.recordId ?? ""}`)}
           />
         ))}
       </div>

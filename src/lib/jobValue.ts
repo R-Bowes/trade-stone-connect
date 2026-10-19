@@ -29,14 +29,13 @@ export function formatJobValue(job: JobValueInput, summary: JobCostSummary | nul
     if (job.status === "cancelled") return "—";
     return "No work order — costs can't be recorded yet";
   }
-  // A work order with a PO: the PO is the job's value until costs come in.
-  const po = poValue != null ? `PO ${formatGBP(poValue)}` : null;
-  if (!summary) return po ?? "—";
-  if (summary.lineCount === 0) return po ?? "No costs recorded yet";
-  if (po) {
-    // Approved against the PO; anything still waiting is shown only when there is some.
+  // A work order with an approved amount: that is the job's value until costs
+  // come in; then what's been spent against it, and anything still waiting.
+  if (!summary) return poValue != null ? `Approved: ${formatGBP(poValue)}` : "—";
+  if (summary.lineCount === 0) return poValue != null ? `Approved: ${formatGBP(poValue)}` : "No costs recorded yet";
+  if (poValue != null) {
     const waiting = summary.total - summary.approved;
-    return [`${formatGBP(summary.approved)} approved`, waiting > 0 ? `${formatGBP(waiting)} waiting` : null, po]
+    return [`${formatGBP(summary.approved)} spent of ${formatGBP(poValue)} approved`, waiting > 0 ? `${formatGBP(waiting)} waiting` : null]
       .filter(Boolean)
       .join(" · ");
   }

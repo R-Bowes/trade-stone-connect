@@ -38,6 +38,7 @@ import { ScoreBreakdown } from "@/components/management/ScoreBreakdown";
 import { JobManagement } from "@/components/management/JobManagement";
 import { RamsTemplateManagement } from "@/components/management/rams/RamsTemplateManagement";
 import { WorkOrderInbox } from "@/components/management/WorkOrderInbox";
+import { WorkOrderPage } from "@/components/workorders/WorkOrderPage";
 import { PpmVisits } from "@/components/management/PpmVisits";
 import { IssuedQuotes } from "@/components/management/IssuedQuotes";
 import { SendQuoteDialog } from "@/components/management/SendQuoteDialog";
@@ -576,7 +577,10 @@ const ContractorDashboard = () => {
                 loading={workItemsLoading}
                 error={workItemsError ?? pipelineError}
                 onRetry={() => { refetchPipeline(); refetchWorkItems(); }}
-                onNavigate={setActiveTab}
+                onNavigate={(tab, recordId) =>
+                  tab === "work-orders" && recordId
+                    ? navigate(`/dashboard/contractor?view=work-orders&workOrder=${recordId}`)
+                    : setActiveTab(tab)}
                 stages={CONTRACTOR_WORK_ITEM_STAGES}
                 dueTodayStage="work"
                 stagelessHeading="Rates awaiting your acceptance"
@@ -742,7 +746,17 @@ const ContractorDashboard = () => {
           <TabsContent value="jobs"><JobManagement /></TabsContent>
           <TabsContent value="rams-templates"><RamsTemplateManagement /></TabsContent>
           <TabsContent value="checklist-templates"><ChecklistTemplates /></TabsContent>
-          <TabsContent value="work-orders"><WorkOrderInbox /></TabsContent>
+          <TabsContent value="work-orders">
+            {searchParams.get("workOrder") ? (
+              <WorkOrderPage
+                workOrderId={searchParams.get("workOrder")!}
+                viewer="contractor"
+                onBack={() => navigate("/dashboard/contractor?view=work-orders")}
+              />
+            ) : (
+              <WorkOrderInbox />
+            )}
+          </TabsContent>
           <TabsContent value="engagements"><ContractorEngagementsView /></TabsContent>
           <TabsContent value="ppm-visits" className="space-y-6">
             {profileId ? <PpmVisits profileId={profileId} /> : (

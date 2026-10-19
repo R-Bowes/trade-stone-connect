@@ -154,8 +154,20 @@ Invoiced·matched → Paid.
    browser-checked 17 Oct. The cost-line gate is soft until the step 5
    check-in: it reads jobs.status, which is still client-writable (the jobs
    lock is on the write-path list).
-2. Full work order page with timeline, for both sides. Also: drop the
-   can_sign_off_work_order shim (left by 20261017120000 for the live client).
+2. One work order page, both sides.
+   2a: migration 20261018120000 (work_order_events append-only history
+   written by triggers, work_order_timeline, work_order_context, members
+   covering the site read and post on work-order job conversations and
+   customer-visible photos, messages notify the other side,
+   can_sign_off_work_order shim dropped) and the page for business and
+   contractor. Live 19 Oct, browser-checked 19 Oct; screen fixes plus
+   20261019120000 (timeline newest first with merged amount changes,
+   contractor by business name and TS code) live 19 Oct.
+   2a follow-ups:
+   - Contractor picker (fetchAvailableContractors) lists people by personal
+     name — use company_name ?? full_name like everywhere else.
+   2b (next brief): quotes become fixed-price work orders, so every
+   business job is a work order.
 3. One thread on the work order. The one variation path is done: PO increase
    requests, with job_variations refused on work-order jobs (17 Oct).
 4. Certificates → asset compliance, compliance by site, and an expiry books
@@ -178,6 +190,12 @@ Known gaps:
 ---
 
 ## SMALL FIXES — DO BEFORE FIRST REAL CONTRACTOR
+
+### Ordinary Messages inbox sends notify nobody
+Messages sent from the ordinary Messages inbox (useMessages.sendMessage)
+notify nobody, either side, on every job — found 19 Oct. Route through a
+server function that notifies the other party, as post_work_order_message
+does.
 
 ### `TransactionFeeNotice.tsx` states 3.5%, platform charges 5%
 One hardcoded string, `src/components/TransactionFeeNotice.tsx:13`. Both edge

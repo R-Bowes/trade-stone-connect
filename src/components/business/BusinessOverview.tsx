@@ -67,7 +67,7 @@ export function BusinessOverview({ profileId, companyId }: Props) {
 
   const nav = (view: string, recordId?: string) =>
     navigate(view === "work-orders" && recordId
-      ? `/dashboard/business?view=work-orders&workOrderId=${recordId}`
+      ? `/dashboard/business?view=work-orders&workOrder=${recordId}`
       : `/dashboard/business?view=${view}`);
 
   const { items: workItems, loading: workItemsLoading, error: workItemsError, refetch: refetchWorkItems } = useBusinessWorkItems(companyId, profileId);

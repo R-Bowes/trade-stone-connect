@@ -11697,6 +11697,54 @@ export type Database = {
           },
         ]
       }
+      work_order_events: {
+        Row: {
+          actor_id: string | null
+          audience: string
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          work_order_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          audience?: string
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          work_order_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          audience?: string
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_po_requests: {
         Row: {
           company_id: string
@@ -12567,6 +12615,17 @@ export type Database = {
       }
       _issue_invoice: { Args: { p_invoice_id: string }; Returns: number }
       _job_is_work_order_job: { Args: { p_job_id: string }; Returns: boolean }
+      _log_work_order_event: {
+        Args: {
+          p_actor: string
+          p_audience?: string
+          p_company_id: string
+          p_payload: Json
+          p_type: string
+          p_work_order_id: string
+        }
+        Returns: undefined
+      }
       _price_cost_line: {
         Args: {
           p_kind: string
@@ -12603,6 +12662,11 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string }
         Returns: number
       }
+      _work_order_company_flags: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      _work_order_cost_label: { Args: { p_line: Json }; Returns: string }
       _work_order_default_value: {
         Args: { p_priority: string; p_snapshot: Json }
         Returns: number
@@ -12610,6 +12674,14 @@ export type Database = {
       _work_order_job_started: {
         Args: { p_work_order_id: string }
         Returns: boolean
+      }
+      _work_order_job_visible_to_company: {
+        Args: { p_job_id: string }
+        Returns: boolean
+      }
+      _work_order_money: {
+        Args: { p_amount: number; p_vat: boolean }
+        Returns: string
       }
       _work_order_po_ref: { Args: { p_work_order_id: string }; Returns: string }
       _work_order_rate_snapshot: {
@@ -12625,6 +12697,7 @@ export type Database = {
         Args: { p_company_id: string; p_site_id: string; p_value: number }
         Returns: boolean
       }
+      _work_order_viewer: { Args: { p_work_order_id: string }; Returns: string }
       _work_order_visible_to_company: {
         Args: { p_work_order_id: string }
         Returns: boolean
@@ -12827,10 +12900,6 @@ export type Database = {
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_site: { Args: { p_site_id: string }; Returns: boolean }
       can_act_on_work_order: {
-        Args: { p_work_order_id: string }
-        Returns: boolean
-      }
-      can_sign_off_work_order: {
         Args: { p_work_order_id: string }
         Returns: boolean
       }
@@ -13241,6 +13310,10 @@ export type Database = {
           subcontractor_ts_code: string
         }[]
       }
+      post_work_order_message: {
+        Args: { p_content: string; p_work_order_id: string }
+        Returns: string
+      }
       project_access_rule: {
         Args: {
           p_account_type: string
@@ -13521,6 +13594,22 @@ export type Database = {
       withdraw_po_increase: {
         Args: { p_request_id: string }
         Returns: undefined
+      }
+      work_order_company_flags: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      work_order_context: { Args: { p_work_order_id: string }; Returns: Json }
+      work_order_timeline: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          actor_name: string
+          body: string
+          kind: string
+          occurred_at: string
+          photos: Json
+          title: string
+        }[]
       }
     }
     Enums: {

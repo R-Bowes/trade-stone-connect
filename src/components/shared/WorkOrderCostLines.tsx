@@ -37,7 +37,7 @@ export function WorkOrderCostLines({ lines, renderLineActions, approvedValue = n
   useEffect(() => { if (autoExpand) setOpen(true); }, [autoExpand]);
   const totals = totalCostLines(lines);
   const overLimitNote = viewer === "business"
-    ? "Over approved value — approving amends the PO"
+    ? "Over the approved amount — approving raises it"
     : "Over approved value — waiting for the business to approve";
   const overCount = lines.filter((l) => isOverApprovedValue(l, lines, approvedValue)).length;
 

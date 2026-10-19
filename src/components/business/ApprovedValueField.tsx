@@ -72,7 +72,7 @@ export function ApprovedValueField({ id, text, onChange, suggestion, loadingSugg
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        The most this work can cost without further sign-off.{hint ? ` ${hint}` : ""}
+        The most this work can cost before anyone has to approve more.{hint ? ` ${hint}` : ""}
       </p>
     </div>
   );

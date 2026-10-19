@@ -8,7 +8,7 @@ import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -1047,6 +1047,12 @@ export function JobManagement() {
                 )}
                 {recordCostsBlocked(selectedJob) && (
                   <p className="text-xs text-muted-foreground">{recordCostsBlocked(selectedJob)}</p>
+                )}
+                {/* View work order: the job came from a work order. */}
+                {selectedJob.work_order_id && (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to={`/dashboard/contractor?view=work-orders&workOrder=${selectedJob.work_order_id}`}>View work order</Link>
+                  </Button>
                 )}
 
                 {/* The work order's one variation path: a PO increase request. */}

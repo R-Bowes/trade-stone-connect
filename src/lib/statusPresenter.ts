@@ -540,14 +540,14 @@ function presentWorkOrder(state: WorkOrderState, viewer: Viewer): PresenterResul
         return perspective(
           viewer,
           chip("Not yet dispatched", "neutral", null),
-          chip("Sign off PO", "action", "you"),
+          chip("Approve", "action", "you"),
         );
       }
       if (state.signOff === "someone_else") {
         return perspective(
           viewer,
           chip("Not yet dispatched", "neutral", null),
-          chip("Waiting for sign-off", "waiting", "them"),
+          chip("Waiting for approval", "waiting", "them"),
         );
       }
       return perspective(
@@ -594,7 +594,7 @@ function presentCostLine(state: CostLineState, viewer: Viewer): PresenterResult 
         return perspective(
           viewer,
           chip("Awaiting approval", "waiting", "them"),
-          chip("Waiting for sign-off", "waiting", "them"),
+          chip("Waiting for approval", "waiting", "them"),
         );
       }
       return perspective(
@@ -623,13 +623,13 @@ function presentPoRequest(state: PoRequestState, viewer: Viewer): PresenterResul
     case "pending":
       return perspective(
         viewer,
-        chip("PO increase requested", "waiting", "them"),
+        chip("Asked to spend more", "waiting", "them"),
         state.signOff === "someone_else"
-          ? chip("Waiting for sign-off", "waiting", "them")
-          : chip("Review PO increase", "action", "you"),
+          ? chip("Waiting for approval", "waiting", "them")
+          : chip("Review request to spend more", "action", "you"),
       );
     case "approved":
-      return chip("PO increased", "done", null);
+      return chip("More approved", "done", null);
     case "declined":
       return chip("Declined", "neutral", null);
     case "withdrawn":

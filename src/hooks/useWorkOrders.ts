@@ -245,7 +245,7 @@ export function useWorkOrders() {
       fail("Could not approve work order", error);
       throw error;
     }
-    toast({ title: "Approved", description: "PO issued." });
+    toast({ title: "Approved" });
   };
 
   // The engagement decides the contractor; the server snapshots its agreed

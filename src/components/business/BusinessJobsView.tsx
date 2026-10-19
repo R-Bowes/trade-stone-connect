@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -133,6 +133,14 @@ function JobDetail({ job, valueText, onBack }: { job: JobRow; valueText: string;
           <div>
             <p className="text-muted-foreground text-xs mb-0.5">{job.engagement_id ? "Value" : "Contract value"}</p>
             <p className="font-medium font-mono">{valueText}</p>
+          </div>
+        )}
+        {/* View work order: the job came from a work order. */}
+        {job.work_order_id && (
+          <div>
+            <Button size="sm" variant="outline" asChild>
+              <Link to={`/dashboard/business?view=work-orders&workOrder=${job.work_order_id}`}>View work order</Link>
+            </Button>
           </div>
         )}
         <div>

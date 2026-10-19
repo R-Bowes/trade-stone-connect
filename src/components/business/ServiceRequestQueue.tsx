@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -294,7 +295,7 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
         await dispatchWorkOrder(wo.id, contractor.engagement_id);
         toast({ title: "Work order created and dispatched" });
       } else {
-        toast({ title: "Work order raised — waiting for sign-off", description: "It can be dispatched once the PO is approved." });
+        toast({ title: "Work order raised — waiting for approval", description: "It can be sent once it's approved." });
       }
       onWorkOrderCreated();
     } catch (err) {
@@ -332,8 +333,11 @@ function RequestTriageDialog({ request, companyId, onClose, onTriaged, onCancel,
           )}
 
           {request.work_order_id ? (
-            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-green-800">
-              Work order created for this request.
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-green-800">
+              <span>Work order created for this request.</span>
+              <Button size="sm" variant="outline" asChild>
+                <Link to={`/dashboard/business?view=work-orders&workOrder=${request.work_order_id}`}>View work order</Link>
+              </Button>
             </div>
           ) : request.status === "cancelled" ? null : (
             <div className="space-y-2 pt-2 border-t">

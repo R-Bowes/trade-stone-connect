@@ -228,7 +228,7 @@ function PoHeadroom({ approvedValue, recordedTotal, adding }: { approvedValue: n
           {" · "}this takes you to <span className="font-mono">{formatGBP(after)}</span>
           {over > 0
             ? <> — <span className="font-mono">{formatGBP(over)}</span> over, will need the client's approval</>
-            : " — within the PO"}
+            : " — within the approved amount"}
         </>
       ) : (
         <>{" · "}<span className="font-mono">{formatGBP(recordedTotal)}</span> recorded so far</>

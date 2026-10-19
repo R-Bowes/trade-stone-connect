@@ -586,6 +586,10 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
     supabase.from("work_order_po_requests").select(PO_REQUEST_SELECT).eq("company_id", companyId).eq("status", "pending"),
   ]);
 
+  // PO wording only where the company uses PO numbers (show_po).
+  const flagsRes = await supabase.rpc("work_order_company_flags", { p_company_id: companyId });
+  const showPo = !flagsRes.error && (flagsRes.data as { show_po?: boolean } | null)?.show_po === true;
+
   const canSignAmount = async (workOrderId: string, amount: number) => {
     const { data, error } = await supabase.rpc("can_sign_off_work_order_amount", { p_work_order_id: workOrderId, p_amount: amount });
     return !error && data === true;
@@ -620,7 +624,7 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
         site: null,
         amount: line.line_total,
         amountField: poValue != null
-          ? { label: "Cost line", value: `${formatGBP(line.line_total)} ${overPo ? "over" : "within"} PO ${formatGBP(poValue)}` }
+          ? { label: "Cost line", value: `${formatGBP(line.line_total)} ${overPo ? "over" : "within"} ${showPo ? "PO" : "the approved"} ${formatGBP(poValue)}` }
           : undefined,
         sinceIso: line.created_at,
         dueIso: null,
@@ -647,11 +651,11 @@ export async function fetchBusinessWorkItems({ companyId, profileId }: BusinessW
         kind: "po_request",
         stage: "approval",
         reference: req.work_order ? formatWoNumber(companyCode, req.work_order.wo_number) : null,
-        title: req.work_order?.title ?? "PO increase",
+        title: req.work_order?.title ?? "Request to spend more",
         counterparty: { name: req.work_order?.contractor?.full_name ?? "Contractor", code: req.work_order?.contractor?.ts_profile_code ?? null },
         site: null,
         amount: req.increase_amount,
-        amountField: { label: "Request", value: `PO increase +${formatGBP(req.increase_amount)}` },
+        amountField: { label: "Request", value: showPo ? `PO increase +${formatGBP(req.increase_amount)}` : `Wants to spend ${formatGBP(req.increase_amount)} more` },
         sinceIso: req.created_at,
         dueIso: null,
         overdue: false,

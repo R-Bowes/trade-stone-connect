@@ -494,7 +494,8 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
   return (
     <div className="p-6 space-y-6 max-w-4xl">
 
-      {/* Active members roster */}
+      {/* Team members — owner row and approval limits — only once there is someone besides the owner. */}
+      {activeMembers.length > 0 && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Team members</CardTitle>
@@ -614,7 +615,7 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                           Cancel
                         </Button>
                         <p className="w-full text-xs text-muted-foreground">
-                          The highest PO total they can sign off at the sites they cover. Leave empty and they can't approve.
+                          The most they can approve at the sites they cover. Leave empty and they can't approve.
                         </p>
                       </div>
                     )}
@@ -651,9 +652,10 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Pending invites — owner only (RLS also enforces this) */}
-      {isOwner && (
+      {/* Pending invites — owner only (RLS also enforces this), and only when there are some. */}
+      {isOwner && pendingInvites.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pending invites</CardTitle>
@@ -772,6 +774,9 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                 </Button>
               )}
             </div>
+            {activeMembers.length === 0 && (
+              <p className="text-sm text-muted-foreground">Invite someone to share the work — you can choose what they can approve</p>
+            )}
           </CardHeader>
 
           {inviteMode === "link" && (
