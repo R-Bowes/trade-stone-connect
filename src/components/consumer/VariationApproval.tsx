@@ -82,7 +82,7 @@ export function VariationApproval({ variation, onResponded }: VariationApprovalP
           </div>
 
           {items.length > 0 && (
-            <div className="rounded-md border bg-white overflow-hidden">
+            <div className="rounded-md border bg-white overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-xs text-muted-foreground">

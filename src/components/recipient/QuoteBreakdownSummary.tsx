@@ -52,28 +52,30 @@ export function QuoteBreakdownSummary({
 
   return (
     <div className="rounded-lg border p-4 space-y-3 text-sm">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-xs text-muted-foreground text-left">
-            <th className="font-medium pb-1">Description</th>
-            <th className="font-medium pb-1 text-right">Qty</th>
-            <th className="font-medium pb-1 text-right">Unit</th>
-            <th className="font-medium pb-1 text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibleItems.map((item, i) => (
-            <tr key={i} className="border-t border-border/40">
-              <td className="py-1.5 pr-2">{item.description}</td>
-              <td className="py-1.5 text-right">
-                {item.quantity}{unitLabel(item.unit) ? ` ${unitLabel(item.unit)}` : ""}
-              </td>
-              <td className="py-1.5 text-right">£{fmt(item.unit_price)}</td>
-              <td className="py-1.5 text-right font-medium">£{fmt(item.total)}</td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-muted-foreground text-left">
+              <th className="font-medium pb-1">Description</th>
+              <th className="font-medium pb-1 text-right">Qty</th>
+              <th className="font-medium pb-1 text-right">Unit</th>
+              <th className="font-medium pb-1 text-right">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visibleItems.map((item, i) => (
+              <tr key={i} className="border-t border-border/40">
+                <td className="py-1.5 pr-2">{item.description}</td>
+                <td className="py-1.5 text-right">
+                  {item.quantity}{unitLabel(item.unit) ? ` ${unitLabel(item.unit)}` : ""}
+                </td>
+                <td className="py-1.5 text-right">£{fmt(item.unit_price)}</td>
+                <td className="py-1.5 text-right font-medium">£{fmt(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {items.length > COLLAPSE_THRESHOLD && (
         <button

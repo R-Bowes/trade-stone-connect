@@ -73,16 +73,18 @@ export function ThreadQuoteSection({
         <Badge className={quoteStatusBadge(quote).className}>{quoteStatusBadge(quote).label}</Badge>
       </div>
 
-      <table className="w-full text-sm">
-        <tbody>
-          {quote.items.map((item, i) => (
-            <tr key={i} className="border-b last:border-0">
-              <td className="py-1.5">{item.description}</td>
-              <td className="py-1.5 text-right font-mono w-24">{fmtMoney(item.total)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <tbody>
+            {quote.items.map((item, i) => (
+              <tr key={i} className="border-b last:border-0">
+                <td className="py-1.5">{item.description}</td>
+                <td className="py-1.5 text-right font-mono w-24">{fmtMoney(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="space-y-1 text-sm">
         <div className="flex justify-between text-muted-foreground">
