@@ -612,6 +612,13 @@ appear.
   amend it.
 - **Migration git ritual**: run `git status` after every migration push; every
   migration file must be explicitly committed.
+- **Automated browser scripts must not write data.** Automated browser
+  scripts (audits, screenshots, tests) run against the live Supabase project
+  and live Stripe. They must not write data: click only allowlisted openers,
+  and block at the network layer every non-GET request to Supabase, edge
+  functions and Stripe, except (a) RPCs declared STABLE or IMMUTABLE, (b)
+  storage signed-URL requests, (c) auth token refresh. Stripe telemetry
+  beacons are aborted. Any other blocked request fails the run.
 - **Copy rule: no verification claims.** No copy anywhere in the product may
   assert that TradeStone has verified, vetted, checked or approved a
   contractor's credentials, qualifications, licences or insurance. The
