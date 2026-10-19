@@ -29,7 +29,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
   const currentIdx = isCancelled ? -1 : JOB_STAGE_ORDER.indexOf(status as (typeof JOB_STAGE_ORDER)[number]);
 
   return (
-    <div className="flex items-start w-full">
+    <div className="flex items-start w-full min-w-0">
       {STEPS.map((step, idx) => {
         const isCompleted = currentIdx !== -1 && idx < currentIdx;
         const isActive = currentIdx !== -1 && idx === currentIdx;
@@ -37,10 +37,10 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
 
         return (
           <Fragment key={step.status}>
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center shrink-0">
               <div
                 className={cn(
-                  "h-10 w-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative",
+                  "h-8 w-8 sm:h-10 sm:w-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative",
                   isCompleted && "bg-[#1a2744] border-[#1a2744]",
                   isActive && "border-[#f07820] animate-pulse",
                   !isCompleted && !isActive && "border-muted-foreground/30 bg-muted/30",
@@ -59,7 +59,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
               </div>
               <span
                 className={cn(
-                  "mt-1.5 text-xs text-center leading-tight w-16",
+                  "mt-1.5 text-[11px] sm:text-xs text-center leading-tight w-14 sm:w-16",
                   isCompleted && "font-medium text-[#1a2744]",
                   !isCompleted && !isActive && "text-muted-foreground/40",
                 )}
@@ -68,7 +68,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
                 {step.label}
               </span>
               {isCompleteStep && isActive && (
-                <span className={cn("text-xs mt-0.5", signedOff ? "text-green-600 font-medium" : "text-muted-foreground")}>
+                <span className={cn("text-[11px] sm:text-xs text-center leading-tight mt-0.5 w-14 sm:w-16", signedOff ? "text-green-600 font-medium" : "text-muted-foreground")}>
                   {signedOff ? "Signed off" : "Awaiting sign-off"}
                 </span>
               )}
@@ -76,7 +76,7 @@ export function JobStageStrip({ status, signedOff }: JobStageStripProps) {
             {idx < STEPS.length - 1 && (
               <div
                 className={cn(
-                  "flex-1 h-0.5 mt-5",
+                  "flex-1 min-w-1 h-0.5 mt-4 sm:mt-5",
                   idx < currentIdx ? "bg-[#1a2744]" : "bg-muted-foreground/20",
                 )}
               />

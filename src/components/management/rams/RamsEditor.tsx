@@ -53,13 +53,13 @@ export function HazardsSection({ hazards, onChange }: { hazards: Hazard[]; onCha
         {hazards.map((h, i) => (
           <div key={i} className="rounded-md border p-3 space-y-2">
             <div className="flex items-start gap-2">
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 min-w-0 space-y-2">
                 <Input
                   placeholder="Hazard description"
                   value={h.hazard}
                   onChange={(e) => update(i, { hazard: e.target.value })}
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Risk before controls</Label>
                     <Select value={h.risk_level} onValueChange={(v) => update(i, { risk_level: v as RiskLevel })}>
@@ -85,7 +85,7 @@ export function HazardsSection({ hazards, onChange }: { hazards: Hazard[]; onCha
                   value={h.control_measures}
                   onChange={(e) => update(i, { control_measures: e.target.value })}
                 />
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   <Badge variant="outline" className={RISK_COLOR[h.risk_level]}>Before: {h.risk_level}</Badge>
                   <Badge variant="outline" className={RISK_COLOR[h.residual_risk]}>After: {h.residual_risk}</Badge>
                 </div>
@@ -124,7 +124,7 @@ export function MethodStepsSection({ steps, onChange }: { steps: MethodStep[]; o
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold mt-1">
               {s.step_number}
             </div>
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 min-w-0 space-y-2">
               <Textarea
                 placeholder="Step description"
                 rows={2}
@@ -168,7 +168,7 @@ export function PpeSection({ ppe, onChange }: { ppe: string[]; onChange: (p: str
     <Card>
       <CardContent className="p-4 space-y-3">
         <h3 className="font-heading text-lg font-bold">PPE Requirements</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 [&>*]:min-w-0">
           {STANDARD_PPE.map((item) => (
             <label key={item} className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={ppe.includes(item)} onCheckedChange={(c) => toggle(item, !!c)} />
@@ -186,8 +186,9 @@ export function PpeSection({ ppe, onChange }: { ppe: string[]; onChange: (p: str
             ))}
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Input
+            className="flex-1 basis-40"
             placeholder="Add custom PPE item"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
@@ -552,7 +553,7 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
         </CardContent>
       </Card>
 
-      <fieldset disabled={readOnly} className="space-y-4">
+      <fieldset disabled={readOnly} className="min-w-0 space-y-4">
         <HazardsSection hazards={hazards} onChange={setHazards} />
         <MethodStepsSection steps={methodSteps} onChange={setMethodSteps} />
         <PpeSection ppe={ppe} onChange={setPpe} />
@@ -639,12 +640,12 @@ export function RamsEditor({ jobId, onSaved }: RamsEditorProps) {
               )}
             </div>
             {isJobContractor && (
-              <div className="flex gap-2 pt-2 border-t">
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
                 <Input
                   placeholder="Template name"
                   value={templateNameInput}
                   onChange={(e) => setTemplateNameInput(e.target.value)}
-                  className="max-w-xs"
+                  className="max-w-xs flex-1 basis-40"
                 />
                 <Button type="button" variant="outline" onClick={handleSaveAsTemplate} disabled={savingTemplate || !templateNameInput.trim()}>
                   {savingTemplate && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

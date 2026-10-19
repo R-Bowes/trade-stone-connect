@@ -131,9 +131,9 @@ export function ClientJobsView() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">{job.title}</h3>
-                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="min-w-0 max-w-full font-semibold truncate">{job.title}</h3>
+                        <span className="max-w-full break-words text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                           {customerJobRefLine(job, contractorCodes[job.contractor_id])}
                         </span>
                         <Badge className={sc.color}>
@@ -280,10 +280,10 @@ function ClientJobDetail({ job, refLine, onBack }: { job: Job; refLine: string; 
       {/* Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-xl">{job.title}</CardTitle>
-<span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-xl break-words">{job.title}</CardTitle>
+<span className="max-w-full break-words text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">
   {refLine}
 </span>
               {job.description && <CardDescription>{job.description}</CardDescription>}

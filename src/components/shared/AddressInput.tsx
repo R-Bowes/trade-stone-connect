@@ -237,7 +237,7 @@ export function AddressInput({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 [&>*]:min-w-0">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-region`}>
             {country ? REGION_LABEL[country] : "County / State / Province"}{" "}

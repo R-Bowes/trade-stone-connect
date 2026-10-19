@@ -108,11 +108,11 @@ export function RecordCard({ icon, title, reference, badges, lead, fields, child
         {lead}
 
         {fields.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
             {fields.map((field) => (
-              <div key={field.label}>
+              <div key={field.label} className="min-w-0">
                 <p className="text-muted-foreground text-xs">{field.label}</p>
-                <p>
+                <p className="break-words">
                   {field.icon ? (
                     <span className="inline-flex items-center gap-1">{field.icon}{field.value}</span>
                   ) : (
