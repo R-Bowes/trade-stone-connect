@@ -11,6 +11,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Camera, Lock, X } from "lucide-react";
+import { AddressInput, EMPTY_ADDRESS, composeAddressString, type AddressValue } from "@/components/shared/AddressInput";
+
+/** Country + line 1 + city + region + postcode are all required once a country is picked — line 2 is the only optional field, per AddressInput's own field list. */
+function isAddressComplete(a: AddressValue): boolean {
+  return !!(a.addr_country && a.addr_line1?.trim() && a.addr_city?.trim() && a.addr_region?.trim() && a.addr_postcode?.trim());
+}
 
 interface QuoteRequestDialogProps {
   isOpen: boolean;
@@ -107,7 +113,10 @@ const QuoteRequestDialog = ({
   const [title, setTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobType, setJobType] = useState("");
-  const [location, setLocation] = useState("");
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
+  // Shown as read-only helper text under AddressInput, never parsed into
+  // the structured fields — see AddressInput's legacyValue prop.
+  const [profileLocationHint, setProfileLocationHint] = useState<string | null>(null);
 
   // Optional fields
   const [priority, setPriority] = useState("");
@@ -147,7 +156,7 @@ const QuoteRequestDialog = ({
         setCustomerEmail(user.email || profile.email || "");
         setCustomerPhone(profile.phone || "");
         setTsProfileCode(profile.ts_profile_code || "");
-        setLocation(profile.location || "");
+        setProfileLocationHint(profile.location || null);
       } else {
         setCustomerEmail(user.email || "");
       }
@@ -174,7 +183,8 @@ const QuoteRequestDialog = ({
       setTitle("");
       setJobDescription("");
       setJobType("");
-      setLocation("");
+      setAddress(EMPTY_ADDRESS);
+      setProfileLocationHint(null);
       setPriority("");
       setTimeline("");
       setBudgetRange("");
@@ -202,8 +212,8 @@ const QuoteRequestDialog = ({
       toast({ title: "Required", description: "Please select a job type.", variant: "destructive" });
       return;
     }
-    if (!location.trim()) {
-      toast({ title: "Required", description: "Please enter the site address.", variant: "destructive" });
+    if (!isAddressComplete(address)) {
+      toast({ title: "Required", description: "Please enter the site address, including country.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
@@ -219,7 +229,13 @@ const QuoteRequestDialog = ({
           customer_phone: customerPhone || null,
           project_title: title.trim(),
           project_description: jobDescription,
-          project_location: location,
+          // send-quote-notification (the edge function that creates the
+          // enquiries row) writes this straight into the NOT NULL
+          // enquiries.location column — it has no knowledge of the
+          // structured addr_* fields. That is the legacy mirror; the
+          // structured fields themselves are written separately below,
+          // once we have the created enquiry's id.
+          project_location: composeAddressString(address),
           job_type: jobType,
           priority: priority || null,
           access_notes: accessNotes.trim() || null,
@@ -249,6 +265,31 @@ const QuoteRequestDialog = ({
         supabase.functions
           .invoke("notify-contractor", { body: { enquiry_id: result.enquiry_id } })
           .catch(console.error);
+
+        // Dual-write, structured half: enquiries.location (NOT NULL) was
+        // already set to composeAddressString(address) via
+        // project_location above — that is the legacy mirror. The
+        // structured addr_* fields are authoritative and can only be
+        // written here, client-side, once the row exists — the edge
+        // function above has no knowledge of them and is not touched by
+        // this change. One direction only: never read enquiries.location
+        // back into `address`.
+        const { error: addrError } = await supabase
+          .from("enquiries")
+          .update({
+            addr_line1: address.addr_line1,
+            addr_line2: address.addr_line2,
+            addr_city: address.addr_city,
+            addr_region: address.addr_region,
+            addr_postcode: address.addr_postcode,
+            addr_country: address.addr_country,
+          })
+          .eq("id", result.enquiry_id);
+        if (addrError) {
+          console.error("Failed to save structured address for enquiry:", addrError);
+          // Non-fatal — enquiries.location (the legacy mirror) was already
+          // saved by the edge function; the enquiry itself is not lost.
+        }
 
         if (photos.length > 0) {
           const { data: authData } = await supabase.auth.getUser();
@@ -370,15 +411,15 @@ const QuoteRequestDialog = ({
 
             {/* Site address */}
             <div className="space-y-2">
-              <Label htmlFor="location">
+              <Label>
                 Site address <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="location"
-                placeholder="Start typing an address..."
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
+              <AddressInput
+                value={address}
+                onChange={setAddress}
                 required
+                disabled={isSubmitting}
+                legacyValue={profileLocationHint}
               />
             </div>
 

@@ -13,6 +13,7 @@ import { EnquiryPhotoThumbnails } from "@/components/EnquiryPhotoThumbnails";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { unitsForCountry } from "@/constants/units";
+import { AddressInput, EMPTY_ADDRESS, composeAddressString, type AddressValue } from "@/components/shared/AddressInput";
 import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 import { CustomerPickerField, type PickedCustomer } from "@/components/shared/CustomerPicker";
 
@@ -88,6 +89,11 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   // CustomerPicker instead.
   const [customerDisplay, setCustomerDisplay] = useState<{ name: string | null; tsCode: string | null } | null>(null);
   const [pickedCustomer, setPickedCustomer] = useState<PickedCustomer | null>(null);
+  // Not required — this is the first editable address control this dialog
+  // has ever had; previously client_address was silently derived from
+  // enquiry.location with no user-facing control at all. Left blank, the
+  // submit payload below falls back to enquiry.location exactly as before.
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
   const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
 
   useEffect(() => {
@@ -102,6 +108,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setTerms("");
     setDepositRequired(false);
     setDepositPercentage(25);
+    setAddress(EMPTY_ADDRESS);
     setProposedSlots([]);
 
     if (enquiry.customer_id) {
@@ -201,6 +208,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         ...(unit ? { unit } : {}),
       }));
 
+      // Dual-write: composeAddressString(address) is authoritative when the
+      // contractor has actually used the new structured fields; when they
+      // leave AddressInput untouched (address stays EMPTY_ADDRESS), fall
+      // back to enquiry.location exactly as this dialog always has —
+      // never write an empty string over what was already there. One
+      // direction only: enquiry.location is never read back into `address`.
+      const composedAddress = composeAddressString(address);
+
       const quotePayload: IssuedQuoteInsert = {
         contractor_id: contractorProfile.id,
         recipient_id: recipientId,
@@ -218,7 +233,13 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         // and jobs.location for every job minted from an enquiry-originated
         // quote) null. mint_job_from_quote keeps its own COALESCE fallback to
         // enquiries.location as a safety net for quotes issued before this fix.
-        client_address: enquiry.location || null,
+        client_address: composedAddress || enquiry.location || null,
+        addr_line1: address.addr_line1,
+        addr_line2: address.addr_line2,
+        addr_city: address.addr_city,
+        addr_region: address.addr_region,
+        addr_postcode: address.addr_postcode,
+        addr_country: address.addr_country,
         client_type: "customer",
         title: title.trim(),
         description: description.trim() || null,
@@ -372,6 +393,19 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               onChange={(e) => setDescription(e.target.value)}
               className="min-h-20"
               disabled={submitting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Site address for this quote (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Leave blank to use the enquiry's address as-is, or fill this in to record a structured address on the quote.
+            </p>
+            <AddressInput
+              value={address}
+              onChange={setAddress}
+              disabled={submitting}
+              legacyValue={enquiry.location}
             />
           </div>
 
