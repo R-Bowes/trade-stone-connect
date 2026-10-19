@@ -65,7 +65,7 @@ export function SiteContactManager({ companyId }: { companyId: string }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-2 flex-wrap">
         <h3 className="font-heading text-lg font-bold">Site Contacts</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={siteFilter} onValueChange={setSiteFilter}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="All sites" /></SelectTrigger>
             <SelectContent>

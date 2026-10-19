@@ -517,9 +517,9 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                 return (
                   <div
                     key={m.id}
-                    className="flex flex-col gap-2 px-6 py-3 border-b last:border-0"
+                    className="flex flex-col gap-2 px-4 sm:px-6 py-3 border-b last:border-0"
                   >
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{name}</p>
                         {email && <p className="text-xs text-muted-foreground truncate">{email}</p>}
@@ -532,7 +532,7 @@ export function BusinessTeamView({ companyId, profileId: _profileId, isOwner }: 
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-muted-foreground">
                           {m.approval_limit == null ? (
                             "Can't approve"

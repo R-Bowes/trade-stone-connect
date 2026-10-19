@@ -303,7 +303,7 @@ export function PpmComplianceDashboard({ companyId, profileId }: { companyId: st
       {/* Upcoming calendar */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-heading text-lg font-bold">Upcoming (next 90 days)</h3>
             <div className="flex items-center gap-2">
               <Button size="icon" variant="ghost" onClick={() => setCalendarMonth((m) => addMonths(m, -1))}><ChevronLeft className="h-4 w-4" /></Button>

@@ -330,14 +330,14 @@ export function FinanceDashboard({ onNavigate }: Props) {
                 <button
                   key={tx.key}
                   onClick={() => onNavigate(tx.tab)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-left"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-muted-foreground whitespace-nowrap">{format(new Date(tx.date), "dd MMM yyyy")}</span>
                     <span className="font-medium">{tx.label}</span>
                     <Badge variant="outline">{tx.badge}</Badge>
                   </div>
-                  <span className={tx.amount >= 0 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                  <span className={`shrink-0 whitespace-nowrap ${tx.amount >= 0 ? "text-green-600 font-medium" : "text-muted-foreground"}`}>
                     {tx.amount >= 0 ? "+" : "-"}{gbp(Math.abs(tx.amount))}
                   </span>
                 </button>

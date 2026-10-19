@@ -582,8 +582,8 @@ export function TeamManagement() {
         </Card>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
           {(["all", "active", "inactive", "suspended"] as StatusFilter[]).map((status) => (
             <button
               key={status}
@@ -1237,7 +1237,7 @@ function MemberFormDialog({
                 placeholder="e.g. James Carter"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
                 <Select value={form.role} onValueChange={(v) => set("role", v)}>
@@ -1274,7 +1274,7 @@ function MemberFormDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -1314,7 +1314,7 @@ function MemberFormDialog({
           </TabsContent>
 
           <TabsContent value="rates" className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="hourly_rate">Hourly rate (£)</Label>
                 <Input
@@ -1666,7 +1666,7 @@ function CertificationsDialog({
               <Label htmlFor="ref_number">Reference number</Label>
               <Input id="ref_number" value={refNumber} onChange={(e) => setRefNumber(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="issued_date">Issued date</Label>
                 <Input id="issued_date" type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} />
@@ -1832,7 +1832,7 @@ function AbsenceDialog({ member, onClose }: { member: TeamMember; onClose: () =>
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="absence_start">Start date</Label>
               <Input id="absence_start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />

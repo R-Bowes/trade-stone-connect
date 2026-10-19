@@ -177,8 +177,8 @@ export function ServiceCategoryManager({ companyId }: { companyId: string }) {
             const rule = rules.find((r) => r.category === c.name);
             return (
               <Card key={c.id} className={!c.is_active ? "opacity-50" : ""}>
-                <CardContent className="p-3 flex items-center justify-between gap-2">
-                  <div>
+                <CardContent className="p-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <div className="font-medium text-sm">{c.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {c.trade ?? "Any trade"} · Default priority: {c.default_priority}

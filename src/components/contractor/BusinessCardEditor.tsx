@@ -466,11 +466,12 @@ const BusinessCardEditor = ({
   };
 
   return (
-    <div style={{ border: "0.5px solid #e6e9ef", borderRadius: 12, overflow: "hidden", display: "flex", background: "#f8f9fa" }}>
+    // Stacks below sm: the 200px controls panel above the 300px card previews.
+    <div className="flex flex-col sm:flex-row" style={{ border: "0.5px solid #e6e9ef", borderRadius: 12, overflow: "hidden", background: "#f8f9fa" }}>
       {/* Left panel */}
       <div
+        className="w-full sm:w-[200px]"
         style={{
-          width: 200,
           flexShrink: 0,
           borderRight: "0.5px solid #e6e9ef",
           padding: 16,
@@ -630,7 +631,8 @@ const BusinessCardEditor = ({
       <div
         style={{
           flex: 1,
-          padding: 24,
+          minWidth: 0,
+          padding: "24px 16px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -643,7 +645,7 @@ const BusinessCardEditor = ({
           ref={frontCanvasRef}
           width={600}
           height={336}
-          style={{ width: 300, height: 168, borderRadius: 7, display: "block" }}
+          style={{ width: 300, maxWidth: "100%", height: "auto", borderRadius: 7, display: "block" }}
         />
 
         <div style={{ ...labelStyle, alignSelf: "flex-start", marginTop: 8 }}>Back</div>
@@ -651,10 +653,10 @@ const BusinessCardEditor = ({
           ref={backCanvasRef}
           width={600}
           height={336}
-          style={{ width: 300, height: 168, borderRadius: 7, display: "block" }}
+          style={{ width: 300, maxWidth: "100%", height: "auto", borderRadius: 7, display: "block" }}
         />
 
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 8 }}>
           <button style={primaryButtonStyle} onClick={handleDownloadPNG}>Download PNG</button>
           <button style={primaryButtonStyle} onClick={handleDownloadPDF}>Download PDF</button>
           <button style={outlineButtonStyle} onClick={handleReset}>Reset</button>
