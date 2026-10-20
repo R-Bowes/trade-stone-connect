@@ -180,12 +180,16 @@ export function HeroBlock({
   isPreview = false,
   coverUrl,
   activityBand,
+  action,
 }: {
   profile: PublicProfile | null;
   availability: AvailabilityInfo;
   isPreview?: boolean;
   coverUrl?: string | null;
   activityBand?: "week" | "month" | null;
+  // Rendered full-width under the identity row (the public profile's top
+  // enquiry button). Omitted by the editor preview.
+  action?: React.ReactNode;
 }) {
   if (!profile) return null;
   const { full_name, company_name, ts_profile_code, logo_url, avatar_url, is_verified, location, created_at } = profile;
@@ -295,6 +299,10 @@ export function HeroBlock({
           <SocialLinksBar socialLinks={profile.social_links} />
         </div>
       </div>
+
+      {action && (
+        <div style={{ position: "relative", marginTop: 20 }}>{action}</div>
+      )}
 
       {isPreview && (
         <div style={{

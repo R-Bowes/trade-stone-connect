@@ -539,6 +539,20 @@ const TIER_EXPLANATIONS: Record<number, string> = {
   2: "Identity checks completed with Stripe during payment setup.",
 };
 
+// The enquiry (contact) button. Rendered twice on the page — in the hero and
+// in the CTA card at the bottom — and both must share the same handler, so
+// both go through this one component.
+function EnquiryButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ width: "100%", background: ORANGE, color: "white", border: "none", borderRadius: 8, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function HeroVerificationBadge({ tier }: { tier: number | null }) {
   const [open, setOpen] = useState(false);
   // Tier 1 shows no badge on the public profile (SCORING.md: "No badge
@@ -1594,7 +1608,13 @@ const ContractorProfile = () => {
 
         <div style={{ maxWidth: 680, margin: "12px auto 40px", padding: "0 16px" }}>
           {/* Hero — always first */}
-          <HeroBlock profile={profile} availability={availability} coverUrl={profile.cover_url} activityBand={activityBand} />
+          <HeroBlock
+            profile={profile}
+            availability={availability}
+            coverUrl={profile.cover_url}
+            activityBand={activityBand}
+            action={<EnquiryButton label={ctaLabel} onClick={handleEnquire} />}
+          />
 
           {/* Compact tier badge + explainer, right under the name/TS code */}
           <HeroVerificationBadge tier={verificationTier} />
@@ -1637,12 +1657,7 @@ const ContractorProfile = () => {
               is the unchanged, primary action. "Add to comparison" is a
               secondary, additive action — it never replaces or intercepts it. */}
           <div style={{ background: "white", borderRadius: "0 0 12px 12px", padding: "20px 24px", boxShadow: "0 1px 3px rgba(0,0,0,0.07)" }}>
-            <button
-              onClick={handleEnquire}
-              style={{ width: "100%", background: ORANGE, color: "white", border: "none", borderRadius: 8, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              {ctaLabel}
-            </button>
+            <EnquiryButton label={ctaLabel} onClick={handleEnquire} />
             {profile.id && (
               <button
                 onClick={() => {
