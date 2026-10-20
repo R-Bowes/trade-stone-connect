@@ -48,14 +48,18 @@ Still open, holes NOT yet closed:
   `create-payment-intent` and `stripe-webhook` edited, screens updated.
   Proved in a rolled-back transaction (scenarios a-j, all pass). NOT pushed,
   NOT deployed, NOT committed — closes nothing below until it is.
-- Then issued_quotes, jobs, payments, refunds, contractor_panel, tenders,
-  job_reviews.
+- Then jobs, payments, refunds, contractor_panel, tenders, job_reviews.
+  (issued_quotes locked by 20261020120000: recipients write only through
+  accept_quote_with_slot / decline_quote / stall_quote; contractors edit
+  drafts only, send with send_quote, change a sent quote by revision.)
 - jobs SELECT for company members is not narrowed by site coverage: a
   site-only member can read every job in the company ("Company members
   can view company jobs" checks is_company_member only). Found 9 Oct.
 - notifications INSERT is WITH CHECK (true) for any logged-in user. Found 11 Oct.
 - subcontracts and contracts are client-writable with no WITH CHECK; the old Contracts screen is reachable by typed URL. Found 11 Oct.
 - sign-off of a contractor-owned project trusts jobs.customer_id, which the contractor can still edit; closes with the jobs lock. Found 11 Oct.
+- cooling_off_records: homeowner can set cancelled at any time (RLS has no 14-day check) — needs a cancel_cooling_off RPC with the window check. Found 19 Oct.
+- anonymise_user is broken twice — sets issued_quotes.client_email = null (NOT NULL column), and the invoice lock blocks it rewriting client_name on issued invoices. GDPR erasure must be fixed before real customer data. Found 19 Oct.
 
 Parked defects:
 - VAT charged by non-registered contractors: blocked for new invoices from 12
@@ -196,6 +200,25 @@ Messages sent from the ordinary Messages inbox (useMessages.sendMessage)
 notify nobody, either side, on every job — found 19 Oct. Route through a
 server function that notifies the other party, as post_work_order_message
 does.
+
+### Edge-function error toasts hide the real reason
+Edge-function error toasts hide the real reason (e.g. 'Origin not allowed'
+showed as 'Failed to send your enquiry') — surface the server's message.
+Found 20 Oct.
+
+### CORS allow-list: one shared helper
+CORS: ALLOWED_ORIGINS secret overrides 14 hand-copied lists; reset on 20 Oct
+to tradesltd.co.uk, www, localhost 8080/5173/4173,
+trade-stone-connect.vercel.app. Move to one shared helper.
+
+### Quote request dialog shows the contractor's personal name
+Quote request dialog header shows the contractor's personal name, not
+business name. Found 20 Oct.
+
+### Quote "Viewed" badge has never worked
+Quote 'Viewed' badge has never worked — nothing writes
+issued_quotes.viewed_at. Needs mark_quote_viewed RPC called when the
+recipient opens a quote. customer_note is a dead column. Found 19 Oct.
 
 ### `TransactionFeeNotice.tsx` states 3.5%, platform charges 5%
 One hardcoded string, `src/components/TransactionFeeNotice.tsx:13`. Both edge

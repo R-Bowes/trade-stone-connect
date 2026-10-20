@@ -17,7 +17,7 @@
  * checks incoming Realtime rows against this set before toasting.
  *
  * Known call sites that must call markRecentAction(referenceId):
- * - useReceivedQuotes.ts's respondToQuote (reject/stall -> notify_quote_response)
+ * - useReceivedQuotes.ts's declineQuote / stallQuote (decline_quote / stall_quote -> notify_quote_response)
  * - confirmQuoteSlot.ts (accept -> notify_quote_response via accept_quote_with_slot)
  * - JobManagement.tsx's status advance/revert (-> notify_job_status_change,
  *   which notifies both customer_id and contractor_id unconditionally)

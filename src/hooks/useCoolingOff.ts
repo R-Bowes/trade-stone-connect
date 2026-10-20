@@ -114,11 +114,8 @@ export function useCoolingOff() {
       .eq("id", record.job_id);
     if (jobError) console.error("Failed to cancel job after cooling-off cancellation:", jobError);
 
-    const { error: quoteError } = await supabase
-      .from("issued_quotes")
-      .update({ status: "cancelled" })
-      .eq("id", record.quote_id);
-    if (quoteError) console.error("Failed to cancel quote after cooling-off cancellation:", quoteError);
+    // The quote is cancelled server-side when the record is (trigger
+    // cooling_off_cancel_quote, 20261020120000): recipients can't write quotes.
 
     await supabase.from("notifications").insert({
       user_id: record.contractor_id,

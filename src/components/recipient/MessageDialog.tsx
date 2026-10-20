@@ -18,11 +18,12 @@ interface MessageDialogProps {
 
 /**
  * Writes to job_conversations/job_messages — the only messaging system.
- * `subject`/`contractorId` are kept as props for callers that still build
- * them (contractorId isn't needed for the write itself: job_conversations
- * context columns resolve the parties via RLS, not a stored recipient).
+ * When no conversation exists yet for the quote or invoice (a fresh
+ * revision has no thread of its own), getOrCreateEngagementConversation
+ * stores the contractor on the new row: it's read from the quote or invoice
+ * itself, with the `contractorId` prop as a fallback.
  */
-export function MessageDialog({ open, onClose, subject, contextType, contextId }: MessageDialogProps) {
+export function MessageDialog({ open, onClose, subject, contractorId, contextType, contextId }: MessageDialogProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const { toast } = useToast();
@@ -44,27 +45,36 @@ export function MessageDialog({ open, onClose, subject, contextType, contextId }
 
       let jobId: string | null = null;
       let quoteId: string | null = null;
+      // The contractor is read from the quote or invoice itself (both
+      // parties can read it); the prop is only a fallback, since some
+      // callers pass "the other party", which is the customer when the
+      // contractor is the one writing.
+      let threadContractorId: string | null = null;
 
       if (contextType === "quote") {
         quoteId = contextId;
-        const { data: jobRow } = await supabase
-          .from("jobs")
-          .select("id")
-          .eq("issued_quote_id", contextId)
-          .neq("status", "cancelled")
-          .maybeSingle();
+        const [{ data: jobRow }, { data: quoteRow }] = await Promise.all([
+          supabase.from("jobs").select("id").eq("issued_quote_id", contextId).neq("status", "cancelled").maybeSingle(),
+          supabase.from("issued_quotes").select("contractor_id").eq("id", contextId).maybeSingle(),
+        ]);
         if (jobRow?.id) jobId = jobRow.id;
+        threadContractorId = quoteRow?.contractor_id ?? null;
       } else {
         const { data: invoiceRow } = await supabase
           .from("invoices")
-          .select("job_id, quote_id")
+          .select("job_id, quote_id, contractor_id")
           .eq("id", contextId)
           .maybeSingle();
         jobId = invoiceRow?.job_id ?? null;
         quoteId = invoiceRow?.quote_id ?? null;
+        threadContractorId = invoiceRow?.contractor_id ?? null;
       }
 
-      const conversationId = await getOrCreateEngagementConversation({ jobId, quoteId });
+      const conversationId = await getOrCreateEngagementConversation({
+        jobId,
+        quoteId,
+        contractorId: threadContractorId ?? contractorId,
+      });
 
       const { error: msgError } = await supabase.from("job_messages").insert({
         conversation_id: conversationId,

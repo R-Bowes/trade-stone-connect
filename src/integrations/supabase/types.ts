@@ -12657,6 +12657,20 @@ export type Database = {
           still_to_pay: number
         }[]
       }
+      _quote_figures_problem: {
+        Args: {
+          p_contractor_id: string
+          p_deposit_amount: number
+          p_deposit_percentage: number
+          p_deposit_required: boolean
+          p_items: Json
+          p_subtotal: number
+          p_tax_amount: number
+          p_tax_rate: number
+          p_total: number
+        }
+        Returns: string
+      }
       _quote_invoice_problem: { Args: { p_quote_id: string }; Returns: string }
       _work_order_approval_threshold: {
         Args: { p_company_id: string; p_site_id: string }
@@ -13236,6 +13250,7 @@ export type Database = {
         Returns: boolean
       }
       issue_invoice: { Args: { p_invoice_id: string }; Returns: number }
+      lapse_quote: { Args: { p_quote_id: string }; Returns: undefined }
       log_material_usage: {
         Args: { p_job_id: string; p_material_id: string; p_quantity: number }
         Returns: string
@@ -13476,6 +13491,7 @@ export type Database = {
           ts_code: string
         }[]
       }
+      send_quote: { Args: { p_quote_id: string }; Returns: undefined }
       send_subcontract_message: {
         Args: { p_content: string; p_subcontract_id: string }
         Returns: string
@@ -13493,6 +13509,7 @@ export type Database = {
         Returns: undefined
       }
       sign_off_project: { Args: { p_project_id: string }; Returns: undefined }
+      stall_quote: { Args: { p_quote_id: string }; Returns: undefined }
       start_subcontract_rams: {
         Args: { p_subcontract_id: string; p_template_id: string }
         Returns: string

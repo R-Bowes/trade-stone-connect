@@ -150,7 +150,7 @@ export function EngagementThread({
   const handleArchive = async () => {
     if (!detail?.quote) return;
     setArchiving(true);
-    const { error } = await supabase.from("issued_quotes").update({ status: "lapsed" }).eq("id", detail.quote.id);
+    const { error } = await supabase.rpc("lapse_quote", { p_quote_id: detail.quote.id });
     setArchiving(false);
     if (error) {
       toast({ title: "Error", description: "Failed to archive engagement", variant: "destructive" });

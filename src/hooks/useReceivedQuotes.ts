@@ -137,7 +137,7 @@ export function useReceivedQuotes() {
   }, [fetchQuotes]);
 
   // Direct decline, with an optional structured reason — replaces
-  // respondToQuote(quoteId, "rejected") for the UI path. Goes through the
+  // the old plain client update for the UI path. Goes through the
   // decline_quote RPC rather than a plain client update: it also writes
   // enquiry_recipients.status='declined' (today's plain update left that
   // row looking identical to a live, undecided one), which a bare
@@ -157,15 +157,10 @@ export function useReceivedQuotes() {
     return quoteId;
   };
 
-  const respondToQuote = async (quoteId: string, response: "accepted" | "rejected" | "stalled") => {
-    const { error } = await supabase
-      .from("issued_quotes")
-      .update({
-        recipient_response: response,
-        responded_at: new Date().toISOString(),
-        status: response === "accepted" ? "accepted" : response === "rejected" ? "rejected" : "sent",
-      })
-      .eq("id", quoteId);
+  // Put a sent quote on hold. Recipients can't write quotes directly (quote
+  // lock, 20261020120000): accept, decline and stall are all RPCs.
+  const stallQuote = async (quoteId: string) => {
+    const { error } = await supabase.rpc("stall_quote", { p_quote_id: quoteId });
 
     if (error) {
       toast({ title: "Error", description: "Failed to respond to quote", variant: "destructive" });
@@ -181,5 +176,5 @@ export function useReceivedQuotes() {
     return quoteId;
   };
 
-  return { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, declineQuote, refetch: fetchQuotes };
+  return { quotes, jobIssuedQuoteIdByNumber, loading, stallQuote, declineQuote, refetch: fetchQuotes };
 }

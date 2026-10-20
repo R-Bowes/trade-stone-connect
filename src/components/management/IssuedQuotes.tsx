@@ -57,6 +57,7 @@ interface IssuedQuote {
   valid_until: string;
   deposit_required: boolean | null;
   deposit_amount: number | null;
+  deposit_percentage: number | null;
   deposit_paid: boolean | null;
   parent_quote_id: string | null;
   enquiry_id: string | null;
@@ -71,7 +72,22 @@ interface EditState {
   items: LineItem[];
   tax_rate: number;
   deposit_required: boolean;
-  deposit_amount: string;
+  /** Percentage of the total; the £ amount is always derived from it. */
+  deposit_percentage: string;
+}
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * A quote's figures, rounded the way send_quote checks them: line totals to
+ * 2dp, tax = subtotal × rate, total = subtotal + tax, deposit = total × %.
+ */
+function quoteMoney(items: LineItem[], taxRate: number, depositRequired: boolean, depositPct: number) {
+  const subtotal = round2(items.reduce((s, i) => s + round2(i.quantity * i.unit_price), 0));
+  const tax_amount = round2(subtotal * (taxRate / 100));
+  const total = round2(subtotal + tax_amount);
+  const deposit_amount = depositRequired && depositPct > 0 ? round2(total * (depositPct / 100)) : null;
+  return { subtotal, tax_amount, total, deposit_amount };
 }
 
 type BadgeableQuote = Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid" | "viewed_at">;
@@ -123,6 +139,7 @@ function normaliseRow(q: Record<string, unknown>, contractorId: string): IssuedQ
     valid_until: q.valid_until as string,
     deposit_required: q.deposit_required as boolean | null,
     deposit_amount: q.deposit_amount as number | null,
+    deposit_percentage: q.deposit_percentage as number | null,
     deposit_paid: q.deposit_paid as boolean | null,
     parent_quote_id: q.parent_quote_id as string | null,
     enquiry_id: q.enquiry_id as string | null,
@@ -393,7 +410,7 @@ function QuoteEditPanel({
     } else {
       item[field] = Number(raw);
     }
-    item.total = item.quantity * item.unit_price;
+    item.total = round2(item.quantity * item.unit_price);
     items[idx] = item;
     onChange({ ...data, items });
   }
@@ -406,9 +423,9 @@ function QuoteEditPanel({
     onChange({ ...data, items: data.items.filter((_, i) => i !== idx) });
   }
 
-  const subtotal = data.items.reduce((s, i) => s + i.total, 0);
-  const tax_amount = subtotal * (data.tax_rate / 100);
-  const total = subtotal + tax_amount;
+  const { subtotal, tax_amount, total, deposit_amount } = quoteMoney(
+    data.items, data.tax_rate, data.deposit_required, Number(data.deposit_percentage) || 0,
+  );
 
   return (
     <>
@@ -552,22 +569,28 @@ function QuoteEditPanel({
               type="checkbox"
               id="deposit-required"
               checked={data.deposit_required}
-              onChange={e => onChange({ ...data, deposit_required: e.target.checked, deposit_amount: e.target.checked ? data.deposit_amount : "" })}
+              onChange={e => onChange({ ...data, deposit_required: e.target.checked })}
               className="h-4 w-4"
             />
             <Label htmlFor="deposit-required">Deposit required</Label>
           </div>
           {data.deposit_required && (
             <div className="space-y-1.5">
-              <Label>Deposit amount (£)</Label>
+              <Label>Deposit (% of total)</Label>
               <Input
                 type="number"
-                min="0"
-                step="0.01"
-                value={data.deposit_amount}
-                onChange={e => onChange({ ...data, deposit_amount: e.target.value })}
-                placeholder="0.00"
+                min="1"
+                max="100"
+                step="1"
+                value={data.deposit_percentage}
+                onChange={e => onChange({ ...data, deposit_percentage: e.target.value })}
+                placeholder="25"
               />
+              {deposit_amount != null && (
+                <p className="text-xs text-muted-foreground">
+                  Deposit <span className="font-mono">{fmtMoney(deposit_amount)}</span>
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -654,7 +677,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("issued_quotes")
-      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_paid, parent_quote_id, enquiry_id, recipient_response, notes, terms")
+      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_percentage, deposit_paid, parent_quote_id, enquiry_id, recipient_response, notes, terms")
       .eq("contractor_id", profileId)
       .order("created_at", { ascending: false });
     const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>, profileId)) : [];
@@ -723,36 +746,31 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       items: q.items.length > 0 ? q.items.map(i => ({ ...i })) : [{ description: "", quantity: 1, unit_price: 0, total: 0 }],
       tax_rate: q.tax_rate,
       deposit_required: q.deposit_required ?? false,
-      deposit_amount: q.deposit_amount != null ? String(q.deposit_amount) : "",
+      deposit_percentage:
+        q.deposit_percentage && q.deposit_percentage > 0
+          ? String(q.deposit_percentage)
+          : q.deposit_amount && q.total
+            ? String(round2((q.deposit_amount / q.total) * 100))
+            : "",
     });
+  }
+
+  // Sending is server-side (send_quote): it marks the draft sent and, for a
+  // revision, supersedes the quote it revises, refusing if that quote was
+  // accepted meanwhile.
+  async function sendQuote(quoteId: string): Promise<boolean> {
+    const { error } = await supabase.rpc("send_quote", { p_quote_id: quoteId });
+    if (error) {
+      toast({ title: "Send failed", description: error.message, variant: "destructive" });
+      return false;
+    }
+    return true;
   }
 
   async function handleSendDraft() {
     if (!selectedQuote) return;
     setSaving(true);
-    if (selectedQuote.parent_quote_id) {
-      const { data: parent } = await supabase
-        .from("issued_quotes")
-        .select("status")
-        .eq("id", selectedQuote.parent_quote_id)
-        .single();
-      if (parent?.status === "accepted") {
-        toast({
-          title: "Cannot send revision",
-          description: "The original quote was accepted while this revision was in draft.",
-          variant: "destructive",
-        });
-        setSaving(false);
-        return;
-      }
-      await supabase.from("issued_quotes").update({ status: "superseded" }).eq("id", selectedQuote.parent_quote_id);
-    }
-    const { error } = await supabase
-      .from("issued_quotes")
-      .update({ sent_at: new Date().toISOString(), status: "sent" })
-      .eq("id", selectedQuote.id);
-    if (error) {
-      toast({ title: "Send failed", description: error.message, variant: "destructive" });
+    if (!(await sendQuote(selectedQuote.id))) {
       setSaving(false);
       return;
     }
@@ -768,45 +786,36 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   async function handleSave(send: boolean) {
     if (!selectedQuote || !editData) return;
     setSaving(true);
-    const subtotal = editData.items.reduce((s, i) => s + i.total, 0);
-    const tax_amount = subtotal * (editData.tax_rate / 100);
-    const total = subtotal + tax_amount;
+    const depositPct = Number(editData.deposit_percentage) || 0;
+    if (editData.deposit_required && !(depositPct > 0 && depositPct <= 100)) {
+      toast({ title: "Deposit needs a percentage", description: "Enter a deposit between 1% and 100% of the total.", variant: "destructive" });
+      setSaving(false);
+      return;
+    }
+    const items = editData.items.map((i) => ({ ...i, total: round2(i.quantity * i.unit_price) }));
+    const { subtotal, tax_amount, total, deposit_amount } = quoteMoney(items, editData.tax_rate, editData.deposit_required, depositPct);
     const updates: Record<string, unknown> = {
       title: editData.title,
       valid_until: editData.valid_until,
-      items: editData.items,
+      items,
       tax_rate: editData.tax_rate,
       subtotal,
       tax_amount,
       total,
       deposit_required: editData.deposit_required,
-      deposit_amount: editData.deposit_required && editData.deposit_amount ? Number(editData.deposit_amount) : null,
+      deposit_percentage: editData.deposit_required ? depositPct : 0,
+      deposit_amount,
     };
-    if (send) {
-      if (selectedQuote.parent_quote_id) {
-        const { data: parent } = await supabase
-          .from("issued_quotes")
-          .select("status")
-          .eq("id", selectedQuote.parent_quote_id)
-          .single();
-        if (parent?.status === "accepted") {
-          toast({
-            title: "Cannot send revision",
-            description: "The original quote was accepted while this revision was in draft.",
-            variant: "destructive",
-          });
-          setSaving(false);
-          return;
-        }
-        await supabase.from("issued_quotes").update({ status: "superseded" }).eq("id", selectedQuote.parent_quote_id);
-      }
-      updates.sent_at = new Date().toISOString();
-      updates.status = "sent";
-    }
+    // Save the draft's content first; a sent quote can't be edited.
     const { error } = await supabase.from("issued_quotes").update(updates).eq("id", selectedQuote.id);
     if (error) {
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
       setSaving(false);
+      return;
+    }
+    if (send && !(await sendQuote(selectedQuote.id))) {
+      setSaving(false);
+      await fetchQuotes();
       return;
     }
     if (send) {
@@ -831,26 +840,62 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     if (!selectedQuote || !profileId) return;
     setSaving(true);
     const newVersion = selectedQuote.version + 1;
+    // Copy the whole parent from the database, not the partial row this
+    // screen loads: description, terms, notes, address and the deposit
+    // percentage carry over to the revision.
+    const { data: parent, error: parentError } = await supabase
+      .from("issued_quotes")
+      .select("*")
+      .eq("id", selectedQuote.id)
+      .single();
+    if (parentError || !parent) {
+      toast({ title: "Revise failed", description: parentError?.message, variant: "destructive" });
+      setSaving(false);
+      return;
+    }
     const { data: newRow, error: insertError } = await supabase
       .from("issued_quotes")
       .insert({
         contractor_id: profileId,
-        quote_number: selectedQuote.quote_number,
+        quote_number: parent.quote_number,
         version: newVersion,
-        parent_quote_id: selectedQuote.id,
-        enquiry_id: selectedQuote.enquiry_id,
-        title: selectedQuote.title,
-        client_name: selectedQuote.client_name,
-        client_email: selectedQuote.client_email,
-        recipient_id: selectedQuote.recipient_id,
-        items: selectedQuote.items.map(i => ({ ...i })),
-        subtotal: selectedQuote.subtotal,
-        tax_rate: selectedQuote.tax_rate,
-        tax_amount: selectedQuote.tax_amount,
-        total: selectedQuote.total,
-        valid_until: selectedQuote.valid_until,
-        deposit_required: selectedQuote.deposit_required,
-        deposit_amount: selectedQuote.deposit_amount,
+        parent_quote_id: parent.id,
+        enquiry_id: parent.enquiry_id,
+        project_id: parent.project_id,
+        recipient_id: parent.recipient_id,
+        client_type: parent.client_type,
+        client_name: parent.client_name,
+        business_name: parent.business_name,
+        client_email: parent.client_email,
+        client_phone: parent.client_phone,
+        client_address: parent.client_address,
+        addr_line1: parent.addr_line1,
+        addr_line2: parent.addr_line2,
+        addr_city: parent.addr_city,
+        addr_region: parent.addr_region,
+        addr_postcode: parent.addr_postcode,
+        addr_country: parent.addr_country,
+        addr_lat: parent.addr_lat,
+        addr_lng: parent.addr_lng,
+        addr_place_id: parent.addr_place_id,
+        country_code: parent.country_code,
+        currency: parent.currency,
+        title: parent.title,
+        description: parent.description,
+        items: parent.items,
+        subtotal: parent.subtotal,
+        tax_rate: parent.tax_rate,
+        tax_amount: parent.tax_amount,
+        total: parent.total,
+        valid_until: parent.valid_until,
+        terms: parent.terms,
+        notes: parent.notes,
+        completion_time: parent.completion_time,
+        estimated_duration_minutes: parent.estimated_duration_minutes,
+        payment_schedule: parent.payment_schedule,
+        deposit_required: parent.deposit_required,
+        deposit_percentage: parent.deposit_percentage,
+        deposit_amount: parent.deposit_amount,
         status: "draft",
       })
       .select()

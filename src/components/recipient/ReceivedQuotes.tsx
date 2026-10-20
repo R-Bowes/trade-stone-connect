@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { DeclineQuoteDialog } from "./DeclineQuoteDialog";
 
 export function ReceivedQuotes() {
-  const { quotes, jobIssuedQuoteIdByNumber, loading, respondToQuote, declineQuote, refetch } = useReceivedQuotes();
+  const { quotes, jobIssuedQuoteIdByNumber, loading, stallQuote, declineQuote, refetch } = useReceivedQuotes();
   const [messageDialog, setMessageDialog] = useState<{
     open: boolean;
     quote: ReceivedQuote | null;
@@ -90,7 +90,7 @@ export function ReceivedQuotes() {
   const handleStall = async (quote: ReceivedQuote) => {
     setPendingIds((prev) => ({ ...prev, [quote.id]: "stalled" }));
     try {
-      await respondToQuote(quote.id, "stalled");
+      await stallQuote(quote.id);
       supabase.functions.invoke("notify-invoice-quote-action", {
         body: { action_type: "stall", context_type: "quote", context_id: quote.id },
       }).catch(console.error);
