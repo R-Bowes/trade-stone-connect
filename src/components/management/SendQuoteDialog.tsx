@@ -16,6 +16,7 @@ import { unitsForCountry } from "@/constants/units";
 import { AddressInput, EMPTY_ADDRESS, composeAddressString, type AddressValue } from "@/components/shared/AddressInput";
 import { fetchDefaultTaxRate } from "@/lib/vatDefaultTaxRate";
 import { CustomerPickerField, type PickedCustomer } from "@/components/shared/CustomerPicker";
+import { notifyQuoteIssued } from "@/lib/notifyQuoteIssued";
 
 // quote_number is assigned by a BEFORE INSERT trigger (contractor_counters
 // allocator) — never generated client-side, hence the Omit here.
@@ -297,6 +298,10 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         .eq("id", enquiry.id);
 
       if (enquiryError) throw enquiryError;
+
+      // The quote went out as 'sent' at insert; email the customer now that
+      // its dates are on offer too. Not awaited — see notifyQuoteIssued.
+      notifyQuoteIssued(insertedQuote.id);
 
       toast({
         title: "Quote sent",

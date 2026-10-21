@@ -13,6 +13,7 @@ import { unitsForCountry } from "@/constants/units";
 import { Loader2, FileText, RefreshCw, Edit2, Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { notifyQuoteIssued } from "@/lib/notifyQuoteIssued";
 import { formatQuoteRef } from "@/lib/documentRefs";
 import { toQuoteState, presentOrNeutral } from "@/lib/statusPresenter";
 import { TONE_BADGE_CLASS } from "@/lib/presenterStyles";
@@ -774,9 +775,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       setSaving(false);
       return;
     }
-    supabase.functions.invoke("notify-invoice-quote-action", {
-      body: { action_type: "issue", context_type: "quote", context_id: selectedQuote.id },
-    }).catch(console.error);
+    notifyQuoteIssued(selectedQuote.id);
     await fetchQuotes();
     setSaving(false);
     closeDialog();
@@ -818,11 +817,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
       await fetchQuotes();
       return;
     }
-    if (send) {
-      supabase.functions.invoke("notify-invoice-quote-action", {
-        body: { action_type: "issue", context_type: "quote", context_id: selectedQuote.id },
-      }).catch(console.error);
-    }
+    if (send) notifyQuoteIssued(selectedQuote.id);
     const fresh = await fetchQuotes();
     setSaving(false);
     if (send) {

@@ -4,6 +4,10 @@
 // (accept, decline, query, pay, message). Sends two emails per action:
 //   1. To the contractor — informing them of the customer's action
 //   2. To the customer  — confirming their own action
+//
+// action_type "issue" (quotes only) is the one contractor-performed action:
+// the contractor who owns a sent quote calls it, and the customer gets one
+// "you have a new quote" email. See handleQuoteIssued.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -63,6 +67,150 @@ const escapeHtml = (text: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#x27;");
 
+// Customer-facing quote reference, duplicated from src/lib/documentRefs.ts's
+// formatQuoteRef (Edge Functions cannot import from src/lib; pdfBranding.ts's
+// copy pulls in pdf-lib). Any format change must be applied in both places.
+const formatCustomerQuoteRef = (contractorCode: string | null, quoteNumber: number, version: number): string => {
+  const num = String(quoteNumber).padStart(4, "0");
+  const base = contractorCode ? `Q-${contractorCode.replace(/^TS-C-/, "")}-${num}` : `Q-${num}`;
+  return version > 1 ? `${base}.${version}` : base;
+};
+
+const formatGbpDate = (isoDate: string): string =>
+  new Date(`${isoDate.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
+
+// Marks a quote version's "new quote" email as sent, so a repeated call for
+// the same version (double click, retry, a second code path) never emails
+// the customer twice. Reuses rate_limits as a send-once ledger: one row per
+// quote id, claimed before sending and released if the send fails.
+const QUOTE_ISSUED_LEDGER_ACTION = "quote_issued_email";
+
+type IssueResult = { status: number; body: Record<string, unknown> };
+
+// deno-lint-ignore no-explicit-any
+async function handleQuoteIssued(supabase: any, quoteId: string, callerId: string, publicUrl: string): Promise<IssueResult> {
+  const { data: quote, error: quoteError } = await supabase
+    .from("issued_quotes")
+    .select("id, contractor_id, recipient_id, quote_number, version, title, total, currency, valid_until, status, sent_at")
+    .eq("id", quoteId)
+    .maybeSingle();
+
+  if (quoteError) {
+    console.error("notify-invoice-quote-action issue: quote lookup failed", { quoteId, code: quoteError.code });
+    return { status: 500, body: { success: false, error: "Could not load the quote" } };
+  }
+  if (!quote) {
+    return { status: 404, body: { success: false, error: "Quote not found" } };
+  }
+  // The contractor sending their own quote — the only party who issues one.
+  if (quote.contractor_id !== callerId) {
+    return { status: 403, body: { success: false, error: "Not authorised for this quote" } };
+  }
+  if (quote.status !== "sent" || !quote.sent_at) {
+    return { status: 409, body: { success: false, error: "This quote has not been sent" } };
+  }
+  // Guest ("Not on TradeStone") quote: nobody to email. Not an error.
+  if (!quote.recipient_id) {
+    return { status: 200, body: { success: true, sent: false, reason: "no_recipient" } };
+  }
+
+  const { data: alreadySent } = await supabase
+    .from("rate_limits")
+    .select("id")
+    .eq("identifier", quote.id)
+    .eq("action_type", QUOTE_ISSUED_LEDGER_ACTION)
+    .limit(1);
+  if (alreadySent && alreadySent.length > 0) {
+    return { status: 200, body: { success: true, sent: false, reason: "already_sent" } };
+  }
+
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+  if (!RESEND_API_KEY) {
+    console.error("notify-invoice-quote-action issue: RESEND_API_KEY not set", { quoteId });
+    return { status: 503, body: { success: false, error: "Email is not configured" } };
+  }
+
+  // Recipient email resolved here with the service role only:
+  // recipient_id -> profiles.user_id -> auth user email. Never returned to
+  // the caller and never logged.
+  const { data: recipientProfile } = await supabase
+    .from("profiles")
+    .select("user_id, user_type")
+    .eq("id", quote.recipient_id)
+    .maybeSingle();
+  const { data: recipientAuth } = recipientProfile?.user_id
+    ? await supabase.auth.admin.getUserById(recipientProfile.user_id)
+    : { data: null };
+  const recipientEmail = recipientAuth?.user?.email ?? "";
+  if (!recipientEmail) {
+    console.error("notify-invoice-quote-action issue: recipient has no email", { quoteId });
+    return { status: 422, body: { success: false, error: "The customer has no email address on file" } };
+  }
+
+  const { data: contractorProfile } = await supabase
+    .from("profiles")
+    .select("company_name, full_name, ts_profile_code")
+    .eq("id", quote.contractor_id)
+    .maybeSingle();
+  const contractorName = contractorProfile?.company_name || contractorProfile?.full_name || "Your contractor";
+
+  const quoteRef = formatCustomerQuoteRef(contractorProfile?.ts_profile_code ?? null, quote.quote_number, quote.version ?? 1);
+  const total = new Intl.NumberFormat("en-GB", { style: "currency", currency: quote.currency || "GBP" })
+    .format(Number(quote.total ?? 0));
+  const ctaUrl = recipientProfile?.user_type === "business"
+    ? `${publicUrl}/dashboard/business?view=approvals`
+    : `${publicUrl}/dashboard/homeowner?view=quotes`;
+
+  const { data: claim, error: claimError } = await supabase
+    .from("rate_limits")
+    .insert({ identifier: quote.id, action_type: QUOTE_ISSUED_LEDGER_ACTION })
+    .select("id")
+    .single();
+  if (claimError) {
+    console.error("notify-invoice-quote-action issue: could not record send", { quoteId, code: claimError.code });
+    return { status: 500, body: { success: false, error: "Could not send the email" } };
+  }
+
+  const emailData = {
+    contractorName,
+    quoteTitle: quote.title ?? "",
+    quoteRef,
+    total,
+    validUntil: quote.valid_until ? formatGbpDate(quote.valid_until) : "",
+    ctaUrl,
+  };
+
+  let sendOk = false;
+  try {
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: "TradeStone <noreply@tradesltd.co.uk>",
+        to: [recipientEmail],
+        subject: buildSubject("quote_issued", emailData),
+        html: buildEmail("quote_issued", emailData),
+      }),
+    });
+    sendOk = resp.ok;
+    if (!resp.ok) {
+      console.error("notify-invoice-quote-action issue: Resend rejected the email", { quoteId, status: resp.status });
+    }
+  } catch (e) {
+    console.error("notify-invoice-quote-action issue: Resend request failed", { quoteId, error: e instanceof Error ? e.message : "unknown" });
+  }
+
+  if (!sendOk) {
+    // Release the claim so a later retry can send.
+    await supabase.from("rate_limits").delete().eq("id", claim.id);
+    return { status: 502, body: { success: false, error: "Could not send the email" } };
+  }
+
+  return { status: 200, body: { success: true, sent: true } };
+}
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -98,6 +246,17 @@ serve(async (req) => {
       ? escapeHtml(rawMessage.trim().slice(0, 2000))
       : undefined;
 
+    const publicUrl = Deno.env.get("SITE_URL") ?? Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
+
+    // Contractor-performed: authorised on quote ownership, not recipiency.
+    if (action_type === "issue") {
+      if (context_type !== "quote" || typeof context_id !== "string" || !context_id) {
+        return jsonResponse(400, { success: false, error: "Only a quote can be issued" }, corsHeaders);
+      }
+      const result = await handleQuoteIssued(supabase, context_id, userData.user.id, publicUrl);
+      return jsonResponse(result.status, result.body, corsHeaders);
+    }
+
     const { data: actorProfile } = await supabase
       .from("profiles")
       .select("full_name, email")
@@ -110,8 +269,6 @@ serve(async (req) => {
     let contractorEmail = "";
     let contractorName  = "";
     let contextLabel    = "";
-
-    const publicUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://tradesltd.co.uk";
 
     // Ownership gate: the caller must be the recipient on the invoice/quote
     // they're claiming to have acted on — without this, any authenticated

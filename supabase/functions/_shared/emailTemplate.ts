@@ -8,6 +8,7 @@ export type EmailType =
   | "new_enquiry"
   | "quote_request_confirmation"
   | "quote_action"
+  | "quote_issued"
   | "overdue_invoice"
   | "payment_received"
   | "cert_expiry"
@@ -40,6 +41,18 @@ export interface QuoteActionData {
   actionLabel: string;       // e.g. "Accepted", "Declined", "Query Raised"
   message?: string;
   isConfirmation: boolean;   // true = sent to actor as confirmation, false = sent to contractor
+  ctaUrl: string;
+}
+
+// Raw (unescaped) values: the quote_issued case escapes them itself, because
+// contractorName and quoteTitle are contractor-entered and the subject line
+// is plain text, not HTML.
+export interface QuoteIssuedData {
+  contractorName: string;
+  quoteTitle: string;
+  quoteRef: string;          // customer-facing form, e.g. "Q-4AE203-0011"
+  total: string;             // formatted, e.g. "£1,250.00"
+  validUntil: string;        // d MMM yyyy
   ctaUrl: string;
 }
 
@@ -95,6 +108,7 @@ export type EmailData =
   | NewEnquiryData
   | QuoteRequestConfirmationData
   | QuoteActionData
+  | QuoteIssuedData
   | OverdueInvoiceData
   | PaymentReceivedData
   | CertExpiryData
@@ -108,6 +122,7 @@ const ACCENT: Record<EmailType, { bar: string; pill: string; pillBg: string; btn
   new_enquiry:                  { bar: "#f07820", pill: "#f07820", pillBg: "#fff4eb", btn: "#f07820" },
   quote_request_confirmation:   { bar: "#3b82f6", pill: "#2563eb", pillBg: "#eff6ff", btn: "#2563eb" },
   quote_action:                 { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
+  quote_issued:                 { bar: "#f07820", pill: "#f07820", pillBg: "#fff4eb", btn: "#f07820" },
   overdue_invoice:              { bar: "#ef4444", pill: "#dc2626", pillBg: "#fef2f2", btn: "#dc2626" },
   payment_received:             { bar: "#22c55e", pill: "#16a34a", pillBg: "#f0fdf4", btn: "#16a34a" },
   cert_expiry:                  { bar: "#f59e0b", pill: "#d97706", pillBg: "#fffbeb", btn: "#d97706" },
@@ -222,6 +237,15 @@ function footerNote(note: string): string {
   <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.7;margin:0;">${note}</p>`;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function headline(text: string): string {
   return `<div style="font-size:19px;font-weight:700;color:#1a2744;line-height:1.3;margin-bottom:7px;">${text}</div>`;
 }
@@ -330,6 +354,27 @@ export function buildEmail(type: EmailType, data: EmailData): string {
         `background:${ACCENT[type].bar};height:4px`,
         `background:${accentOverride.bar};height:4px`
       );
+    }
+
+    // ── 03b Quote sent → customer ────────────────────────────────────────────
+    case "quote_issued": {
+      const d = data as QuoteIssuedData;
+      const contractorName = escapeHtml(d.contractorName);
+      const inner = [
+        pill(type, "New Quote"),
+        headline("You have a new quote"),
+        subtext(`<strong>${contractorName}</strong> has sent you a quote on TradeStone. Open it in your account to review the details and respond.`),
+        detailCard([
+          { label: "From",        value: contractorName },
+          { label: "Quote",       value: escapeHtml(d.quoteTitle) },
+          { label: "Quote ref",   value: escapeHtml(d.quoteRef), mono: true },
+          { label: "Total",       value: `<span style="font-size:15px;font-weight:700;color:#1a2744;">${escapeHtml(d.total)}</span>` },
+          { label: "Valid until", value: escapeHtml(d.validUntil) },
+        ]),
+        ctaButton(type, "View Quote", d.ctaUrl),
+        footerNote("Sent because a contractor sent you a quote on TradeStone."),
+      ].join("\n");
+      return shell(type, inner);
     }
 
     // ── 04 Overdue invoice → client ──────────────────────────────────────────
@@ -459,6 +504,10 @@ export function buildSubject(type: EmailType, data: EmailData): string {
       return d.isConfirmation
         ? `Your response to ${d.contextLabel} — TradeStone`
         : `${d.contextLabel} ${d.actionLabel} — TradeStone`;
+    }
+    case "quote_issued": {
+      const d = data as QuoteIssuedData;
+      return `New quote from ${d.contractorName} — ${d.quoteRef} — TradeStone`;
     }
     case "overdue_invoice": {
       const d = data as OverdueInvoiceData;
