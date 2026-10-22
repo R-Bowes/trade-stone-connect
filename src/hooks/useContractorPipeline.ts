@@ -114,6 +114,7 @@ interface RawQuote {
   deposit_required: boolean | null;
   deposit_paid: boolean | null;
   viewed_at: string | null;
+  decline_reason_code: string | null;
 }
 
 interface RawJob {
@@ -306,7 +307,7 @@ export function useContractorPipeline() {
       supabase
         .from("issued_quotes")
         .select(
-          "id, quote_number, version, status, title, client_name, client_address, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at, deposit_required, deposit_paid, viewed_at",
+          "id, quote_number, version, status, title, client_name, client_address, recipient_id, enquiry_id, sent_at, responded_at, rejected_at, accepted_at, created_at, updated_at, deposit_required, deposit_paid, viewed_at, decline_reason_code",
         )
         .eq("contractor_id", contractorId),
       supabase
@@ -653,7 +654,9 @@ export function useContractorPipeline() {
         });
       } else if (governing?.status === "rejected") {
         const since = governing.rejected_at ?? governing.responded_at ?? governing.updated_at;
-        if (daysSince(since) <= REJECTED_QUOTE_GRACE_DAYS) {
+        // Declined as "I didn't ask for this": nothing to revise or follow
+        // up (the database refuses both), so no card, within this branch.
+        if (daysSince(since) <= REJECTED_QUOTE_GRACE_DAYS && governing.decline_reason_code !== "not_requested") {
           const rejectedResult = presentState(
             { kind: "quote", status: "rejected", withinFollowUpWindow: true },
             "contractor",

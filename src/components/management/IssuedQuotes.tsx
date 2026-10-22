@@ -21,6 +21,8 @@ import { groupByQuoteNumber, resolveGoverningQuote, quoteVersionKey } from "@/li
 import { declineReasonLabel } from "@/lib/declineReasons";
 import { QuoteCard } from "@/components/shared/QuoteCard";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { NewQuoteDialog } from "@/components/management/NewQuoteDialog";
+import { SendQuoteDialog, type DirectQuoteRecipient } from "@/components/management/SendQuoteDialog";
 
 interface LineItem {
   description: string;
@@ -63,6 +65,7 @@ interface IssuedQuote {
   parent_quote_id: string | null;
   enquiry_id: string | null;
   recipient_response: string | null;
+  decline_reason_code: string | null;
   notes: string | null;
   terms: string | null;
 }
@@ -91,13 +94,14 @@ function quoteMoney(items: LineItem[], taxRate: number, depositRequired: boolean
   return { subtotal, tax_amount, total, deposit_amount };
 }
 
-type BadgeableQuote = Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid" | "viewed_at">;
+type BadgeableQuote = Pick<IssuedQuote, "status" | "deposit_required" | "deposit_paid" | "viewed_at" | "decline_reason_code">;
 
 /** The one presenter-driven badge for every quote status this list can show. */
 function quoteBadge(quote: BadgeableQuote): { className: string; label: string } {
   const state = toQuoteState(quote.status, {
     viewed: !!quote.viewed_at,
     withinFollowUpWindow: false,
+    notRequested: quote.decline_reason_code === "not_requested",
     depositRequired: !!quote.deposit_required,
     depositPaid: !!quote.deposit_paid,
   });
@@ -145,6 +149,7 @@ function normaliseRow(q: Record<string, unknown>, contractorId: string): IssuedQ
     parent_quote_id: q.parent_quote_id as string | null,
     enquiry_id: q.enquiry_id as string | null,
     recipient_response: q.recipient_response as string | null,
+    decline_reason_code: q.decline_reason_code as string | null,
     notes: q.notes as string | null,
     terms: q.terms as string | null,
   };
@@ -182,11 +187,19 @@ function QuoteDetailPanel({
   const isDraft = quote.status === "draft";
   const isSent = quote.status === "sent";
   const isRejected = quote.status === "rejected";
+  // "I didn't ask for this": closed to the contractor (no revision, no
+  // messages; both refused by the database too).
+  const isNotRequested = quote.decline_reason_code === "not_requested";
 
   const [declineReason, setDeclineReason] = useState<{ code: string | null; note: string | null } | null>(null);
   useEffect(() => {
-    if (!isRejected || !quote.enquiry_id) { setDeclineReason(null); return; }
+    if (!isRejected) { setDeclineReason(null); return; }
     let cancelled = false;
+    if (!quote.enquiry_id) {
+      // No enquiry: the reason is on the quote itself (no note is kept).
+      setDeclineReason(quote.decline_reason_code ? { code: quote.decline_reason_code, note: null } : null);
+      return;
+    }
     supabase
       .from("enquiry_recipients")
       .select("decline_reason_code, decline_reason_note")
@@ -197,7 +210,7 @@ function QuoteDetailPanel({
         if (!cancelled && data) setDeclineReason({ code: data.decline_reason_code, note: data.decline_reason_note });
       });
     return () => { cancelled = true; };
-  }, [isRejected, quote.enquiry_id, quote.contractor_id]);
+  }, [isRejected, quote.enquiry_id, quote.decline_reason_code, quote.contractor_id]);
   const isAccepted = quote.status === "accepted";
   const isSuperseded = quote.status === "superseded";
 
@@ -345,9 +358,11 @@ function QuoteDetailPanel({
               : <i className="ti ti-download h-3.5 w-3.5 mr-1.5" />}
             Download PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onOpenThread(quote.id)}>
-            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />Open thread
-          </Button>
+          {!isNotRequested && (
+            <Button variant="outline" size="sm" onClick={() => onOpenThread(quote.id)}>
+              <MessageSquare className="h-3.5 w-3.5 mr-1.5" />Open thread
+            </Button>
+          )}
           {isDraft && (
             <>
               <Button variant="outline" size="sm" onClick={onEdit}>
@@ -361,7 +376,7 @@ function QuoteDetailPanel({
               </Button>
             </>
           )}
-          {(isSent || isRejected) && (
+          {(isSent || isRejected) && !isNotRequested && (
             <Button variant="outline" size="sm" onClick={onRevise} disabled={saving}>
               {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
               {isRejected ? "Revise and resend" : "Revise"}
@@ -629,6 +644,8 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
   const [editData, setEditData] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [newQuoteOpen, setNewQuoteOpen] = useState(false);
+  const [directRecipient, setDirectRecipient] = useState<DirectQuoteRecipient | null>(null);
   const { toast } = useToast();
 
   const handleDownloadPdf = useCallback(async (quoteId: string) => {
@@ -678,7 +695,7 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("issued_quotes")
-      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_percentage, deposit_paid, parent_quote_id, enquiry_id, recipient_response, notes, terms")
+      .select("id, quote_number, version, title, client_name, client_email, recipient_id, total, subtotal, tax_amount, tax_rate, status, sent_at, viewed_at, responded_at, accepted_at, rejected_at, created_at, items, valid_until, deposit_required, deposit_amount, deposit_percentage, deposit_paid, parent_quote_id, enquiry_id, recipient_response, decline_reason_code, notes, terms")
       .eq("contractor_id", profileId)
       .order("created_at", { ascending: false });
     const quotes = !error ? (data || []).map(q => normaliseRow(q as Record<string, unknown>, profileId)) : [];
@@ -920,10 +937,29 @@ export function IssuedQuotes({ profileId }: { profileId: string | null }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="font-heading text-2xl font-bold">Issued Quotes</h2>
-        <Button variant="outline" size="sm" onClick={fetchQuotes}>
-          <RefreshCw className="h-4 w-4 mr-2" />Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchQuotes}>
+            <RefreshCw className="h-4 w-4 mr-2" />Refresh
+          </Button>
+          <Button size="sm" onClick={() => setNewQuoteOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />New quote
+          </Button>
+        </div>
       </div>
+
+      {/* A quote with no enquiry: customer by TS-P code, then the quote form. */}
+      <NewQuoteDialog
+        open={newQuoteOpen}
+        onOpenChange={setNewQuoteOpen}
+        onContinue={(recipient) => { setNewQuoteOpen(false); setDirectRecipient(recipient); }}
+      />
+      <SendQuoteDialog
+        open={!!directRecipient}
+        onOpenChange={(o) => { if (!o) setDirectRecipient(null); }}
+        enquiry={null}
+        directRecipient={directRecipient}
+        onSuccess={() => { void fetchQuotes(); }}
+      />
 
       {displayQuotes.length === 0 ? (
         <EmptyState

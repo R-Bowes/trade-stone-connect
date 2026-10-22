@@ -17,6 +17,7 @@ export interface QuoteCardVersion {
   deposit_required: boolean | null;
   deposit_amount: number | null;
   deposit_paid: boolean | null;
+  decline_reason_code?: string | null;
 }
 
 export interface QuoteCardQuote extends QuoteCardVersion {
@@ -48,9 +49,11 @@ interface QuoteCardProps {
   contractorCode?: string | null;
   density?: "full" | "compact";
   actions?: ReactNode;
+  /** Where the work is. When passed, shown right after the counterparty; "Not given" when null. */
+  workAddress?: string | null;
 }
 
-export function QuoteCard({ quote, versions, viewer, counterparty, contractorCode, density = "full", actions }: QuoteCardProps) {
+export function QuoteCard({ quote, versions, viewer, counterparty, contractorCode, density = "full", actions, workAddress }: QuoteCardProps) {
   const compact = density === "compact";
 
   // Fold recipient_response into an effective status the way
@@ -74,6 +77,7 @@ export function QuoteCard({ quote, versions, viewer, counterparty, contractorCod
     // full listing surface) — so a rejected quote always presents as
     // actionable to the contractor, not just within some recent window.
     withinFollowUpWindow: true,
+    notRequested: quote.decline_reason_code === "not_requested",
     depositRequired: !!quote.deposit_required,
     depositPaid: !!quote.deposit_paid,
     validUntil: quote.valid_until,
@@ -106,14 +110,20 @@ export function QuoteCard({ quote, versions, viewer, counterparty, contractorCod
   const daysUntilValid = Math.ceil((new Date(quote.valid_until).getTime() - Date.now()) / 86_400_000);
   const expiringSoon = finalStatus === "sent" && daysUntilValid > 0 && daysUntilValid <= EXPIRING_SOON_DAYS;
 
+  const addressField: RecordCardField[] = workAddress !== undefined
+    ? [{ label: "Work address", value: <span className="font-medium">{workAddress ?? "Not given"}</span> }]
+    : [];
+
   const fields: RecordCardField[] = compact
     ? [
         { label: viewer === "contractor" ? "Client" : "Contractor", value: counterparty },
+        ...addressField,
         { label: "Valid until", value: <span className={expiringSoon ? "text-amber-600 font-medium" : undefined}>{formatDate(quote.valid_until)}</span> },
         { label: "Total", value: formatGBP(quote.total) },
       ]
     : [
         { label: viewer === "contractor" ? "Client" : "Contractor", value: counterparty },
+        ...addressField,
         {
           label: "Total",
           value: totalChanged

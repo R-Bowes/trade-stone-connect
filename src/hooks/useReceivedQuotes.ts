@@ -33,6 +33,13 @@ export interface ReceivedQuote {
   enquiry_id: string | null;
   created_at: string;
   sent_at: string | null;
+  // Where the work is (see formatWorkAddress).
+  client_address: string | null;
+  addr_line1: string | null;
+  addr_line2: string | null;
+  addr_city: string | null;
+  addr_region: string | null;
+  addr_postcode: string | null;
 }
 
 export function useReceivedQuotes() {

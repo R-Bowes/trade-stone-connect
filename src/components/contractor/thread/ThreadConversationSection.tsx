@@ -10,9 +10,15 @@ interface ThreadConversationSectionProps {
   quoteId?: string | null;
   jobId?: string | null;
   contractorId: string;
+  /**
+   * The customer declined as "I didn't ask for this": the contractor can't
+   * start or post in this thread (the database refuses both), so no
+   * composer. The customer's own messages, if any, still show.
+   */
+  closed?: boolean;
 }
 
-export function ThreadConversationSection({ enquiryId, quoteId, jobId, contractorId }: ThreadConversationSectionProps) {
+export function ThreadConversationSection({ enquiryId, quoteId, jobId, contractorId, closed = false }: ThreadConversationSectionProps) {
   const { messages, resolving, sendMessage } = useEngagementConversation({ enquiryId, quoteId, jobId, contractorId });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -66,6 +72,11 @@ export function ThreadConversationSection({ enquiryId, quoteId, jobId, contracto
           )}
           <div ref={endRef} />
         </div>
+        {closed ? (
+          <p className="border-t p-3 text-sm text-muted-foreground">
+            The customer said they didn't ask for this quote, so you can't message them about it.
+          </p>
+        ) : (
         <div className="border-t p-2 flex items-end gap-2">
           <Textarea
             id="thread-message-input"
@@ -85,6 +96,7 @@ export function ThreadConversationSection({ enquiryId, quoteId, jobId, contracto
             <Send className="h-3.5 w-3.5" />
           </Button>
         </div>
+        )}
       </div>
     </div>
   );

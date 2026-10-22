@@ -9,6 +9,7 @@ import { confirmQuoteSlot } from "@/lib/confirmQuoteSlot";
 import { DepositPaymentDialog } from "./DepositPaymentDialog";
 import { QuoteBreakdownSummary } from "./QuoteBreakdownSummary";
 import type { ReceivedQuote } from "@/hooks/useReceivedQuotes";
+import { formatWorkAddress } from "@/lib/workAddress";
 
 interface QuoteAcceptScreenProps {
   quote: ReceivedQuote;
@@ -43,6 +44,14 @@ export function QuoteAcceptScreen({
   const { toast } = useToast();
 
   const hasDeposit = Boolean(quote.deposit_required) && quoteDepositAmount != null && quoteDepositAmount > 0;
+
+  // Shown first: the customer confirms where the work is before anything else.
+  const workAddressBlock = (
+    <div className="rounded-lg border p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Work address</p>
+      <p className="text-sm font-semibold">{formatWorkAddress(quote) ?? "Not given"}</p>
+    </div>
+  );
 
   const getAmPmLabel = (startIso: string) => {
     const h = new Date(startIso).getHours();
@@ -101,6 +110,7 @@ export function QuoteAcceptScreen({
   if (pendingFromOther.length === 0) {
     return (
       <div className="space-y-3 py-2">
+        {workAddressBlock}
         <p className="text-sm text-muted-foreground">
           No open dates from {contractorName} right now — message them to agree a date.
         </p>
@@ -112,6 +122,8 @@ export function QuoteAcceptScreen({
   return (
     <>
       <div className="space-y-4">
+        {workAddressBlock}
+
         <QuoteBreakdownSummary
           items={Array.isArray(quote.items) ? quote.items : []}
           subtotal={Number(quote.subtotal)}

@@ -41,7 +41,7 @@ export type EnquiryState = {
 export type QuoteState =
   | { kind: "quote"; status: "draft" }
   | { kind: "quote"; status: "sent"; viewed: boolean }
-  | { kind: "quote"; status: "rejected"; withinFollowUpWindow: boolean }
+  | { kind: "quote"; status: "rejected"; withinFollowUpWindow: boolean; notRequested?: boolean }
   | { kind: "quote"; status: "stalled" }
   | { kind: "quote"; status: "expired" }
   | { kind: "quote"; status: "lapsed" }
@@ -181,6 +181,8 @@ export function toEnquiryState(status: string | null | undefined): EnquiryState 
 export interface QuoteStateExtras {
   viewed?: boolean;
   withinFollowUpWindow?: boolean;
+  /** Declined as 'not_requested': closed to the contractor, nothing to follow up. */
+  notRequested?: boolean;
   depositRequired?: boolean;
   depositPaid?: boolean;
   /**
@@ -205,7 +207,7 @@ export function toQuoteState(status: string | null | undefined, extra: QuoteStat
       }
       return { kind: "quote", status: "sent", viewed: !!extra.viewed };
     case "rejected":
-      return { kind: "quote", status: "rejected", withinFollowUpWindow: !!extra.withinFollowUpWindow };
+      return { kind: "quote", status: "rejected", withinFollowUpWindow: !!extra.withinFollowUpWindow, notRequested: !!extra.notRequested };
     case "stalled":
       return { kind: "quote", status: "stalled" };
     case "expired":
@@ -393,9 +395,11 @@ function presentQuote(state: QuoteState, viewer: Viewer): PresenterResult {
     case "rejected":
       return perspective(
         viewer,
-        state.withinFollowUpWindow
-          ? chip("Rejected — revise or follow up", "action", "you")
-          : chip("Rejected", "neutral", null),
+        state.notRequested
+          ? chip("Declined: not requested", "neutral", null)
+          : state.withinFollowUpWindow
+            ? chip("Rejected — revise or follow up", "action", "you")
+            : chip("Rejected", "neutral", null),
         chip("You declined this quote", "neutral", null),
       );
     case "stalled":

@@ -31,7 +31,7 @@ const PRIMARY_STYLE = { backgroundColor: "#f07820", color: "#fff", borderColor: 
 
 interface EngagementDetail {
   enquiry: ThreadEnquiry | null;
-  quote: (ThreadQuote & { enquiry_id: string | null }) | null;
+  quote: (ThreadQuote & { enquiry_id: string | null; decline_reason_code: string | null }) | null;
   quoteVersions: ThreadQuoteVersion[];
   job: (ThreadJob & { customer_id: string; issued_quote_id: string | null }) | null;
   invoice: ThreadInvoice | null;
@@ -62,7 +62,7 @@ async function fetchEngagementDetail(engagement: PipelineEngagement): Promise<En
     const { data } = await supabase
       .from("issued_quotes")
       .select(
-        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, recipient_response, total, subtotal, tax_amount, tax_rate, items, sent_at, viewed_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, deposit_paid, enquiry_id, contractor_id",
+        "id, quote_number, version, title, client_name, client_email, client_phone, client_address, status, recipient_response, total, subtotal, tax_amount, tax_rate, items, sent_at, viewed_at, responded_at, accepted_at, rejected_at, deposit_required, deposit_amount, deposit_paid, enquiry_id, contractor_id, decline_reason_code",
       )
       .eq("id", quoteId)
       .maybeSingle();
@@ -304,6 +304,7 @@ export function EngagementThread({
               quoteId={detail.quote?.id}
               jobId={detail.job?.id}
               contractorId={contractorId}
+              closed={detail.quote?.decline_reason_code === "not_requested"}
             />
             <Separator />
 

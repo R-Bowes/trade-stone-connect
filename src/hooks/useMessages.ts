@@ -84,7 +84,10 @@ export function useMessages(
       message_type: "message",
     });
     if (error) {
-      toast({ title: "Error", description: "Failed to send message", variant: "destructive" });
+      // A guard's own message (e.g. a quote the customer said they didn't
+      // ask for) is written for the user; an RLS refusal is not.
+      const readable = error.code === "42501" && error.message && !/row-level security/i.test(error.message);
+      toast({ title: "Error", description: readable ? error.message : "Failed to send message", variant: "destructive" });
     }
   }, [conversationId, profileId, senderRole, toast]);
 

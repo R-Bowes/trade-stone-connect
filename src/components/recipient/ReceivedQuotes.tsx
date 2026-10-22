@@ -13,6 +13,7 @@ import { groupByQuoteNumber, resolveGoverningQuote } from "@/lib/quoteVersions";
 import { QuoteCard } from "@/components/shared/QuoteCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DeclineQuoteDialog } from "./DeclineQuoteDialog";
+import { formatWorkAddress } from "@/lib/workAddress";
 
 export function ReceivedQuotes() {
   const { quotes, jobIssuedQuoteIdByNumber, loading, stallQuote, declineQuote, refetch } = useReceivedQuotes();
@@ -156,6 +157,7 @@ export function ReceivedQuotes() {
             viewer="recipient"
             counterparty={q.contractor_name}
             contractorCode={q.contractor_ts_code}
+            workAddress={formatWorkAddress(q)}
             actions={
               <>
                 {isResponding(q) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -269,6 +271,7 @@ export function ReceivedQuotes() {
         open={!!declineQuoteTarget}
         onOpenChange={(o) => { if (!o) setDeclineQuoteTarget(null); }}
         contractorName={declineQuoteTarget?.contractor_name}
+        noEnquiry={!!declineQuoteTarget && !declineQuoteTarget.enquiry_id}
         onConfirm={handleDeclineConfirmed}
       />
     </div>

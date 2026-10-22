@@ -2110,6 +2110,116 @@ export type Database = {
           },
         ]
       }
+      credit_notes: {
+        Row: {
+          company_id: string | null
+          contractor_id: string
+          country_code: string
+          created_at: string
+          created_by: string | null
+          credit_note_number: number | null
+          currency: string
+          customer_snapshot: Json | null
+          id: string
+          invoice_id: string
+          issued_at: string | null
+          issued_date: string | null
+          items: Json
+          original_invoice_number: number | null
+          original_issued_date: string | null
+          reason: string
+          recipient_id: string | null
+          status: string
+          subtotal: number
+          supplier_snapshot: Json | null
+          tax_amount: number
+          tax_rate: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          contractor_id: string
+          country_code: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_number?: number | null
+          currency: string
+          customer_snapshot?: Json | null
+          id?: string
+          invoice_id: string
+          issued_at?: string | null
+          issued_date?: string | null
+          items: Json
+          original_invoice_number?: number | null
+          original_issued_date?: string | null
+          reason: string
+          recipient_id?: string | null
+          status?: string
+          subtotal: number
+          supplier_snapshot?: Json | null
+          tax_amount: number
+          tax_rate: number
+          total: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          contractor_id?: string
+          country_code?: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_number?: number | null
+          currency?: string
+          customer_snapshot?: Json | null
+          id?: string
+          invoice_id?: string
+          issued_at?: string | null
+          issued_date?: string | null
+          items?: Json
+          original_invoice_number?: number | null
+          original_issued_date?: string | null
+          reason?: string
+          recipient_id?: string | null
+          status?: string
+          subtotal?: number
+          supplier_snapshot?: Json | null
+          tax_amount?: number
+          tax_rate?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_invoice_country_fkey"
+            columns: ["invoice_id", "country_code"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id", "country_code"]
+          },
+        ]
+      }
       crm_activities: {
         Row: {
           activity_date: string
@@ -3371,6 +3481,8 @@ export type Database = {
           contractor_id: string
           country_code: string
           created_at: string
+          credited_amount: number
+          credited_tax_amount: number
           currency: string
           customer_snapshot: Json | null
           deposit_amount: number | null
@@ -3427,6 +3539,8 @@ export type Database = {
           contractor_id: string
           country_code?: string
           created_at?: string
+          credited_amount?: number
+          credited_tax_amount?: number
           currency?: string
           customer_snapshot?: Json | null
           deposit_amount?: number | null
@@ -3483,6 +3597,8 @@ export type Database = {
           contractor_id?: string
           country_code?: string
           created_at?: string
+          credited_amount?: number
+          credited_tax_amount?: number
           currency?: string
           customer_snapshot?: Json | null
           deposit_amount?: number | null
@@ -3610,6 +3726,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_note: string | null
+          decline_reason_code: string | null
           deposit_amount: number | null
           deposit_paid: boolean | null
           deposit_paid_at: string | null
@@ -3665,6 +3782,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_note?: string | null
+          decline_reason_code?: string | null
           deposit_amount?: number | null
           deposit_paid?: boolean | null
           deposit_paid_at?: string | null
@@ -3720,6 +3838,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_note?: string | null
+          decline_reason_code?: string | null
           deposit_amount?: number | null
           deposit_paid?: boolean | null
           deposit_paid_at?: string | null
@@ -12598,6 +12717,27 @@ export type Database = {
         Args: { p_amount: number; p_company_id: string; p_site_id: string }
         Returns: boolean
       }
+      _conversation_not_requested_recipient: {
+        Args: { p_conversation_id: string }
+        Returns: string
+      }
+      _credit_note_figures: {
+        Args: { p_invoice_id: string; p_items: Json }
+        Returns: {
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          total: number
+        }[]
+      }
+      _credit_note_problem: {
+        Args: { p_exclude_cn: string; p_invoice_id: string; p_total: number }
+        Returns: string
+      }
+      _customer_relationship: {
+        Args: { p_contractor_id: string; p_customer_id: string }
+        Returns: boolean
+      }
       _dispatch_work_order: {
         Args: { p_engagement_id: string; p_work_order_id: string }
         Returns: undefined
@@ -12613,6 +12753,10 @@ export type Database = {
         }
         Returns: string
       }
+      _issue_credit_note: {
+        Args: { p_actor: string; p_id: string }
+        Returns: number
+      }
       _issue_invoice: { Args: { p_invoice_id: string }; Returns: number }
       _job_is_work_order_job: { Args: { p_job_id: string }; Returns: boolean }
       _log_work_order_event: {
@@ -12625,6 +12769,11 @@ export type Database = {
           p_work_order_id: string
         }
         Returns: undefined
+      }
+      _mask_customer_name: { Args: { p_name: string }; Returns: string }
+      _not_requested_quote_recipient: {
+        Args: { p_quote_id: string }
+        Returns: string
       }
       _price_cost_line: {
         Args: {
@@ -13007,6 +13156,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_credit_note_draft: {
+        Args: { p_invoice_id: string; p_items: Json; p_reason: string }
+        Returns: string
+      }
       create_direct_engagement: {
         Args: {
           p_billing_anchor_day?: number
@@ -13106,6 +13259,7 @@ export type Database = {
         Args: { p_reason: string; p_work_order_id: string }
         Returns: undefined
       }
+      delete_credit_note_draft: { Args: { p_id: string }; Returns: undefined }
       detach_job_from_package: {
         Args: { p_package_id: string }
         Returns: undefined
@@ -13595,6 +13749,10 @@ export type Database = {
       tender_status_for_application: {
         Args: { p_application_id: string }
         Returns: string
+      }
+      update_credit_note_draft: {
+        Args: { p_id: string; p_items: Json; p_reason: string }
+        Returns: undefined
       }
       value_variance_to_score: {
         Args: { p_variance_pct: number }

@@ -10,6 +10,7 @@ export const DECLINE_REASON_LABEL: Record<string, string> = {
   went_elsewhere: "The client has gone with another contractor.",
   changed_mind: "The client has decided not to proceed with this job.",
   auto_accepted_another: "The client accepted a different quote for this job.",
+  not_requested: "The client says they didn't ask for this quote.",
 };
 
 export function declineReasonLabel(code: string | null | undefined): string | null {

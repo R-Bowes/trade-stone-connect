@@ -13,10 +13,18 @@ const REASON_OPTIONS: { value: string; label: string }[] = [
   { value: "changed_mind", label: "Changed my mind about the job" },
 ];
 
+// Only for a quote with no enquiry: one the customer never asked for.
+const NOT_REQUESTED_OPTION = { value: "not_requested", label: "I didn't ask for this" };
+
 interface DeclineQuoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contractorName?: string | null;
+  /**
+   * The quote has no enquiry: offers "I didn't ask for this", and drops the
+   * note field (decline_quote keeps a note only on an enquiry).
+   */
+  noEnquiry?: boolean;
   onConfirm: (reasonCode: string | null, reasonNote: string | null) => Promise<void>;
 }
 
@@ -27,7 +35,8 @@ interface DeclineQuoteDialogProps {
  * notice directly above the field: people write differently once they
  * know a person reads it, and the contractor does.
  */
-export function DeclineQuoteDialog({ open, onOpenChange, contractorName, onConfirm }: DeclineQuoteDialogProps) {
+export function DeclineQuoteDialog({ open, onOpenChange, contractorName, noEnquiry = false, onConfirm }: DeclineQuoteDialogProps) {
+  const options = noEnquiry ? [NOT_REQUESTED_OPTION, ...REASON_OPTIONS] : REASON_OPTIONS;
   const [reason, setReason] = useState<string>("skip");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +52,7 @@ export function DeclineQuoteDialog({ open, onOpenChange, contractorName, onConfi
   const handleConfirm = async () => {
     setSubmitting(true);
     try {
-      await onConfirm(reason === "skip" ? null : reason, note.trim() || null);
+      await onConfirm(reason === "skip" ? null : reason, noEnquiry ? null : note.trim() || null);
       onOpenChange(false);
     } finally {
       setSubmitting(false);
@@ -62,7 +71,7 @@ export function DeclineQuoteDialog({ open, onOpenChange, contractorName, onConfi
 
         <div className="space-y-4">
           <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">
-            {REASON_OPTIONS.map((opt) => (
+            {options.map((opt) => (
               <label key={opt.value} className="flex items-center gap-2 text-sm border rounded-md p-2.5 cursor-pointer">
                 <RadioGroupItem value={opt.value} />
                 {opt.label}
@@ -74,18 +83,20 @@ export function DeclineQuoteDialog({ open, onOpenChange, contractorName, onConfi
             </label>
           </RadioGroup>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="decline-note" className="text-xs text-muted-foreground">
-              The contractor will see this note.
-            </Label>
-            <Textarea
-              id="decline-note"
-              placeholder="Optional — add anything you'd like them to know"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="min-h-20"
-            />
-          </div>
+          {!noEnquiry && (
+            <div className="space-y-1.5">
+              <Label htmlFor="decline-note" className="text-xs text-muted-foreground">
+                The contractor will see this note.
+              </Label>
+              <Textarea
+                id="decline-note"
+                placeholder="Optional — add anything you'd like them to know"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="min-h-20"
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">

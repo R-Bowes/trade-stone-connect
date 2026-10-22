@@ -28,22 +28,39 @@ interface CustomerPickerProps {
   onPick: (picked: PickedCustomer) => void;
   onClear: () => void;
   disabled?: boolean;
+  /**
+   * "ts_p_code": exact personal (TS-P) code only, no name search and no
+   * "Not on TradeStone" — the quote-by-TS-code flow. Defaults to "search".
+   */
+  mode?: "search" | "ts_p_code";
+}
+
+const HOMEOWNER_ONLY = "Only homeowner (TS-P) codes can be quoted this way.";
+const TS_P_CODE = /^TS-P-[A-Z0-9]{4,}$/i;
+
+/** Why a query can't be looked up in ts_p_code mode, or null when it can. */
+function tsPCodeProblem(query: string): string | null {
+  if (/^TS-[BC]-/i.test(query)) return HOMEOWNER_ONLY;
+  if (!TS_P_CODE.test(query)) return "Enter the customer's full TS-P code, for example TS-P-1A2B3C.";
+  return null;
 }
 
 /**
  * Search by TS code or name, restricted server-side (search_customers RPC)
  * to accounts an exact code always resolves, a name search only returns
  * accounts the caller already has a relationship with. Picking a result
- * hands the full row (incl. address) back to the caller; "Not on
- * TradeStone" keeps the recipient unlinked.
+ * hands the full row back to the caller; the name is masked and the
+ * address left out when there is no relationship. "Not on TradeStone"
+ * keeps the recipient unlinked.
  */
-export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPickerProps) {
+export function CustomerPicker({ picked, onPick, onClear, disabled, mode = "search" }: CustomerPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CustomerSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeOnly = mode === "ts_p_code";
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -52,6 +69,15 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
       setResults([]);
       setSearching(false);
       return;
+    }
+    if (codeOnly) {
+      const problem = tsPCodeProblem(trimmed);
+      if (problem) {
+        setError(problem);
+        setResults([]);
+        setSearching(false);
+        return;
+      }
     }
     setSearching(true);
     debounceRef.current = setTimeout(() => {
@@ -62,8 +88,16 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
             setError(rpcError.message);
             setResults([]);
           } else {
-            setError(null);
-            setResults((data ?? []) as CustomerSearchResult[]);
+            const rows = (data ?? []) as CustomerSearchResult[];
+            // Some business accounts carry TS-P codes; the account type,
+            // not the prefix, decides.
+            if (codeOnly && rows.some((r) => r.account_type !== "personal")) {
+              setError(HOMEOWNER_ONLY);
+              setResults([]);
+            } else {
+              setError(null);
+              setResults(rows);
+            }
           }
           setSearching(false);
         });
@@ -71,7 +105,7 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, codeOnly]);
 
   if (picked) {
     const label = picked.kind === "not_on_tradestone"
@@ -98,7 +132,7 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Search by TS code or name"
+          placeholder={codeOnly ? "TS-P code, e.g. TS-P-1A2B3C" : "Search by TS code or name"}
           disabled={disabled}
         />
         {open && query.trim().length >= 2 && (
@@ -108,7 +142,9 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
             ) : error ? (
               <p className="p-3 text-sm text-destructive">{error}</p>
             ) : results.length === 0 ? (
-              <p className="p-3 text-sm text-muted-foreground">No matches.</p>
+              <p className="p-3 text-sm text-muted-foreground">
+                {codeOnly ? "No TradeStone account has that code." : "No matches."}
+              </p>
             ) : (
               <ul className="max-h-56 overflow-y-auto">
                 {results.map((r) => (
@@ -128,16 +164,18 @@ export function CustomerPicker({ picked, onPick, onClear, disabled }: CustomerPi
           </div>
         )}
       </div>
-      <Button
-        type="button"
-        variant="link"
-        size="sm"
-        className="h-auto p-0 text-muted-foreground"
-        onClick={() => { onPick({ kind: "not_on_tradestone" }); setOpen(false); setQuery(""); }}
-        disabled={disabled}
-      >
-        Not on TradeStone
-      </Button>
+      {!codeOnly && (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-muted-foreground"
+          onClick={() => { onPick({ kind: "not_on_tradestone" }); setOpen(false); setQuery(""); }}
+          disabled={disabled}
+        >
+          Not on TradeStone
+        </Button>
+      )}
     </div>
   );
 }

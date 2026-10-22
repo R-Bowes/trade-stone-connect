@@ -61,10 +61,20 @@ type LineItem = {
 // GB-only for now — no country/locale selector added, per scope.
 const UNIT_OPTIONS = unitsForCountry("GB");
 
+/** The customer for a quote with no enquiry, picked by TS-P code. */
+export type DirectQuoteRecipient = {
+  profileId: string;
+  /** As search_customers returned it: masked unless there is a relationship. */
+  displayName: string;
+  tsCode: string | null;
+};
+
 interface SendQuoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  enquiry: Enquiry;
+  /** null: a quote with no enquiry, to directRecipient. */
+  enquiry: Enquiry | null;
+  directRecipient?: DirectQuoteRecipient | null;
   onSuccess?: () => void;
 }
 
@@ -72,7 +82,23 @@ function blankItem(): LineItem {
   return { key: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0, unit: "" };
 }
 
-export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: SendQuoteDialogProps) {
+/** Country + line 1 + city + region + postcode, as QuoteRequestDialog requires. */
+function isAddressComplete(a: AddressValue): boolean {
+  return !!(a.addr_country && a.addr_line1?.trim() && a.addr_city?.trim() && a.addr_region?.trim() && a.addr_postcode?.trim());
+}
+
+// The quote guards (lock guard, figure check, no-enquiry recipient guard)
+// raise messages written for the contractor: show those. Anything else
+// (network, RLS) stays generic.
+function readableSendError(error: unknown): string {
+  const e = error as { code?: string; message?: string } | null;
+  if (e?.message && (e.code === "23514" || (e.code === "42501" && !/row-level security/i.test(e.message)))) {
+    return e.message;
+  }
+  return "Please try again.";
+}
+
+export function SendQuoteDialog({ open, onOpenChange, enquiry, directRecipient = null, onSuccess }: SendQuoteDialogProps) {
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -96,12 +122,16 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
   // submit payload below falls back to enquiry.location exactly as before.
   const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
   const [proposedSlots, setProposedSlots] = useState<PickedSlot[]>([]);
+  // No enquiry: the contractor is the signed-in profile, resolved on open
+  // (for the date picker and the default tax rate).
+  const [sessionContractorId, setSessionContractorId] = useState<string | null>(null);
+  const contractorIdForForm = enquiry ? enquiry.contractor_id ?? "" : sessionContractorId ?? "";
 
   useEffect(() => {
     if (!open) return;
     // Use enquiry title as starting point — never default to customer name
-    setTitle(enquiry.title ?? "");
-    setDescription(enquiry.job_description ?? "");
+    setTitle(enquiry?.title ?? "");
+    setDescription(enquiry?.job_description ?? "");
     setItems([blankItem()]);
     setCompletionTime("");
     setValidUntil("");
@@ -109,10 +139,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     setTerms("");
     setDepositRequired(false);
     setDepositPercentage(25);
-    setAddress(EMPTY_ADDRESS);
+    // No enquiry: the work address starts in the United Kingdom.
+    setAddress(enquiry ? EMPTY_ADDRESS : { ...EMPTY_ADDRESS, addr_country: "GB" });
     setProposedSlots([]);
 
-    if (enquiry.customer_id) {
+    if (!enquiry) {
+      // The masked name search_customers returned — never the full name.
+      setCustomerDisplay(directRecipient ? { name: directRecipient.displayName, tsCode: directRecipient.tsCode } : null);
+    } else if (enquiry.customer_id) {
       supabase
         .from("profiles")
         .select("full_name, ts_profile_code")
@@ -127,10 +161,21 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
     // Default tax rate from the contractor's own VAT status, not a flat 20%
     // (JobManagement's invoice-from-job flow already does this correctly).
     setTaxRate(20);
-    if (enquiry.contractor_id) {
-      void fetchDefaultTaxRate(enquiry.contractor_id).then(setTaxRate);
+    if (enquiry) {
+      if (enquiry.contractor_id) {
+        void fetchDefaultTaxRate(enquiry.contractor_id).then(setTaxRate);
+      }
+    } else {
+      setSessionContractorId(null);
+      void supabase.auth.getUser().then(async ({ data: { user } }) => {
+        if (!user) return;
+        const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+        if (!profile) return;
+        setSessionContractorId(profile.id);
+        setTaxRate(await fetchDefaultTaxRate(profile.id));
+      });
     }
-  }, [open, enquiry]);
+  }, [open, enquiry, directRecipient]);
 
   const updateItem = useCallback(
     (key: string, field: keyof Omit<LineItem, "key">, value: string | number) => {
@@ -176,6 +221,16 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       toast({ title: "Select 2–5 available dates", description: "Offer the customer between 2 and 5 dates before sending.", variant: "destructive" });
       return;
     }
+    if (!enquiry) {
+      if (!directRecipient) {
+        toast({ title: "Customer required", variant: "destructive" });
+        return;
+      }
+      if (!isAddressComplete(address)) {
+        toast({ title: "Work address required", description: "Enter where the work is: country, first line, town, county and postcode.", variant: "destructive" });
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -194,10 +249,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
 
       // enquiry.customer_id is already a profiles.id; null for guest
       // enquiries, unless the contractor has since picked an on-platform
-      // account for this guest via the customer search.
-      const recipientId: string | null = enquiry.customer_id
-        ?? (pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.profile_id : null);
-      const pickedName = pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.display_name : null;
+      // account for this guest via the customer search. No enquiry: the
+      // customer picked by TS-P code.
+      const recipientId: string | null = enquiry
+        ? enquiry.customer_id ?? (pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.profile_id : null)
+        : directRecipient?.profileId ?? null;
+      const pickedName = enquiry
+        ? (pickedCustomer?.kind === "on_platform" ? pickedCustomer.result.display_name : null)
+        : directRecipient?.displayName ?? null;
 
       const lineItems = filledItems.map(({ description, quantity, unit_price, unit }) => ({
         description: description.trim(),
@@ -220,12 +279,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       const quotePayload: IssuedQuoteInsert = {
         contractor_id: contractorProfile.id,
         recipient_id: recipientId,
-        enquiry_id: enquiry.id,
+        enquiry_id: enquiry?.id ?? null,
         // client_* fields are required by NOT NULL constraints — written to DB only,
         // never rendered in any UI component. Contact reveal governed by 48hr rule.
-        client_name: pickedName ?? enquiry.customer_name ?? "",
-        client_email: enquiry.customer_email ?? "",
-        client_phone: enquiry.customer_phone ?? null,
+        // No enquiry: the masked name, and a blank email (the quote email
+        // resolves the customer's address server-side).
+        client_name: pickedName ?? enquiry?.customer_name ?? "",
+        client_email: enquiry?.customer_email ?? "",
+        client_phone: enquiry?.customer_phone ?? null,
         // Carried from the enquiry so the quote — a customer-facing document —
         // states the site address in its own right, not only once a job is
         // later minted from it. Previously never written here at all: the
@@ -234,7 +295,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
         // and jobs.location for every job minted from an enquiry-originated
         // quote) null. mint_job_from_quote keeps its own COALESCE fallback to
         // enquiries.location as a safety net for quotes issued before this fix.
-        client_address: composedAddress || enquiry.location || null,
+        client_address: composedAddress || enquiry?.location || null,
         addr_line1: address.addr_line1,
         addr_line2: address.addr_line2,
         addr_city: address.addr_city,
@@ -292,12 +353,14 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       );
       if (slotsError) throw slotsError;
 
-      const { error: enquiryError } = await supabase
-        .from("enquiries")
-        .update({ status: "converted" })
-        .eq("id", enquiry.id);
+      if (enquiry) {
+        const { error: enquiryError } = await supabase
+          .from("enquiries")
+          .update({ status: "converted" })
+          .eq("id", enquiry.id);
 
-      if (enquiryError) throw enquiryError;
+        if (enquiryError) throw enquiryError;
+      }
 
       // The quote went out as 'sent' at insert; email the customer now that
       // its dates are on offer too. Not awaited — see notifyQuoteIssued.
@@ -313,7 +376,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
       console.error("Failed to send quote:", error);
       toast({
         title: "Could not send quote",
-        description: "Please try again.",
+        description: readableSendError(error),
         variant: "destructive",
       });
     } finally {
@@ -347,6 +410,7 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
 
         <div className="space-y-6">
           {/* Read-only enquiry context — no contact details rendered */}
+          {enquiry && (
           <div className="rounded-md bg-muted p-4 space-y-2 text-sm">
             <p className="font-medium text-foreground">Enquiry details</p>
             <p className="text-muted-foreground line-clamp-3">{enquiry.job_description}</p>
@@ -369,8 +433,9 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               <EnquiryPhotoThumbnails paths={enquiry.photo_urls.slice(0, 4)} label="Customer photos" />
             )}
           </div>
+          )}
 
-          {!enquiry.customer_id && (
+          {enquiry && !enquiry.customer_id && (
             <CustomerPickerField
               picked={pickedCustomer}
               onPick={setPickedCustomer}
@@ -401,18 +466,30 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Site address for this quote (optional)</Label>
-            <p className="text-xs text-muted-foreground">
-              Leave blank to use the enquiry's address as-is, or fill this in to record a structured address on the quote.
-            </p>
-            <AddressInput
-              value={address}
-              onChange={setAddress}
-              disabled={submitting}
-              legacyValue={enquiry.location}
-            />
-          </div>
+          {enquiry ? (
+            <div className="space-y-2">
+              <Label>Site address for this quote (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Leave blank to use the enquiry's address as-is, or fill this in to record a structured address on the quote.
+              </p>
+              <AddressInput
+                value={address}
+                onChange={setAddress}
+                disabled={submitting}
+                legacyValue={enquiry.location}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>
+                Work address <span className="text-destructive">*</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Where the work is. The customer sees this on the quote.
+              </p>
+              <AddressInput value={address} onChange={setAddress} disabled={submitting} required />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Line items</Label>
@@ -526,16 +603,22 @@ export function SendQuoteDialog({ open, onOpenChange, enquiry, onSuccess }: Send
               Offer 2–5 dates when you send this quote — the customer picks one to confirm.
             </p>
             {proposedSlots.length === 0 ? (
-              <SlotPicker
-                contractorId={enquiry.contractor_id ?? ""}
-                maxSlots={5}
-                minSlots={2}
-                helperText="Select 2–5 available dates to offer."
-                submitLabel={(count) => `Use these ${count} date${count !== 1 ? "s" : ""}`}
-                onSubmit={(slots) => setProposedSlots(slots)}
-                preferredTimeOfDay={enquiry.preferred_time_of_day}
-                preferredWindowStart={enquiry.preferred_window_start}
-              />
+              !enquiry && !sessionContractorId ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />Loading your availability...
+                </div>
+              ) : (
+                <SlotPicker
+                  contractorId={contractorIdForForm}
+                  maxSlots={5}
+                  minSlots={2}
+                  helperText="Select 2–5 available dates to offer."
+                  submitLabel={(count) => `Use these ${count} date${count !== 1 ? "s" : ""}`}
+                  onSubmit={(slots) => setProposedSlots(slots)}
+                  preferredTimeOfDay={enquiry?.preferred_time_of_day}
+                  preferredWindowStart={enquiry?.preferred_window_start}
+                />
+              )
             ) : (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
