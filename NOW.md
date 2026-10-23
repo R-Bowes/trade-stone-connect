@@ -52,6 +52,22 @@ Still open, holes NOT yet closed:
   (issued_quotes locked by 20261020120000: recipients write only through
   accept_quote_with_slot / decline_quote / stall_quote; contractors edit
   drafts only, send with send_quote, change a sent quote by revision.)
+- Tenders: live-inspected 22 Oct 2026 — `tenders.status`/`tender_applications.status`
+  and every server-stamped column were plain client-writable (blanket
+  column grants, no transition guard beyond `enforce_tender_application_immutability`,
+  which never checks who is acting). No close/unseal engine existed at all
+  (nothing ever set `status` to `'closed'`/`'unsealed'`; the two live
+  `'awarded'` tenders are seeded test data, not an organic award). Slice 1
+  (lifecycle lock) drafted 22 Oct 2026:
+  `scratchpad/pending/20261022130000_tender_lifecycle_lock.sql` — invoices'
+  column-grant + content-lock-trigger pattern copied onto `tenders`/
+  `tender_applications`; the six satellite tables' write policies split to
+  draft-only; `close_due_tenders()` (cron), `unseal_tender()`,
+  `cancel_tender()`, `withdraw_tender_application()` added; owner-only
+  check added to `award_tender_agreement`; published+deadline checks added
+  to `submit_tender_application`/`create_tender_application_draft`. Proved
+  in rolled-back transactions (scenarios 1-15, all pass). NOT pushed, NOT
+  deployed, NOT committed — closes nothing above until it is.
 - jobs SELECT for company members is not narrowed by site coverage: a
   site-only member can read every job in the company ("Company members
   can view company jobs" checks is_company_member only). Found 9 Oct.

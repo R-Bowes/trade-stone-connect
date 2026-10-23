@@ -31,6 +31,31 @@ Legend: ✅ built (engine + UI) · ⚙️ engine only, no UI · ❌ missing · �
 - **Automation:** three crons live (sla-clock, mark-overdue-invoices,
   tendering-runner); Vault-secured secrets.
 
+**CORRECTION (22 Oct 2026, live-inspection + slice 1):** several claims
+below were stale relative to the live schema/code at the time this doc was
+drafted. Corrected in place where they appear, summarised here:
+- Stage 2's "zero contractor UI exists" was wrong — a real pipeline, brief
+  (incl. the prequal RAG banner), application stepper (incl. the dynamic
+  pricing-schedule grid, not just a fixed rates card), and draft-save were
+  already built. Only Submit and decline-to-bid were still stubbed, now
+  fixed by slice 1's `submit_tender_application`/`withdraw_tender_application`
+  wiring (screens for Submit/decline are still a separate build, slice 1 was
+  database-only).
+- Stage 4's "Unseal transition built" was wrong — no function anywhere set
+  `tenders.status` to `'unsealed'` (or `'closed'`) before slice 1; the
+  close/unseal engine did not exist at all, not even as a stub. Slice 1
+  added `close_due_tenders()` (cron) and `unseal_tender()` (owner-only RPC).
+- Stage 4's "Scoring matrix ... engine built" is more precisely a
+  business-side-guarded direct INSERT (`tender_scores_business_insert` RLS
+  policy) — there is no `score_tender_application`-style function. Same
+  practical effect, different mechanism; worth knowing if a UI needs to
+  call something rather than insert directly.
+- The two live `'awarded'` tenders (`T-57B38C-0004` works, `T-57B38C-0005`
+  term) are seeded test data, not evidence of an organic award — both have
+  `published_at IS NULL`, which `publish_tender()` always sets, so they
+  never went through the real publish→close→unseal→award pipeline (which,
+  per the point above, did not fully exist yet anyway).
+
 ---
 
 ## Cross-cutting production-grade requirements
@@ -108,27 +133,34 @@ In-app badges are not enough for commercial commitments.
 
 ## Stage 2 — Contractor discovers, opens & responds
 
-**Entirely ⚙️/❌ — zero contractor UI exists. THIS IS THE CRITICAL PATH.**
-The contractor invited to T-57B38C-0007 literally cannot see it.
+**Mostly ✅ as of the 22 Oct 2026 correction — not "zero UI" as originally
+drafted here.** The contractor invited to T-57B38C-0007 CAN see it, via
+`?view=tenders` (though that view has no sidebar nav entry yet — typed URL
+only — and the notification link is broken, falling through to the generic
+`/dashboard`; both are real gaps, just not the ones this section originally
+described).
 
-- ❌ **Contractor tender pipeline** — inbox/list: invited / drafting /
-  submitted / won / lost / declined, with deadline countdowns and reminders.
-- ❌ **Tender detail ("the brief")** — scope as reading material, documents,
-  SLA, deadline countdown, all the business set. Reads like a brief, not a
-  form dump.
-- ❌ **Prequal RAG banner** — per-requirement traffic light ("2 of 3 met"),
-  the can-I-even-win-this signal, shown before any effort. Red (mandatory
-  unmet) blocks; one-tap to update prequal profile. Highest respect-for-time
-  signal on the platform.
-- ❌ **Application stepper** — generated from the business's requirement ticks
-  (the whole point: contractor faces a checklist someone else wrote, never a
-  blank page). Structured pricing inputs (rates card / lump sum / the
-  Stage-1 pricing schedule), references, methodology, etc.
-- ❌ **Save-draft-and-return** on an application; completeness meter; submit
-  disabled with plain-English reason until valid.
-- ❌ **Submit** — wired to the RED-block engine (`submit_tender_application`,
-  built & proven); no button yet.
-- ❌ **Decline-to-bid** with optional reason.
+- ✅ **Contractor tender pipeline** — `ContractorTendersPipeline.tsx`, built,
+  real data.
+- ✅ **Tender detail ("the brief")** — `ContractorTenderBrief.tsx`, built.
+- ✅ **Prequal RAG banner** — built in `ContractorTenderBrief.tsx`
+  (`ragForRequirement`, green/amber/red per requirement, blocking banner).
+- ✅ **Application stepper** — `ContractorApplicationStepper.tsx`, built for
+  references, methodology, and the dynamic pricing-schedule grid
+  (`tender_application_price_lines` upsert) — not just a fixed rates card.
+  Programme/subcontracting/declarations/RAMS still render as "coming soon"
+  placeholders inside the stepper.
+- ✅ **Save-draft-and-return** — works (`handleSave`). ❌ completeness meter
+  not built.
+- ✅ **Submit** — was a disabled button ("Coming in 2c"); slice 1
+  (database-only) added the `status='published'` + deadline guards to
+  `submit_tender_application` and left the trigger as the transition
+  backstop. **The Submit button itself is still disabled** — wiring the
+  screen to the now-ready RPC is a separate (screens) slice.
+- ❌ **Decline-to-bid** — still stubbed in the UI
+  (`ContractorTenderStub.tsx`). Slice 1 added `withdraw_tender_application`
+  (submitted → withdrawn only — see Stage 3's addenda note) at the database
+  layer; no screen wired to it yet either.
 - ⚠️ Prequal snapshot is server-stamped at submission (engine done); UI must
   show the contractor what will be snapshotted.
 
@@ -144,6 +176,12 @@ The contractor invited to T-57B38C-0007 literally cannot see it.
 - ⚙️ **Addenda** — business issues a correction/extension mid-tender;
   versioned; all bidders notified; submitted bidders re-acknowledge or
   withdraw-and-resubmit. Engine + immutability built. No UI. **Blocking.**
+  The `reconfirm_requested → submitted` re-acknowledgement transition
+  (`enforce_tender_application_immutability`'s existing trigger arm) has no
+  screen at all and is deliberately staying RPC-only until this addenda
+  slice builds one — not built as part of slice 1 (lifecycle lock), which
+  only added `withdraw_tender_application` for the separate
+  `submitted → withdrawn` path.
 - ❌ **Invitation status board (business)** — who's viewed / declined /
   drafting / submitted ("2 declined, 4 drafting, 1 submitted"). Engine
   tracks `viewed_at`/`declined`; no surface.
@@ -157,14 +195,29 @@ The contractor invited to T-57B38C-0007 literally cannot see it.
 
 **The business closes in on a decision. ⚙️ engine, ❌ UI.**
 
-- ⚙️ **Unseal** transition built; the sealed→unsealed moment needs its UI
-  (the "reveal" — padlock lifts, bids become readable).
+- ✅⚙️ **Unseal** transition — did NOT exist in any form before slice 1 (22
+  Oct 2026): no function anywhere set `tenders.status` to `'closed'` or
+  `'unsealed'`, and `tenders_business_all`'s RLS was wide open with zero
+  transition guard, so the two live `'awarded'` test tenders could only
+  have reached that status via direct SQL, not the app. Slice 1 added
+  `close_due_tenders()` (cron, `*/15 * * * *`, auto sealed→closed /
+  open→unsealed / zero-bids→lapsed) and `unseal_tender()` (owner-only RPC,
+  closed→unsealed). Engine now real; the sealed→unsealed "reveal" UI is
+  still ❌.
 - ❌ **Comparison screen ("the money screen")** — bids side by side, rates in
   aligned columns, prequal snapshot badges, written sections expandable.
   THE B2B sales demo moment. Reads the Stage-1 pricing schedule for
   line-by-line comparison → **build the pricing table first.**
 - ⚙️ **Scoring matrix** — per-criterion, per-scorer, weighted; immutable
-  post-award; engine built. No UI. Required for formal mode + defensibility.
+  post-award. More precisely: a business-side-guarded direct INSERT
+  (`tender_scores_business_insert` RLS policy — `business_can_view_application`
+  AND `scored_by = auth.uid()` AND not yet awarded), not a function — there
+  is no `score_tender_application`-style RPC. Same practical effect, but a
+  UI here inserts directly rather than calling something. No UI.
+  Required for formal mode + defensibility.
+- ❌ **Cancel tender** — not in the original plan; added by slice 1 as
+  `cancel_tender()` (owner-only, any status before `'awarded'`, reason
+  required, notifies every invited/applied contractor). No UI yet.
 - ❌ **Shortlisting** UI.
 - ⚠️ **Zero/one-bid paths** — reissue / extend / proceed-with-one; engine
   supports, UI must offer.

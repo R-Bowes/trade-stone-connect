@@ -11188,6 +11188,8 @@ export type Database = {
           budget_max: number | null
           budget_min: number | null
           budget_visible: boolean
+          cancelled_at: string | null
+          cancelled_by: string | null
           cancelled_reason: string | null
           closed_at: string | null
           company_id: string
@@ -11210,6 +11212,8 @@ export type Database = {
           title: string
           trade_categories: string[]
           tupe_applies: boolean | null
+          unsealed_at: string | null
+          unsealed_by: string | null
           updated_at: string
         }
         Insert: {
@@ -11219,6 +11223,8 @@ export type Database = {
           budget_max?: number | null
           budget_min?: number | null
           budget_visible?: boolean
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           cancelled_reason?: string | null
           closed_at?: string | null
           company_id: string
@@ -11241,6 +11247,8 @@ export type Database = {
           title: string
           trade_categories: string[]
           tupe_applies?: boolean | null
+          unsealed_at?: string | null
+          unsealed_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -11250,6 +11258,8 @@ export type Database = {
           budget_max?: number | null
           budget_min?: number | null
           budget_visible?: boolean
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           cancelled_reason?: string | null
           closed_at?: string | null
           company_id?: string
@@ -11272,9 +11282,32 @@ export type Database = {
           title?: string
           trade_categories?: string[]
           tupe_applies?: boolean | null
+          unsealed_at?: string | null
+          unsealed_by?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenders_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenders_company_id_fkey"
             columns: ["company_id"]
@@ -11315,6 +11348,27 @@ export type Database = {
             columns: ["sla_rule_set_id"]
             isOneToOne: false
             referencedRelation: "sla_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_unsealed_by_fkey"
+            columns: ["unsealed_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_unsealed_by_fkey"
+            columns: ["unsealed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_unsealed_by_fkey"
+            columns: ["unsealed_by"]
+            isOneToOne: false
+            referencedRelation: "public_pro_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -13071,6 +13125,10 @@ export type Database = {
         Returns: boolean
       }
       cancel_project_subcontract: { Args: { p_id: string }; Returns: undefined }
+      cancel_tender: {
+        Args: { p_reason: string; p_tender_id: string }
+        Returns: undefined
+      }
       cancel_work_order: {
         Args: { p_reason?: string; p_work_order_id: string }
         Returns: undefined
@@ -13088,6 +13146,7 @@ export type Database = {
         Args: { p_engagement_id: string }
         Returns: string
       }
+      close_due_tenders: { Args: never; Returns: undefined }
       company_billing_email: { Args: { p_company_id: string }; Returns: string }
       compliance_doc_contractor_id: {
         Args: { p_name: string }
@@ -13746,10 +13805,12 @@ export type Database = {
       }
       tender_company_id: { Args: { p_tender_id: string }; Returns: string }
       tender_id_from_storage_path: { Args: { p_name: string }; Returns: string }
+      tender_is_draft: { Args: { p_tender_id: string }; Returns: boolean }
       tender_status_for_application: {
         Args: { p_application_id: string }
         Returns: string
       }
+      unseal_tender: { Args: { p_tender_id: string }; Returns: undefined }
       update_credit_note_draft: {
         Args: { p_id: string; p_items: Json; p_reason: string }
         Returns: undefined
@@ -13768,6 +13829,10 @@ export type Database = {
       }
       withdraw_po_increase: {
         Args: { p_request_id: string }
+        Returns: undefined
+      }
+      withdraw_tender_application: {
+        Args: { p_application_id: string }
         Returns: undefined
       }
       work_order_company_flags: {

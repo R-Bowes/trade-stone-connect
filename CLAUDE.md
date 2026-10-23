@@ -873,6 +873,15 @@ DB enforces the owner invariant via the write policies — DB error surfaces ver
   two when adding a new document family — check whether it crosses a party
   boundary before picking a convention.
 
+## Work order invariant
+
+Every business job is a work order. A tender award must produce work
+orders, never a bare `jobs` insert. `convert_awarded_agreement_to_job`
+currently violates this (direct `INSERT INTO jobs`, no `work_orders` row)
+and is fixed in the award slice of the tendering build, not slice 1
+(lifecycle lock), which deliberately left `award_tender_agreement` and its
+downstream conversion functions untouched.
+
 ## Invoice invariants
 
 Enforced in the database by `20261006120000_invoice_rpcs.sql` and
