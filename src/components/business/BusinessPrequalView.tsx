@@ -199,7 +199,6 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
         .from("panel_prequalification")
         .upsert(
           {
-            id: record.id || undefined,
             company_id: next.company_id,
             contractor_id: next.contractor_id,
             public_liability_verified: next.public_liability_verified,
@@ -242,7 +241,12 @@ export function BusinessPrequalView({ companyId, profileId }: Props) {
 
       return saved;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
       toast({ variant: "destructive", title: "Update failed", description: msg });
       return null;
     } finally {
