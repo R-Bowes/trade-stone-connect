@@ -10593,6 +10593,7 @@ export type Database = {
           cover_note: string | null
           created_at: string
           declarations: Json | null
+          declared_at: string | null
           id: string
           lump_sum_total: number | null
           methodology: string | null
@@ -10612,6 +10613,7 @@ export type Database = {
           cover_note?: string | null
           created_at?: string
           declarations?: Json | null
+          declared_at?: string | null
           id?: string
           lump_sum_total?: number | null
           methodology?: string | null
@@ -10631,6 +10633,7 @@ export type Database = {
           cover_note?: string | null
           created_at?: string
           declarations?: Json | null
+          declared_at?: string | null
           id?: string
           lump_sum_total?: number | null
           methodology?: string | null
@@ -13314,6 +13317,10 @@ export type Database = {
         Args: { p_agreement_id: string; p_reason?: string }
         Returns: undefined
       }
+      decline_tender_invitation: {
+        Args: { p_invitation_id: string; p_reason?: string }
+        Returns: undefined
+      }
       decline_work_order: {
         Args: { p_reason: string; p_work_order_id: string }
         Returns: undefined
@@ -13781,7 +13788,7 @@ export type Database = {
         Returns: undefined
       }
       submit_tender_application: {
-        Args: { p_application_id: string }
+        Args: { p_application_id: string; p_declared?: boolean }
         Returns: undefined
       }
       submit_work_order_cost: {

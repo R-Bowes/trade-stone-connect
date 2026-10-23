@@ -10,7 +10,20 @@ export type ContractorPipelineState =
   | "not_selected"
   | "withdrawn"
   | "declined"
-  | "invitation_withdrawn";
+  | "invitation_withdrawn"
+  | "closed_not_submitted"
+  | "cancelled";
+
+type ApplicationStatus =
+  | "draft"
+  | "submitted"
+  | "withdrawn"
+  | "reconfirm_requested"
+  | "shortlisted"
+  | "awarded"
+  | "unsuccessful";
+
+type InvitationStatus = "invited" | "viewed" | "declined" | "withdrawn_by_business";
 
 export interface ContractorTenderInvitation {
   id: string;
@@ -31,6 +44,7 @@ export interface ContractorTenderRow {
   status: TenderStatus;
   bid_visibility: BidVisibility;
   response_deadline: string | null;
+  cancelled_reason: string | null;
   company_id: string;
   companyName: string | null;
   invitation: ContractorTenderInvitation | null;
@@ -45,40 +59,82 @@ interface UseContractorTendersResult {
   reload: () => void;
 }
 
-// Derives the contractor-framed pipeline state from the raw invitation +
-// application rows. An application, once it exists, always takes
-// precedence over invitation status -- the invitation was just the door in.
+function assertNever(x: never): never {
+  throw new Error(`useContractorTenders: unhandled value ${JSON.stringify(x)}`);
+}
+
+// Shared by a draft application and an un-actioned invitation: once the
+// tender itself is dead (cancelled, or closed/unsealed/lapsed/awarded with
+// no submission from this contractor), neither "drafting" nor "invited" is
+// honest any more -- the window to act is gone.
+function tenderAwareFallback(tenderStatus: TenderStatus, whenLive: "drafting" | "invited"): ContractorPipelineState {
+  switch (tenderStatus) {
+    case "cancelled":
+      return "cancelled";
+    case "lapsed":
+    case "closed":
+    case "unsealed":
+    case "awarded":
+      return "closed_not_submitted";
+    case "published":
+    case "draft":
+      // "draft" is unreachable for a contractor in practice --
+      // contractor_can_view_tender excludes draft tenders -- kept here
+      // only so this switch stays exhaustive against TenderStatus.
+      return whenLive;
+    default:
+      return assertNever(tenderStatus);
+  }
+}
+
+function deriveFromApplication(status: ApplicationStatus, tenderStatus: TenderStatus): ContractorPipelineState {
+  switch (status) {
+    case "awarded":
+      return "won";
+    case "unsuccessful":
+      return "not_selected";
+    case "withdrawn":
+      return "withdrawn";
+    case "submitted":
+    case "shortlisted":
+    case "reconfirm_requested":
+      return "submitted";
+    case "draft":
+      return tenderAwareFallback(tenderStatus, "drafting");
+    default:
+      return assertNever(status);
+  }
+}
+
+function deriveFromInvitation(status: InvitationStatus, tenderStatus: TenderStatus): ContractorPipelineState {
+  switch (status) {
+    case "declined":
+      return "declined";
+    case "withdrawn_by_business":
+      return "invitation_withdrawn";
+    case "invited":
+    case "viewed":
+      return tenderAwareFallback(tenderStatus, "invited");
+    default:
+      return assertNever(status);
+  }
+}
+
+// Derives the contractor-framed pipeline state from the tender itself plus
+// the raw invitation + application rows. An application, once it exists,
+// always takes precedence over invitation status -- the invitation was
+// just the door in. A draft application or an un-actioned invitation then
+// defers to the tender's own lifecycle state (see tenderAwareFallback).
 function derivePipelineState(
+  tenderStatus: TenderStatus,
   invitation: ContractorTenderInvitation | null,
   application: ContractorTenderApplication | null,
 ): ContractorPipelineState {
   if (application) {
-    switch (application.status) {
-      case "draft":
-        return "drafting";
-      case "submitted":
-      case "shortlisted":
-      case "reconfirm_requested":
-        return "submitted";
-      case "awarded":
-        return "won";
-      case "unsuccessful":
-        return "not_selected";
-      case "withdrawn":
-        return "withdrawn";
-      default:
-        return "submitted";
-    }
+    return deriveFromApplication(application.status as ApplicationStatus, tenderStatus);
   }
   if (invitation) {
-    switch (invitation.status) {
-      case "declined":
-        return "declined";
-      case "withdrawn_by_business":
-        return "invitation_withdrawn";
-      default:
-        return "invited";
-    }
+    return deriveFromInvitation(invitation.status as InvitationStatus, tenderStatus);
   }
   // Reachable only for an open-distribution tender the contractor applied
   // to directly (no invitation row) -- application is always non-null in
@@ -148,7 +204,7 @@ export function useContractorTenders(profileId: string | null): UseContractorTen
 
       const { data: tenderRows, error: tenderError } = await supabase
         .from("tenders")
-        .select("id, tender_number, title, tender_type, status, bid_visibility, response_deadline, company_id")
+        .select("id, tender_number, title, tender_type, status, bid_visibility, response_deadline, cancelled_reason, company_id")
         .in("id", tenderIds);
 
       if (cancelled) return;
@@ -179,7 +235,7 @@ export function useContractorTenders(profileId: string | null): UseContractorTen
           companyName: companyNameById.get(t.company_id) ?? null,
           invitation,
           application,
-          pipelineState: derivePipelineState(invitation, application),
+          pipelineState: derivePipelineState(t.status as TenderStatus, invitation, application),
         };
       });
 

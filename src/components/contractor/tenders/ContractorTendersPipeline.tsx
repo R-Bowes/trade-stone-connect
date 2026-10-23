@@ -9,16 +9,44 @@ interface Props {
   onOpenTender: (tenderId: string) => void;
 }
 
-const STATE_LABEL: Record<ContractorPipelineState, string> = {
-  invited: "Invited",
-  drafting: "Drafting",
-  submitted: "Submitted",
-  won: "Won",
-  not_selected: "Not selected",
-  withdrawn: "Withdrawn",
-  declined: "Declined",
-  invitation_withdrawn: "Invitation withdrawn",
-};
+function assertNever(x: never): never {
+  throw new Error(`ContractorTendersPipeline: unhandled value ${JSON.stringify(x)}`);
+}
+
+// "submitted" reads differently depending on what the tender itself is
+// doing -- still sealed and waiting, vs already closed and being reviewed
+// -- so the label is derived per-row, not a flat lookup.
+function stateLabel(t: ContractorTenderRow): string {
+  switch (t.pipelineState) {
+    case "invited":
+      return "Invited";
+    case "drafting":
+      return "Drafting";
+    case "submitted":
+      if (t.status === "published") {
+        return t.response_deadline
+          ? `Submitted: sealed until ${format(new Date(t.response_deadline), "d MMM yyyy")}`
+          : "Submitted: sealed";
+      }
+      return "Submitted: under review";
+    case "won":
+      return "Won";
+    case "not_selected":
+      return "Not selected";
+    case "withdrawn":
+      return "Withdrawn";
+    case "declined":
+      return "Declined";
+    case "invitation_withdrawn":
+      return "Invitation withdrawn";
+    case "closed_not_submitted":
+      return "Closed: not submitted";
+    case "cancelled":
+      return t.cancelled_reason ? `Cancelled: ${t.cancelled_reason}` : "Cancelled";
+    default:
+      return assertNever(t.pipelineState);
+  }
+}
 
 const STATE_COLOUR: Record<ContractorPipelineState, string> = {
   invited: "bg-blue-100 text-blue-800",
@@ -29,13 +57,32 @@ const STATE_COLOUR: Record<ContractorPipelineState, string> = {
   withdrawn: "bg-gray-100 text-gray-500",
   declined: "bg-gray-100 text-gray-500",
   invitation_withdrawn: "bg-gray-100 text-gray-500",
+  closed_not_submitted: "bg-gray-100 text-gray-500",
+  cancelled: "bg-gray-100 text-gray-500",
 };
 
 // Terminal, dead-end states rendered muted -- same convention as
 // BusinessTendersView's MUTED_STATUSES.
-const MUTED_STATES: ContractorPipelineState[] = ["not_selected", "withdrawn", "declined", "invitation_withdrawn"];
+const MUTED_STATES: ContractorPipelineState[] = [
+  "not_selected",
+  "withdrawn",
+  "declined",
+  "invitation_withdrawn",
+  "closed_not_submitted",
+  "cancelled",
+];
 
 type MetricKey = "actionNeeded" | "submitted" | "won" | "lost";
+
+// Action needed = invited or drafting on a published tender before its
+// deadline. Nothing else -- in particular, not reconfirm_requested
+// (that's a live "submitted" state, not an open door).
+function isActionNeeded(t: ContractorTenderRow): boolean {
+  if (t.pipelineState !== "invited" && t.pipelineState !== "drafting") return false;
+  if (t.status !== "published") return false;
+  if (t.response_deadline && new Date(t.response_deadline) <= new Date()) return false;
+  return true;
+}
 
 // Exhaustive switch (not if/else) so a future pipeline state fails loudly
 // via TS rather than silently falling through to a generic label.
@@ -53,7 +100,11 @@ function rowActionLabel(t: ContractorTenderRow): string {
     case "withdrawn":
     case "declined":
     case "invitation_withdrawn":
+    case "closed_not_submitted":
+    case "cancelled":
       return "View";
+    default:
+      return assertNever(t.pipelineState);
   }
 }
 
@@ -62,9 +113,7 @@ export function ContractorTendersPipeline({ profileId, onOpenTender }: Props) {
   const [activeMetric, setActiveMetric] = useState<MetricKey | null>(null);
 
   const metrics = useMemo(() => {
-    const actionNeeded = tenders.filter(
-      (t) => t.pipelineState === "invited" || t.pipelineState === "drafting" || t.application?.status === "reconfirm_requested",
-    ).length;
+    const actionNeeded = tenders.filter(isActionNeeded).length;
     const submitted = tenders.filter((t) => t.pipelineState === "submitted").length;
     const won = tenders.filter((t) => t.pipelineState === "won").length;
     const lost = tenders.filter((t) => t.pipelineState === "not_selected").length;
@@ -79,7 +128,7 @@ export function ContractorTendersPipeline({ profileId, onOpenTender }: Props) {
   ];
 
   const METRIC_FILTER: Record<MetricKey, (t: ContractorTenderRow) => boolean> = {
-    actionNeeded: (t) => t.pipelineState === "invited" || t.pipelineState === "drafting" || t.application?.status === "reconfirm_requested",
+    actionNeeded: isActionNeeded,
     submitted: (t) => t.pipelineState === "submitted",
     won: (t) => t.pipelineState === "won",
     lost: (t) => t.pipelineState === "not_selected",
@@ -170,7 +219,7 @@ export function ContractorTendersPipeline({ profileId, onOpenTender }: Props) {
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-medium truncate">{t.title}</p>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATE_COLOUR[t.pipelineState]}`}>
-                                {STATE_LABEL[t.pipelineState]}
+                                {stateLabel(t)}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">

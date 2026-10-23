@@ -113,6 +113,19 @@ export async function resolveNotificationRoute(notif: ResolvableNotification): P
         ? `/dashboard/contractor?view=panel-compliance`
         : `/dashboard/business?view=tenders`;
 
+    case "tender":
+      // Contractor-side notifications (invitation, awarded, etc.) open the
+      // tender's own brief; business-side ones (close_due_tenders'
+      // lapsed/closed notifications, cancel_tender's) open the business
+      // detail view. Any other role has no tender surface at all.
+      if (role === "contractor") {
+        return refId ? `/dashboard/contractor?view=tenders&tender=${refId}` : "/dashboard/contractor?view=tenders";
+      }
+      if (role === "business") {
+        return refId ? `/dashboard/business?view=tender-detail&tender=${refId}` : "/dashboard/business?view=tenders";
+      }
+      return "/dashboard";
+
     case "contractor_verification":
       return "/dashboard/contractor?view=verification";
 

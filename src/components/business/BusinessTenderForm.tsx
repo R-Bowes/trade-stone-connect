@@ -333,7 +333,7 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
         supabase
           .from("tenders")
           .select(
-            "id, tender_number, title, tender_type, trade_categories, response_deadline, scope_description, sla_rule_set_id, bid_visibility, distribution",
+            "id, tender_number, title, tender_type, status, trade_categories, response_deadline, scope_description, sla_rule_set_id, bid_visibility, distribution",
           )
           .eq("id", paramTenderId)
           .maybeSingle(),
@@ -358,6 +358,15 @@ export function BusinessTenderForm({ companyId, profileId }: Props) {
           .select("contractor_id")
           .eq("tender_id", paramTenderId),
       ]);
+
+      if (tender && tender.status !== "draft") {
+        // This form only ever edits a draft -- once published, the content
+        // lock means every field here is dead. A typed/stale URL for a
+        // non-draft tender goes to the detail view instead of showing
+        // fields that can no longer be changed.
+        navigate(`/dashboard/business?view=tender-detail&tender=${tender.id}`, { replace: true });
+        return;
+      }
 
       if (tender) {
         const loadedSiteIds = (siteLinks ?? []).map((r) => r.site_id);

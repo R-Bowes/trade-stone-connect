@@ -5,13 +5,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, FileText, ArrowLeft, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 interface Props {
   profileId: string;
   tenderId: string;
   onBack: () => void;
-  onStub: (mode: "ask" | "decline" | "apply") => void;
+  onStub: (mode: "ask" | "apply") => void;
 }
 
 interface TenderDetail {
@@ -220,6 +222,9 @@ export function ContractorTenderBrief({ profileId, tenderId, onBack, onStub }: P
   const [prequalRecord, setPrequalRecord] = useState<PrequalRecordFields | null>(null);
   const [invitation, setInvitation] = useState<InvitationInfo | null>(null);
   const [application, setApplication] = useState<ApplicationInfo | null>(null);
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declining, setDeclining] = useState(false);
 
   const viewedMarked = useRef(false);
 
@@ -302,6 +307,24 @@ export function ContractorTenderBrief({ profileId, tenderId, onBack, onStub }: P
       if (error) console.warn("mark_tender_invitation_viewed:", error.message);
     });
   }, [invitation]);
+
+  const handleDecline = async () => {
+    if (!invitation) return;
+    setDeclining(true);
+    const { error } = await supabase.rpc("decline_tender_invitation", {
+      p_invitation_id: invitation.id,
+      p_reason: declineReason.trim() || null,
+    });
+    setDeclining(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Could not decline", description: error.message });
+      return;
+    }
+    setDeclineOpen(false);
+    setDeclineReason("");
+    toast({ title: "Invitation declined" });
+    load();
+  };
 
   const handleViewDocument = async (doc: DocumentInfo) => {
     const { data, error } = await supabase.storage.from("tender-documents").createSignedUrl(doc.file_path, 300);
@@ -543,7 +566,7 @@ export function ContractorTenderBrief({ profileId, tenderId, onBack, onStub }: P
               <Button variant="outline" onClick={() => onStub("ask")}>Ask a question</Button>
             )}
             {canDecline && (
-              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => onStub("decline")}>
+              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeclineOpen(true)}>
                 Decline
               </Button>
             )}
@@ -553,6 +576,34 @@ export function ContractorTenderBrief({ profileId, tenderId, onBack, onStub }: P
           </>
         )}
       </div>
+
+      <Dialog open={declineOpen} onOpenChange={(v) => { if (!declining) { setDeclineOpen(v); if (!v) setDeclineReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline this invitation?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {company?.name ?? "The business"} will be notified that you won't be bidding on {tender.title}.
+          </p>
+          <div className="space-y-1.5">
+            <label htmlFor="decline-reason" className="text-xs text-muted-foreground">
+              Reason (optional)
+            </label>
+            <Textarea
+              id="decline-reason"
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="e.g. Outside our current capacity"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={declining} onClick={() => setDeclineOpen(false)}>Back</Button>
+            <Button variant="destructive" disabled={declining} onClick={handleDecline}>
+              {declining ? "Declining…" : "Decline invitation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

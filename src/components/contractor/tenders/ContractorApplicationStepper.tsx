@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ArrowLeft, CheckCircle2, Circle, Trash2 } from "lucide-react";
 
 interface Props {
@@ -131,6 +133,26 @@ function parseRate(v: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Minimal duplicate of the three mappable kinds in ContractorTenderBrief.tsx
+// -- only what's needed here to block Submit on a red (unmet mandatory)
+// prequal requirement; the brief itself owns the full RAG display.
+type PrequalRecordFields = {
+  public_liability_verified: boolean;
+  employers_liability_verified: boolean;
+  trade_cert_verified: boolean;
+};
+
+const MAPPABLE_PREQUAL_VERIFIED_FIELDS: Record<string, keyof PrequalRecordFields> = {
+  public_liability: "public_liability_verified",
+  employers_liability: "employers_liability_verified",
+  trade_cert: "trade_cert_verified",
+};
+
+interface PrequalRequirementRow {
+  kind: string;
+  mandatory: boolean;
+}
+
 export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -139,11 +161,21 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
 
   const [applicationId, setApplicationId] = useState<string | null>(null);
   const [applicationNumber, setApplicationNumber] = useState<string | null>(null);
+  const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [tenderTitle, setTenderTitle] = useState<string | null>(null);
+  const [tenderStatus, setTenderStatus] = useState<string | null>(null);
+  const [tenderDeadline, setTenderDeadline] = useState<string | null>(null);
   const [requirementRows, setRequirementRows] = useState<ResponseRequirementRow[]>([]);
+  const [prequalBlocked, setPrequalBlocked] = useState(false);
+  const [prequalSummary, setPrequalSummary] = useState<{ label: string; met: boolean }[]>([]);
 
   const [form, setForm] = useState<FormState>({ coverNote: "", methodology: "", references: [], priceLines: {} });
   const [existingReferencesById, setExistingReferencesById] = useState<Map<string, ExistingReferenceSnapshot>>(new Map());
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [declared, setDeclared] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,16 +197,48 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
     setApplicationId(appId);
 
     const [{ data: tenderRow }, { data: appRow }, { data: reqRows }, { data: refRows }, { data: priceRows }] = await Promise.all([
-      supabase.from("tenders").select("title").eq("id", tenderId).maybeSingle(),
-      supabase.from("tender_applications").select("application_number, cover_note, methodology").eq("id", appId).maybeSingle(),
+      supabase.from("tenders").select("title, status, response_deadline, company_id").eq("id", tenderId).maybeSingle(),
+      supabase.from("tender_applications").select("application_number, status, cover_note, methodology").eq("id", appId).maybeSingle(),
       supabase.from("tender_response_requirements").select("kind, config").eq("tender_id", tenderId),
       supabase.from("tender_application_references").select("id, client_name, contact, project_summary").eq("application_id", appId),
       supabase.from("tender_application_price_lines").select("row_id, rate").eq("application_id", appId),
     ]);
 
     setTenderTitle(tenderRow?.title ?? null);
+    setTenderStatus(tenderRow?.status ?? null);
+    setTenderDeadline(tenderRow?.response_deadline ?? null);
     setApplicationNumber(appRow?.application_number ?? null);
+    setApplicationStatus(appRow?.status ?? null);
     setRequirementRows((reqRows ?? []) as ResponseRequirementRow[]);
+
+    if (tenderRow?.company_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const [{ data: prequalReqs }, { data: prequalRow }] = await Promise.all([
+        supabase.from("tender_prequal_requirements").select("kind, mandatory").eq("tender_id", tenderId),
+        user
+          ? supabase
+              .from("panel_prequalification")
+              .select("public_liability_verified, employers_liability_verified, trade_cert_verified")
+              .eq("contractor_id", user.id)
+              .eq("company_id", tenderRow.company_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      const record = (prequalRow as PrequalRecordFields | null) ?? null;
+      const rows = (prequalReqs ?? []) as PrequalRequirementRow[];
+      const summary = rows
+        .filter((r) => MAPPABLE_PREQUAL_VERIFIED_FIELDS[r.kind])
+        .map((r) => {
+          const field = MAPPABLE_PREQUAL_VERIFIED_FIELDS[r.kind];
+          const met = !!record && !!record[field];
+          return { label: field.replace(/_verified$/, "").replace(/_/g, " "), met, mandatory: r.mandatory };
+        });
+      setPrequalSummary(summary.map((s) => ({ label: s.label, met: s.met })));
+      setPrequalBlocked(summary.some((s) => s.mandatory && !s.met));
+    } else {
+      setPrequalSummary([]);
+      setPrequalBlocked(false);
+    }
 
     const loadedReferences: ReferenceRowState[] = (refRows ?? []).map((r) => {
       const { contactName, contactEmail, contactPhone } = contactToFields(r.contact);
@@ -230,7 +294,15 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
   const referencesComplete = form.references.filter((r) => r.clientName.trim()).length >= referencesRequiredCount;
   const methodologyComplete = form.methodology.trim().length > 0;
   const coverNoteComplete = form.coverNote.trim().length > 0;
-  const pricedRowCount = pricingConfig ? pricingConfig.rows.filter((row) => form.priceLines[row.id]?.trim()).length : 0;
+  // Matches the server rule in submit_tender_application exactly: a row
+  // counts as priced when its rate is NOT NULL and >= 0 (zero = "included",
+  // allowed; blank, or a negative value, is not).
+  const pricedRowCount = pricingConfig
+    ? pricingConfig.rows.filter((row) => {
+        const rate = parseRate(form.priceLines[row.id]);
+        return rate !== null && rate >= 0;
+      }).length
+    : 0;
   const pricingComplete = !!pricingConfig && pricingConfig.rows.length > 0 && pricedRowCount >= pricingConfig.rows.length;
 
   const trackedSections: { key: string; complete: boolean }[] = [
@@ -240,6 +312,20 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
     ...(pricingRequirement ? [{ key: "pricing_schedule", complete: pricingComplete }] : []),
   ];
   const completedCount = trackedSections.filter((s) => s.complete).length;
+  const sectionsComplete = trackedSections.every((s) => s.complete);
+
+  const readOnly = applicationStatus !== null && applicationStatus !== "draft";
+  const deadlinePassed = tenderDeadline ? new Date(tenderDeadline) <= new Date() : false;
+  const tenderPublished = tenderStatus === "published";
+  const canSubmit = tenderPublished && !deadlinePassed && !prequalBlocked && sectionsComplete;
+
+  const submitBlockedReasons: string[] = [];
+  if (!tenderPublished) submitBlockedReasons.push("this tender is no longer open");
+  if (tenderPublished && deadlinePassed) submitBlockedReasons.push("the deadline has passed");
+  if (prequalBlocked) submitBlockedReasons.push("a mandatory prequalification requirement isn't met");
+  if (!sectionsComplete) submitBlockedReasons.push("not every required section is complete");
+
+  const canWithdraw = applicationStatus === "submitted" && !deadlinePassed;
 
   const addReferenceRow = () => {
     setForm((f) => ({
@@ -384,6 +470,45 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
     return true;
   };
 
+  const handleOpenConfirm = async () => {
+    // Save whatever's on screen first so the frozen prequal snapshot and
+    // completeness check the server runs are against the latest content.
+    const saved = await handleSave();
+    if (!saved) return;
+    setDeclared(false);
+    setConfirmOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!applicationId) return;
+    setSubmitting(true);
+    const { error } = await supabase.rpc("submit_tender_application", {
+      p_application_id: applicationId,
+      p_declared: declared,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: "Could not submit", description: error.message, variant: "destructive" });
+      return;
+    }
+    setConfirmOpen(false);
+    setApplicationStatus("submitted");
+    toast({ title: "Application submitted" });
+  };
+
+  const handleWithdraw = async () => {
+    if (!applicationId) return;
+    setWithdrawing(true);
+    const { error } = await supabase.rpc("withdraw_tender_application", { p_application_id: applicationId });
+    setWithdrawing(false);
+    if (error) {
+      toast({ title: "Could not withdraw", description: error.message, variant: "destructive" });
+      return;
+    }
+    setApplicationStatus("withdrawn");
+    toast({ title: "Application withdrawn" });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -448,6 +573,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
             placeholder="Introduce your bid — why you, in brief..."
             rows={5}
             value={form.coverNote}
+            disabled={readOnly}
             onChange={(e) => setForm((f) => ({ ...f, coverNote: e.target.value }))}
           />
         </CardContent>
@@ -472,29 +598,32 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
                   <div key={r.id} className="border border-border rounded-md p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reference {i + 1}</p>
-                      <Button variant="ghost" size="sm" onClick={() => removeReferenceRow(r.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!readOnly && (
+                        <Button variant="ghost" size="sm" onClick={() => removeReferenceRow(r.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Client name</Label>
                       <Input
                         value={r.clientName}
+                        disabled={readOnly}
                         onChange={(e) => updateReferenceRow(r.id, { clientName: e.target.value })}
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Contact name</Label>
-                        <Input value={r.contactName} onChange={(e) => updateReferenceRow(r.id, { contactName: e.target.value })} />
+                        <Input value={r.contactName} disabled={readOnly} onChange={(e) => updateReferenceRow(r.id, { contactName: e.target.value })} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Contact email</Label>
-                        <Input type="email" value={r.contactEmail} onChange={(e) => updateReferenceRow(r.id, { contactEmail: e.target.value })} />
+                        <Input type="email" value={r.contactEmail} disabled={readOnly} onChange={(e) => updateReferenceRow(r.id, { contactEmail: e.target.value })} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Contact phone</Label>
-                        <Input value={r.contactPhone} onChange={(e) => updateReferenceRow(r.id, { contactPhone: e.target.value })} />
+                        <Input value={r.contactPhone} disabled={readOnly} onChange={(e) => updateReferenceRow(r.id, { contactPhone: e.target.value })} />
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -502,13 +631,14 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
                       <Textarea
                         rows={2}
                         value={r.projectSummary}
+                        disabled={readOnly}
                         onChange={(e) => updateReferenceRow(r.id, { projectSummary: e.target.value })}
                       />
                     </div>
                   </div>
                 ))}
 
-                {form.references.length < referencesRequiredCount && (
+                {!readOnly && form.references.length < referencesRequiredCount && (
                   <Button type="button" size="sm" variant="outline" onClick={addReferenceRow}>
                     + Add reference
                   </Button>
@@ -532,6 +662,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
                   placeholder="Describe how you'll approach the work..."
                   rows={6}
                   value={form.methodology}
+                  disabled={readOnly}
                   onChange={(e) => setForm((f) => ({ ...f, methodology: e.target.value }))}
                 />
               </CardContent>
@@ -587,6 +718,7 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
                           step="0.01"
                           className="w-32"
                           value={form.priceLines[row.id] ?? ""}
+                          disabled={readOnly}
                           onChange={(e) => setRate(row.id, e.target.value)}
                         />
                       </div>
@@ -617,18 +749,80 @@ export function ContractorApplicationStepper({ tenderId, onBack }: Props) {
         );
       })}
 
-      <div className="flex items-center justify-between pt-2 border-t">
-        <p className="text-sm text-muted-foreground">Not ready to submit — pricing and submission are still being built.</p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" disabled title="Coming in 2c">
-            Submit application
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Save draft
-          </Button>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t">
+        {readOnly ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {applicationStatus === "withdrawn"
+                ? "You withdrew this application."
+                : applicationStatus === "awarded"
+                  ? "This application was awarded."
+                  : applicationStatus === "unsuccessful"
+                    ? "This application was not successful."
+                    : "Application submitted — you can withdraw it until the deadline."}
+            </p>
+            {canWithdraw && (
+              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={handleWithdraw} disabled={withdrawing}>
+                {withdrawing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Withdraw application
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {submitBlockedReasons.length > 0 ? `Can't submit yet — ${submitBlockedReasons.join("; ")}.` : "Ready to submit."}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleOpenConfirm} disabled={!canSubmit || saving}>
+                Submit application
+              </Button>
+              <Button variant="outline" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save draft
+              </Button>
+            </div>
+          </>
+        )}
       </div>
+
+      <Dialog open={confirmOpen} onOpenChange={(v) => { if (!submitting) setConfirmOpen(v); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit this application?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Your prequalification record will be frozen with this bid, as it stands now:
+          </p>
+          <div className="space-y-1.5">
+            {prequalSummary.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No prequalification requirements apply to this tender.</p>
+            ) : (
+              prequalSummary.map((item) => (
+                <div key={item.label} className="flex items-center justify-between text-sm border rounded-md p-2">
+                  <span className="capitalize">{item.label}</span>
+                  <Badge variant="outline" className={item.met ? "bg-green-100 text-green-800 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200"}>
+                    {item.met ? "Verified" : "Not verified"}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex items-start gap-2 pt-2">
+            <Checkbox id="declare" checked={declared} onCheckedChange={(v) => setDeclared(v === true)} className="mt-0.5" />
+            <Label htmlFor="declare" className="text-sm font-normal leading-snug">
+              The information and certificates in this bid are true and currently in force.
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>Back</Button>
+            <Button disabled={!declared || submitting} onClick={handleSubmit}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Submit application
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -42,20 +42,21 @@ export function ContractorTendersView({ profileId }: Props) {
     }, { replace: true });
   };
 
-  const goStub = (m: "ask" | "decline" | "apply") => {
+  const goStub = (m: "ask" | "apply") => {
     setSearchParams((prev) => {
       prev.set("mode", m);
       return prev;
     }, { replace: true });
   };
 
-  // "apply" gets the real stepper; "ask"/"decline" still land on the
-  // generic stub (out of scope for this slice).
+  // "apply" gets the real stepper; "ask" still lands on the generic stub
+  // (clarifications slice, out of scope here). Decline no longer routes
+  // through mode navigation -- it's a dialog inline on the brief itself.
   if (tenderId && mode === "apply") {
     return <ContractorApplicationStepper tenderId={tenderId} onBack={backToBrief} />;
   }
 
-  if (tenderId && mode) {
+  if (tenderId && mode === "ask") {
     return <ContractorTenderStub mode={mode} onBack={backToBrief} />;
   }
 

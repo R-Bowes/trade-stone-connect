@@ -2,13 +2,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 // Mirrors BusinessTenderStub.tsx's role: a shared "coming soon" destination
-// for every contractor-side tender action not yet built. Ask a question,
-// Decline, and Start application all land here this slice — split into
-// real destinations independently once each is built, without touching
-// the brief that routes to them.
+// for contractor-side tender actions not yet built. Decline now has a real
+// destination (a dialog on the brief itself); Ask a question still lands
+// here (clarifications slice) — split out independently once it's built,
+// without touching the brief that routes to it.
 const MODE_COPY: Record<string, string> = {
   ask: "Asking clarification questions is coming in the next build.",
-  decline: "Declining an invitation is coming in the next build.",
   apply: "Submitting an application is coming in the next build.",
 };
 
